@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#070b12" />
+    <meta
+      name="description"
+      content="Open-source MES and MNQ futures research, replay, risk and signal lab."
+    />
+    <title>Aegis Futures Lab — Free Research Edition</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/agent.css" />
+    <link rel="stylesheet" href="/outcomes.css" />
+    <script
+      defer
+      src="https://unpkg.com/lightweight-charts@5.0.9/dist/lightweight-charts.standalone.production.js"
+    ></script>
+    <script defer src="/app.js"></script>
+    <script defer src="/agent.js"></script>
+    <script defer src="/outcomes.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <a class="brand" href="#dashboard"
+          ><span class="logo">A</span
+          ><span>AEGIS<small>FUTURES LAB</small></span></a
+        >
+        <nav>
+          <button data-page="dashboard">Markets</button>
+          <button class="active nav-results" data-page="outcomes">
+            Results · 30/40/60
+          </button>
+          <button data-page="replay">Data & replay</button>
+          <button data-page="signals">Signals & zones</button>
+          <button data-page="agent">Paper agent</button>
+          <button data-page="risk">Risk engine</button>
+          <button data-page="news">News lockouts</button>
+          <button data-page="system">System status</button>
+        </nav>
+        <div class="edition">
+          <b>FREE RESEARCH EDITION</b><br />Open-source stack · No broker
+          routing
+        </div>
+      </aside>
+
+      <main>
+        <header>
+          <div>
+            <b id="page-title">Strategy results</b
+            ><small id="ny-clock">New York —</small>
+          </div>
+          <div class="status-row">
+            <span class="chip amber" id="feed-chip">CONNECTING</span>
+            <span class="chip" id="session-chip">SESSION —</span>
+            <span class="chip" id="agent-chip">PAPER AGENT OFF</span>
+            <span class="chip red">EXECUTION LOCKED</span>
+            <button class="icon-button" id="refresh" title="Refresh data">
+              ↻
+            </button>
+          </div>
+        </header>
+
+        <section class="page" id="dashboard">
+          <div class="heading">
+            <div>
+              <h1>Market command center</h1>
+              <p>Explainable MES/MNQ research with hard risk controls.</p>
+            </div>
+            <div class="source-line" id="last-update">Waiting for data…</div>
+          </div>
+          <div class="notice" id="data-notice">
+            <b>Free delayed-data mode.</b> Prices are for research and must
+            never authorize execution.
+          </div>
+          <div class="kpis">
+            <article>
+              <small>MES LAST</small><strong id="mes-price">—</strong
+              ><span id="mes-change">Connecting…</span>
+            </article>
+            <article>
+              <small>MNQ LAST</small><strong id="mnq-price">—</strong
+              ><span id="mnq-change">Connecting…</span>
+            </article>
+            <article>
+              <small>MARKET BIAS</small><strong id="bias">—</strong
+              ><span id="bias-detail">Awaiting candles</span>
+            </article>
+            <article>
+              <small>ZONE SCORE</small><strong id="zone-score">—</strong
+              ><span id="zone-detail">Deterministic engine</span>
+            </article>
+            <article>
+              <small>RISK CAP</small><strong>$160</strong
+              ><span>Absolute portfolio limit</span>
+            </article>
+          </div>
+          <div class="dashboard-grid">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h2 id="chart-heading">MES · 1 MINUTE</h2>
+                  <small id="chart-provenance">Source pending</small>
+                </div>
+                <div class="segmented">
+                  <button class="active" data-symbol="MES">MES</button
+                  ><button data-symbol="MNQ">MNQ</button>
+                </div>
+              </div>
+              <div id="chart"></div>
+              <div class="chart-fallback" id="chart-fallback">
+                Chart library loading…
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>DECISION GATE</h2>
+                  <small>Every condition is explicit</small>
+                </div>
+                <span class="badge red" id="gate-badge">BLOCKED</span>
+              </div>
+              <div class="gate" id="gate-copy">
+                <b>Waiting for market data</b
+                ><span
+                  >The strategy engine starts after candle validation.</span
+                >
+              </div>
+              <div class="checks" id="checks"></div>
+            </article>
+          </div>
+          <div class="lower-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>ACTIVE RESEARCH ZONES</h2>
+                  <small>Calculated from loaded candles</small>
+                </div>
+              </div>
+              <div class="zone-list" id="zone-list">
+                <div class="empty">No calculated zones yet.</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>NEXT EVENT LOCKOUT</h2>
+                  <small>Official public-source schedule</small>
+                </div>
+              </div>
+              <div class="event-card" id="next-event">
+                <b>Loading public calendar…</b>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="page active outcomes-page" id="outcomes">
+          <div class="outcomes-hero">
+            <div>
+              <span class="eyebrow">ROLLING RULE-ENGINE STUDY</span>
+              <h1>Strategy outcomes</h1>
+              <p>
+                MNQ and MES performance under the same deterministic structure,
+                zone, intermarket and risk rules.
+              </p>
+            </div>
+            <button class="outcome-refresh" id="outcome-refresh">
+              ↻ Refresh results
+            </button>
+          </div>
+          <div class="period-selector">
+            <div class="period-copy">
+              <b>Choose the time period</b
+              ><span>Tap a button to update every chart and result below.</span>
+            </div>
+            <div
+              class="window-tabs"
+              role="group"
+              aria-label="Choose strategy result period"
+            >
+              <button data-outcome-days="30">
+                <small>LAST</small><strong>30 days</strong>
+              </button>
+              <button data-outcome-days="40">
+                <small>LAST</small><strong>40 days</strong>
+              </button>
+              <button class="active" data-outcome-days="60" aria-pressed="true">
+                <small>LAST</small><strong>60 days</strong>
+              </button>
+            </div>
+            <div class="selected-period">
+              <small>VIEWING</small><b id="outcome-selected">Last 60 days</b>
+            </div>
+          </div>
+          <div class="research-strip">
+            <span class="pulse-dot"></span>
+            <div>
+              <b id="outcome-status">Historical engine awaiting data</b
+              ><small id="outcome-provenance"
+                >60m bias · 5m zones · completed-candle execution proxy</small
+              >
+            </div>
+            <span class="method-badge">NO LOOK-AHEAD</span>
+          </div>
+          <div class="outcome-warning">
+            <b>Research proxy—not a performance claim.</b> Free 60-day history
+            is available at five-minute resolution. The historical study uses
+            the completed five-minute confirmation candle and enters on the next
+            candle; it never fabricates one-minute data.
+          </div>
+
+          <div class="outcome-kpis" id="outcome-kpis">
+            <article class="outcome-skeleton"></article>
+            <article class="outcome-skeleton"></article>
+            <article class="outcome-skeleton"></article>
+            <article class="outcome-skeleton"></article>
+            <article class="outcome-skeleton"></article>
+            <article class="outcome-skeleton"></article>
+          </div>
+
+          <div class="instrument-grid" id="instrument-results">
+            <article class="instrument-card loading-card">
+              <div class="skeleton-line wide"></div>
+              <div class="skeleton-line"></div>
+            </article>
+            <article class="instrument-card loading-card">
+              <div class="skeleton-line wide"></div>
+              <div class="skeleton-line"></div>
+            </article>
+          </div>
+
+          <div class="outcome-main-grid">
+            <article class="panel outcome-chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>PORTFOLIO EQUITY</h2>
+                  <small id="equity-subtitle"
+                    >Strict MES/MNQ confirmation versus filter-off
+                    baseline</small
+                  >
+                </div>
+                <div class="chart-legend">
+                  <span><i class="strict-line"></i>Strict rules</span
+                  ><span><i class="base-line"></i>Filter off</span>
+                </div>
+              </div>
+              <div class="equity-chart" id="equity-chart">
+                <div class="outcome-loading">Building historical test…</div>
+              </div>
+            </article>
+            <article class="panel outcome-verdict" id="outcome-verdict">
+              <div class="panel-head">
+                <div>
+                  <h2>ROBUSTNESS READ</h2>
+                  <small>Evidence across rolling windows</small>
+                </div>
+                <span class="badge">PENDING</span>
+              </div>
+              <div class="outcome-loading">Waiting for completed runs…</div>
+            </article>
+          </div>
+
+          <div class="outcome-detail-grid outcome-advanced-block">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>RULE QUALIFICATION FUNNEL</h2>
+                  <small>Why candles did not become trades</small>
+                </div>
+              </div>
+              <div class="rule-funnel" id="rule-funnel">
+                <div class="outcome-loading">Calculating rule diagnostics…</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>INTERMARKET EFFECT</h2>
+                  <small
+                    >Strict second-arrival filter compared with disabled</small
+                  >
+                </div>
+              </div>
+              <div class="intermarket-impact" id="intermarket-impact">
+                <div class="outcome-loading">Calculating comparison…</div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel window-panel">
+            <div class="panel-head">
+              <div>
+                <h2>30 / 40 / 60 DAY STABILITY</h2>
+                <small
+                  >Same rules and starting capital in every rolling
+                  window</small
+                >
+              </div>
+              <span class="badge green">$2,000 START</span>
+            </div>
+            <div class="table-scroll">
+              <table class="window-table">
+                <thead>
+                  <tr>
+                    <th>Window</th>
+                    <th>Sessions</th>
+                    <th>Trades</th>
+                    <th>Net P&amp;L</th>
+                    <th>Win rate</th>
+                    <th>Profit factor</th>
+                    <th>Average R</th>
+                    <th>Max drawdown</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody id="window-matrix">
+                  <tr>
+                    <td colspan="9" class="empty">Loading outcome windows…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <button
+            class="details-toggle"
+            id="outcome-details-toggle"
+            aria-expanded="false"
+          >
+            Show detailed rules and trade ledger ↓
+          </button>
+
+          <div
+            class="outcome-detail-grid lower-outcomes outcome-advanced-block"
+          >
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>SCORE BUCKETS</h2>
+                  <small>Outcome by zone qualification score</small>
+                </div>
+              </div>
+              <div class="score-buckets" id="score-buckets">
+                <div class="outcome-loading">Waiting for trades…</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>RULES APPLIED</h2>
+                  <small>Exact assumptions behind these numbers</small>
+                </div>
+              </div>
+              <div class="assumption-list">
+                <div>
+                  <b>Market structure</b
+                  ><span>Confirmed 60m HH/HL or LH/LL sequence</span>
+                </div>
+                <div>
+                  <b>Entry model</b
+                  ><span
+                    >5m zone score ≥80, return and direction candle; next-bar
+                    entry</span
+                  >
+                </div>
+                <div>
+                  <b>Intermarket</b
+                  ><span
+                    >Second MES/MNQ corresponding-zone arrival within 30
+                    minutes; simultaneous arrivals are neutral</span
+                  >
+                </div>
+                <div>
+                  <b>Risk</b
+                  ><span
+                    >$160 maximum loss, whole contracts, fees and slippage
+                    included</span
+                  >
+                </div>
+                <div>
+                  <b>Management</b
+                  ><span
+                    >2R target, structural stop, conservative stop-first
+                    same-bar fill, session exit</span
+                  >
+                </div>
+                <div>
+                  <b>Locks</b
+                  ><span
+                    >3 trades/day, $320 daily loss, 2 consecutive losses, $400
+                    drawdown</span
+                  >
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel outcome-trades outcome-advanced-block">
+            <div class="panel-head">
+              <div>
+                <h2>QUALIFIED TRADE LEDGER</h2>
+                <small id="trade-ledger-subtitle"
+                  >Most recent completed plans</small
+                >
+              </div>
+              <button class="small-button" id="outcome-export">
+                Export CSV
+              </button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Opened</th>
+                    <th>Contract</th>
+                    <th>Side</th>
+                    <th>Score</th>
+                    <th>Entry</th>
+                    <th>Stop</th>
+                    <th>Target</th>
+                    <th>Qty</th>
+                    <th>Risk</th>
+                    <th>Exit reason</th>
+                    <th>P&amp;L</th>
+                    <th>R</th>
+                  </tr>
+                </thead>
+                <tbody id="outcome-trade-body">
+                  <tr>
+                    <td colspan="12" class="empty">
+                      Historical engine is loading.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="replay">
+          <div class="heading">
+            <div>
+              <h1>Data import & replay</h1>
+              <p>
+                Use your own 1-minute MES or MNQ data without sending it to a
+                server.
+              </p>
+            </div>
+          </div>
+          <div class="two-col">
+            <article class="panel upload-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>IMPORT CSV</h2>
+                  <small>Processed locally in your browser</small>
+                </div>
+              </div>
+              <label class="drop" for="csv-file"
+                ><b>Choose or drop a candle file</b
+                ><span
+                  >Required: timestamp/open/high/low/close. Optional: volume,
+                  instrument.</span
+                ><input id="csv-file" type="file" accept=".csv,text/csv"
+              /></label>
+              <div class="form-row">
+                <label
+                  >Instrument<select id="import-symbol">
+                    <option>MES</option>
+                    <option>MNQ</option>
+                  </select></label
+                ><label
+                  >Timestamp timezone<select id="import-timezone">
+                    <option value="utc">UTC / ISO timestamps</option>
+                    <option value="ny">New York timestamps</option>
+                  </select></label
+                >
+              </div>
+              <div class="import-result" id="import-result">
+                No local file loaded.
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>REPLAY CONTROL</h2>
+                  <small id="replay-state">Waiting for imported candles</small>
+                </div>
+              </div>
+              <div class="replay-price" id="replay-price">—</div>
+              <input
+                class="range"
+                id="replay-range"
+                type="range"
+                min="0"
+                max="100"
+                value="0"
+                disabled
+              />
+              <div class="replay-controls">
+                <button id="replay-play" disabled>▶ Play</button
+                ><button id="replay-step" disabled>Step +1</button
+                ><select id="replay-speed">
+                  <option value="1000">1×</option>
+                  <option value="400">5×</option>
+                  <option value="100">20×</option>
+                </select>
+              </div>
+              <p class="muted">
+                Replay recomputes structure, zones and signal gates on every
+                candle without look-ahead.
+              </p>
+            </article>
+          </div>
+          <article class="panel guide">
+            <h2>CSV EXAMPLE</h2>
+            <code
+              >timestamp,open,high,low,close,volume,instrument<br />2026-07-15T13:30:00Z,6312.25,6314.50,6311.75,6314.00,842,MES</code
+            >
+          </article>
+        </section>
+
+        <section class="page" id="signals">
+          <div class="heading">
+            <div>
+              <h1>Signals & zones</h1>
+              <p>
+                Research decisions generated from the currently loaded candles.
+              </p>
+            </div>
+          </div>
+          <div class="three-col">
+            <article class="panel score-card">
+              <small>TREND</small><strong id="signal-trend">—</strong
+              ><span>Linear slope + swing sequence</span>
+            </article>
+            <article class="panel score-card">
+              <small>VOLATILITY</small><strong id="signal-vol">—</strong
+              ><span>14-bar true range</span>
+            </article>
+            <article class="panel score-card">
+              <small>DATA CONFIDENCE</small
+              ><strong id="signal-confidence">—</strong
+              ><span>Freshness and sample size</span>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>AUDIT TRACE</h2>
+                <small>Latest engine evaluation</small>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Rule</th>
+                  <th>Result</th>
+                  <th>Evidence</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body">
+                <tr>
+                  <td colspan="3" class="empty">No evaluation available.</td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+        </section>
+
+        <section class="page" id="risk">
+          <div class="heading">
+            <div>
+              <h1>Hard risk engine</h1>
+              <p>
+                Position sizing is based on structural stop distance, never
+                available margin.
+              </p>
+            </div>
+          </div>
+          <div class="two-col">
+            <article class="panel risk-form">
+              <div class="panel-head">
+                <div>
+                  <h2>POSITION SIZING</h2>
+                  <small>Maximum permitted risk: $160</small>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label
+                  >Instrument<select id="risk-symbol">
+                    <option value="MES">MES · $5/point</option>
+                    <option value="MNQ">MNQ · $2/point</option>
+                  </select></label
+                >
+                <label
+                  >Entry<input
+                    id="risk-entry"
+                    type="number"
+                    step="0.25"
+                    value="6314"
+                /></label>
+                <label
+                  >Structural stop<input
+                    id="risk-stop"
+                    type="number"
+                    step="0.25"
+                    value="6305"
+                /></label>
+                <label
+                  >Fees + slippage/contract<input
+                    id="risk-cost"
+                    type="number"
+                    step="0.01"
+                    value="2.40"
+                /></label>
+                <label
+                  >Correlated open risk<input
+                    id="risk-open"
+                    type="number"
+                    step="0.01"
+                    value="0"
+                /></label>
+                <label
+                  >Requested cap<input
+                    id="risk-cap"
+                    type="number"
+                    step="1"
+                    value="160"
+                /></label>
+              </div>
+            </article>
+            <article class="panel risk-output" id="risk-output">
+              <span class="badge green" id="risk-badge">ALLOWED</span
+              ><strong id="risk-qty">—</strong>
+              <p id="risk-summary">Enter a valid plan.</p>
+              <div class="risk-breakdown" id="risk-breakdown"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="page" id="agent">
+          <div class="heading">
+            <div>
+              <h1>Autonomous paper agent</h1>
+              <p>
+                Your hard rules run automatically; AI-style review ranks and
+                explains outcomes.
+              </p>
+            </div>
+            <div class="source-line">
+              Runs every feed refresh while this page is open
+            </div>
+          </div>
+          <div class="notice">
+            <b>Simulation only.</b> The agent may paper-trade delayed or replay
+            data, but real-money order routing is technically disabled.
+          </div>
+          <div class="agent-banner" id="agent-banner">
+            <b>Paper agent is disarmed.</b
+            ><span>Turn it on to evaluate every new candle automatically.</span>
+          </div>
+          <div class="agent-actions">
+            <label class="switch-control"
+              ><input id="agent-enabled" type="checkbox" /><span
+                class="switch-track"
+                ><i></i></span
+              ><b id="agent-toggle-label">Paper agent off</b></label
+            >
+            <button id="agent-run">Run evaluation now</button>
+            <button id="agent-backtest">Backtest imported CSV</button>
+            <button class="danger-ghost" id="agent-reset">
+              Reset paper account
+            </button>
+          </div>
+          <div class="kpis agent-kpis">
+            <article>
+              <small>PAPER EQUITY</small
+              ><strong id="agent-equity">$2,000.00</strong
+              ><span id="agent-pnl">$0 realized</span>
+            </article>
+            <article>
+              <small>OPEN POSITION</small
+              ><strong id="agent-position">NONE</strong
+              ><span id="agent-exposure">$0 open risk</span>
+            </article>
+            <article>
+              <small>TRADES TODAY</small
+              ><strong id="agent-trades-today">0 / 3</strong
+              ><span>Daily discipline limit</span>
+            </article>
+            <article>
+              <small>CONSECUTIVE LOSSES</small
+              ><strong id="agent-losses">0 / 2</strong
+              ><span>Automatic lock threshold</span>
+            </article>
+            <article>
+              <small>AGENT STATE</small
+              ><strong id="agent-state">DISARMED</strong
+              ><span id="agent-state-note">No automatic evaluations</span>
+            </article>
+          </div>
+          <div class="agent-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>AGENT PIPELINE</h2>
+                  <small>Latest evaluation for every decision domain</small>
+                </div>
+                <span class="badge" id="pipeline-badge">IDLE</span>
+              </div>
+              <div class="pipeline" id="pipeline">
+                <div>
+                  <i>1</i
+                  ><span
+                    ><b>Market agent</b><small>Awaiting evaluation</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>2</i
+                  ><span
+                    ><b>Strategy agent</b
+                    ><small>Trend + zone rules</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>3</i
+                  ><span
+                    ><b>Intermarket guardian</b
+                    ><small>MES/MNQ second arrival</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>4</i
+                  ><span
+                    ><b>News guardian</b
+                    ><small>Official event lockouts</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>5</i
+                  ><span
+                    ><b>Risk guardian</b><small>$160 absolute cap</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>6</i
+                  ><span
+                    ><b>Paper executor</b
+                    ><small>Simulated orders only</small></span
+                  ><em>—</em>
+                </div>
+              </div>
+            </article>
+            <article class="panel agent-settings">
+              <div class="panel-head">
+                <div>
+                  <h2>STRATEGY PARAMETERS</h2>
+                  <small>Persisted only in this browser</small>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label
+                  >Minimum zone score<input
+                    id="agent-min-score"
+                    type="number"
+                    min="50"
+                    max="100"
+                    value="80"
+                /></label>
+                <label
+                  >Target multiple<select id="agent-rr">
+                    <option value="2">2R</option>
+                    <option value="3">3R</option>
+                  </select></label
+                >
+                <label
+                  >Zone tolerance (ATR)<input
+                    id="agent-tolerance"
+                    type="number"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value="0.6"
+                /></label>
+                <label
+                  >Daily loss limit<input
+                    id="agent-daily-loss"
+                    type="number"
+                    min="160"
+                    max="1000"
+                    step="10"
+                    value="320"
+                /></label>
+                <label
+                  >Maximum trades/day<input
+                    id="agent-max-trades"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value="3"
+                /></label>
+                <label
+                  >Maximum consecutive losses<input
+                    id="agent-max-losses"
+                    type="number"
+                    min="1"
+                    max="5"
+                    value="2"
+                /></label>
+                <label
+                  >Maximum account drawdown<input
+                    id="agent-max-drawdown"
+                    type="number"
+                    min="160"
+                    max="1000"
+                    step="20"
+                    value="400"
+                /></label>
+                <label
+                  >Intermarket max lag (minutes)<input
+                    id="agent-max-lag"
+                    type="number"
+                    min="1"
+                    max="120"
+                    value="30"
+                /></label>
+                <label class="checkbox-setting"
+                  ><input id="agent-intermarket" type="checkbox" checked /><span
+                    >Require MES/MNQ second-arrival confirmation</span
+                  ></label
+                >
+              </div>
+            </article>
+          </div>
+          <div class="two-col agent-lower">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>ACTIVITY LOG</h2>
+                  <small>Explainable decisions, newest first</small>
+                </div>
+              </div>
+              <div class="agent-log" id="agent-log">
+                <div class="empty">Arm the agent or run an evaluation.</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>LOCAL REVIEW AGENT</h2>
+                  <small>Evidence-based observations only</small>
+                </div>
+                <span class="badge green">ADVISORY</span>
+              </div>
+              <div class="review-copy" id="review-copy">
+                <b>No completed paper trades yet.</b>
+                <p>
+                  Insights appear after the simulator has evidence to analyze.
+                </p>
+              </div>
+            </article>
+          </div>
+          <article class="panel agent-journal">
+            <div class="panel-head">
+              <div>
+                <h2>PAPER TRADE JOURNAL</h2>
+                <small>Stored locally in this browser</small>
+              </div>
+              <button class="small-button" id="agent-export">Export CSV</button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Exit</th>
+                    <th>Instrument</th>
+                    <th>Side</th>
+                    <th>Entry</th>
+                    <th>Exit price</th>
+                    <th>Qty</th>
+                    <th>P&amp;L</th>
+                    <th>R</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="agent-journal-body">
+                  <tr>
+                    <td colspan="9" class="empty">No completed trades.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="panel backtest-result" id="backtest-result">
+            <div class="panel-head">
+              <div>
+                <h2>IMPORTED-DATA BACKTEST</h2>
+                <small
+                  >Same rules, no look-ahead, conservative same-bar fills</small
+                >
+              </div>
+            </div>
+            <div class="empty">Import a CSV, then run the agent backtest.</div>
+          </article>
+        </section>
+
+        <section class="page" id="news">
+          <div class="heading">
+            <div>
+              <h1>Public news lockouts</h1>
+              <p>Free official schedules; no scraped commercial calendar.</p>
+            </div>
+          </div>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>UPCOMING HIGH-IMPACT EVENTS</h2>
+                <small>Pause window: 30 minutes before and after</small>
+              </div>
+              <span class="badge" id="events-source">PUBLIC DATA</span>
+            </div>
+            <div class="events" id="events-list">
+              <div class="empty">Loading event schedule…</div>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="system">
+          <div class="heading">
+            <div>
+              <h1>System status</h1>
+              <p>
+                Data provenance and operational safety are visible by design.
+              </p>
+            </div>
+          </div>
+          <div class="two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <div><h2>OPEN-SOURCE COMPONENTS</h2></div>
+              </div>
+              <ul class="system-list">
+                <li>
+                  <b>TradingView Lightweight Charts</b
+                  ><span>Apache-2.0 charting library</span>
+                </li>
+                <li>
+                  <b>Browser replay engine</b
+                  ><span>Local deterministic calculations</span>
+                </li>
+                <li>
+                  <b>Vercel Functions</b
+                  ><span>Free-feed adapter and event proxy</span>
+                </li>
+                <li>
+                  <b>Provider interface</b
+                  ><span>Ready for licensed CME feed later</span>
+                </li>
+              </ul>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div><h2>SAFETY STATE</h2></div>
+              </div>
+              <ul class="system-list">
+                <li>
+                  <b>Order routing</b><span class="negative">Disabled</span>
+                </li>
+                <li>
+                  <b>Delayed feed execution</b
+                  ><span class="negative">Blocked</span>
+                </li>
+                <li>
+                  <b>Stale feed protection</b
+                  ><span class="positive">Enabled</span>
+                </li>
+                <li>
+                  <b>Absolute trade cap</b
+                  ><span class="positive">$160 enforced</span>
+                </li>
+                <li>
+                  <b>CSV privacy</b
+                  ><span class="positive">Local browser only</span>
+                </li>
+              </ul>
+            </article>
+          </div>
+          <article class="panel provenance">
+            <h2>DATA DISCLAIMER</h2>
+            <p>
+              The free network adapter is delayed, unofficial and may be
+              unavailable. It is for research display only. A licensed CME
+              provider is still required before paper or live execution.
+              Imported data quality, contract rolls, timestamps and session
+              filtering must be validated before relying on backtest results.
+            </p>
+          </article>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
