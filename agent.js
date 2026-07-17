@@ -1,8 +1,4 @@
-const AGENT_KEY = "aegis-paper-agent-v3";
-const emptyArrivals = () => ({
-  LONG: { MES: null, MNQ: null },
-  SHORT: { MES: null, MNQ: null },
-});
+const AGENT_KEY = "aegis-paper-agent-v5";
 const agentDefaults = () => ({
   armed: false,
   startingCapital: 2000,
@@ -12,11 +8,9 @@ const agentDefaults = () => ({
   trades: [],
   logs: [],
   lastBar: {},
-  arrivals: emptyArrivals(),
   config: {
-    minScore: 80,
-    rr: 2,
-    tolerance: 0.6,
+    minScore: 60,
+    targetNet: 162.5,
     dailyLoss: 320,
     maxTrades: 3,
     maxLosses: 2,
@@ -25,7 +19,6 @@ const agentDefaults = () => ({
     cost: 2.4,
     slippage: 0.25,
     intermarket: true,
-    maxLagMinutes: 30,
   },
 });
 let paper = loadPaper(),
@@ -39,11 +32,14 @@ function loadPaper() {
         ...base,
         ...saved,
         config: { ...base.config, ...(saved.config || {}) },
-        arrivals: saved.arrivals || base.arrivals,
       };
     loaded.config.maxRisk = Math.min(
       160,
       Math.max(0, Number(loaded.config.maxRisk) || 160),
+    );
+    loaded.config.targetNet = Math.min(
+      165,
+      Math.max(50, Number(loaded.config.targetNet) || 162.5),
     );
     loaded.peakEquity = Math.max(
       Number(loaded.peakEquity) || base.startingCapital,
@@ -57,28 +53,15 @@ function loadPaper() {
 function savePaper() {
   localStorage.setItem(AGENT_KEY, JSON.stringify(paper));
   renderPaper();
-  if (state.analysis) renderAnalysis(state.analysis);
 }
 function nyKey(time = Date.now() / 1000) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(time * 1000));
+  return V5.nyMeta(time).date;
 }
 function inNYSession(time) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
-      .formatToParts(new Date(time * 1000))
-      .reduce((a, p) => ((a[p.type] = p.value), a), {}),
-    mins = (+parts.hour % 24) * 60 + +parts.minute;
-  return !["Sat", "Sun"].includes(parts.weekday) && mins >= 570 && mins < 930;
+  const ny = V5.nyMeta(time);
+  return (
+    !["Sat", "Sun"].includes(ny.weekday) && ny.minutes >= 570 && ny.minutes < 930
+  );
 }
 function todayTrades(time = Date.now() / 1000) {
   const key = nyKey(time);
@@ -104,93 +87,8 @@ function newsLocked(time) {
     (e) => Math.abs(new Date(e.time).getTime() - time * 1000) <= 30 * 60 * 1000,
   );
 }
-function pointValue(symbol) {
-  return symbol === "MES" ? 5 : 2;
-}
 function pipelineRow(name, pass, detail) {
   return { name, pass, detail };
-}
-function snapshot(symbol) {
-  const bars = getBars(symbol),
-    a = analyzeStrategy(bars);
-  if (!a) return null;
-  const longZone =
-      a.last.close <= a.demand.high + a.atr * paper.config.tolerance,
-    shortZone = a.last.close >= a.supply.low - a.atr * paper.config.tolerance;
-  return {
-    symbol,
-    bars,
-    a,
-    longZone,
-    shortZone,
-    longReady: a.trend === "UPTREND" && longZone && a.last.close > a.last.open,
-    shortReady:
-      a.trend === "DOWNTREND" && shortZone && a.last.close < a.last.open,
-  };
-}
-
-function recordArrivals(snapshots) {
-  for (const side of ["LONG", "SHORT"])
-    for (const symbol of ["MES", "MNQ"]) {
-      const snap = snapshots[symbol];
-      if (!snap) continue;
-      const atZone = side === "LONG" ? snap.longZone : snap.shortZone,
-        current = paper.arrivals[side][symbol];
-      if (atZone && !current) paper.arrivals[side][symbol] = snap.a.last.time;
-      if (
-        !atZone &&
-        current &&
-        snap.a.last.time - current > paper.config.maxLagMinutes * 60
-      )
-        paper.arrivals[side][symbol] = null;
-    }
-}
-function intermarketGate(symbol, side) {
-  if (!paper.config.intermarket || state.mode === "REPLAY")
-    return {
-      pass: true,
-      detail:
-        state.mode === "REPLAY"
-          ? "Single-instrument replay: intermarket comparison not available"
-          : "Intermarket filter disabled",
-    };
-  const other = symbol === "MES" ? "MNQ" : "MES",
-    mine = paper.arrivals[side][symbol],
-    theirs = paper.arrivals[side][other];
-  if (!mine)
-    return {
-      pass: false,
-      detail: `${symbol} has not reached its corresponding ${side === "LONG" ? "demand" : "supply"} zone`,
-    };
-  if (!theirs)
-    return {
-      pass: false,
-      detail: `${symbol} is first arrival; waiting for ${other} corresponding zone`,
-    };
-  const lag = Math.abs(mine - theirs),
-    max = paper.config.maxLagMinutes * 60;
-  if (lag > max) {
-    if (mine < theirs) paper.arrivals[side][symbol] = null;
-    else paper.arrivals[side][other] = null;
-    return {
-      pass: false,
-      detail: `Arrival lag ${Math.round(lag / 60)}m exceeds ${paper.config.maxLagMinutes}m; sequence reset`,
-    };
-  }
-  if (mine < theirs)
-    return {
-      pass: false,
-      detail: `${symbol} arrived first; higher confidence belongs to ${other} second arrival`,
-    };
-  if (mine === theirs)
-    return {
-      pass: true,
-      detail: `MES and MNQ reached corresponding zones together`,
-    };
-  return {
-    pass: true,
-    detail: `${symbol} is second arrival, ${Math.round(lag / 60)}m after ${other}`,
-  };
 }
 
 function evaluateAgent(source = "manual") {
@@ -205,85 +103,119 @@ function evaluateAgent(source = "manual") {
     return;
   }
   const symbols =
-      state.mode === "REPLAY"
-        ? [state.imported?.symbol].filter(Boolean)
-        : ["MES", "MNQ"],
-    snapshots = {};
-  for (const symbol of symbols) snapshots[symbol] = snapshot(symbol);
-  recordArrivals(snapshots);
+    state.mode === "REPLAY"
+      ? [state.imported?.symbol].filter(Boolean)
+      : ["MES", "MNQ"];
   let candidate = null,
     firstPipeline = null;
   for (const symbol of symbols) {
-    const snap = snapshots[symbol];
-    if (!snap) continue;
-    const { a } = snap;
-    if (paper.lastBar[symbol] === a.last.time && source !== "manual") continue;
-    const side = snap.longReady ? "LONG" : snap.shortReady ? "SHORT" : null,
-      inter = side
-        ? intermarketGate(symbol, side)
-        : {
+    const ev = window.aegisApp?.getEval(symbol),
+      inter = paper.config.intermarket
+        ? window.aegisApp?.getInter(symbol) || {
             pass: false,
-            detail: "Waiting for a direction-qualified zone return",
-          },
-      trades = todayTrades(a.last.time),
+            detail: "Waiting for both markets",
+          }
+        : { pass: true, detail: "Intermarket filter disabled" },
+      bars = getBars(symbol),
+      last = bars[bars.length - 1];
+    if (!ev || !last) continue;
+    if (paper.lastBar[symbol] === last.time && source !== "manual") continue;
+    const fresh =
+        state.mode === "REPLAY" ||
+        Date.now() / 1000 - last.time <= 20 * 60,
+      session = state.mode === "REPLAY" ? inNYSession(last.time) : inNYSession(Date.now() / 1000),
+      structure = !!(ev.htfZone && ev.oneH),
+      qualityFail =
+        ev.bucket === "blocked80" ||
+        ev.bucket === "notFresh" ||
+        ev.bucket === "weakZone",
+      quality =
+        !!ev.entryZone &&
+        !qualityFail &&
+        (ev.score ?? 0) >= paper.config.minScore,
+      calendarReady = state.eventStatus === "READY",
+      news =
+        state.mode === "REPLAY"
+          ? true
+          : calendarReady && !newsLocked(last.time),
+      trades = todayTrades(last.time),
       dailyPnl = trades.reduce((s, t) => s + t.pnl, 0),
       losses = consecutiveLosses(trades),
       drawdown = accountDrawdown(),
-      session = inNYSession(a.last.time),
-      fresh = !a.stale || state.mode === "REPLAY",
-      enough = a.timeframes.h1 >= 15 && a.timeframes.m5 >= 15,
-      calendarReady = state.eventStatus === "READY",
-      news = calendarReady && !newsLocked(a.last.time),
-      strategy = Boolean(side) && a.score >= paper.config.minScore,
-      risk =
+      locksOk =
         dailyPnl > -paper.config.dailyLoss &&
         trades.length < paper.config.maxTrades &&
         losses < paper.config.maxLosses &&
-        drawdown < paper.config.maxDrawdown;
+        drawdown < paper.config.maxDrawdown,
+      risk = locksOk && !!ev.plan;
     const rows = [
       pipelineRow(
         "Market agent",
-        fresh && session && enough,
-        `${a.timeframes.h1}×60m · ${a.timeframes.m5}×5m · ${session ? "NY session" : "outside NY session"} · ${fresh ? "fresh" : "stale"}`,
+        fresh && session,
+        `${session ? "NY session" : "outside NY session"} · ${fresh ? "fresh data" : "stale data"} · last ${fmt(last.close)}`,
       ),
       pipelineRow(
-        "Strategy agent",
-        strategy,
-        `${a.trend} 60m bias · 5m score ${a.score} · ${a.zoneReturn ? "zone return" : "waiting for zone"} · ${a.confirmation ? "1m confirmed" : "waiting 1m confirmation"}`,
+        "Structure agent",
+        structure,
+        structure
+          ? `${V5.TF_LABEL[ev.htf]} ${ev.htfZone.pattern} ${ev.htfZone.type}${ev.htf === "240" ? " (4H promoted)" : ""} → 1H ${ev.oneH.pattern} nested`
+          : ev.detail || "No nested Daily→4H→1H stack in range",
+      ),
+      pipelineRow(
+        "Zone quality",
+        quality,
+        ev.entryZone
+          ? qualityFail
+            ? ev.detail
+            : `${V5.TF_LABEL[ev.entryTf]} ${ev.entryZone.pattern} · score ${ev.score}${ev.nyCaution ? " · NY 1H caution" : ""}${ev.refined15 ? " · refined to 15M" : ""}`
+          : "No qualified entry zone",
       ),
       pipelineRow("Intermarket guardian", inter.pass, inter.detail),
       pipelineRow(
         "News guardian",
         news,
-        !calendarReady
-          ? "Calendar unavailable; fail-safe lock"
-          : news
-            ? "No scheduled event inside ±30m"
-            : "High-impact lockout",
+        state.mode === "REPLAY"
+          ? "Replay mode: calendar not applied"
+          : !calendarReady
+            ? "Calendar unavailable; fail-safe lock"
+            : news
+              ? "No scheduled event inside ±30m"
+              : "High-impact lockout",
       ),
       pipelineRow(
         "Risk guardian",
         risk,
-        `Daily $${fmt(dailyPnl)} · ${trades.length}/${paper.config.maxTrades} trades · ${losses}/${paper.config.maxLosses} losses · $${fmt(drawdown)} peak drawdown`,
+        !locksOk
+          ? `Locked: $${fmt(dailyPnl)} today · ${trades.length}/${paper.config.maxTrades} trades · ${losses}/${paper.config.maxLosses} losses · $${fmt(drawdown)} drawdown`
+          : ev.plan
+            ? `${ev.plan.qty} contract${ev.plan.qty > 1 ? "s" : ""} · $${fmt(ev.plan.risk)} risk · ${ev.refined15 ? "15M refined" : "1H direct"}`
+            : ev.bucket === "riskUnfit"
+              ? ev.detail
+              : "No sizing plan available",
       ),
       pipelineRow("Paper executor", false, "Awaiting all gates"),
     ];
     if (!firstPipeline) firstPipeline = rows;
-    if (rows.slice(0, 5).every((x) => x.pass)) {
-      candidate = { symbol, a, side, rows };
+    const allPass = rows.slice(0, 6).every((x) => x.pass);
+    if (allPass && ev.atEntry) {
+      candidate = { symbol, ev, rows, time: last.time, price: last.close };
       break;
+    } else if (allPass) {
+      rows[6] = pipelineRow(
+        "Paper executor",
+        false,
+        "All gates pass — waiting for the first return into the entry zone",
+      );
+      firstPipeline = rows;
     }
-    paper.lastBar[symbol] = a.last.time;
+    paper.lastBar[symbol] = last.time;
   }
   latestPipeline = candidate
     ? candidate.rows
     : firstPipeline || [
-        pipelineRow(
-          "Market agent",
-          false,
-          "Insufficient validated candle history",
-        ),
-        pipelineRow("Strategy agent", false, "Waiting for 60m/5m/1m data"),
+        pipelineRow("Market agent", false, "Waiting for the 60-day history"),
+        pipelineRow("Structure agent", false, "Daily→4H→1H nesting pending"),
+        pipelineRow("Zone quality", false, "Pattern · freshness · 80% rule"),
         pipelineRow("Intermarket guardian", false, "Waiting for MES and MNQ"),
         pipelineRow("News guardian", true, "No active lockout"),
         pipelineRow("Risk guardian", true, "Risk limits ready"),
@@ -300,17 +232,12 @@ function evaluateAgent(source = "manual") {
     return;
   }
   if (!paper.armed) {
-    latestPipeline[5] = pipelineRow(
+    latestPipeline[6] = pipelineRow(
       "Paper executor",
       false,
       "Candidate found, but paper agent is switched off",
     );
-    logAgent(
-      "Candidate only",
-      latestPipeline[5].detail,
-      "info",
-      candidate.a.last.time,
-    );
+    logAgent("Candidate only", latestPipeline[6].detail, "info", candidate.time);
     savePaper();
     return;
   }
@@ -318,39 +245,26 @@ function evaluateAgent(source = "manual") {
   savePaper();
 }
 
-function openPaperPosition({ symbol, a, side }) {
-  const point = pointValue(symbol),
-    hardBudget = Math.min(
-      160,
-      Math.max(0, Number(paper.config.maxRisk) || 160),
-    ),
-    raw = a.last.close,
-    entry =
-      side === "LONG"
-        ? raw + paper.config.slippage
-        : raw - paper.config.slippage,
-    stop = side === "LONG" ? a.demand.low - 0.25 : a.supply.high + 0.25,
-    per = Math.abs(entry - stop) * point + paper.config.cost,
-    qty = Math.floor(hardBudget / per);
+function openPaperPosition({ symbol, ev, time, price }) {
+  const point = V5.pointValue(symbol),
+    cfg = paper.config,
+    side = ev.plan.side,
+    entry = side === "LONG" ? price + cfg.slippage : price - cfg.slippage,
+    stop = ev.plan.stop,
+    stopPoints = Math.abs(entry - stop),
+    per = stopPoints * point + cfg.cost,
+    qty = Math.floor(Math.min(160, cfg.maxRisk) / per);
   if (qty < 1) {
-    latestPipeline[4] = pipelineRow(
+    latestPipeline[5] = pipelineRow(
       "Risk guardian",
       false,
-      `One contract risks $${fmt(per)}, above the $${fmt(hardBudget)} budget`,
+      `One contract risks $${fmt(per)} from the live price, above the $${fmt(cfg.maxRisk)} budget`,
     );
-    logAgent(
-      "Risk rejection",
-      latestPipeline[4].detail,
-      "blocked",
-      a.last.time,
-    );
+    logAgent("Risk rejection", latestPipeline[5].detail, "blocked", time);
     return;
   }
-  const risk = per * qty,
-    target =
-      side === "LONG"
-        ? entry + (entry - stop) * paper.config.rr
-        : entry - (stop - entry) * paper.config.rr;
+  const targetPoints = (cfg.targetNet + cfg.cost * qty) / (point * qty),
+    target = side === "LONG" ? entry + targetPoints : entry - targetPoints;
   paper.position = {
     symbol,
     side,
@@ -358,30 +272,26 @@ function openPaperPosition({ symbol, a, side }) {
     stop,
     target,
     qty,
-    risk,
+    risk: per * qty,
     riskPerContract: per,
-    openedAt: a.last.time,
-    score: a.score,
-    lastManagedBar: a.last.time,
+    openedAt: time,
+    score: ev.score,
+    entryTf: V5.TF_LABEL[ev.entryTf],
+    pattern: ev.entryZone.pattern,
+    lastManagedBar: time,
   };
-  paper.lastBar[symbol] = a.last.time;
-  paper.arrivals[side] = { MES: null, MNQ: null };
-  latestPipeline[5] = pipelineRow(
+  paper.lastBar[symbol] = time;
+  latestPipeline[6] = pipelineRow(
     "Paper executor",
     true,
-    `${side} ${qty} ${symbol} @ ${fmt(entry)} · stop ${fmt(stop)} · target ${fmt(target)}`,
+    `${side} ${qty} ${symbol} @ ${fmt(entry)} · ${paper.position.entryTf} ${paper.position.pattern} · stop ${fmt(stop)} · target ${fmt(target)}`,
   );
-  logAgent(
-    "Paper position opened",
-    latestPipeline[5].detail,
-    "trade",
-    a.last.time,
-  );
+  logAgent("Paper position opened", latestPipeline[6].detail, "trade", time);
 }
 function managePosition() {
   const p = paper.position,
     bars = getBars(p.symbol),
-    bar = bars.at(-1);
+    bar = bars[bars.length - 1];
   if (!bar || bar.time <= p.lastManagedBar) return;
   const stopHit = p.side === "LONG" ? bar.low <= p.stop : bar.high >= p.stop,
     targetHit = p.side === "LONG" ? bar.high >= p.target : bar.low <= p.target;
@@ -390,7 +300,7 @@ function managePosition() {
     const reason = stopHit ? "STOP" : "TARGET",
       exit = stopHit ? p.stop : p.target,
       points = p.side === "LONG" ? exit - p.entry : p.entry - exit,
-      pnl = points * pointValue(p.symbol) * p.qty - paper.config.cost * p.qty,
+      pnl = points * V5.pointValue(p.symbol) * p.qty - paper.config.cost * p.qty,
       r = pnl / p.risk;
     paper.realizedPnl += pnl;
     paper.peakEquity = Math.max(
@@ -417,7 +327,7 @@ function managePosition() {
 
 function renderPaper() {
   const equity = paper.startingCapital + paper.realizedPnl,
-    now = state.analysis?.last?.time || Date.now() / 1000,
+    now = Date.now() / 1000,
     trades = todayTrades(now),
     losses = consecutiveLosses(trades),
     failure = latestPipeline.find(
@@ -460,12 +370,12 @@ function renderPaper() {
     : "Paper agent off";
   $("agent-banner").className = "agent-banner " + (paper.armed ? "armed" : "");
   $("agent-banner").innerHTML = paper.armed
-    ? `<b>Paper agent is armed${paper.position ? " and managing a position" : ", waiting for a fully qualified setup"}.</b><span>${failure ? failure.detail : "Every new candle is evaluated automatically."}</span>`
+    ? `<b>Paper agent is armed${paper.position ? " and managing a position" : ", waiting for a fully qualified v5 setup"}.</b><span>${failure ? failure.detail : "Every new candle is evaluated automatically."}</span>`
     : "<b>Paper agent is disarmed.</b><span>Turn it on to evaluate every new candle automatically.</span>";
   $("pipeline-badge").textContent = paper.position
     ? "POSITION OPEN"
     : latestPipeline.length
-      ? latestPipeline.slice(0, 5).every((x) => x.pass)
+      ? latestPipeline.slice(0, 6).every((x) => x.pass)
         ? "ALL GATES PASS"
         : "ARMED · WAITING"
       : "IDLE";
@@ -473,14 +383,15 @@ function renderPaper() {
     ? latestPipeline
     : [
         pipelineRow("Market agent", null, "Awaiting evaluation"),
+        pipelineRow("Structure agent", null, "Daily→4H→1H strict nesting"),
+        pipelineRow("Zone quality", null, "Pattern · freshness · 80% rule"),
         pipelineRow(
-          "Strategy agent",
+          "Intermarket guardian",
           null,
-          "60m bias + 5m zone + 1m confirmation",
+          "MES/MNQ directional agreement",
         ),
-        pipelineRow("Intermarket guardian", null, "MES/MNQ second arrival"),
         pipelineRow("News guardian", null, "Official event lockouts"),
-        pipelineRow("Risk guardian", null, "$160 absolute cap"),
+        pipelineRow("Risk guardian", null, "$160 cap · risk-adaptive 1H/15M"),
         pipelineRow("Paper executor", null, "Simulated orders only"),
       ];
   $("pipeline").innerHTML = rows
@@ -526,38 +437,26 @@ function renderReview() {
   $("review-copy").innerHTML =
     `<b>${trades.length} completed trades · ${winRate.toFixed(1)}% win rate.</b><p>Average outcome ${avgR.toFixed(2)}R; profit factor ${pf.toFixed(2)}. ${avgR > 0 ? "The current sample is positive, but remains too small for live reliance." : "Current evidence does not support promotion toward live execution."}</p>`;
 }
-function syncInputs() {
-  const map = {
-    "agent-min-score": "minScore",
-    "agent-rr": "rr",
-    "agent-tolerance": "tolerance",
-    "agent-daily-loss": "dailyLoss",
-    "agent-max-trades": "maxTrades",
-    "agent-max-losses": "maxLosses",
-    "agent-max-drawdown": "maxDrawdown",
-    "agent-max-lag": "maxLagMinutes",
-  };
-  for (const [id, key] of Object.entries(map))
-    if (document.activeElement !== $(id)) $(id).value = paper.config[key];
-  $("agent-intermarket").checked = paper.config.intermarket;
-}
-for (const [id, key] of Object.entries({
+const AGENT_INPUTS = {
   "agent-min-score": "minScore",
-  "agent-rr": "rr",
-  "agent-tolerance": "tolerance",
+  "agent-target": "targetNet",
   "agent-daily-loss": "dailyLoss",
   "agent-max-trades": "maxTrades",
   "agent-max-losses": "maxLosses",
   "agent-max-drawdown": "maxDrawdown",
-  "agent-max-lag": "maxLagMinutes",
-}))
+};
+function syncInputs() {
+  for (const [id, key] of Object.entries(AGENT_INPUTS))
+    if (document.activeElement !== $(id)) $(id).value = paper.config[key];
+  $("agent-intermarket").checked = paper.config.intermarket;
+}
+for (const [id, key] of Object.entries(AGENT_INPUTS))
   $(id).addEventListener("input", (e) => {
     paper.config[key] = +e.target.value;
     savePaper();
   });
 $("agent-intermarket").addEventListener("change", (e) => {
   paper.config.intermarket = e.target.checked;
-  paper.arrivals = emptyArrivals();
   savePaper();
 });
 
@@ -566,7 +465,7 @@ $("agent-enabled").addEventListener("change", (e) => {
   logAgent(
     paper.armed ? "Paper agent armed" : "Paper agent disarmed",
     paper.armed
-      ? "Automatic evaluation begins on each new candle."
+      ? "Automatic v5 evaluation begins on each new candle."
       : "No new entries will be created; open paper positions remain managed.",
     paper.armed ? "trade" : "info",
   );
@@ -606,20 +505,27 @@ $("agent-export").addEventListener("click", () => {
   URL.revokeObjectURL(a.href);
 });
 
+/* Single-instrument CSV backtest under the full v5 rules (intermarket
+   confirmation is unavailable with one symbol and is skipped, labelled). */
 function runBacktest() {
   if (!state.imported?.bars) {
     $("backtest-result").innerHTML =
       '<div class="empty">Import a CSV in Data & replay first.</div>';
     return;
   }
-  const bars = state.imported.bars,
-    symbol = state.imported.symbol,
-    point = pointValue(symbol);
-  let position = null,
-    trades = [],
-    realized = 0;
-  for (let i = 900; i < bars.length; i++) {
-    const bar = bars[i];
+  const symbol = state.imported.symbol,
+    point = V5.pointValue(symbol),
+    cfg = paper.config,
+    stack = V5.buildStack(state.imported.bars),
+    exec = stack.exec;
+  let position = null;
+  const trades = [];
+  let realized = 0,
+    peak = 0,
+    maxDrawdown = 0;
+  for (let i = 30; i < exec.length; i++) {
+    const bar = exec[i],
+      ny = V5.nyMeta(bar.time);
     if (position) {
       const stopHit =
           position.side === "LONG"
@@ -628,67 +534,80 @@ function runBacktest() {
         targetHit =
           position.side === "LONG"
             ? bar.high >= position.target
-            : bar.low <= position.target;
-      if (stopHit || targetHit) {
-        const exit = stopHit ? position.stop : position.target,
+            : bar.low <= position.target,
+        sessionExit = ny.minutes >= 925;
+      if (stopHit || targetHit || sessionExit) {
+        const exit = stopHit
+            ? position.stop
+            : targetHit
+              ? position.target
+              : bar.close,
           points =
             position.side === "LONG"
               ? exit - position.entry
               : position.entry - exit,
-          pnl =
-            points * point * position.qty - paper.config.cost * position.qty;
+          pnl = points * point * position.qty - cfg.cost * position.qty;
         trades.push({
           ...position,
           exit,
           exitTime: bar.time,
           pnl,
           r: pnl / position.risk,
-          reason: stopHit ? "STOP" : "TARGET",
+          reason: stopHit ? "STOP" : targetHit ? "TARGET" : "SESSION",
         });
         realized += pnl;
+        peak = Math.max(peak, realized);
+        maxDrawdown = Math.max(maxDrawdown, peak - realized);
         position = null;
       }
       continue;
     }
-    const sample = bars.slice(Math.max(0, i - 2000), i + 1),
-      a = analyzeStrategy(sample),
-      dayTrades = trades.filter((t) => nyKey(t.exitTime) === nyKey(bar.time)),
+    if (!inNYSession(bar.time)) continue;
+    const dayTrades = trades.filter(
+        (t) => nyKey(t.exitTime) === nyKey(bar.time),
+      ),
       dayPnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
     if (
-      !inNYSession(bar.time) ||
-      !a ||
-      a.score < paper.config.minScore ||
-      !a.zoneReturn ||
-      !a.confirmation ||
-      a.trend === "SIDEWAYS" ||
-      dayTrades.length >= paper.config.maxTrades ||
-      dayPnl <= -paper.config.dailyLoss ||
-      consecutiveLosses(dayTrades) >= paper.config.maxLosses ||
-      Math.max(0, -realized) >= paper.config.maxDrawdown
+      dayTrades.length >= cfg.maxTrades ||
+      dayPnl <= -cfg.dailyLoss ||
+      consecutiveLosses(dayTrades) >= cfg.maxLosses ||
+      maxDrawdown >= cfg.maxDrawdown
     )
       continue;
-    const side = a.trend === "UPTREND" ? "LONG" : "SHORT",
+    const ev = V5.evaluate(stack, {
+      symbol,
+      time: bar.time + 300,
+      price: bar.close,
+      mode: "strict",
+      config: { freshGraceSec: 300, targetNet: cfg.targetNet, maxRisk: cfg.maxRisk },
+    });
+    if (!ev.plan || ev.bucket || (ev.score ?? 0) < cfg.minScore) continue;
+    const zone = ev.entryZone,
+      touching =
+        zone.type === "demand"
+          ? bar.low <= zone.proximal
+          : bar.high >= zone.proximal;
+    if (!touching) continue;
+    const next = exec[i + 1];
+    if (!next || nyKey(next.time) !== nyKey(bar.time)) continue;
+    const side = ev.plan.side,
       entry =
-        side === "LONG"
-          ? bar.close + paper.config.slippage
-          : bar.close - paper.config.slippage,
-      stop = side === "LONG" ? a.demand.low - 0.25 : a.supply.high + 0.25,
-      per = Math.abs(entry - stop) * point + paper.config.cost,
-      qty = Math.floor(160 / per);
+        side === "LONG" ? next.open + cfg.slippage : next.open - cfg.slippage,
+      stop = ev.plan.stop,
+      per = Math.abs(entry - stop) * point + cfg.cost,
+      qty = Math.floor(Math.min(160, cfg.maxRisk) / per);
     if (qty < 1) continue;
+    const targetPoints = (cfg.targetNet + cfg.cost * qty) / (point * qty);
     position = {
       symbol,
       side,
       entry,
       stop,
-      target:
-        side === "LONG"
-          ? entry + (entry - stop) * paper.config.rr
-          : entry - (stop - entry) * paper.config.rr,
+      target: side === "LONG" ? entry + targetPoints : entry - targetPoints,
       qty,
       risk: per * qty,
-      openedAt: bar.time,
-      score: a.score,
+      openedAt: next.time,
+      score: ev.score,
     };
   }
   const wins = trades.filter((t) => t.pnl > 0),
@@ -702,7 +621,7 @@ function runBacktest() {
         (trades.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0) || -1),
     );
   $("backtest-result").innerHTML =
-    `<div class="panel-head"><div><h2>IMPORTED-DATA BACKTEST</h2><small>${bars.length.toLocaleString()} candles · ${symbol} · 60m/5m/1m rules · intermarket unavailable in one-symbol CSV</small></div><span class="badge ${pnl >= 0 ? "green" : "red"}">${pnl >= 0 ? "POSITIVE" : "NEGATIVE"} SAMPLE</span></div><div class="backtest-metrics"><div><small>TRADES</small><b>${trades.length}</b></div><div><small>WIN RATE</small><b>${wr.toFixed(1)}%</b></div><div><small>NET P&amp;L</small><b class="${pnl >= 0 ? "positive" : "negative"}">$${fmt(pnl)}</b></div><div><small>AVERAGE R</small><b>${avg.toFixed(2)}R</b></div><div><small>PROFIT FACTOR</small><b>${pf.toFixed(2)}</b></div></div><div class="review-copy"><b>Research interpretation</b><p>${trades.length < 30 ? "The sample is too small for strategy validation. Import a longer dataset." : avg > 0 ? "The rules produced positive expectancy in this sample; walk-forward and intermarket validation are still required." : "The strategy did not produce positive expectancy on this imported sample."}</p></div>`;
+    `<div class="panel-head"><div><h2>IMPORTED-DATA BACKTEST · v5</h2><small>${state.imported.bars.length.toLocaleString()} candles · ${symbol} · strict Daily→4H→1H nesting · intermarket unavailable in one-symbol CSV</small></div><span class="badge ${pnl >= 0 ? "green" : "red"}">${pnl >= 0 ? "POSITIVE" : "NEGATIVE"} SAMPLE</span></div><div class="backtest-metrics"><div><small>TRADES</small><b>${trades.length}</b></div><div><small>WIN RATE</small><b>${wr.toFixed(1)}%</b></div><div><small>NET P&amp;L</small><b class="${pnl >= 0 ? "positive" : "negative"}">$${fmt(pnl)}</b></div><div><small>AVERAGE R</small><b>${avg.toFixed(2)}R</b></div><div><small>PROFIT FACTOR</small><b>${pf.toFixed(2)}</b></div></div><div class="review-copy"><b>Research interpretation</b><p>${trades.length === 0 ? "No setup passed the strict v5 nesting rules on this dataset — that scarcity is expected and is reported honestly rather than loosened silently." : trades.length < 30 ? "The sample is too small for strategy validation. Import a longer dataset." : avg > 0 ? "The rules produced positive expectancy in this sample; walk-forward and intermarket validation are still required." : "The strategy did not produce positive expectancy on this imported sample."}</p></div>`;
 }
 $("agent-backtest").addEventListener("click", runBacktest);
 window.paperAgent = {

@@ -6,9 +6,13 @@
     <meta name="theme-color" content="#070b12" />
     <meta
       name="description"
-      content="Open-source MES and MNQ futures research, replay, risk and signal lab."
+      content="Open-source MES and MNQ futures research lab — Strategy v5 demand & supply engine with strict multi-timeframe nesting, replay, risk and signal tooling."
     />
-    <title>Aegis Futures Lab — Free Research Edition</title>
+    <title>Aegis Futures Lab — Strategy v5 Research Edition</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b12'/%3E%3Cpath d='M16 5 27 27H5Z' fill='none' stroke='%232dd4a0' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/agent.css" />
@@ -17,6 +21,7 @@
       defer
       src="https://unpkg.com/lightweight-charts@5.0.9/dist/lightweight-charts.standalone.production.js"
     ></script>
+    <script defer src="/strategy.js"></script>
     <script defer src="/app.js"></script>
     <script defer src="/agent.js"></script>
     <script defer src="/outcomes.js"></script>
@@ -53,6 +58,7 @@
             ><small id="ny-clock">New York —</small>
           </div>
           <div class="status-row">
+            <span class="chip blue">STRATEGY v5</span>
             <span class="chip amber" id="feed-chip">CONNECTING</span>
             <span class="chip" id="session-chip">SESSION —</span>
             <span class="chip" id="agent-chip">PAPER AGENT OFF</span>
@@ -67,7 +73,10 @@
           <div class="heading">
             <div>
               <h1>Market command center</h1>
-              <p>Explainable MES/MNQ research with hard risk controls.</p>
+              <p>
+                Strategy v5 — demand &amp; supply zones with strict
+                Daily→4H→1H nesting and hard risk controls.
+              </p>
             </div>
             <div class="source-line" id="last-update">Waiting for data…</div>
           </div>
@@ -85,16 +94,16 @@
               ><span id="mnq-change">Connecting…</span>
             </article>
             <article>
-              <small>MARKET BIAS</small><strong id="bias">—</strong
-              ><span id="bias-detail">Awaiting candles</span>
+              <small>HTF DIRECTION</small><strong id="bias">—</strong
+              ><span id="bias-detail">Awaiting zone history</span>
             </article>
             <article>
-              <small>ZONE SCORE</small><strong id="zone-score">—</strong
-              ><span id="zone-detail">Deterministic engine</span>
+              <small>ENTRY ZONE SCORE</small><strong id="zone-score">—</strong
+              ><span id="zone-detail">Strategy v5 engine</span>
             </article>
             <article>
-              <small>RISK CAP</small><strong>$160</strong
-              ><span>Absolute portfolio limit</span>
+              <small>RISK / TARGET</small><strong>$160 / $162.50</strong
+              ><span>Absolute cap · net dollar target</span>
             </article>
           </div>
           <div class="dashboard-grid">
@@ -117,8 +126,8 @@
             <article class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>DECISION GATE</h2>
-                  <small>Every condition is explicit</small>
+                  <h2>DECISION GATE · v5</h2>
+                  <small>Strict nesting · 80% rule · risk-adaptive entry</small>
                 </div>
                 <span class="badge red" id="gate-badge">BLOCKED</span>
               </div>
@@ -135,12 +144,15 @@
             <article class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>ACTIVE RESEARCH ZONES</h2>
-                  <small>Calculated from loaded candles</small>
+                  <h2>NESTED ZONE STACK</h2>
+                  <small
+                    >Daily → 4H → 1H → 15M · DBR / RBR / RBD / DBD · reaction
+                    zones are context only</small
+                  >
                 </div>
               </div>
               <div class="zone-list" id="zone-list">
-                <div class="empty">No calculated zones yet.</div>
+                <div class="empty">Waiting for the 60-day zone history…</div>
               </div>
             </article>
             <article class="panel">
@@ -160,11 +172,12 @@
         <section class="page active outcomes-page" id="outcomes">
           <div class="outcomes-hero">
             <div>
-              <span class="eyebrow">ROLLING RULE-ENGINE STUDY</span>
+              <span class="eyebrow">ROLLING RULE-ENGINE STUDY · v5</span>
               <h1>Strategy outcomes</h1>
               <p>
-                MNQ and MES performance under the same deterministic structure,
-                zone, intermarket and risk rules.
+                MNQ and MES performance under the v5 demand &amp; supply rules:
+                strict Daily→4H→1H nesting, the symmetric 80% rule, and
+                risk-adaptive 1H/15M entries.
               </p>
             </div>
             <button class="outcome-refresh" id="outcome-refresh">
@@ -200,16 +213,19 @@
             <div>
               <b id="outcome-status">Historical engine awaiting data</b
               ><small id="outcome-provenance"
-                >60m bias · 5m zones · completed-candle execution proxy</small
+                >Daily→4H→1H strict nesting · risk-adaptive 1H/15M entries ·
+                completed-candle execution proxy</small
               >
             </div>
             <span class="method-badge">NO LOOK-AHEAD</span>
           </div>
           <div class="outcome-warning">
             <b>Research proxy—not a performance claim.</b> Free 60-day history
-            is available at five-minute resolution. The historical study uses
-            the completed five-minute confirmation candle and enters on the next
-            candle; it never fabricates one-minute data.
+            is available at five-minute resolution. Zones are built on
+            completed Daily/4H/1H/15M candles, entries trigger on the first
+            5-minute return and fill on the next candle; nothing is
+            back-filled or fabricated. Strict nesting is deliberately scarce —
+            the funnel below shows exactly where candidates were rejected.
           </div>
 
           <div class="outcome-kpis" id="outcome-kpis">
@@ -238,13 +254,13 @@
                 <div>
                   <h2>PORTFOLIO EQUITY</h2>
                   <small id="equity-subtitle"
-                    >Strict MES/MNQ confirmation versus filter-off
-                    baseline</small
+                    >Strict rectangle nesting (v5) versus the old directional
+                    alignment engine (v4, comparison only)</small
                   >
                 </div>
                 <div class="chart-legend">
-                  <span><i class="strict-line"></i>Strict rules</span
-                  ><span><i class="base-line"></i>Filter off</span>
+                  <span><i class="strict-line"></i>Strict nesting v5</span
+                  ><span><i class="base-line"></i>Directional v4</span>
                 </div>
               </div>
               <div class="equity-chart" id="equity-chart">
@@ -267,8 +283,11 @@
             <article class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>RULE QUALIFICATION FUNNEL</h2>
-                  <small>Why candles did not become trades</small>
+                  <h2>RULE QUALIFICATION FUNNEL · v5</h2>
+                  <small
+                    >Why candles did not become trades — nesting failures, 80%
+                    blocks and 15M refinements are counted, never silent</small
+                  >
                 </div>
               </div>
               <div class="rule-funnel" id="rule-funnel">
@@ -278,9 +297,10 @@
             <article class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>INTERMARKET EFFECT</h2>
+                  <h2>ALIGNMENT MODE EFFECT</h2>
                   <small
-                    >Strict second-arrival filter compared with disabled</small
+                    >Strict rectangle containment compared with the old
+                    directional default</small
                   >
                 </div>
               </div>
@@ -355,41 +375,48 @@
               </div>
               <div class="assumption-list">
                 <div>
-                  <b>Market structure</b
-                  ><span>Confirmed 60m HH/HL or LH/LL sequence</span>
+                  <b>Zone patterns</b
+                  ><span
+                    >DBR / RBR / RBD / DBD, 1–2 base candles, wick-tolerance
+                    path, gaps converted to Rally/Drop movement</span
+                  >
+                </div>
+                <div>
+                  <b>Timeframes</b
+                  ><span
+                    >Daily primary (reaction zones marked as context); 4H
+                    promoted when no Daily zone is in range; strict rectangle
+                    containment Daily→4H→1H</span
+                  >
                 </div>
                 <div>
                   <b>Entry model</b
                   ><span
-                    >5m zone score ≥80, return and direction candle; next-bar
-                    entry</span
+                    >Fresh zone, first 5m return only; 1H entry when the stop
+                    fits $160, otherwise 15M refinement inside the 1H;
+                    next-candle fill</span
+                  >
+                </div>
+                <div>
+                  <b>Quality gates</b
+                  ><span
+                    >Symmetric 80% first-counter-zone block; achievement
+                    upgrade; un-achieved NY-session 1H zones flagged</span
                   >
                 </div>
                 <div>
                   <b>Intermarket</b
                   ><span
-                    >Second MES/MNQ corresponding-zone arrival within 30
-                    minutes; simultaneous arrivals are neutral</span
+                    >MES/MNQ directional agreement required; fast approaches
+                    wait for the deep zone overlap</span
                   >
                 </div>
                 <div>
                   <b>Risk</b
                   ><span
-                    >$160 maximum loss, whole contracts, fees and slippage
-                    included</span
-                  >
-                </div>
-                <div>
-                  <b>Management</b
-                  ><span
-                    >2R target, structural stop, conservative stop-first
-                    same-bar fill, session exit</span
-                  >
-                </div>
-                <div>
-                  <b>Locks</b
-                  ><span
-                    >3 trades/day, $320 daily loss, 2 consecutive losses, $400
+                    >$160 absolute risk, $162.50 net dollar target, structural
+                    stops, stop-first same-bar fills, session exit; locks: 3
+                    trades/day, $320 daily, 2 consecutive losses, $400
                     drawdown</span
                   >
                 </div>
@@ -508,8 +535,9 @@
                 </select>
               </div>
               <p class="muted">
-                Replay recomputes structure, zones and signal gates on every
-                candle without look-ahead.
+                Replay recomputes the full v5 zone stack — patterns, nesting,
+                freshness and the 80% rule — on every candle without
+                look-ahead.
               </p>
             </article>
           </div>
@@ -526,18 +554,20 @@
             <div>
               <h1>Signals & zones</h1>
               <p>
-                Research decisions generated from the currently loaded candles.
+                The v5 pre-trade checklist evaluated live against the loaded
+                candles.
               </p>
             </div>
           </div>
           <div class="three-col">
             <article class="panel score-card">
-              <small>TREND</small><strong id="signal-trend">—</strong
-              ><span>Linear slope + swing sequence</span>
+              <small>DIRECTIONAL PRESSURE</small
+              ><strong id="signal-trend">—</strong
+              ><span>Higher-timeframe zone side · v5</span>
             </article>
             <article class="panel score-card">
               <small>VOLATILITY</small><strong id="signal-vol">—</strong
-              ><span>14-bar true range</span>
+              ><span>14-bar true range (5m)</span>
             </article>
             <article class="panel score-card">
               <small>DATA CONFIDENCE</small
@@ -650,7 +680,8 @@
               </p>
             </div>
             <div class="source-line">
-              Runs every feed refresh while this page is open
+              Strategy v5 rules · runs every feed refresh while this page is
+              open
             </div>
           </div>
           <div class="notice">
@@ -720,32 +751,40 @@
                 <div>
                   <i>2</i
                   ><span
-                    ><b>Strategy agent</b
-                    ><small>Trend + zone rules</small></span
+                    ><b>Structure agent</b
+                    ><small>Daily→4H→1H strict nesting</small></span
                   ><em>—</em>
                 </div>
                 <div>
                   <i>3</i
                   ><span
-                    ><b>Intermarket guardian</b
-                    ><small>MES/MNQ second arrival</small></span
+                    ><b>Zone quality</b
+                    ><small>Pattern · freshness · 80% rule</small></span
                   ><em>—</em>
                 </div>
                 <div>
                   <i>4</i
+                  ><span
+                    ><b>Intermarket guardian</b
+                    ><small>MES/MNQ directional agreement</small></span
+                  ><em>—</em>
+                </div>
+                <div>
+                  <i>5</i
                   ><span
                     ><b>News guardian</b
                     ><small>Official event lockouts</small></span
                   ><em>—</em>
                 </div>
                 <div>
-                  <i>5</i
+                  <i>6</i
                   ><span
-                    ><b>Risk guardian</b><small>$160 absolute cap</small></span
+                    ><b>Risk guardian</b
+                    ><small>$160 cap · risk-adaptive 1H/15M</small></span
                   ><em>—</em>
                 </div>
                 <div>
-                  <i>6</i
+                  <i>7</i
                   ><span
                     ><b>Paper executor</b
                     ><small>Simulated orders only</small></span
@@ -765,24 +804,18 @@
                   >Minimum zone score<input
                     id="agent-min-score"
                     type="number"
-                    min="50"
+                    min="40"
                     max="100"
-                    value="80"
+                    value="60"
                 /></label>
                 <label
-                  >Target multiple<select id="agent-rr">
-                    <option value="2">2R</option>
-                    <option value="3">3R</option>
-                  </select></label
-                >
-                <label
-                  >Zone tolerance (ATR)<input
-                    id="agent-tolerance"
+                  >Net dollar target ($160–165 gross)<input
+                    id="agent-target"
                     type="number"
-                    min="0.1"
-                    max="2"
-                    step="0.1"
-                    value="0.6"
+                    min="100"
+                    max="165"
+                    step="0.5"
+                    value="162.5"
                 /></label>
                 <label
                   >Daily loss limit<input
@@ -818,17 +851,9 @@
                     step="20"
                     value="400"
                 /></label>
-                <label
-                  >Intermarket max lag (minutes)<input
-                    id="agent-max-lag"
-                    type="number"
-                    min="1"
-                    max="120"
-                    value="30"
-                /></label>
                 <label class="checkbox-setting"
                   ><input id="agent-intermarket" type="checkbox" checked /><span
-                    >Require MES/MNQ second-arrival confirmation</span
+                    >Require MES/MNQ directional confirmation (§5)</span
                   ></label
                 >
               </div>
@@ -945,6 +970,13 @@
                 <li>
                   <b>TradingView Lightweight Charts</b
                   ><span>Apache-2.0 charting library</span>
+                </li>
+                <li>
+                  <b>Strategy v5 engine</b
+                  ><span
+                    >Deterministic demand &amp; supply rules, shared by
+                    dashboard, agent and backtests</span
+                  >
                 </li>
                 <li>
                   <b>Browser replay engine</b

@@ -718,3 +718,136 @@ td {
     height: 280px;
   }
 }
+
+/* ————— Strategy v5 additions ————— */
+.chip.blue,
+.badge.blue {
+  border-color: #2c4f80;
+  color: #9cc3ff;
+  background: #101c2e;
+}
+nav button,
+.segmented button,
+.icon-button,
+.replay-controls button {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #3f6ea8;
+  outline-offset: 1px;
+}
+.panel {
+  transition: border-color 0.2s ease;
+}
+.panel:hover {
+  border-color: #2b3a4f;
+}
+tbody tr:hover td {
+  background: #0d1624;
+}
+.pat {
+  display: inline-block;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+.pat.demand {
+  color: #7fe6c3;
+  background: #0d271f;
+  border: 1px solid #22563f;
+}
+.pat.supply {
+  color: #ff9da4;
+  background: #29141a;
+  border: 1px solid #5f2b34;
+}
+.tfchip {
+  display: inline-block;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #9cc3ff;
+  background: #101c2e;
+  border: 1px solid #2c4f80;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.tagrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.ztag {
+  display: inline-block;
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid #2b3749;
+  color: #93a1b5;
+  background: #0d1522;
+}
+.ztag.fresh {
+  color: #80e2c0;
+  border-color: #225c4a;
+  background: #0c251e;
+}
+.ztag.tested {
+  color: #b7a26a;
+  border-color: #58492a;
+  background: #1d1810;
+}
+.ztag.achieved {
+  color: #9cc3ff;
+  border-color: #2c4f80;
+  background: #101c2e;
+}
+.ztag.reaction {
+  color: #d0a5ff;
+  border-color: #513a75;
+  background: #1c1428;
+}
+.ztag.blocked {
+  color: #ff9da4;
+  border-color: #71323a;
+  background: #251217;
+}
+.ztag.wick,
+.ztag.gap,
+.ztag.wide {
+  color: #f4cb79;
+  border-color: #705a2b;
+  background: #261f12;
+}
+.zone-item strong.dim,
+.check b.dim {
+  color: #55627a;
+}
+.check small {
+  display: block;
+  margin-top: 2px;
+  line-height: 1.45;
+}
+.check {
+  gap: 12px;
+  align-items: start;
+}
+.check b {
+  flex: 0 0 auto;
+}

@@ -665,3 +665,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ————— Strategy v5 additions ————— */
+.funnel-row.diag .funnel-track i {
+  background: linear-gradient(90deg, #705a2b, #f3bd50);
+}
+.funnel-row.good .funnel-track i {
+  background: linear-gradient(90deg, #1f7a5c, #2dd4a0);
+}
+.diag-mark {
+  display: inline-block;
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #f4cb79;
+  border: 1px solid #705a2b;
+  background: #261f12;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 5px;
+  vertical-align: 1px;
+}
+.funnel-row {
+  grid-template-columns: 185px 1fr 56px;
+}
+.cell-note {
+  display: block;
+  color: #7f8da2;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}

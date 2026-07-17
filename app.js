@@ -6,9 +6,14 @@ const fmt = (n) =>
         maximumFractionDigits: 2,
       })
     : "—";
+const V5 = window.AegisV5;
 const state = {
   symbol: "MES",
   feeds: { MES: null, MNQ: null },
+  history: { MES: null, MNQ: null },
+  stacks: { MES: null, MNQ: null },
+  evals: { MES: null, MNQ: null },
+  inter: { MES: null, MNQ: null },
   mode: "DELAYED",
   imported: null,
   replayIndex: 0,
@@ -55,18 +60,9 @@ function updateClock() {
       minute: "2-digit",
       second: "2-digit",
     }).format(now);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .formatToParts(now)
-    .reduce((a, p) => ((a[p.type] = p.value), a), {});
-  const mins = (+parts.hour % 24) * 60 + +parts.minute;
-  const weekday = !["Sat", "Sun"].includes(parts.weekday);
-  const active = weekday && mins >= 570 && mins < 930;
+  const ny = V5.nyMeta(now.getTime() / 1000);
+  const active =
+    !["Sat", "Sun"].includes(ny.weekday) && ny.minutes >= 570 && ny.minutes < 930;
   $("session-chip").textContent = active
     ? "NY SESSION ACTIVE"
     : "NY SESSION CLOSED";
@@ -90,9 +86,11 @@ async function loadFeeds() {
       ),
     );
     state.feeds = { MES: mes, MNQ: mnq };
-    state.mode = "DELAYED";
-    $("feed-chip").textContent = "FREE DELAYED";
-    $("feed-chip").className = "chip amber";
+    if (state.mode !== "REPLAY") state.mode = "DELAYED";
+    $("feed-chip").textContent =
+      state.mode === "REPLAY" ? "LOCAL REPLAY" : "FREE DELAYED";
+    $("feed-chip").className =
+      "chip " + (state.mode === "REPLAY" ? "green" : "amber");
     $("last-update").textContent =
       "Refreshed " + new Date().toLocaleTimeString() + " · automatic every 60s";
     renderMarket();
@@ -111,6 +109,30 @@ async function loadFeeds() {
 $("refresh").addEventListener("click", loadFeeds);
 setInterval(loadFeeds, 60000);
 
+async function loadHistory() {
+  try {
+    const [mes, mnq] = await Promise.all(
+      ["MES", "MNQ"].map((s) =>
+        fetch("/api/history?symbol=" + s).then(async (r) => {
+          if (!r.ok)
+            throw new Error((await r.json()).error || "History unavailable");
+          return r.json();
+        }),
+      ),
+    );
+    state.history = { MES: mes, MNQ: mnq };
+    state.stacks = {
+      MES: V5.buildStack(mes.bars),
+      MNQ: V5.buildStack(mnq.bars),
+    };
+    renderMarket();
+    window.paperAgent?.onMarketUpdate("history");
+  } catch (error) {
+    $("zone-detail").textContent = "History unavailable: " + error.message;
+  }
+}
+setInterval(loadHistory, 15 * 60 * 1000);
+
 function getBars(symbol = state.symbol) {
   if (
     state.mode === "REPLAY" &&
@@ -120,189 +142,87 @@ function getBars(symbol = state.symbol) {
     return state.imported.bars.slice(0, state.replayIndex + 1);
   return state.feeds[symbol]?.bars || [];
 }
-function detectStructure(bars) {
-  const highs = [],
-    lows = [];
-  for (let i = 2; i < bars.length - 2; i++) {
-    const b = bars[i];
-    if (
-      b.high > bars[i - 1].high &&
-      b.high >= bars[i - 2].high &&
-      b.high > bars[i + 1].high &&
-      b.high >= bars[i + 2].high
-    )
-      highs.push({ time: b.time, price: b.high });
-    if (
-      b.low < bars[i - 1].low &&
-      b.low <= bars[i - 2].low &&
-      b.low < bars[i + 1].low &&
-      b.low <= bars[i + 2].low
-    )
-      lows.push({ time: b.time, price: b.low });
+
+function atrOf(bars, n = 14) {
+  if (!bars || bars.length < 2) return null;
+  const recent = bars.slice(-n - 1);
+  let sum = 0,
+    count = 0;
+  for (let i = 1; i < recent.length; i++) {
+    sum += Math.max(
+      recent[i].high - recent[i].low,
+      Math.abs(recent[i].high - recent[i - 1].close),
+      Math.abs(recent[i].low - recent[i - 1].close),
+    );
+    count++;
   }
-  const h = highs.slice(-2),
-    l = lows.slice(-2);
-  let trend = "SIDEWAYS";
-  if (
-    h.length === 2 &&
-    l.length === 2 &&
-    h[1].price > h[0].price &&
-    l[1].price > l[0].price
-  )
-    trend = "UPTREND";
-  if (
-    h.length === 2 &&
-    l.length === 2 &&
-    h[1].price < h[0].price &&
-    l[1].price < l[0].price
-  )
-    trend = "DOWNTREND";
-  return {
-    trend,
-    highs,
-    lows,
-    lastHigh: h.at(-1) || null,
-    lastLow: l.at(-1) || null,
-    sequence:
-      trend === "UPTREND"
-        ? "HH + HL"
-        : trend === "DOWNTREND"
-          ? "LH + LL"
-          : "Mixed swings",
-  };
+  return count ? sum / count : null;
 }
-function analyze(bars) {
-  if (bars.length < 15) return null;
-  const recent = bars.slice(-120),
-    n = recent.length,
-    meanX = (n - 1) / 2,
-    meanY = recent.reduce((s, b) => s + b.close, 0) / n;
-  let num = 0,
-    den = 0;
-  recent.forEach((b, i) => {
-    num += (i - meanX) * (b.close - meanY);
-    den += (i - meanX) ** 2;
-  });
-  const slope = num / den,
-    ranges = recent
-      .slice(-14)
-      .map((b, i, a) =>
-        Math.max(
-          b.high - b.low,
-          i ? Math.abs(b.high - a[i - 1].close) : 0,
-          i ? Math.abs(b.low - a[i - 1].close) : 0,
-        ),
-      ),
-    atr = ranges.reduce((a, b) => a + b, 0) / ranges.length,
-    normalized = slope / (atr || 1),
-    structure = detectStructure(recent),
-    trend = structure.trend,
-    window = recent.slice(-25),
-    demand = window.reduce((a, b) => (b.low < a.low ? b : a), window[0]),
-    supply = window.reduce((a, b) => (b.high > a.high ? b : a), window[0]),
-    last = recent.at(-1),
-    departure = Math.abs(last.close - recent.at(-6).close) / (atr || 1),
-    freshness = Math.max(
-      0,
-      20 - window.filter((b) => b.low <= demand.low + atr * 0.25).length * 4,
-    ),
-    score = Math.max(
-      35,
-      Math.min(
-        100,
-        Math.round(
-          45 +
-            freshness +
-            Math.min(20, departure * 5) +
-            (trend !== "SIDEWAYS" ? 15 : 0),
-        ),
-      ),
-    ),
-    stale = Date.now() / 1000 - last.time > 20 * 60;
-  return {
-    trend,
-    atr,
-    score,
-    demand: { low: demand.low, high: demand.low + atr * 0.55 },
-    supply: { low: supply.high - atr * 0.55, high: supply.high },
-    last,
-    stale,
-    sample: bars.length,
-    normalized,
-    structure,
-  };
-}
-function aggregateBars(bars, minutes) {
-  const span = minutes * 60,
-    out = [];
-  for (const b of bars) {
-    const time = Math.floor(b.time / span) * span,
-      last = out.at(-1);
-    if (last && last.time === time) {
-      last.high = Math.max(last.high, b.high);
-      last.low = Math.min(last.low, b.low);
-      last.close = b.close;
-      last.volume = (last.volume || 0) + (b.volume || 0);
-    } else
-      out.push({
-        time,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: b.volume || 0,
+
+/* Compute the v5 evaluation for both symbols against the freshest price. */
+function computeEvals() {
+  const nowSec = Date.now() / 1000;
+  if (state.mode === "REPLAY" && state.imported) {
+    const symbol = state.imported.symbol,
+      bars = getBars(symbol);
+    if (bars.length >= 30) {
+      const stack = V5.buildStack(bars),
+        last = bars[bars.length - 1];
+      state.stacks[symbol] = stack;
+      state.evals[symbol] = V5.evaluate(stack, {
+        symbol,
+        time: last.time + 60,
+        price: last.close,
+        mode: "strict",
+        config: { freshGraceSec: 45 * 60 },
       });
+      const other = symbol === "MES" ? "MNQ" : "MES";
+      state.evals[other] = null;
+      state.inter[symbol] = {
+        pass: true,
+        detail: "Single-instrument replay: intermarket comparison not available",
+      };
+    }
+    return;
   }
-  return out;
+  for (const symbol of ["MES", "MNQ"]) {
+    const stack = state.stacks[symbol];
+    if (!stack || !stack.exec.length) {
+      state.evals[symbol] = null;
+      continue;
+    }
+    const price =
+      state.feeds[symbol]?.price ?? stack.exec[stack.exec.length - 1].close;
+    state.evals[symbol] = V5.evaluate(stack, {
+      symbol,
+      time: nowSec,
+      price,
+      mode: "strict",
+      config: { freshGraceSec: 45 * 60 },
+    });
+  }
+  for (const symbol of ["MES", "MNQ"]) {
+    const other = symbol === "MES" ? "MNQ" : "MES";
+    state.inter[symbol] = V5.intermarketCheck(
+      state.evals[symbol],
+      state.evals[other],
+      other,
+      state.stacks[symbol]?.exec,
+    );
+  }
 }
-function analyzeStrategy(bars) {
-  if (bars.length < 15) return null;
-  const one = analyze(bars),
-    fiveBars = aggregateBars(bars, 5),
-    hourBars = aggregateBars(bars, 60),
-    five = analyze(fiveBars) || one,
-    hour = analyze(hourBars) || analyze(aggregateBars(bars, 15)) || one,
-    last = bars.at(-1),
-    trend = hour.trend,
-    atr = five.atr,
-    demand = five.demand,
-    supply = five.supply,
-    zoneReturn =
-      trend === "UPTREND"
-        ? last.close <= demand.high + atr * 0.6
-        : trend === "DOWNTREND"
-          ? last.close >= supply.low - atr * 0.6
-          : false,
-    confirmation =
-      trend === "UPTREND"
-        ? last.close > last.open
-        : trend === "DOWNTREND"
-          ? last.close < last.open
-          : false;
-  return {
-    trend,
-    atr,
-    score: five.score,
-    demand,
-    supply,
-    last,
-    stale: one.stale,
-    sample: bars.length,
-    normalized: hour.normalized,
-    zoneReturn,
-    confirmation,
-    timeframes: { m1: bars.length, m5: fiveBars.length, h1: hourBars.length },
-    hour,
-    five,
-    one,
-  };
+
+function newsLockedNow() {
+  return state.events.some(
+    (e) => Math.abs(new Date(e.time).getTime() - Date.now()) <= 30 * 60 * 1000,
+  );
 }
 
 function renderMarket() {
+  computeEvals();
   const data = state.feeds[state.symbol],
-    bars = getBars(),
-    analysis = analyzeStrategy(bars);
-  state.analysis = analysis;
+    bars = getBars();
+  state.analysis = state.evals[state.symbol];
   if (state.feeds.MES) {
     const m = state.feeds.MES;
     $("mes-price").textContent = fmt(m.price);
@@ -325,7 +245,7 @@ function renderMarket() {
         ? data.source + " · " + bars.length + " candles"
         : "No source";
   renderChart(bars);
-  renderAnalysis(analysis);
+  renderDecision();
 }
 
 function renderChart(bars) {
@@ -364,37 +284,203 @@ function renderChart(bars) {
         close,
       })),
     );
+    const ev = state.evals[state.symbol];
+    if (ev?.htfZone) {
+      const dashed = LightweightCharts.LineStyle.Dashed;
+      const addLine = (price, color, title, style) =>
+        state.series.createPriceLine({
+          price,
+          color,
+          lineWidth: 1,
+          lineStyle: style ?? dashed,
+          axisLabelVisible: true,
+          title,
+        });
+      addLine(
+        ev.htfZone.proximal,
+        "#6ea8fe",
+        `${V5.TF_LABEL[ev.htf]} ${ev.htfZone.type} proximal`,
+      );
+      addLine(
+        ev.htfZone.distal,
+        "#6ea8fe",
+        `${V5.TF_LABEL[ev.htf]} distal`,
+      );
+      if (ev.entryZone && ev.entryZone !== ev.htfZone) {
+        const c = ev.entryZone.type === "demand" ? "#2dd4a0" : "#ff6b75";
+        addLine(
+          ev.entryZone.proximal,
+          c,
+          `${V5.TF_LABEL[ev.entryTf]} entry proximal`,
+          LightweightCharts.LineStyle.Solid,
+        );
+        addLine(
+          ev.entryZone.distal,
+          c,
+          `${V5.TF_LABEL[ev.entryTf]} entry distal`,
+        );
+      }
+    }
     state.chart.timeScale().fitContent();
   } else {
     setTimeout(() => renderChart(bars), 300);
   }
 }
 
-function renderAnalysis(a) {
-  if (!a) {
+function zoneTagHtml(z, opts = {}) {
+  if (!z) return "";
+  const tags = [];
+  if (z.firstReturnAt === null) tags.push('<i class="ztag fresh">FRESH</i>');
+  else tags.push('<i class="ztag tested">TESTED</i>');
+  if (z.achievedAt !== null) tags.push('<i class="ztag achieved">ACHIEVED</i>');
+  if (z.reaction) tags.push('<i class="ztag reaction">REACTION</i>');
+  if (z.blocked80) tags.push('<i class="ztag blocked">80% BLOCK</i>');
+  if (z.wickTolerance) tags.push('<i class="ztag wick">WICK-TOL</i>');
+  if (z.gapConverted) tags.push('<i class="ztag gap">GAP CONV</i>');
+  if (z.wide && !opts.hideWide) tags.push('<i class="ztag wide">WIDE→15M</i>');
+  return tags.join("");
+}
+function zoneRowHtml(label, z, extra = "") {
+  if (!z)
+    return `<div class="zone-item"><div><b>${label}</b><span>Not present</span></div><strong class="dim">—</strong></div>`;
+  const formed = new Date(z.formedAt * 1000).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `<div class="zone-item"><div><b><i class="tfchip">${label}</i><i class="pat ${z.type}">${z.pattern}</i> ${z.type}</b><span>${fmt(z.low)} – ${fmt(z.high)} · formed ${formed}${extra ? " · " + extra : ""}</span><span class="tagrow">${zoneTagHtml(z)}</span></div><strong class="${z.type === "demand" ? "positive" : "negative"}">${z.type === "demand" ? "▲" : "▼"}</strong></div>`;
+}
+
+function renderDecision() {
+  const symbol = state.symbol,
+    ev = state.evals[symbol],
+    stack = state.stacks[symbol],
+    inter = state.inter[symbol],
+    liveBars = getBars(symbol),
+    stale =
+      state.mode === "REPLAY"
+        ? false
+        : !liveBars.length ||
+          Date.now() / 1000 - liveBars[liveBars.length - 1].time > 20 * 60,
+    calendarReady = state.eventStatus === "READY",
+    newsOk = calendarReady && !newsLockedNow();
+
+  // KPI cards
+  if (!ev) {
     $("bias").textContent = "—";
+    $("bias-detail").textContent = "Waiting for 60-day history";
     $("zone-score").textContent = "—";
-    return;
+    $("zone-detail").textContent = "Strategy v5 engine";
+  } else {
+    $("bias").textContent = ev.side || "NEUTRAL";
+    $("bias-detail").textContent = ev.htfZone
+      ? `${V5.TF_LABEL[ev.htf]} HTF · strict nesting`
+      : ev.detail;
+    $("zone-score").textContent = ev.score ?? "—";
+    $("zone-detail").textContent = ev.entryZone
+      ? `${V5.TF_LABEL[ev.entryTf]} ${ev.entryZone.pattern} entry zone`
+      : "No qualified entry zone";
   }
-  $("bias").textContent = a.trend;
-  $("bias-detail").textContent = `60m bias · ${a.timeframes.h1} bars`;
-  $("zone-score").textContent = a.score;
-  $("zone-detail").textContent = `5m zone · ${a.timeframes.m5} bars`;
-  $("signal-trend").textContent = a.trend;
-  $("signal-vol").textContent = fmt(a.atr) + " pts";
-  $("signal-confidence").textContent = a.stale
+
+  // Signals cards
+  $("signal-trend").textContent = ev?.side
+    ? `${ev.side} · ${V5.TF_LABEL[ev.htf]}`
+    : "NEUTRAL";
+  const atr = atrOf(stack?.exec || liveBars);
+  $("signal-vol").textContent = atr ? fmt(atr) + " pts" : "—";
+  $("signal-confidence").textContent = stale
     ? "STALE"
-    : a.timeframes.h1 >= 15
+    : stack
       ? "HIGH"
       : "LIMITED";
+
+  // Decision gate rows (v5 pre-trade checklist §8)
+  const na = { pass: null };
+  const row = (name, pass, detail) => ({ name, pass, detail });
+  const rows = [];
+  if (!ev) {
+    rows.push(row("Daily HTF zone (4H fallback)", null, "Loading history…"));
+  } else {
+    rows.push(
+      row(
+        "Daily HTF zone (4H fallback)",
+        !!ev.htfZone,
+        ev.htfZone
+          ? `${V5.TF_LABEL[ev.htf]} ${ev.htfZone.pattern} ${ev.htfZone.type} · ${fmt(ev.htfZone.low)}–${fmt(ev.htfZone.high)}${ev.htf === "240" ? " · 4H promoted (no Daily zone in range)" : ""}`
+          : "No valid Daily or 4H zone in the current price region",
+      ),
+      row(
+        "Strict nesting Daily→4H→1H",
+        ev.oneH ? true : ev.bucket === "nesting" ? false : null,
+        ev.oneH
+          ? `${ev.fourH ? "4H inside Daily · " : ""}1H ${ev.oneH.pattern} inside ${ev.fourH ? "4H" : V5.TF_LABEL[ev.htf]} · rectangle containment`
+          : ev.bucket === "nesting"
+            ? ev.detail
+            : "Waiting for HTF zone",
+      ),
+      row(
+        "Entry pattern & freshness",
+        ev.entryZone
+          ? ev.bucket === "notFresh"
+            ? false
+            : true
+          : null,
+        ev.entryZone
+          ? ev.bucket === "notFresh"
+            ? ev.detail
+            : `${ev.entryZone.pattern} · ${ev.entryZone.baseCount} base candle${ev.entryZone.baseCount > 1 ? "s" : ""}${ev.entryZone.wickTolerance ? " · wick-tolerance path" : ""} · first return only`
+          : "No entry zone yet",
+      ),
+      row(
+        "80% first-counter-zone rule",
+        ev.bucket === "blocked80" ? false : ev.entryZone ? true : null,
+        ev.bucket === "blocked80"
+          ? ev.detail
+          : ev.entryZone
+            ? "Not the first counter zone after an HTF reaction"
+            : "Awaiting entry zone",
+      ),
+      row(
+        "Risk fit $160 (1H → 15M)",
+        ev.plan ? true : ev.bucket === "riskUnfit" ? false : null,
+        ev.plan
+          ? `${ev.refined15 ? "Refined to 15M inside the 1H zone" : "1H structural stop fits directly"} · ${ev.plan.qty} contract${ev.plan.qty > 1 ? "s" : ""} · $${fmt(ev.plan.risk)} risk`
+          : ev.bucket === "riskUnfit"
+            ? ev.detail
+            : "Awaiting qualified zone",
+      ),
+      row(
+        "Intermarket MES ↔ MNQ",
+        inter ? inter.pass : null,
+        inter?.detail || "Waiting for both markets",
+      ),
+    );
+  }
+  rows.push(
+    row(
+      "News lockout ±30m",
+      calendarReady ? newsOk : false,
+      !calendarReady
+        ? "Calendar unavailable; fail-safe lock"
+        : newsOk
+          ? "No scheduled high-impact event inside ±30m"
+          : "High-impact event lockout active",
+    ),
+    row(
+      "Data freshness",
+      !stale,
+      stale ? "Live candles older than 20 minutes" : "Within threshold",
+    ),
+  );
+
   const ready =
-      !a.stale &&
-      a.score >= 80 &&
-      a.trend !== "SIDEWAYS" &&
-      a.zoneReturn &&
-      a.confirmation,
-    armed = $("agent-chip").textContent.includes("ARMED");
-  $("gate-badge").textContent = a.stale
+    ev?.plan &&
+    ev.atEntry &&
+    !ev.bucket &&
+    inter?.pass &&
+    newsOk &&
+    !stale;
+  const armed = $("agent-chip").textContent.includes("ARMED");
+  $("gate-badge").textContent = stale
     ? "DATA LOCK"
     : ready
       ? "PAPER READY"
@@ -402,44 +488,53 @@ function renderAnalysis(a) {
         ? "AGENT WAITING"
         : "MONITORING";
   $("gate-badge").className =
-    "badge " + (a.stale ? "red" : ready ? "green" : "amber");
+    "badge " + (stale ? "red" : ready ? "green" : "amber");
   $("gate-copy").className = "gate " + (ready ? "allowed" : "");
-  $("gate-copy").innerHTML = a.stale
+  $("gate-copy").innerHTML = stale
     ? "<b>Data is stale; all agent actions are paused</b><span>Fresh candles are required before strategy evaluation resumes.</span>"
     : ready
-      ? "<b>Paper setup passes the strategy pipeline</b><span>The armed agent may simulate this setup. Real-money execution remains locked because this is a delayed research feed.</span>"
-      : `<b>${armed ? "Paper agent is armed and waiting" : "Strategy monitor is active"}</b><span>No override is needed. The agent will act automatically only when 60m bias, 5m zone quality, zone return and 1m confirmation all pass.</span>`;
-  const rules = [
-    ["60m trend bias", a.trend !== "SIDEWAYS", a.trend],
-    ["5m zone quality", a.score >= 80, `${a.score}/100`],
-    [
-      "Price at 5m zone",
-      a.zoneReturn,
-      a.zoneReturn ? "Inside tolerance" : "Waiting for return",
-    ],
-    [
-      "1m confirmation",
-      a.confirmation,
-      a.confirmation ? "Direction confirmed" : "Waiting for candle",
-    ],
-    [
-      "Data freshness",
-      !a.stale,
-      a.stale ? "Older than 20 minutes" : "Within threshold",
-    ],
-  ];
-  $("checks").innerHTML = rules
+      ? `<b>${symbol} setup passes the full v5 pipeline</b><span>Price is inside a fresh ${V5.TF_LABEL[ev.entryTf]} ${ev.entryZone.pattern} zone nested in the ${V5.TF_LABEL[ev.htf]} structure. Real-money execution remains locked on the delayed research feed.</span>`
+      : `<b>${armed ? "Paper agent is armed and waiting" : "Strategy v5 monitor is active"}</b><span>${ev ? (ev.bucket ? ev.detail : ev.atEntry ? "Waiting on intermarket/news/data gates." : "Structure qualified — waiting for the first return into the entry zone.") : "The engine starts after the 60-day history loads."}</span>`;
+  $("checks").innerHTML = rows
     .map(
       (r) =>
-        `<div class="check"><span>${r[0]}<small> · ${r[2]}</small></span><b class="${r[1] ? "pass" : "fail"}">${r[1] ? "PASS" : "WAIT"}</b></div>`,
+        `<div class="check"><span>${r.name}<small> · ${r.detail}</small></span><b class="${r.pass === true ? "pass" : r.pass === false ? "fail" : "dim"}">${r.pass === true ? "PASS" : r.pass === false ? "WAIT" : "—"}</b></div>`,
     )
     .join("");
-  $("zone-list").innerHTML =
-    `<div class="zone-item"><div><b>${state.symbol} demand · 5m</b><span>${fmt(a.demand.low)} – ${fmt(a.demand.high)} · 60m bias ${a.trend}</span></div><strong class="${a.score >= 80 ? "positive" : ""}">${a.score}</strong></div><div class="zone-item"><div><b>${state.symbol} supply · 5m</b><span>${fmt(a.supply.low)} – ${fmt(a.supply.high)} · ${a.zoneReturn ? "price in tolerance" : "awaiting return"}</span></div><strong class="${a.score >= 80 ? "positive" : ""}">${a.score}</strong></div>`;
-  $("audit-body").innerHTML = rules
+
+  // Nested zone stack panel
+  if (!ev || !stack) {
+    $("zone-list").innerHTML =
+      '<div class="empty">Waiting for the 60-day zone history…</div>';
+  } else if (!ev.htfZone) {
+    const context = (stack.zones.D || [])
+      .filter((z) => z.brokenAt === null)
+      .slice(-3);
+    $("zone-list").innerHTML =
+      `<div class="empty">No HTF zone in the current price region.</div>` +
+      context.map((z) => zoneRowHtml("Daily", z, "context")).join("");
+  } else {
+    const rowsHtml = [
+      zoneRowHtml(V5.TF_LABEL[ev.htf], ev.htfZone, "primary HTF"),
+      ev.htf === "D" ? zoneRowHtml("4H", ev.fourH, "nested") : "",
+      zoneRowHtml("1H", ev.oneH, "nested"),
+      ev.refined15 ? zoneRowHtml("15M", ev.entryZone, "risk refinement") : "",
+    ];
+    const reactions = (stack.zones.D || []).filter(
+      (z) => z.reaction && z.brokenAt === null,
+    );
+    if (reactions.length)
+      rowsHtml.push(
+        zoneRowHtml("Daily", reactions[reactions.length - 1], "reaction context — not tradeable"),
+      );
+    $("zone-list").innerHTML = rowsHtml.filter(Boolean).join("");
+  }
+
+  // Audit trace
+  $("audit-body").innerHTML = rows
     .map(
       (r) =>
-        `<tr><td>${r[0]}</td><td class="${r[1] ? "positive" : ""}">${r[1] ? "PASS" : "WAIT"}</td><td>${r[2]}</td></tr>`,
+        `<tr><td>${r.name}</td><td class="${r.pass === true ? "positive" : r.pass === false ? "negative" : ""}">${r.pass === true ? "PASS" : r.pass === false ? "WAIT" : "—"}</td><td>${r.detail}</td></tr>`,
     )
     .join("");
 }
@@ -557,8 +652,8 @@ function calcRisk() {
   $("risk-badge").className = "badge " + (allowed ? "green" : "red");
   $("risk-qty").textContent = qty + " contract" + (qty === 1 ? "" : "s");
   $("risk-summary").textContent = allowed
-    ? `Maximum planned loss ${fmt(total)} fits the remaining budget.`
-    : "One contract cannot fit within the remaining risk budget.";
+    ? `Maximum planned loss ${fmt(total)} fits the remaining budget. Net dollar target $162.50 stays inside the $160–165 band.`
+    : "One contract cannot fit within the remaining risk budget — v5 would refine the entry to a 15M zone inside the 1H.";
   $("risk-breakdown").innerHTML =
     `<div><small>RISK / CONTRACT</small><b>$${fmt(per)}</b></div><div><small>AVAILABLE BUDGET</small><b>$${fmt(available)}</b></div><div><small>STOP DISTANCE</small><b>${fmt(Math.abs(entry - stop))} pts</b></div><div><small>EFFECTIVE CAP</small><b>$${fmt(cap)}</b></div>`;
 }
@@ -598,5 +693,11 @@ async function loadEvents() {
       '<div class="empty">Public calendar adapter unavailable. The news gate is locked until coverage returns.</div>';
   }
 }
+window.aegisApp = {
+  getEval: (symbol) => state.evals[symbol],
+  getStack: (symbol) => state.stacks[symbol],
+  getInter: (symbol) => state.inter[symbol],
+};
 loadEvents();
 loadFeeds();
+loadHistory();

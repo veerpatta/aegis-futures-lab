@@ -1,9 +1,7 @@
 const OUTCOME_WINDOWS = [30, 40, 60];
 const OUTCOME_CONFIG = {
   startingCapital: 2000,
-  minScore: 80,
-  rr: 2,
-  tolerance: 0.6,
+  targetNet: 162.5,
   dailyLoss: 320,
   maxTrades: 3,
   maxLosses: 2,
@@ -11,36 +9,19 @@ const OUTCOME_CONFIG = {
   maxRisk: 160,
   cost: 2.4,
   slippage: 0.25,
-  maxLagMinutes: 30,
 };
 const outcomeState = {
   days: 60,
   data: {},
-  snapshots: {},
+  stacks: {},
+  index: {},
   runs: {},
   events: [],
   loading: false,
 };
 
-function outcomeNY(time) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .formatToParts(new Date(time * 1000))
-    .reduce((a, p) => ((a[p.type] = p.value), a), {});
-  return {
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute),
-  };
-}
 function outcomePoint(symbol) {
-  return symbol === "MES" ? 5 : 2;
+  return V5.pointValue(symbol);
 }
 function outcomeMoney(value) {
   return `${value >= 0 ? "+" : ""}$${fmt(value)}`;
@@ -48,79 +29,6 @@ function outcomeMoney(value) {
 function outcomeClass(value) {
   return value >= 0 ? "positive" : "negative";
 }
-
-function buildOutcomeSnapshots(bars) {
-  const snapshots = new Map(),
-    completedHours = [];
-  let currentHour = null;
-  for (let i = 0; i < bars.length; i++) {
-    const bar = bars[i],
-      bucket = Math.floor(bar.time / 3600) * 3600;
-    if (!currentHour || currentHour.time !== bucket) {
-      if (currentHour) completedHours.push(currentHour);
-      currentHour = {
-        time: bucket,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-        volume: bar.volume || 0,
-      };
-    } else {
-      currentHour.high = Math.max(currentHour.high, bar.high);
-      currentHour.low = Math.min(currentHour.low, bar.low);
-      currentHour.close = bar.close;
-      currentHour.volume += bar.volume || 0;
-    }
-    const prior = bars.slice(Math.max(0, i - 120), i),
-      five = analyze(prior),
-      hour = analyze(completedHours.slice(-120));
-    if (!five || !hour) continue;
-    const trend = hour.trend,
-      atr = five.atr,
-      demand = five.demand,
-      supply = five.supply,
-      longZone =
-        bar.low <= demand.high + atr * OUTCOME_CONFIG.tolerance &&
-        bar.high >= demand.low,
-      shortZone =
-        bar.high >= supply.low - atr * OUTCOME_CONFIG.tolerance &&
-        bar.low <= supply.high,
-      confirmation =
-        trend === "UPTREND"
-          ? bar.close > bar.open
-          : trend === "DOWNTREND"
-            ? bar.close < bar.open
-            : false,
-      zoneReturn =
-        trend === "UPTREND"
-          ? longZone
-          : trend === "DOWNTREND"
-            ? shortZone
-            : false,
-      meta = outcomeNY(bar.time);
-    snapshots.set(bar.time, {
-      symbol: null,
-      index: i,
-      bar,
-      next: bars[i + 1] || null,
-      trend,
-      atr,
-      demand,
-      supply,
-      score: five.score,
-      longZone,
-      shortZone,
-      zoneReturn,
-      confirmation,
-      date: meta.date,
-      minutes: meta.minutes,
-      sequence: hour.structure?.sequence || "Mixed swings",
-    });
-  }
-  return snapshots;
-}
-
 function outcomeNewsLocked(time) {
   return outcomeState.events.some(
     (e) => Math.abs(new Date(e.time).getTime() / 1000 - time) <= 30 * 60,
@@ -129,16 +37,29 @@ function outcomeNewsLocked(time) {
 function freshFunnel() {
   return {
     evaluated: 0,
-    noBias: 0,
-    lowScore: 0,
-    noZone: 0,
-    noConfirm: 0,
+    noHtf: 0,
+    nesting: 0,
+    notFresh: 0,
+    blocked80: 0,
+    weakZone: 0,
+    nyCaution: 0,
+    refined15: 0,
+    riskUnfit: 0,
     intermarket: 0,
     news: 0,
-    risk: 0,
+    lock: 0,
     qualified: 0,
   };
 }
+const BUCKET_TO_FUNNEL = {
+  noHtf: "noHtf",
+  nesting: "nesting",
+  notFresh: "notFresh",
+  blocked80: "blocked80",
+  weakZone: "weakZone",
+  riskUnfit: "riskUnfit",
+};
+
 function closeOutcomeTrade(ctx, bar, reason, exit) {
   const p = ctx.position,
     points = p.side === "LONG" ? exit - p.entry : p.entry - exit,
@@ -164,15 +85,18 @@ function closeOutcomeTrade(ctx, bar, reason, exit) {
   ctx.position = null;
 }
 
-function runOutcome(days, intermarket) {
+/* Portfolio walk over the union MES/MNQ 5m timeline under v5 rules.
+   mode: "strict" (v5 rectangle nesting) or "directional" (labelled v4
+   comparison run — same-side agreement instead of containment). */
+function runOutcome(days, mode) {
   const maxTime = Math.min(
-      ...["MES", "MNQ"].map((s) => outcomeState.data[s].bars.at(-1).time),
+      ...["MES", "MNQ"].map((s) => outcomeState.stacks[s].exec.at(-1).time),
     ),
     cutoff = maxTime - days * 86400,
     times = [
       ...new Set(
         ["MES", "MNQ"].flatMap((s) =>
-          outcomeState.data[s].bars
+          outcomeState.stacks[s].exec
             .filter((b) => b.time >= cutoff && b.time <= maxTime)
             .map((b) => b.time),
         ),
@@ -191,21 +115,25 @@ function runOutcome(days, intermarket) {
       consecutiveLosses: 0,
       equityPoints: [{ time: cutoff, equity: OUTCOME_CONFIG.startingCapital }],
       funnel: freshFunnel(),
-      arrivals: {
-        LONG: { MES: null, MNQ: null },
-        SHORT: { MES: null, MNQ: null },
-      },
       sessions: new Set(),
     };
+  const evalCfg = {
+    freshGraceSec: 300,
+    targetNet: OUTCOME_CONFIG.targetNet,
+    maxRisk: OUTCOME_CONFIG.maxRisk,
+    cost: OUTCOME_CONFIG.cost,
+    slippage: OUTCOME_CONFIG.slippage,
+  };
   for (const time of times) {
     const visible = {};
     for (const symbol of ["MES", "MNQ"]) {
-      const snap = outcomeState.snapshots[symbol].get(time);
-      if (snap) visible[symbol] = { ...snap, symbol };
+      const idx = outcomeState.index[symbol].get(time);
+      if (idx !== undefined)
+        visible[symbol] = { idx, bar: outcomeState.stacks[symbol].exec[idx] };
     }
     const any = visible.MES || visible.MNQ;
     if (!any) continue;
-    const date = any.date;
+    const date = V5.nyMeta(any.bar.time).date;
     ctx.sessions.add(date);
     if (ctx.currentDate !== date) {
       ctx.currentDate = date;
@@ -214,118 +142,92 @@ function runOutcome(days, intermarket) {
       ctx.consecutiveLosses = 0;
     }
     if (ctx.position) {
-      const snap = visible[ctx.position.symbol];
-      if (snap && time >= ctx.position.openedAt) {
-        const b = snap.bar,
+      const v = visible[ctx.position.symbol];
+      if (v && v.bar.time >= ctx.position.openedAt) {
+        const b = v.bar,
           p = ctx.position,
           stopHit = p.side === "LONG" ? b.low <= p.stop : b.high >= p.stop,
           targetHit =
             p.side === "LONG" ? b.high >= p.target : b.low <= p.target;
         if (stopHit) closeOutcomeTrade(ctx, b, "STOP", p.stop);
         else if (targetHit) closeOutcomeTrade(ctx, b, "TARGET", p.target);
-        else if (snap.minutes >= 925)
+        else if (V5.nyMeta(b.time).minutes >= 925)
           closeOutcomeTrade(ctx, b, "SESSION", b.close);
       }
     }
     if (!ctx.position && ctx.pending && time >= ctx.pending.executeTime) {
       const plan = ctx.pending,
-        snap = visible[plan.symbol];
+        v = visible[plan.symbol];
       ctx.pending = null;
-      if (snap && snap.date === plan.date && snap.minutes < 930) {
-        const entry =
+      if (v && V5.nyMeta(v.bar.time).date === plan.date) {
+        const point = outcomePoint(plan.symbol),
+          entry =
             plan.side === "LONG"
-              ? snap.bar.open + OUTCOME_CONFIG.slippage
-              : snap.bar.open - OUTCOME_CONFIG.slippage,
-          stop =
-            plan.side === "LONG"
-              ? plan.demand.low - 0.25
-              : plan.supply.high + 0.25,
-          per =
-            Math.abs(entry - stop) * outcomePoint(plan.symbol) +
-            OUTCOME_CONFIG.cost,
-          qty = Math.floor(Math.min(160, OUTCOME_CONFIG.maxRisk) / per);
+              ? v.bar.open + OUTCOME_CONFIG.slippage
+              : v.bar.open - OUTCOME_CONFIG.slippage,
+          stop = plan.stop,
+          per = Math.abs(entry - stop) * point + OUTCOME_CONFIG.cost,
+          qty = Math.floor(OUTCOME_CONFIG.maxRisk / per);
         if (qty > 0) {
-          const target =
-            plan.side === "LONG"
-              ? entry + (entry - stop) * OUTCOME_CONFIG.rr
-              : entry - (stop - entry) * OUTCOME_CONFIG.rr;
+          const targetPoints =
+            (OUTCOME_CONFIG.targetNet + OUTCOME_CONFIG.cost * qty) /
+            (point * qty);
           ctx.position = {
             symbol: plan.symbol,
             side: plan.side,
             score: plan.score,
+            pattern: plan.pattern,
+            entryTf: plan.entryTf,
             entry,
             stop,
-            target,
+            target:
+              plan.side === "LONG" ? entry + targetPoints : entry - targetPoints,
             qty,
             risk: per * qty,
             riskPerContract: per,
-            openedAt: snap.bar.time,
+            openedAt: v.bar.time,
             intermarket: plan.intermarket,
           };
-          ctx.arrivals[plan.side] = { MES: null, MNQ: null };
-        } else ctx.funnel.risk++;
+        } else ctx.funnel.riskUnfit++;
       }
     }
     if (ctx.position || ctx.pending) continue;
-    for (const side of ["LONG", "SHORT"])
-      for (const symbol of ["MES", "MNQ"])
-        if (
-          ctx.arrivals[side][symbol] &&
-          time - ctx.arrivals[side][symbol] > OUTCOME_CONFIG.maxLagMinutes * 60
-        )
-          ctx.arrivals[side][symbol] = null;
-    for (const [symbol, snap] of Object.entries(visible)) {
-      if (
-        snap.trend === "UPTREND" &&
-        snap.longZone &&
-        !ctx.arrivals.LONG[symbol]
-      )
-        ctx.arrivals.LONG[symbol] = time;
-      if (
-        snap.trend === "DOWNTREND" &&
-        snap.shortZone &&
-        !ctx.arrivals.SHORT[symbol]
-      )
-        ctx.arrivals.SHORT[symbol] = time;
-    }
+
+    const evals = {};
+    for (const [symbol, v] of Object.entries(visible))
+      evals[symbol] = V5.evaluate(outcomeState.stacks[symbol], {
+        symbol,
+        time: v.bar.time + 300,
+        price: v.bar.close,
+        mode,
+        config: evalCfg,
+      });
+
     const candidates = [];
-    for (const [symbol, snap] of Object.entries(visible)) {
+    for (const [symbol, v] of Object.entries(visible)) {
+      const ev = evals[symbol],
+        bar = v.bar;
       ctx.funnel.evaluated++;
-      if (snap.trend === "SIDEWAYS") {
-        ctx.funnel.noBias++;
+      if (ev.bucket) {
+        ctx.funnel[BUCKET_TO_FUNNEL[ev.bucket] || "nesting"]++;
         continue;
       }
-      if (snap.score < OUTCOME_CONFIG.minScore) {
-        ctx.funnel.lowScore++;
-        continue;
-      }
-      if (!snap.zoneReturn) {
-        ctx.funnel.noZone++;
-        continue;
-      }
-      if (!snap.confirmation) {
-        ctx.funnel.noConfirm++;
-        continue;
-      }
-      const side = snap.trend === "UPTREND" ? "LONG" : "SHORT",
-        other = symbol === "MES" ? "MNQ" : "MES",
-        mine = ctx.arrivals[side][symbol],
-        theirs = ctx.arrivals[side][other];
-      let interPass = !intermarket,
-        interDetail = "Filter disabled";
-      if (
-        intermarket &&
-        mine &&
-        theirs &&
-        Math.abs(mine - theirs) <= OUTCOME_CONFIG.maxLagMinutes * 60
-      ) {
-        interPass = mine >= theirs;
-        interDetail =
-          mine === theirs
-            ? "Simultaneous confirmation"
-            : `${symbol} second by ${Math.round((mine - theirs) / 60)}m`;
-      }
-      if (!interPass) {
+      // Diagnostic buckets (§9.7) — counted, not exclusions in strict mode.
+      if (ev.refined15) ctx.funnel.refined15++;
+      if (ev.nyCaution) ctx.funnel.nyCaution++;
+      // §3.1: entries only during the zone's FIRST visit (evaluate() has
+      // already excluded zones whose first visit is over).
+      const z = ev.entryZone,
+        touching =
+          z.type === "demand" ? bar.low <= z.proximal : bar.high >= z.proximal;
+      if (!touching) continue;
+      const other = symbol === "MES" ? "MNQ" : "MES",
+        recent = outcomeState.stacks[symbol].exec.slice(
+          Math.max(0, v.idx - 6),
+          v.idx + 1,
+        ),
+        inter = V5.intermarketCheck(ev, evals[other], other, recent);
+      if (!inter.pass) {
         ctx.funnel.intermarket++;
         continue;
       }
@@ -339,36 +241,47 @@ function runOutcome(days, intermarket) {
         ctx.consecutiveLosses >= OUTCOME_CONFIG.maxLosses ||
         ctx.maxDrawdown >= OUTCOME_CONFIG.maxDrawdown;
       if (locked) {
-        ctx.funnel.risk++;
+        ctx.funnel.lock++;
         continue;
       }
-      if (!snap.next || outcomeNY(snap.next.time).date !== snap.date) {
-        ctx.funnel.risk++;
+      const next = outcomeState.stacks[symbol].exec[v.idx + 1];
+      if (!next || V5.nyMeta(next.time).date !== date) {
+        ctx.funnel.lock++;
         continue;
       }
       ctx.funnel.qualified++;
       candidates.push({
-        ...snap,
         symbol,
-        side,
-        intermarket: interDetail,
-        executeTime: snap.next.time,
+        side: ev.plan.side,
+        score: ev.score,
+        pattern: z.pattern,
+        entryTf: V5.TF_LABEL[ev.entryTf],
+        stop: ev.plan.stop,
+        intermarket: inter.detail,
+        speed: inter.speed,
+        executeTime: next.time,
+        date,
       });
     }
     if (candidates.length) {
+      // §5.3 — in the fast two-market configuration prefer the MES zone.
       candidates.sort(
-        (a, b) => b.score - a.score || (a.symbol === "MES" ? -1 : 1),
+        (a, b) =>
+          (a.speed === "fast" && a.symbol === "MES" ? -1 : 0) -
+            (b.speed === "fast" && b.symbol === "MES" ? -1 : 0) ||
+          b.score - a.score ||
+          (a.symbol === "MES" ? -1 : 1),
       );
       ctx.pending = candidates[0];
     }
   }
   if (ctx.position) {
-    const bars = outcomeState.data[ctx.position.symbol].bars,
-      bar = [...bars].reverse().find((b) => b.time <= maxTime);
+    const exec = outcomeState.stacks[ctx.position.symbol].exec,
+      bar = [...exec].reverse().find((b) => b.time <= maxTime);
     if (bar) closeOutcomeTrade(ctx, bar, "WINDOW END", bar.close);
   }
   ctx.equityPoints.push({ time: maxTime, equity: ctx.equity });
-  return summarizeOutcome(ctx, days, intermarket, cutoff, maxTime);
+  return summarizeOutcome(ctx, days, mode, cutoff, maxTime);
 }
 
 function metricsFromTrades(trades) {
@@ -402,24 +315,24 @@ function metricsFromTrades(trades) {
     losses: losses.length,
   };
 }
-function summarizeOutcome(ctx, days, intermarket, cutoff, maxTime) {
+function summarizeOutcome(ctx, days, mode, cutoff, maxTime) {
   const metrics = metricsFromTrades(ctx.trades),
     byInstrument = {};
   for (const s of ["MES", "MNQ"])
     byInstrument[s] = metricsFromTrades(
       ctx.trades.filter((t) => t.symbol === s),
     );
-  const buckets = { "80–84": [], "85–89": [], "90–100": [] };
+  const buckets = { "≤69": [], "70–84": [], "85–100": [] };
   for (const t of ctx.trades)
-    (t.score < 85
-      ? buckets["80–84"]
-      : t.score < 90
-        ? buckets["85–89"]
-        : buckets["90–100"]
+    (t.score < 70
+      ? buckets["≤69"]
+      : t.score < 85
+        ? buckets["70–84"]
+        : buckets["85–100"]
     ).push(t);
   return {
     days,
-    intermarket,
+    mode,
     cutoff,
     maxTime,
     tradeList: ctx.trades,
@@ -468,7 +381,7 @@ function renderOutcomeKpis(run) {
     ],
     [
       "AVG DURATION",
-      `${Math.round(run.averageDuration)}m`,
+      run.trades ? `${Math.round(run.averageDuration)}m` : "—",
       `${run.sessions} NY sessions`,
       0,
     ],
@@ -546,49 +459,53 @@ function renderVerdict(run) {
           : "NEGATIVE SAMPLE",
     badge = !sample ? "amber" : positive ? "green" : "red",
     copy = !sample
-      ? "There are too few qualified trades to treat this window as dependable evidence."
+      ? "Strict v5 nesting is deliberately selective, and this window produced too few qualified trades to treat as dependable evidence. The funnel shows exactly where candidates were rejected."
       : positives === 3 && pfWindows === 3
-        ? "The current rule interpretation remained profitable across all three rolling windows. It still requires licensed tick data and walk-forward validation."
+        ? "The v5 rule interpretation remained profitable across all three rolling windows. It still requires licensed tick data and walk-forward validation."
         : positive
           ? "The selected window is positive, but the result does not persist cleanly across every period."
-          : "The current rule interpretation did not produce positive expectancy in this window.";
+          : "The v5 rule interpretation did not produce positive expectancy in this window.";
   $("outcome-verdict").innerHTML =
     `<div class="panel-head"><div><h2>ROBUSTNESS READ</h2><small>Evidence across rolling windows</small></div><span class="badge ${badge}">${label}</span></div><div class="verdict-hero"><strong>${copy}</strong><p>This is a deterministic historical calculation, not an AI prediction or a guarantee of future performance.</p></div><div class="verdict-list"><div><span>Positive windows</span><b>${positives} / 3</b></div><div><span>Profit factor above 1</span><b>${pfWindows} / 3</b></div><div><span>Qualified sample</span><b>${run.trades} trades</b></div><div><span>Capital drawdown</span><b>${((run.maxDrawdown / OUTCOME_CONFIG.startingCapital) * 100).toFixed(1)}%</b></div></div>`;
 }
 
 function renderFunnel(run) {
   const labels = [
-      ["Evaluated candles", "evaluated"],
-      ["No confirmed 60m bias", "noBias"],
-      ["Zone score below 80", "lowScore"],
-      ["Price not at zone", "noZone"],
-      ["Confirmation absent", "noConfirm"],
-      ["Intermarket first arrival", "intermarket"],
-      ["Scheduled news lock", "news"],
-      ["Risk discipline lock", "risk"],
-      ["Qualified plans", "qualified"],
+      ["Evaluated 5m candles", "evaluated", ""],
+      ["No HTF zone in range", "noHtf", ""],
+      ["Nesting containment failed", "nesting", ""],
+      ["Zone not fresh — first return only", "notFresh", ""],
+      ["80% rule block", "blocked80", ""],
+      ["Weak-zone exclusion (v4 mode only)", "weakZone", ""],
+      ["NY 1H caution", "nyCaution", "diag"],
+      ["Risk-fit refined to 15M", "refined15", "diag"],
+      ["Risk unfit ($160 cap)", "riskUnfit", ""],
+      ["Intermarket disagreement", "intermarket", ""],
+      ["News lockout", "news", ""],
+      ["Discipline locks", "lock", ""],
+      ["Qualified entries", "qualified", "good"],
     ],
     max = Math.max(1, run.funnel.evaluated);
   $("rule-funnel").innerHTML = labels
     .map(
-      ([label, key]) =>
-        `<div class="funnel-row"><span>${label}</span><div class="funnel-track"><i style="width:${Math.max(0.5, (run.funnel[key] / max) * 100)}%"></i></div><b>${run.funnel[key].toLocaleString()}</b></div>`,
+      ([label, key, kind]) =>
+        `<div class="funnel-row ${kind}"><span>${label}${kind === "diag" ? '<i class="diag-mark">diagnostic</i>' : ""}</span><div class="funnel-track"><i style="width:${Math.max(0.5, (run.funnel[key] / max) * 100)}%"></i></div><b>${run.funnel[key].toLocaleString()}</b></div>`,
     )
     .join("");
 }
-function renderIntermarket(strict, base) {
+function renderAlignmentImpact(strict, base) {
   const netDelta = strict.net - base.net,
     ddDelta = strict.maxDrawdown - base.maxDrawdown,
     helped = netDelta > 0 && ddDelta <= 0;
   $("intermarket-impact").innerHTML =
-    `<div class="impact-score"><div class="impact-side"><small>STRICT SECOND ARRIVAL</small><strong class="${outcomeClass(strict.net)}">${outcomeMoney(strict.net)}</strong><span>${strict.trades} trades · $${fmt(strict.maxDrawdown)} DD</span></div><span class="impact-arrow">→</span><div class="impact-side"><small>FILTER DISABLED</small><strong class="${outcomeClass(base.net)}">${outcomeMoney(base.net)}</strong><span>${base.trades} trades · $${fmt(base.maxDrawdown)} DD</span></div></div><div class="impact-summary"><b>${helped ? "The filter improved this sample." : "No confirmed improvement in this sample."}</b><br>Net difference ${outcomeMoney(netDelta)}; drawdown difference ${outcomeMoney(ddDelta)}. This is evidence about this window only, not proof of the hypothesis.</div>`;
+    `<div class="impact-score"><div class="impact-side"><small>STRICT NESTING · v5</small><strong class="${outcomeClass(strict.net)}">${outcomeMoney(strict.net)}</strong><span>${strict.trades} trades · $${fmt(strict.maxDrawdown)} DD</span></div><span class="impact-arrow">→</span><div class="impact-side"><small>DIRECTIONAL · v4 COMPARISON</small><strong class="${outcomeClass(base.net)}">${outcomeMoney(base.net)}</strong><span>${base.trades} trades · $${fmt(base.maxDrawdown)} DD</span></div></div><div class="impact-summary"><b>${helped ? "Strict containment improved this sample." : "No confirmed improvement from strict containment in this sample."}</b><br>Net difference ${outcomeMoney(netDelta)}; drawdown difference ${outcomeMoney(ddDelta)}. The directional engine is retained only as a labelled comparison run, not as a tradeable default.</div>`;
 }
 function renderWindowMatrix() {
   const selected = outcomeState.days;
   $("window-matrix").innerHTML = OUTCOME_WINDOWS.map((days) => {
     const r = outcomeState.runs[days].strict,
       good = r.net > 0 && r.profitFactor > 1;
-    return `<tr class="${days === selected ? "selected" : ""}"><td><b>${days} days</b></td><td>${r.sessions}</td><td>${r.trades}</td><td class="${outcomeClass(r.net)}">${outcomeMoney(r.net)}</td><td>${r.winRate.toFixed(1)}%</td><td>${Number.isFinite(r.profitFactor) ? r.profitFactor.toFixed(2) : "∞"}</td><td>${r.avgR.toFixed(2)}R</td><td>$${fmt(r.maxDrawdown)}</td><td><span class="outcome-chip ${good ? "positive" : "negative"}">${r.trades < 20 ? "SMALL SAMPLE" : good ? "POSITIVE" : "NEGATIVE"}</span></td></tr>`;
+    return `<tr class="${days === selected ? "selected" : ""}"><td><b>${days} days</b></td><td>${r.sessions}</td><td>${r.trades}</td><td class="${outcomeClass(r.net)}">${outcomeMoney(r.net)}</td><td>${r.winRate.toFixed(1)}%</td><td>${Number.isFinite(r.profitFactor) ? r.profitFactor.toFixed(2) : "∞"}</td><td>${r.avgR.toFixed(2)}R</td><td>$${fmt(r.maxDrawdown)}</td><td><span class="outcome-chip ${r.trades === 0 ? "" : good ? "positive" : "negative"}">${r.trades === 0 ? "NO QUALIFIED TRADES" : r.trades < 20 ? "SMALL SAMPLE" : good ? "POSITIVE" : "NEGATIVE"}</span></td></tr>`;
   }).join("");
 }
 function renderBuckets(run) {
@@ -608,10 +525,10 @@ function renderTradeLedger(run) {
         .slice(0, 30)
         .map(
           (t) =>
-            `<tr><td>${new Date(t.openedAt * 1000).toLocaleString()}</td><td><b>${t.symbol}</b></td><td>${t.side}</td><td>${t.score}</td><td>${fmt(t.entry)}</td><td>${fmt(t.stop)}</td><td>${fmt(t.target)}</td><td>${t.qty}</td><td>$${fmt(t.risk)}</td><td>${t.reason}</td><td class="${outcomeClass(t.pnl)}">${outcomeMoney(t.pnl)}</td><td>${t.r.toFixed(2)}R</td></tr>`,
+            `<tr><td>${new Date(t.openedAt * 1000).toLocaleString()}</td><td><b>${t.symbol}</b><small class="cell-note">${t.entryTf || ""} ${t.pattern || ""}</small></td><td>${t.side}</td><td>${t.score ?? "—"}</td><td>${fmt(t.entry)}</td><td>${fmt(t.stop)}</td><td>${fmt(t.target)}</td><td>${t.qty}</td><td>$${fmt(t.risk)}</td><td>${t.reason}</td><td class="${outcomeClass(t.pnl)}">${outcomeMoney(t.pnl)}</td><td>${t.r.toFixed(2)}R</td></tr>`,
         )
         .join("")
-    : '<tr><td colspan="12" class="empty">No setup passed every rule in this window.</td></tr>';
+    : '<tr><td colspan="12" class="empty">No setup passed every v5 rule in this window — see the qualification funnel for where candidates were rejected.</td></tr>';
 }
 
 function renderOutcomes() {
@@ -630,12 +547,12 @@ function renderOutcomes() {
   renderEquityChart(strict, base);
   renderVerdict(strict);
   renderFunnel(strict);
-  renderIntermarket(strict, base);
+  renderAlignmentImpact(strict, base);
   renderWindowMatrix();
   renderBuckets(strict);
   renderTradeLedger(strict);
   $("outcome-status").textContent =
-    `${outcomeState.days}-day outcome ready · ${strict.sessions} New York sessions`;
+    `${outcomeState.days}-day v5 outcome ready · ${strict.sessions} New York sessions`;
   $("outcome-provenance").textContent =
     `${outcomeState.data.MES.source} · refreshed ${new Date(outcomeState.data.MES.fetchedAt).toLocaleString()}`;
 }
@@ -663,16 +580,18 @@ async function loadOutcomes() {
     outcomeState.data = { MES: mes, MNQ: mnq };
     outcomeState.events = eventData.events || [];
     $("outcome-status").textContent =
-      "Building no-look-ahead strategy snapshots…";
+      "Building v5 zone stacks (patterns, nesting, 80% rule)…";
     await new Promise(requestAnimationFrame);
-    for (const s of ["MES", "MNQ"])
-      outcomeState.snapshots[s] = buildOutcomeSnapshots(
-        outcomeState.data[s].bars,
+    for (const s of ["MES", "MNQ"]) {
+      outcomeState.stacks[s] = V5.buildStack(outcomeState.data[s].bars);
+      outcomeState.index[s] = new Map(
+        outcomeState.stacks[s].exec.map((b, i) => [b.time, i]),
       );
+    }
     for (const days of OUTCOME_WINDOWS) {
       outcomeState.runs[days] = {
-        strict: runOutcome(days, true),
-        base: runOutcome(days, false),
+        strict: runOutcome(days, "strict"),
+        base: runOutcome(days, "directional"),
       };
     }
     renderOutcomes();
@@ -707,12 +626,14 @@ $("outcome-export").addEventListener("click", () => {
   const run = outcomeState.runs[outcomeState.days]?.strict;
   if (!run?.tradeList.length) return;
   const head =
-      "opened,exit,instrument,side,score,entry,stop,target,quantity,risk,pnl,r_multiple,reason",
+      "opened,exit,instrument,entry_timeframe,pattern,side,score,entry,stop,target,quantity,risk,pnl,r_multiple,reason",
     rows = run.tradeList.map((t) =>
       [
         new Date(t.openedAt * 1000).toISOString(),
         new Date(t.exitTime * 1000).toISOString(),
         t.symbol,
+        t.entryTf || "",
+        t.pattern || "",
         t.side,
         t.score,
         t.entry,
@@ -728,7 +649,7 @@ $("outcome-export").addEventListener("click", () => {
     blob = new Blob([[head, ...rows].join("\n")], { type: "text/csv" }),
     a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `aegis-${outcomeState.days}d-strategy-outcomes.csv`;
+  a.download = `aegis-v5-${outcomeState.days}d-strategy-outcomes.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 });
