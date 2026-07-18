@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { YAHOO_SYMBOLS, isFeedSymbol } from "@/lib/market/contracts";
-import { inNySession } from "@/lib/time/ny";
 
 export const dynamic = "force-dynamic";
 
@@ -31,14 +30,18 @@ export async function GET(req: NextRequest) {
         close: quote.close?.[i],
         volume: quote.volume?.[i] || 0,
       }))
+      // Keep the full ~23h CME globex session so the zone engine sees real
+      // Daily/4H structure; execution stays intraday via the simulator's
+      // flatten-by-15:25 gate. (Previously an inNySession filter kept only
+      // 09:30–15:30 RTH bars, which collapsed each day into 2 misaligned 4H
+      // candles and starved the strict Daily→4H→1H nesting.)
       .filter(
         (b) =>
           b.time % 300 === 0 &&
           b.time <= completedBefore &&
-          [b.open, b.high, b.low, b.close].every(Number.isFinite) &&
-          inNySession(b.time)
+          [b.open, b.high, b.low, b.close].every(Number.isFinite)
       );
-    if (!bars.length) throw new Error("No valid New York-session candles");
+    if (!bars.length) throw new Error("No valid session candles");
     return NextResponse.json(
       {
         symbol,
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
         mode: "HISTORICAL_DELAYED",
         delayed: true,
         source: "Free delayed Yahoo 5-minute adapter",
-        session: "09:30–15:30 America/New_York",
+        session: "≈23h CME globex (Sun 18:00 – Fri 17:00 ET)",
         range: "60 calendar days",
         interval: "5m",
         fetchedAt: new Date().toISOString(),

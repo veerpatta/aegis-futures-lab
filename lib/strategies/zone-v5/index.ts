@@ -65,7 +65,7 @@ export const zoneV5: Strategy<ZoneCtx> = {
   id: "zone-v5",
   name: "Zone Engine v5",
   blurb:
-    "Institutional demand & supply zones (DBR/RBR/RBD/DBD) with strict Daily→4H→1H nesting, freshness, the 80% rule and MES/MNQ intermarket confirmation. Enters on the first return into a fresh nested zone.",
+    "Institutional demand & supply zones (DBR/RBR/RBD/DBD) with Daily→4H→1H alignment, freshness, the 80% rule and MES/MNQ intermarket confirmation. Enters on the first return into a fresh zone. Directional alignment by default; switch to Strict for full rectangle nesting.",
   flagship: true,
   symbolMode: "multi",
   params: [
@@ -73,12 +73,12 @@ export const zoneV5: Strategy<ZoneCtx> = {
       key: "mode",
       label: "Nesting mode",
       type: "select",
-      default: "strict",
+      default: "directional",
       options: [
         { value: "strict", label: "Strict v5 (rectangle nesting)" },
         { value: "directional", label: "Directional v4 (comparison)" },
       ],
-      help: "Strict requires 1H zones nested inside the Daily/4H rectangle; directional only requires same-side agreement.",
+      help: "Directional requires same-side Daily/4H/1H agreement (the default — takes trades on the delayed feed). Strict additionally requires 1H zones nested inside the Daily/4H rectangle; it is far more selective and often qualifies no setups.",
     },
     {
       key: "targetNet",
