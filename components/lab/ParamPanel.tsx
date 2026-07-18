@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { ParamValues, Strategy } from "@/lib/strategies/types";
 import { defaultParams } from "@/lib/strategies/types";
 import { loadPresets, savePresets, type StrategyPreset } from "@/lib/data/storage";
-import { Badge, Button, NumberField, Panel, SelectField, ToggleField } from "@/components/ui";
+import { Badge, Button, Panel } from "@/components/ui";
+import ParamFields from "./ParamFields";
 import styles from "./lab.module.css";
 
 export default function ParamPanel({
@@ -19,9 +20,6 @@ export default function ParamPanel({
   const [presets, setPresets] = useState<StrategyPreset[]>(() =>
     loadPresets().filter((p) => p.strategyId === strategy.id)
   );
-
-  const set = (key: string, value: number | string | boolean) =>
-    onChange({ ...params, [key]: value });
 
   const savePreset = () => {
     const name = window.prompt("Preset name?");
@@ -56,43 +54,7 @@ export default function ParamPanel({
       }
     >
       <div className={styles.paramGrid}>
-        {strategy.params.map((def) => {
-          if (def.type === "number")
-            return (
-              <NumberField
-                key={def.key}
-                label={def.label}
-                value={Number(params[def.key] ?? def.default)}
-                onChange={(v) => set(def.key, v)}
-                min={def.min}
-                max={def.max}
-                step={def.step}
-                unit={def.unit}
-                help={def.help}
-                slider
-              />
-            );
-          if (def.type === "select")
-            return (
-              <SelectField
-                key={def.key}
-                label={def.label}
-                value={String(params[def.key] ?? def.default)}
-                onChange={(v) => set(def.key, v)}
-                options={def.options}
-                help={def.help}
-              />
-            );
-          return (
-            <ToggleField
-              key={def.key}
-              label={def.label}
-              value={Boolean(params[def.key] ?? def.default)}
-              onChange={(v) => set(def.key, v)}
-              help={def.help}
-            />
-          );
-        })}
+        <ParamFields strategy={strategy} params={params} onChange={onChange} />
         <div className={styles.presetRow}>
           <Button small onClick={savePreset}>
             Save preset
