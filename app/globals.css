@@ -1,0 +1,131 @@
+/* ── Aegis design tokens ─────────────────────────────────────────────── */
+:root {
+  /* surfaces */
+  --bg: #070b12;
+  --bg-raised: #0b111d;
+  --bg-inset: #04070d;
+  --border: #1a2436;
+  --border-strong: #263349;
+
+  /* text */
+  --text: #e8eef8;
+  --text-dim: #93a1b8;
+  --text-faint: #5b6a83;
+
+  /* accents */
+  --green: #2dd4a0;
+  --red: #ff6b7a;
+  --amber: #f5b452;
+  --blue: #5aa7ff;
+  --violet: #a78bfa;
+  --cyan: #4dd0e1;
+
+  /* compare ramp (run 1..6) */
+  --ramp-1: #2dd4a0;
+  --ramp-2: #5aa7ff;
+  --ramp-3: #f5b452;
+  --ramp-4: #a78bfa;
+  --ramp-5: #ff6b7a;
+  --ramp-6: #4dd0e1;
+
+  /* soft accent washes */
+  --green-soft: rgba(45, 212, 160, 0.12);
+  --red-soft: rgba(255, 107, 122, 0.12);
+  --amber-soft: rgba(245, 180, 82, 0.12);
+  --blue-soft: rgba(90, 167, 255, 0.12);
+
+  /* shape & rhythm */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas,
+    monospace;
+
+  --sidebar-w: 220px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── App shell ───────────────────────────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+}
+
+.main {
+  padding: var(--space-5) var(--space-6);
+  min-width: 0;
+  max-width: 1440px;
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .main {
+    padding: var(--space-4);
+  }
+}
+
+/* ── Scrollbars (webkit) ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Page headings ───────────────────────────────────────────────────── */
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-1);
+}
+
+.pageSub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: 0 0 var(--space-5);
+}
