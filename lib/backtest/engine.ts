@@ -265,7 +265,15 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       const v = visible[sig.symbol];
       if (!v) return false;
       const next = series[sig.symbol][v.idx + 1];
-      if (!next || nyMeta(next.time).dateKey !== date || next.time > toTime) {
+      // The fill bar must exist, sit in the same NY session and BEFORE the
+      // flatten minute — a fill on the session-exit bar could never be
+      // flattened intraday and would carry overnight.
+      if (
+        !next ||
+        nyMeta(next.time).dateKey !== date ||
+        next.time > toTime ||
+        nyMeta(next.time).minutes >= sessionExitMinute
+      ) {
         note("lock"); // no executable next bar in this session/window
         return false;
       }
