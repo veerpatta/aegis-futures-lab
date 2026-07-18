@@ -118,6 +118,7 @@ export interface EvalResult {
   entryTf: Timeframe | null;
   refined15: boolean;
   nyCaution: boolean;
+  achieved: boolean; // §3.2 — the zone broke structure/an opposing zone after departure
   plan: Plan | null;
   score: number | null;
   bucket: string | null;
@@ -523,6 +524,7 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
       entryTf: null,
       refined15: false,
       nyCaution: false,
+      achieved: false,
       plan: null,
       score: null,
       bucket: null,
@@ -629,6 +631,7 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
   }
   const achieved = achievedBy(oneH, time);
   const nyCaution = !achieved && ny.minutes >= 570; // §3.3 NY standalone caution
+  result.achieved = achieved;
   result.nyCaution = nyCaution;
   if (mode === "directional" && nyCaution) {
     result.entryZone = oneH;

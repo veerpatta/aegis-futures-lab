@@ -236,4 +236,23 @@ describe("limit fill model", () => {
   });
 });
 
+
+describe("adjustStop hook", () => {
+  it("tightens the stop via adjustStop (breakeven) and never widens it", () => {
+    const bars = mkBars(30, { drift: 1 });
+    const strat = oneShot(4, { stop: bars[5].open - 20, target: { kind: "signalOnly" } });
+    let calls = 0;
+    strat.adjustStop = (_c, _s, pos) => {
+      calls++;
+      // first ask for a WIDER stop (must be ignored), then breakeven
+      return calls < 3 ? pos.entry - 100 : pos.entry;
+    };
+    const res = runBacktest(baseInput(bars, strat));
+    expect(res.trades.length).toBe(1);
+    const t = res.trades[0];
+    expect(t.exitReason).toBe("windowEnd");
+    expect(t.stop).toBe(t.entryPrice); // breakeven applied, widening ignored
+  });
+});
+
 const bars0 = mkBars(72);

@@ -119,6 +119,35 @@ export const zoneV5: Strategy<ZoneCtx> = {
       default: true,
       help: "Require MES and MNQ directional agreement (auto-off when only one series is loaded).",
     },
+    {
+      key: "secondZone",
+      label: "Second-zone rule (MNQ/MES)",
+      type: "boolean",
+      default: true,
+      help: "On fast approaches, the first market to reach its zone usually fails (~90% observed). Skip it and wait for the second market to reach its own corresponding zone.",
+    },
+    {
+      key: "requireAchieved",
+      label: "Weak-zone filter",
+      type: "select",
+      default: "ny",
+      options: [
+        { value: "off", label: "Off" },
+        { value: "ny", label: "NY session (skip un-achieved 1H zones)" },
+        { value: "always", label: "Always require achievement" },
+      ],
+      help: "Ordinary 1H zones that have not achieved anything (broken structure or an opposing zone) fail ~50% of the time in the New York session. 'NY session' skips them there in every mode; 'Always' trades only achieved zones.",
+    },
+    {
+      key: "breakevenR",
+      label: "Breakeven after (R)",
+      type: "number",
+      default: 0,
+      min: 0,
+      max: 2,
+      step: 0.25,
+      help: "Move the stop to the entry price once the previous completed bar closes this many R in profit (0 = off).",
+    },
   ],
 
   prepare(series, _params, execution) {
@@ -143,6 +172,18 @@ export const zoneV5: Strategy<ZoneCtx> = {
       }
       if (ev.refined15) note("refined15");
       if (ev.nyCaution) note("nyCaution");
+      // Weak-zone filter (voice note): ordinary zones that have not achieved
+      // anything are skipped — everywhere ("always") or in the NY session
+      // ("ny", where ~50% of standalone 1H zones break). The engine already
+      // enforces this for directional mode in NY; this extends it to strict.
+      if (params.requireAchieved === "always" && !ev.achieved) {
+        note("weakZone");
+        continue;
+      }
+      if (params.requireAchieved === "ny" && ev.nyCaution) {
+        note("weakZone");
+        continue;
+      }
       const z = ev.entryZone!;
       const touching = z.type === "demand" ? bar.low <= z.proximal : bar.high >= z.proximal;
       if (!touching) continue;
@@ -162,6 +203,25 @@ export const zoneV5: Strategy<ZoneCtx> = {
         }
         speed = inter.speed;
         interDetail = inter.detail;
+        // Second-zone rule (§ intermarket notes): on a fast approach, when the
+        // sibling market has its own qualified zone that price has NOT yet
+        // reached, this market is the FIRST zone tested — it fails ~90% of the
+        // time. Skip it and wait for the second market to reach its zone.
+        if (params.secondZone === true && speed === "fast") {
+          const oe = evals[other];
+          const o = oe?.ev;
+          if (o && !o.bucket && o.entryZone) {
+            const oz = o.entryZone;
+            const ob = oe!.bar;
+            const reached =
+              (oz.type === "demand" ? ob.low <= oz.proximal : ob.high >= oz.proximal) ||
+              (oz.firstReturnAt !== null && oz.firstReturnAt <= ob.time + 300);
+            if (!reached) {
+              note("firstZone");
+              continue;
+            }
+          }
+        }
       }
       signals.push({
         symbol,
@@ -180,6 +240,23 @@ export const zoneV5: Strategy<ZoneCtx> = {
       });
     }
     return signals;
+  },
+
+  /* Phase-8 trade management: move the stop to breakeven once the previous
+     COMPLETED bar closes `breakevenR` × initial risk in profit. Uses only
+     completed-bar information; the engine applies it tighten-only. */
+  adjustStop(ctx, snap, pos, params) {
+    const r = Number(params.breakevenR);
+    if (!r || !isFinite(r) || r <= 0) return null;
+    const vis = snap.bySymbol[pos.symbol];
+    if (!vis || vis.index < 1) return null;
+    const prev = vis.bars[vis.index - 1];
+    if (prev.time <= pos.openedAt) return null; // need a completed bar after entry
+    const point = pos.symbol === "MES" ? 5 : 2;
+    const stopPts = Math.max(1e-9, (pos.risk / pos.qty - ctx.execution.cost) / point);
+    const favorable = pos.side === "LONG" ? prev.close - pos.entry : pos.entry - prev.close;
+    if (favorable >= r * stopPts) return pos.entry;
+    return null;
   },
 
   liveReadout(ctx, snap, params): ReadoutRow[] {

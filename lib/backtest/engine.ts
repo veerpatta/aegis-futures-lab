@@ -229,6 +229,11 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       if (v && v.bar.time >= position.openedAt) {
         const b = v.bar;
         const p = position;
+        if (strategy.adjustStop) {
+          const ns = strategy.adjustStop(ctx, snapshot, p, params);
+          // tighten-only: breakeven/trailing may never widen the risk
+          if (ns != null && (p.side === "LONG" ? ns > p.stop : ns < p.stop)) p.stop = ns;
+        }
         const stopHit = p.side === "LONG" ? b.low <= p.stop : b.high >= p.stop;
         const targetHit =
           p.target !== null && (p.side === "LONG" ? b.high >= p.target : b.low <= p.target);

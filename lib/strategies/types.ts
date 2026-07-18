@@ -99,6 +99,11 @@ export interface Strategy<Ctx = unknown> {
   prepare(series: Record<string, Bar[]>, params: ParamValues, execution: ExecutionConfig): Ctx;
   onSnapshot(ctx: Ctx, snap: Snapshot, params: ParamValues, note: SkipNote): EntrySignal[];
   shouldExit?(ctx: Ctx, snap: Snapshot, position: OpenPosition, params: ParamValues): boolean;
+  /* Optional trade management (e.g. breakeven): return a new stop price to
+     tighten the stop, or null to leave it. The engine only ever tightens —
+     a returned stop that widens risk is ignored. Called on each bar before
+     the stop/target checks; must only use completed-bar information. */
+  adjustStop?(ctx: Ctx, snap: Snapshot, position: OpenPosition, params: ParamValues): number | null;
   liveReadout?(ctx: Ctx, snap: Snapshot, params: ParamValues): ReadoutRow[];
 }
 
