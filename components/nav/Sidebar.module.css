@@ -8,6 +8,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
 }
 
 .brand {
@@ -90,23 +91,9 @@
   line-height: 1.4;
 }
 
-@media (max-width: 860px) {
+/* Mobile gets MobileTopBar + MobileTabBar instead (components/nav/MobileNav.tsx). */
+@media (max-width: 768px) {
   .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    gap: var(--space-4);
-  }
-  .nav {
-    flex-direction: row;
-  }
-  .linkHint {
-    display: none;
-  }
-  .footer {
     display: none;
   }
 }

@@ -213,7 +213,7 @@ export default function ForwardTab({
       <Panel title="Pipeline" hint="the same gates the backtest engine applies">
         <div className={styles.funnel}>
           {checklist.map((c) => (
-            <div key={c.label} className={styles.funnelRow} style={{ gridTemplateColumns: "170px auto 1fr" }}>
+            <div key={c.label} className={styles.pipelineRow}>
               <span>{c.label}</span>
               <Badge tone={c.ok === true ? "green" : c.ok === false ? "red" : "amber"}>
                 {c.ok === true ? "OK" : c.ok === false ? "BLOCKED" : "WATCH"}
@@ -227,6 +227,7 @@ export default function ForwardTab({
       {stored && (
         <Panel title="Closed forward trades">
           <DataTable
+            mobileCards={{ titleIndexes: [0, 3, 5] }}
             columns={["Entry", "Exit", "Sym", "Side", "Qty", "P&L", "R", "Reason"]}
             rows={(result?.trades ?? []).map((t) => [
               ts(t.entryTime),

@@ -139,7 +139,7 @@ export default function MarketsClient() {
               ) : q.status === "error" ? (
                 <span className={styles.note}>{q.error}</span>
               ) : (
-                <span className={styles.note}>loading…</span>
+                <span className={`${styles.note} pulse`}>loading…</span>
               )}
             </div>
           );
@@ -151,33 +151,43 @@ export default function MarketsClient() {
           title="Chart"
           actions={
             <span className={styles.chartControls}>
-              {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
-                <Button
-                  key={s}
-                  small
-                  variant={s === chartSymbol ? "primary" : "ghost"}
-                  onClick={() => setChartSymbol(s)}
-                >
-                  {s}
-                </Button>
-              ))}
-              {TIMEFRAMES.map((t) => (
-                <Button
-                  key={t.id}
-                  small
-                  variant={t.id === tf ? "primary" : "ghost"}
-                  onClick={() => setTf(t.id)}
-                >
-                  {t.label}
-                </Button>
-              ))}
+              <span className={styles.segmented}>
+                {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
+                  <Button
+                    key={s}
+                    small
+                    variant={s === chartSymbol ? "primary" : "ghost"}
+                    onClick={() => setChartSymbol(s)}
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </span>
+              <span className={styles.segmented}>
+                {TIMEFRAMES.map((t) => (
+                  <Button
+                    key={t.id}
+                    small
+                    variant={t.id === tf ? "primary" : "ghost"}
+                    onClick={() => setTf(t.id)}
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+              </span>
             </span>
           }
         >
           {chartBars.length ? (
             <CandleChart bars={chartBars} height={380} />
           ) : (
-            <span className={styles.note}>
+            <span
+              className={
+                data.history[chartSymbol].status === "error"
+                  ? styles.note
+                  : `${styles.note} pulse`
+              }
+            >
               {data.history[chartSymbol].status === "error"
                 ? `Feed error: ${data.history[chartSymbol].error}`
                 : "Loading 60-day history…"}

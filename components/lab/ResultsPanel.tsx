@@ -201,6 +201,7 @@ export default function ResultsPanel({
         }
       >
         <DataTable
+          mobileCards={{ titleIndexes: [0, 3, 8] }}
           columns={[
             "Entry",
             "Exit",

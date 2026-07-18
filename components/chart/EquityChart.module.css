@@ -7,6 +7,8 @@
   width: 100%;
   height: auto;
   display: block;
+  /* vertical page scroll keeps working over the chart; horizontal drags scrub */
+  touch-action: pan-y;
 }
 
 .legend {
@@ -57,6 +59,10 @@
   fill: var(--text-faint);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .tickLabel { font-size: 11px; }
 }
 
 .tooltip {
