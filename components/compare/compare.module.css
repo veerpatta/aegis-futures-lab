@@ -75,3 +75,9 @@
   color: var(--text-faint);
   line-height: 1.45;
 }
+
+@media (max-width: 480px) {
+  .runRow > * {
+    min-width: 100%;
+  }
+}

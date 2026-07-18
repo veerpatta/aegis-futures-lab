@@ -136,3 +136,12 @@
   color: var(--text-faint);
   line-height: 1.45;
 }
+
+@media (max-width: 480px) {
+  .eventRow {
+    flex-wrap: wrap;
+  }
+  .eventTime {
+    min-width: 0;
+  }
+}

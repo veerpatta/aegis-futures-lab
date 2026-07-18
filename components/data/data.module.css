@@ -43,6 +43,12 @@
   margin-bottom: var(--space-3);
 }
 
+@media (max-width: 480px) {
+  .importRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;
