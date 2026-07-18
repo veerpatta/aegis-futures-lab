@@ -208,6 +208,25 @@
               <small>VIEWING</small><b id="outcome-selected">Last 60 days</b>
             </div>
           </div>
+          <div
+            class="mode-selector"
+            role="group"
+            aria-label="Choose rule engine mode"
+          >
+            <button data-outcome-mode="strict" class="active">
+              <strong>Strict nesting · v5</strong
+              ><small>TRADEABLE DEFAULT</small>
+            </button>
+            <button data-outcome-mode="directional">
+              <strong>Directional · v4</strong
+              ><small>LABELLED COMPARISON RUN</small>
+            </button>
+            <p id="mode-note">
+              Viewing the v5 engine. If strict nesting rejects everything in a
+              window, flip to the v4 comparison to see how the old directional
+              engine would have traded the same data.
+            </p>
+          </div>
           <div class="research-strip">
             <span class="pulse-dot"></span>
             <div>
