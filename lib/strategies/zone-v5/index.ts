@@ -167,6 +167,8 @@ export const zoneV5: Strategy<ZoneCtx> = {
         symbol,
         side: ev.plan!.side,
         stop: ev.plan!.stop,
+        limit: z.proximal, // resting order at the zone line — fills on the touch bar in limit mode
+
         target: { kind: "netDollar", amount: Number(params.targetNet) },
         score: ev.score ?? undefined,
         rank: speed === "fast" && symbol === "MES" ? 1 : 0,

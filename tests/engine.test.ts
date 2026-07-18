@@ -191,4 +191,49 @@ describe("unified backtest engine", () => {
   });
 });
 
+
+describe("limit fill model", () => {
+  it("fills at the resting limit on the signal bar itself", () => {
+    const bars = mkBars(20); // open 5000, low 4998 each bar
+    const input = baseInput(bars, oneShot(5, { limit: 4998.5 }));
+    input.execution.fillModel = "limit";
+    const res = runBacktest(input);
+    expect(res.trades.length).toBe(1);
+    const t = res.trades[0];
+    expect(t.entryTime).toBe(bars[5].time); // touch bar, not the next bar
+    expect(t.entryPrice).toBe(4998.5 + 0.25); // limit + slippage
+  });
+
+  it("fills at the open when the bar opens through the limit", () => {
+    const bars = mkBars(20);
+    bars[5] = { ...bars[5], open: 4997, low: 4995 };
+    const input = baseInput(bars, oneShot(5, { limit: 4998.5, stop: 4900 }));
+    input.execution.fillModel = "limit";
+    const res = runBacktest(input);
+    expect(res.trades[0].entryPrice).toBe(4997 + 0.25);
+  });
+
+  it("counts a same-bar stop sweep as a stop-out (stop-first convention)", () => {
+    const bars = mkBars(20);
+    const input = baseInput(
+      bars,
+      oneShot(5, { limit: 4999, stop: 4998.5, target: { kind: "price", price: 5100 } })
+    );
+    input.execution.fillModel = "limit"; // bar low 4998 sweeps the 4998.5 stop
+    const res = runBacktest(input);
+    expect(res.trades.length).toBe(1);
+    expect(res.trades[0].exitReason).toBe("stop");
+    expect(res.trades[0].entryTime).toBe(bars[5].time);
+    expect(res.trades[0].exitTime).toBe(bars[5].time);
+  });
+
+  it("keeps legacy next-open fills when fillModel is unset", () => {
+    const bars = mkBars(20);
+    const res = runBacktest(baseInput(bars, oneShot(5, { limit: 4998.5 })));
+    const t = res.trades[0];
+    expect(t.entryTime).toBe(bars[6].time);
+    expect(t.entryPrice).toBe(bars[6].open + 0.25);
+  });
+});
+
 const bars0 = mkBars(72);

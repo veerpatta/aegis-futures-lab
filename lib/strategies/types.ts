@@ -44,6 +44,11 @@ export interface EntrySignal {
   side: "LONG" | "SHORT";
   stop: number; // structural stop price — the engine sizes off this
   target: TargetSpec;
+  /* Resting limit price (e.g. the zone proximal). With execution.fillModel
+     "limit" the engine fills at this price on the touch bar itself — the
+     order was resting before price arrived — instead of chasing the next
+     bar's open. Ignored in "nextOpen" mode (legacy parity). */
+  limit?: number;
   score?: number;
   tags?: Record<string, string>;
   rank?: number; // candidate priority when several symbols signal at once
@@ -68,6 +73,10 @@ export interface ExecutionConfig {
   maxRisk: number; // $ risk cap per trade (risk sizing)
   sizing: "risk" | "fixed";
   fixedQty?: number;
+  /* "limit" fills signals that carry a limit price at that price on the
+     signal bar (realistic for resting zone orders); "nextOpen" (default)
+     keeps the legacy next-bar-open market fill. */
+  fillModel?: "nextOpen" | "limit";
 }
 
 export interface ReadoutRow {

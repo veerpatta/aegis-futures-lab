@@ -149,6 +149,7 @@ export default function CompareClient() {
             slippage: DEFAULT_EXECUTION.slippage,
             maxRisk: DEFAULT_EXECUTION.maxRisk,
             sizing: "risk",
+            fillModel: DEFAULT_EXECUTION.limitFills ? "limit" : "nextOpen",
           },
           locks: {
             dailyLoss: DEFAULT_EXECUTION.dailyLoss,

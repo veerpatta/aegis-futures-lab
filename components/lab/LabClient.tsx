@@ -139,6 +139,7 @@ export default function LabClient() {
           slippage: execution.slippage,
           maxRisk: execution.maxRisk,
           sizing: "risk",
+          fillModel: execution.limitFills ? "limit" : "nextOpen",
         },
         locks: execution.locksEnabled
           ? {

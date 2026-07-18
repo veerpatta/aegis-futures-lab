@@ -156,6 +156,49 @@ export function runBacktest(input: BacktestInput): BacktestResult {
 
   const newsLocked = (time: number) => newsTimes.some((t) => Math.abs(t - time) <= NEWS_LOCK_SEC);
 
+  /* Derive qty/target from the actual fill and build the position.
+     Returns null (with a riskUnfit note) when sizing yields no contracts. */
+  const tryOpen = (sig: EntrySignal, bar: Bar, entry: number): OpenPosition | null => {
+    const point = pointValueOf(sig.symbol);
+    const perContract = Math.abs(entry - sig.stop) * point + execution.cost;
+    const qty =
+      execution.sizing === "fixed"
+        ? Math.max(1, Math.floor(execution.fixedQty ?? 1))
+        : perContract > 0
+          ? Math.floor(execution.maxRisk / perContract)
+          : 0;
+    if (qty <= 0) {
+      note("riskUnfit");
+      return null;
+    }
+    let target: number | null = null;
+    const spec = sig.target;
+    if (spec.kind === "price") target = spec.price;
+    else if (spec.kind === "rMultiple")
+      target =
+        sig.side === "LONG"
+          ? entry + spec.r * Math.abs(entry - sig.stop)
+          : entry - spec.r * Math.abs(entry - sig.stop);
+    else if (spec.kind === "netDollar") {
+      const targetPoints = (spec.amount + execution.cost * qty) / (point * qty);
+      target = sig.side === "LONG" ? entry + targetPoints : entry - targetPoints;
+    }
+    return {
+      symbol: sig.symbol,
+      side: sig.side,
+      qty,
+      entry,
+      stop: sig.stop,
+      target,
+      risk: perContract * qty,
+      openedAt: bar.time,
+      score: sig.score,
+      tags: sig.tags,
+    };
+  };
+
+  const limitFills = execution.fillModel === "limit";
+
   for (const time of times) {
     const visible: Record<string, { idx: number; bar: Bar }> = {};
     for (const s of symbols) {
@@ -207,42 +250,9 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       const v = visible[plan.signal.symbol];
       if (v && nyMeta(v.bar.time).dateKey === plan.date) {
         const sig = plan.signal;
-        const point = pointValueOf(sig.symbol);
         const entry =
           sig.side === "LONG" ? v.bar.open + execution.slippage : v.bar.open - execution.slippage;
-        const perContract = Math.abs(entry - sig.stop) * point + execution.cost;
-        const qty =
-          execution.sizing === "fixed"
-            ? Math.max(1, Math.floor(execution.fixedQty ?? 1))
-            : perContract > 0
-              ? Math.floor(execution.maxRisk / perContract)
-              : 0;
-        if (qty > 0) {
-          let target: number | null = null;
-          const spec = sig.target;
-          if (spec.kind === "price") target = spec.price;
-          else if (spec.kind === "rMultiple")
-            target =
-              sig.side === "LONG"
-                ? entry + spec.r * Math.abs(entry - sig.stop)
-                : entry - spec.r * Math.abs(entry - sig.stop);
-          else if (spec.kind === "netDollar") {
-            const targetPoints = (spec.amount + execution.cost * qty) / (point * qty);
-            target = sig.side === "LONG" ? entry + targetPoints : entry - targetPoints;
-          }
-          position = {
-            symbol: sig.symbol,
-            side: sig.side,
-            qty,
-            entry,
-            stop: sig.stop,
-            target,
-            risk: perContract * qty,
-            openedAt: v.bar.time,
-            score: sig.score,
-            tags: sig.tags,
-          };
-        } else note("riskUnfit");
+        position = tryOpen(sig, v.bar, entry);
       }
     }
     if (position || pending) continue;
@@ -268,6 +278,15 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     const viable = signals.filter((sig) => {
       const v = visible[sig.symbol];
       if (!v) return false;
+      if (limitFills && sig.limit != null) {
+        // Limit fill happens on THIS bar; it only needs to sit before the
+        // flatten minute so the trade can still be managed intraday.
+        if (nyMeta(v.bar.time).minutes >= sessionExitMinute) {
+          note("lock");
+          return false;
+        }
+        return true;
+      }
       const next = series[sig.symbol][v.idx + 1];
       // The fill bar must exist, sit in the same NY session and BEFORE the
       // flatten minute — a fill on the session-exit bar could never be
@@ -293,6 +312,33 @@ export function runBacktest(input: BacktestInput): BacktestResult {
           (b.sig.score ?? 0) - (a.sig.score ?? 0) ||
           a.i - b.i
       )[0].sig;
+    if (limitFills && best.limit != null) {
+      // The order was resting at the limit before price arrived, so it fills
+      // on the touch bar itself: at the limit (or at the open, if the bar
+      // already opened through it), plus modelled slippage. This mirrors the
+      // live plan (entry at the zone proximal) instead of chasing the next
+      // bar's open after the bounce.
+      const b = visible[best.symbol].bar;
+      const lim = best.limit;
+      const touched = best.side === "LONG" ? b.low <= lim : b.high >= lim;
+      if (touched) {
+        const entry =
+          best.side === "LONG"
+            ? Math.min(b.open, lim) + execution.slippage
+            : Math.max(b.open, lim) - execution.slippage;
+        const opened = tryOpen(best, b, entry);
+        if (opened) {
+          position = opened;
+          // Conservative same-bar resolution: if the touch bar also swept the
+          // stop we cannot know the intra-bar order — count it as a stop-out
+          // (consistent with the engine's stop-first convention). The target
+          // is never granted on the fill bar.
+          const swept = opened.side === "LONG" ? b.low <= opened.stop : b.high >= opened.stop;
+          if (swept) closeTrade(b, "stop", opened.stop);
+        }
+      }
+      continue;
+    }
     pending = {
       signal: best,
       executeTime: series[best.symbol][visible[best.symbol].idx + 1].time,

@@ -96,6 +96,7 @@ export default function ForwardTab({
           slippage: stored.execution.slippage,
           maxRisk: stored.execution.maxRisk,
           sizing: "risk",
+          fillModel: stored.execution.limitFills !== false ? "limit" : "nextOpen", // default limit for pre-upgrade stored runs
         },
         locks: stored.execution.locksEnabled
           ? {

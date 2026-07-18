@@ -13,6 +13,7 @@ export interface ExecutionSettings {
   maxTrades: number;
   maxLosses: number;
   maxDrawdown: number;
+  limitFills: boolean; // fill at the zone's resting limit on the touch bar (realistic)
 }
 
 export const DEFAULT_EXECUTION: ExecutionSettings = {
@@ -25,6 +26,7 @@ export const DEFAULT_EXECUTION: ExecutionSettings = {
   maxTrades: 3,
   maxLosses: 2,
   maxDrawdown: 400,
+  limitFills: true,
 };
 
 export default function ExecutionPanel({
@@ -74,6 +76,13 @@ export default function ExecutionPanel({
           max={100000}
           step={100}
           unit="$"
+        />
+      </div>
+      <div style={{ marginTop: "var(--space-3)" }}>
+        <ToggleField
+          label="Limit fills at the zone price (matches the live plan; off = legacy next-open fills)"
+          value={value.limitFills}
+          onChange={(v) => set("limitFills", v)}
         />
       </div>
       <div style={{ marginTop: "var(--space-3)" }}>
