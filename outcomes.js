@@ -12,6 +12,7 @@ const OUTCOME_CONFIG = {
 };
 const outcomeState = {
   days: 60,
+  mode: "strict", // "strict" (v5 default) or "directional" (v4 comparison)
   data: {},
   stacks: {},
   index: {},
@@ -19,6 +20,9 @@ const outcomeState = {
   events: [],
   loading: false,
 };
+function outcomeModeKey() {
+  return outcomeState.mode === "directional" ? "base" : "strict";
+}
 
 function outcomePoint(symbol) {
   return V5.pointValue(symbol);
@@ -442,11 +446,14 @@ function renderEquityChart(strict, base) {
 }
 
 function renderVerdict(run) {
-  const positives = OUTCOME_WINDOWS.filter(
-      (d) => outcomeState.runs[d].strict.net > 0,
+  const key = outcomeModeKey(),
+    directional = key === "base",
+    engine = directional ? "v4 comparison" : "v5",
+    positives = OUTCOME_WINDOWS.filter(
+      (d) => outcomeState.runs[d][key].net > 0,
     ).length,
     pfWindows = OUTCOME_WINDOWS.filter(
-      (d) => outcomeState.runs[d].strict.profitFactor > 1,
+      (d) => outcomeState.runs[d][key].profitFactor > 1,
     ).length,
     sample = run.trades >= 30,
     positive = run.net > 0 && run.avgR > 0,
@@ -459,14 +466,19 @@ function renderVerdict(run) {
           : "NEGATIVE SAMPLE",
     badge = !sample ? "amber" : positive ? "green" : "red",
     copy = !sample
-      ? "Strict v5 nesting is deliberately selective, and this window produced too few qualified trades to treat as dependable evidence. The funnel shows exactly where candidates were rejected."
+      ? directional
+        ? "Even the looser directional v4 engine produced too few qualified trades in this window to treat as dependable evidence."
+        : "Strict v5 nesting is deliberately selective, and this window produced too few qualified trades to treat as dependable evidence. The funnel shows exactly where candidates were rejected."
       : positives === 3 && pfWindows === 3
-        ? "The v5 rule interpretation remained profitable across all three rolling windows. It still requires licensed tick data and walk-forward validation."
+        ? `The ${engine} rule interpretation remained profitable across all three rolling windows. It still requires licensed tick data and walk-forward validation.`
         : positive
           ? "The selected window is positive, but the result does not persist cleanly across every period."
-          : "The v5 rule interpretation did not produce positive expectancy in this window.";
+          : `The ${engine} rule interpretation did not produce positive expectancy in this window.`,
+    caveat = directional
+      ? "Directional v4 is a labelled research comparison only — the tradeable engine remains strict v5."
+      : "This is a deterministic historical calculation, not an AI prediction or a guarantee of future performance.";
   $("outcome-verdict").innerHTML =
-    `<div class="panel-head"><div><h2>ROBUSTNESS READ</h2><small>Evidence across rolling windows</small></div><span class="badge ${badge}">${label}</span></div><div class="verdict-hero"><strong>${copy}</strong><p>This is a deterministic historical calculation, not an AI prediction or a guarantee of future performance.</p></div><div class="verdict-list"><div><span>Positive windows</span><b>${positives} / 3</b></div><div><span>Profit factor above 1</span><b>${pfWindows} / 3</b></div><div><span>Qualified sample</span><b>${run.trades} trades</b></div><div><span>Capital drawdown</span><b>${((run.maxDrawdown / OUTCOME_CONFIG.startingCapital) * 100).toFixed(1)}%</b></div></div>`;
+    `<div class="panel-head"><div><h2>ROBUSTNESS READ</h2><small>Evidence across rolling windows · ${directional ? "v4 comparison mode" : "strict v5"}</small></div><span class="badge ${badge}">${label}</span></div><div class="verdict-hero"><strong>${copy}</strong><p>${caveat}</p></div><div class="verdict-list"><div><span>Positive windows</span><b>${positives} / 3</b></div><div><span>Profit factor above 1</span><b>${pfWindows} / 3</b></div><div><span>Qualified sample</span><b>${run.trades} trades</b></div><div><span>Capital drawdown</span><b>${((run.maxDrawdown / OUTCOME_CONFIG.startingCapital) * 100).toFixed(1)}%</b></div></div>`;
 }
 
 function renderFunnel(run) {
@@ -501,9 +513,10 @@ function renderAlignmentImpact(strict, base) {
     `<div class="impact-score"><div class="impact-side"><small>STRICT NESTING · v5</small><strong class="${outcomeClass(strict.net)}">${outcomeMoney(strict.net)}</strong><span>${strict.trades} trades · $${fmt(strict.maxDrawdown)} DD</span></div><span class="impact-arrow">→</span><div class="impact-side"><small>DIRECTIONAL · v4 COMPARISON</small><strong class="${outcomeClass(base.net)}">${outcomeMoney(base.net)}</strong><span>${base.trades} trades · $${fmt(base.maxDrawdown)} DD</span></div></div><div class="impact-summary"><b>${helped ? "Strict containment improved this sample." : "No confirmed improvement from strict containment in this sample."}</b><br>Net difference ${outcomeMoney(netDelta)}; drawdown difference ${outcomeMoney(ddDelta)}. The directional engine is retained only as a labelled comparison run, not as a tradeable default.</div>`;
 }
 function renderWindowMatrix() {
-  const selected = outcomeState.days;
+  const selected = outcomeState.days,
+    key = outcomeModeKey();
   $("window-matrix").innerHTML = OUTCOME_WINDOWS.map((days) => {
-    const r = outcomeState.runs[days].strict,
+    const r = outcomeState.runs[days][key],
       good = r.net > 0 && r.profitFactor > 1;
     return `<tr class="${days === selected ? "selected" : ""}"><td><b>${days} days</b></td><td>${r.sessions}</td><td>${r.trades}</td><td class="${outcomeClass(r.net)}">${outcomeMoney(r.net)}</td><td>${r.winRate.toFixed(1)}%</td><td>${Number.isFinite(r.profitFactor) ? r.profitFactor.toFixed(2) : "∞"}</td><td>${r.avgR.toFixed(2)}R</td><td>$${fmt(r.maxDrawdown)}</td><td><span class="outcome-chip ${r.trades === 0 ? "" : good ? "positive" : "negative"}">${r.trades === 0 ? "NO QUALIFIED TRADES" : r.trades < 20 ? "SMALL SAMPLE" : good ? "POSITIVE" : "NEGATIVE"}</span></td></tr>`;
   }).join("");
@@ -539,20 +552,30 @@ function renderOutcomes() {
     b.classList.toggle("active", selected);
     b.setAttribute("aria-pressed", String(selected));
   });
+  document.querySelectorAll("[data-outcome-mode]").forEach((b) => {
+    const selected = b.dataset.outcomeMode === outcomeState.mode;
+    b.classList.toggle("active", selected);
+    b.setAttribute("aria-pressed", String(selected));
+  });
+  const directional = outcomeState.mode === "directional";
+  $("mode-note").textContent = directional
+    ? "Viewing the old directional v4 engine on the same data — a labelled research comparison, not the tradeable default. Flip back to v5 for the strict-nesting results."
+    : "Viewing the v5 engine. If strict nesting rejects everything in a window, flip to the v4 comparison to see how the old directional engine would have traded the same data.";
   $("outcome-selected").textContent = `Last ${outcomeState.days} days`;
   const strict = pair.strict,
-    base = pair.base;
-  renderOutcomeKpis(strict);
-  renderInstrumentCards(strict);
+    base = pair.base,
+    run = directional ? base : strict;
+  renderOutcomeKpis(run);
+  renderInstrumentCards(run);
   renderEquityChart(strict, base);
-  renderVerdict(strict);
-  renderFunnel(strict);
+  renderVerdict(run);
+  renderFunnel(run);
   renderAlignmentImpact(strict, base);
   renderWindowMatrix();
-  renderBuckets(strict);
-  renderTradeLedger(strict);
+  renderBuckets(run);
+  renderTradeLedger(run);
   $("outcome-status").textContent =
-    `${outcomeState.days}-day v5 outcome ready · ${strict.sessions} New York sessions`;
+    `${outcomeState.days}-day ${directional ? "v4 comparison view" : "v5 outcome"} ready · ${run.sessions} New York sessions`;
   $("outcome-provenance").textContent =
     `${outcomeState.data.MES.source} · refreshed ${new Date(outcomeState.data.MES.fetchedAt).toLocaleString()}`;
 }
@@ -613,6 +636,12 @@ document.querySelectorAll("[data-outcome-days]").forEach((button) =>
     renderOutcomes();
   }),
 );
+document.querySelectorAll("[data-outcome-mode]").forEach((button) =>
+  button.addEventListener("click", () => {
+    outcomeState.mode = button.dataset.outcomeMode;
+    renderOutcomes();
+  }),
+);
 $("outcome-refresh").addEventListener("click", loadOutcomes);
 $("outcome-details-toggle").addEventListener("click", (event) => {
   const page = $("outcomes"),
@@ -623,7 +652,7 @@ $("outcome-details-toggle").addEventListener("click", (event) => {
     : "Show detailed rules and trade ledger ↓";
 });
 $("outcome-export").addEventListener("click", () => {
-  const run = outcomeState.runs[outcomeState.days]?.strict;
+  const run = outcomeState.runs[outcomeState.days]?.[outcomeModeKey()];
   if (!run?.tradeList.length) return;
   const head =
       "opened,exit,instrument,entry_timeframe,pattern,side,score,entry,stop,target,quantity,risk,pnl,r_multiple,reason",

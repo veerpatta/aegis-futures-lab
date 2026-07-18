@@ -696,3 +696,58 @@
   letter-spacing: 0.05em;
   margin-top: 2px;
 }
+.mode-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 9px;
+  padding: 7px;
+  border: 1px solid #21364a;
+  background: #07101a;
+  border-radius: 9px;
+}
+.mode-selector button {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 8px 13px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #7f8da1;
+  cursor: pointer;
+}
+.mode-selector button strong {
+  font-size: 12px;
+}
+.mode-selector button small {
+  font-size: 8px;
+  letter-spacing: 0.11em;
+}
+.mode-selector button.active {
+  background: #174136;
+  color: #baf6e1;
+  border-color: #36856e;
+}
+.mode-selector button[data-outcome-mode="directional"].active {
+  background: #3a2d12;
+  color: #f4cb79;
+  border-color: #8a6f2e;
+}
+#mode-note {
+  flex: 1;
+  margin: 0;
+  color: #7f8da1;
+  font-size: 10px;
+  line-height: 1.45;
+  padding: 0 8px;
+}
+@media (max-width: 900px) {
+  .mode-selector {
+    flex-wrap: wrap;
+  }
+  #mode-note {
+    flex-basis: 100%;
+    padding: 4px 6px 2px;
+  }
+}
