@@ -135,7 +135,9 @@
 }
 
 .input:focus,
-.select:focus { outline: none; border-color: var(--blue); }
+.select:focus { border-color: var(--blue); }
+.input:focus:not(:focus-visible),
+.select:focus:not(:focus-visible) { outline: none; }
 
 .range {
   width: 100%;

@@ -2,14 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NAV_LINKS, isActiveLink } from "./links";
 import styles from "./Sidebar.module.css";
-
-const LINKS = [
-  { href: "/", label: "Lab", hint: "Tune & backtest" },
-  { href: "/compare", label: "Compare", hint: "Side-by-side runs" },
-  { href: "/markets", label: "Markets", hint: "Delayed feed & signals" },
-  { href: "/data", label: "Data", hint: "CSV import & replay" },
-];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -22,8 +16,8 @@ export default function Sidebar() {
         </span>
       </Link>
       <nav className={styles.nav}>
-        {LINKS.map((l) => {
-          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+        {NAV_LINKS.map((l) => {
+          const active = isActiveLink(l.href, pathname);
           return (
             <Link
               key={l.href}
