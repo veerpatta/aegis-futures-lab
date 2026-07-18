@@ -1,0 +1,232 @@
+/* ── Panel ──────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.panelTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.panelTitle h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.panelHint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ── KPI tile ───────────────────────────────────────────────────────── */
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  min-width: 0;
+}
+
+.kpiLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.kpiValue {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.kpiSub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.good { color: var(--green); }
+.bad { color: var(--red); }
+.warn { color: var(--amber); }
+.dim { color: var(--text-dim); }
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn {
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.btn:hover { background: var(--bg-inset); border-color: var(--text-faint); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btnPrimary {
+  composes: btn;
+  background: var(--green-soft);
+  border-color: rgba(45, 212, 160, 0.5);
+  color: var(--green);
+}
+.btnPrimary:hover { background: rgba(45, 212, 160, 0.2); border-color: var(--green); }
+
+.btnGhost {
+  composes: btn;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-dim);
+}
+.btnGhost:hover { color: var(--text); background: var(--bg-raised); }
+
+.btnSmall { font-size: 12px; padding: 4px 10px; }
+
+/* ── Form fields ────────────────────────────────────────────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.fieldValue { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.fieldHelp { font-size: 10.5px; color: var(--text-faint); line-height: 1.35; }
+
+.input,
+.select {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.input:focus,
+.select:focus { outline: none; border-color: var(--blue); }
+
+.range {
+  width: 100%;
+  accent-color: var(--green);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.toggleRow input { accent-color: var(--green); }
+
+/* ── Badge ──────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.badgeGreen { composes: badge; color: var(--green); border-color: rgba(45, 212, 160, 0.4); background: var(--green-soft); }
+.badgeRed { composes: badge; color: var(--red); border-color: rgba(255, 107, 122, 0.4); background: var(--red-soft); }
+.badgeAmber { composes: badge; color: var(--amber); border-color: rgba(245, 180, 82, 0.4); background: var(--amber-soft); }
+.badgeBlue { composes: badge; color: var(--blue); border-color: rgba(90, 167, 255, 0.4); background: var(--blue-soft); }
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tabActive { composes: tab; color: var(--green); border-bottom-color: var(--green); }
+
+/* ── Data table ─────────────────────────────────────────────────────── */
+.tableWrap { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody tr:hover { background: var(--bg-inset); }
+
+.empty {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  padding: var(--space-4);
+  text-align: center;
+}

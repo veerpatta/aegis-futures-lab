@@ -1,0 +1,184 @@
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.card {
+  text-align: left;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transition: border-color 120ms, background 120ms;
+  font: inherit;
+  color: inherit;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+.cardActive {
+  composes: card;
+  border-color: var(--green);
+  background: linear-gradient(180deg, var(--green-soft), var(--bg-raised) 60%);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cardName {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.cardBlurb {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.configCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.resultsCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.paramGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.execGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.runBar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.runBar > * {
+  min-width: 130px;
+  flex: 1;
+}
+
+.runBar .runBtnWrap {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.funnelRow {
+  display: grid;
+  grid-template-columns: 170px 1fr 60px;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.funnelBarTrack {
+  height: 8px;
+  background: var(--bg-inset);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.funnelBarFill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 4px;
+}
+
+.funnelCount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+.riskGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.riskOut {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.error {
+  color: var(--red);
+  font-size: 12.5px;
+  background: var(--red-soft);
+  border: 1px solid rgba(255, 107, 122, 0.35);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}

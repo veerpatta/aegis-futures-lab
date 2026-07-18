@@ -20,13 +20,13 @@
   --violet: #a78bfa;
   --cyan: #4dd0e1;
 
-  /* compare ramp (run 1..6) */
-  --ramp-1: #2dd4a0;
-  --ramp-2: #5aa7ff;
-  --ramp-3: #f5b452;
-  --ramp-4: #a78bfa;
-  --ramp-5: #ff6b7a;
-  --ramp-6: #4dd0e1;
+  /* chart series ramp (run 1..6) — validated for CVD + contrast on --bg-raised */
+  --ramp-1: #17a87d;
+  --ramp-2: #3d8fe8;
+  --ramp-3: #c08221;
+  --ramp-4: #9377e8;
+  --ramp-5: #ef5567;
+  --ramp-6: #21a5b8;
 
   /* soft accent washes */
   --green-soft: rgba(45, 212, 160, 0.12);
