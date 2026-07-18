@@ -227,6 +227,7 @@ export default function ForwardTab({
       {stored && (
         <Panel title="Closed forward trades">
           <DataTable
+            mobileCards={{ titleIndexes: [0, 3, 5] }}
             columns={["Entry", "Exit", "Sym", "Side", "Qty", "P&L", "R", "Reason"]}
             rows={(result?.trades ?? []).map((t) => [
               ts(t.entryTime),

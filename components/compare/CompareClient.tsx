@@ -349,6 +349,7 @@ export default function CompareClient() {
           </Panel>
           <Panel title="Metrics" hint="best value per row highlighted">
             <DataTable
+              mobileCards={{ titleIndexes: [0] }}
               columns={["Metric", ...done.map(({ i }) => slots[i]?.label ?? `Run ${i + 1}`)]}
               rows={metricRows}
             />

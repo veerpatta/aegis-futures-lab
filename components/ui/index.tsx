@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import styles from "./ui.module.css";
 
 export function Panel({
@@ -119,6 +120,70 @@ export function NumberField({
   help?: string;
   slider?: boolean;
 }) {
+  const emit = (raw: number) => {
+    if (Number.isNaN(raw)) return; // empty/partial input — don't emit
+    let v = raw;
+    if (min !== undefined) v = Math.max(min, v);
+    if (max !== undefined) v = Math.min(max, v);
+    onChange(v);
+  };
+  const stepBy = (dir: 1 | -1) => {
+    const s = step ?? 1;
+    emit(Number((value + dir * s).toFixed(6)));
+  };
+
+  if (slider && min !== undefined && max !== undefined) {
+    return (
+      <div className={styles.field}>
+        <span className={styles.fieldLabel}>
+          {label}
+          <span className={styles.fieldValue}>
+            <input
+              type="number"
+              className={styles.inputCompact}
+              min={min}
+              max={max}
+              step={step}
+              value={value}
+              onChange={(e) => emit(Number(e.target.value))}
+              aria-label={`${label} value`}
+            />
+            {unit ? ` ${unit}` : ""}
+          </span>
+        </span>
+        <div className={styles.sliderRow}>
+          <button
+            type="button"
+            className={styles.stepBtn}
+            onClick={() => stepBy(-1)}
+            aria-label={`Decrease ${label}`}
+          >
+            −
+          </button>
+          <input
+            type="range"
+            className={styles.range}
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            aria-label={label}
+          />
+          <button
+            type="button"
+            className={styles.stepBtn}
+            onClick={() => stepBy(1)}
+            aria-label={`Increase ${label}`}
+          >
+            +
+          </button>
+        </div>
+        {help && <span className={styles.fieldHelp}>{help}</span>}
+      </div>
+    );
+  }
+
   return (
     <label className={styles.field}>
       <span className={styles.fieldLabel}>
@@ -128,27 +193,15 @@ export function NumberField({
           {unit ? ` ${unit}` : ""}
         </span>
       </span>
-      {slider && min !== undefined && max !== undefined ? (
-        <input
-          type="range"
-          className={styles.range}
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-        />
-      ) : (
-        <input
-          type="number"
-          className={styles.input}
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-        />
-      )}
+      <input
+        type="number"
+        className={styles.input}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
       {help && <span className={styles.fieldHelp}>{help}</span>}
     </label>
   );
@@ -234,14 +287,19 @@ export function DataTable({
   columns,
   rows,
   empty,
+  mobileCards,
 }: {
   columns: string[];
   rows: React.ReactNode[][];
   empty?: string;
+  /* Opt-in: on ≤768px screens, render rows as stacked cards instead of a
+     wide horizontal-scroll table. titleIndexes pick the cells shown in the
+     card header; hideIndexes drop cells entirely on mobile. */
+  mobileCards?: { titleIndexes: number[]; hideIndexes?: number[] };
 }) {
   if (!rows.length) return <div className={styles.empty}>{empty ?? "No rows."}</div>;
-  return (
-    <div className={styles.tableWrap}>
+  const table = (
+    <div className={mobileCards ? `${styles.tableWrap} ${styles.tableDesktop}` : styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -261,5 +319,34 @@ export function DataTable({
         </tbody>
       </table>
     </div>
+  );
+  if (!mobileCards) return table;
+  const titles = new Set(mobileCards.titleIndexes);
+  const hidden = new Set(mobileCards.hideIndexes ?? []);
+  return (
+    <>
+      {table}
+      <div className={styles.cardList}>
+        {rows.map((r, i) => (
+          <div key={i} className={styles.cardItem}>
+            <div className={styles.cardItemHead}>
+              {mobileCards.titleIndexes.map((idx) => (
+                <span key={idx}>{r[idx]}</span>
+              ))}
+            </div>
+            <div className={styles.cardItemBody}>
+              {r.map((cell, j) =>
+                titles.has(j) || hidden.has(j) ? null : (
+                  <Fragment key={j}>
+                    <span className={styles.cardItemLabel}>{columns[j]}</span>
+                    <span className={styles.cardItemValue}>{cell}</span>
+                  </Fragment>
+                )
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
