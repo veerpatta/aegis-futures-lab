@@ -48,9 +48,10 @@ describe.each([
         const opts = { symbol, time: bar.time + 300, price: bar.close, mode };
         const oldEval = legacy.evaluate(oldStack, opts);
         const newEval = ported.evaluate(newStack, opts);
-        // `achieved` is an additive TS-port field (used by the weak-zone
-        // filter); the legacy oracle does not emit it.
-        const { achieved: _achieved, ...newComparable } = newEval;
+        // `achieved`, `opposing` and `trend` are additive TS-port fields
+        // (weak-zone filter, zone target and odds-enhancer scoring); the
+        // legacy oracle does not emit them.
+        const { achieved: _achieved, opposing: _opposing, trend: _trend, ...newComparable } = newEval;
         expect(strip(newComparable)).toEqual(strip(oldEval));
         checked++;
       }

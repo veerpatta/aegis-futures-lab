@@ -4,6 +4,7 @@
    confirm intermarket agreement, prefer the MES zone on fast approaches. */
 
 import type { Bar } from "@/lib/types";
+import { inNySession, nyMeta } from "@/lib/time/ny";
 import { TF_LABEL, buildStack, evaluate, intermarketCheck } from "./engine";
 import type { Stack, EvalResult, Timeframe } from "./engine";
 import type {
@@ -30,6 +31,11 @@ function evalConfig(params: ParamValues, execution: ExecutionConfig) {
     maxRisk: execution.maxRisk,
     cost: execution.cost,
     slippage: execution.slippage,
+    // Opt-in (=== true / === "pdf") so runs that omit them keep exact legacy behavior.
+    deepRefine15: params.deepRefine15 === true,
+    zoneFallback: params.zoneFallback === true,
+    scoring: params.scoring === "pdf" ? ("pdf" as const) : ("classic" as const),
+    htfRangeMult: Number(params.htfRange) > 0 ? Number(params.htfRange) : 2,
   };
 }
 
@@ -65,7 +71,7 @@ export const zoneV5: Strategy<ZoneCtx> = {
   id: "zone-v5",
   name: "Zone Engine v5",
   blurb:
-    "Institutional demand & supply zones (DBR/RBR/RBD/DBD) with Daily→4H→1H alignment, freshness, the 80% rule and MES/MNQ intermarket confirmation. Enters on the first return into a fresh zone. Directional alignment by default; switch to Strict for full rectangle nesting.",
+    "Institutional demand & supply zones (DBR/RBR/RBD/DBD) with Daily→4H→1H alignment, freshness, the 80% rule, odds-enhancer scoring (fresh/trend/departure/margin/base), risk-adaptive 15M refinement and MES/MNQ intermarket confirmation. Targets: dollar band, next opposing zone, or fixed R; breakeven + trailing stop management.",
   flagship: true,
   symbolMode: "multi",
   params: [
@@ -148,12 +154,112 @@ export const zoneV5: Strategy<ZoneCtx> = {
       step: 0.25,
       help: "Move the stop to the entry price once the previous completed bar closes this many R in profit (0 = off).",
     },
+    {
+      key: "trailR",
+      label: "Trailing stop (R)",
+      type: "number",
+      default: 0,
+      min: 0,
+      max: 3,
+      step: 0.25,
+      help: "Once the previous completed bar closes this many R in profit, trail the stop this many R behind each new close (tighten-only; 0 = off).",
+    },
+    {
+      key: "targetMode",
+      label: "Profit target",
+      type: "select",
+      default: "r2",
+      options: [
+        { value: "r2", label: "2R" },
+        { value: "r3", label: "3R" },
+        { value: "zone", label: "Next opposing zone" },
+        { value: "dollar", label: "Net dollar target ($160–165 band)" },
+      ],
+      help: "Phase-7 target selection. 'Next opposing zone' exits at the nearest visible supply/demand zone past the entry (falls back to the dollar target when none is in view or the margin is under 1R).",
+    },
+    {
+      key: "scoring",
+      label: "Zone scoring",
+      type: "select",
+      default: "pdf",
+      options: [
+        { value: "pdf", label: "Odds enhancers (fresh/trend/departure/margin/base)" },
+        { value: "classic", label: "Classic v5 additive score" },
+      ],
+      help: "Phase-4 odds-enhancer checklist: Fresh 20 · Trend alignment 20 · Strong departure 20 · Profit margin 20 · Little time at base 20. Pair with the minimum-score gate to trade only high-scoring zones.",
+    },
+    {
+      key: "structure",
+      label: "Zone structure from",
+      type: "select",
+      default: "rth",
+      options: [
+        { value: "rth", label: "NY session bars only (ignore overnight)" },
+        { value: "full", label: "Full ~23h globex session" },
+      ],
+      help: "Phase-1 rule: 'Ignore Asian session, ignore overnight trades.' NY-session structure keeps thin overnight wicks from consuming a zone's freshness or distorting the candle grammar; 'full' uses every bar the feed provides.",
+    },
+    {
+      key: "entryStyle",
+      label: "Entry trigger",
+      type: "select",
+      default: "limit",
+      options: [
+        { value: "limit", label: "Resting limit at the zone line" },
+        { value: "confirm", label: "Confirmation candle (rejection close)" },
+      ],
+      help: "Phase-5 entry: 'Confirmation candle' waits for a bar that touches the zone and closes back in the trade direction (avoids catching momentum that blows straight through); 'Limit' rests an order at the proximal and fills on the touch.",
+    },
+    {
+      key: "entryHours",
+      label: "Entry session",
+      type: "select",
+      default: "rth",
+      options: [
+        { value: "rth", label: "NY session only (09:30–15:25 ET)" },
+        { value: "day", label: "London + New York (02:00–15:25 ET, more trades)" },
+        { value: "all", label: "Any hour before the 15:25 flat" },
+      ],
+      help: "Phase-1 trading-hours rule. Entries outside the chosen window are skipped; open positions still manage around the clock and flatten by 15:25 ET.",
+    },
+    {
+      key: "htfRange",
+      label: "HTF zone range (× height)",
+      type: "number",
+      default: 2,
+      min: 1,
+      max: 8,
+      step: 1,
+      help: "How far (in zone-heights) a Daily/4H zone may sit from price and still anchor a setup. The legacy engine used 2; wider values watch zones sooner and catch more touches.",
+    },
+    {
+      key: "deepRefine15",
+      label: "Deep 15M refinement",
+      type: "boolean",
+      default: true,
+      help: "When the 1H stop exceeds the risk cap, scan every fresh 15M zone nested in the 1H for one that fits (off = legacy nearest-only check).",
+    },
+    {
+      key: "zoneFallback",
+      label: "Prefer fresh 1H zones",
+      type: "boolean",
+      default: true,
+      help: "Pick the nearest FRESH, unblocked 1H zone even when a stale one sits closer (off = legacy nearest-zone pick).",
+    },
   ],
 
-  prepare(series, _params, execution) {
+  prepare(series, params, execution) {
     const symbols = Object.keys(series).sort(); // MES before MNQ
     const stacks: Record<string, Stack> = {};
-    for (const s of symbols) stacks[s] = buildStack(series[s]);
+    // Phase-1 "ignore overnight trades": with structure = "rth" the zone
+    // stack (detection, freshness, achievement) is built from NY-session
+    // bars only, so thin overnight wicks can neither create zones nor
+    // consume a zone's first return. Absent/full keeps every bar (legacy).
+    const rthOnly = params.structure === "rth";
+    for (const s of symbols) {
+      const bars = rthOnly ? series[s].filter((b) => inNySession(b.time)) : series[s];
+      stacks[s] = buildStack(bars.length ? bars : series[s]);
+    }
     return { stacks, symbols, execution };
   },
 
@@ -185,8 +291,33 @@ export const zoneV5: Strategy<ZoneCtx> = {
         continue;
       }
       const z = ev.entryZone!;
+      // Phase-1 trading-hours rule: entries only inside the chosen window.
+      const mins = nyMeta(bar.time).minutes;
+      if (
+        (params.entryHours === "rth" && (mins < 570 || mins >= 925)) ||
+        (params.entryHours === "day" && (mins < 120 || mins >= 925))
+      ) {
+        note("hours");
+        continue;
+      }
       const touching = z.type === "demand" ? bar.low <= z.proximal : bar.high >= z.proximal;
-      if (!touching) continue;
+      if (!touching) {
+        note("noTouch"); // qualified zone in view — waiting for price to reach the proximal
+        continue;
+      }
+      // Phase-5 confirmation-candle entry: the touch bar must reject back in
+      // the trade direction (close beyond the proximal, directional body).
+      const confirmEntry = params.entryStyle === "confirm";
+      if (confirmEntry) {
+        const confirmed =
+          z.type === "demand"
+            ? bar.close > z.proximal && bar.close > bar.open
+            : bar.close < z.proximal && bar.close < bar.open;
+        if (!confirmed) {
+          note("noConfirm");
+          continue;
+        }
+      }
       if (Number(params.minScore) > 0 && (ev.score ?? 0) < Number(params.minScore)) {
         note("belowMinScore");
         continue;
@@ -223,13 +354,25 @@ export const zoneV5: Strategy<ZoneCtx> = {
           }
         }
       }
+      // Phase-7 target: dollar band (default), next opposing zone, or fixed R.
+      // The zone target needs at least 1R of room; otherwise fall back to the
+      // dollar band so a nearby opposing zone can't produce a sub-risk target.
+      let target: EntrySignal["target"] = { kind: "netDollar", amount: Number(params.targetNet) };
+      if (params.targetMode === "r2") target = { kind: "rMultiple", r: 2 };
+      else if (params.targetMode === "r3") target = { kind: "rMultiple", r: 3 };
+      else if (params.targetMode === "zone" && ev.opposing && ev.plan!.stopPoints > 0) {
+        const margin = Math.abs(ev.opposing.proximal - ev.plan!.entry);
+        if (margin >= ev.plan!.stopPoints) target = { kind: "price", price: ev.opposing.proximal };
+      }
       signals.push({
         symbol,
         side: ev.plan!.side,
         stop: ev.plan!.stop,
-        limit: z.proximal, // resting order at the zone line — fills on the touch bar in limit mode
-
-        target: { kind: "netDollar", amount: Number(params.targetNet) },
+        // Confirmation entries fill at the NEXT bar's open (market after the
+        // rejection close); limit entries rest at the zone line and fill on
+        // the touch bar itself.
+        limit: confirmEntry ? undefined : z.proximal,
+        target,
         score: ev.score ?? undefined,
         rank: speed === "fast" && symbol === "MES" ? 1 : 0,
         tags: {
@@ -242,12 +385,14 @@ export const zoneV5: Strategy<ZoneCtx> = {
     return signals;
   },
 
-  /* Phase-8 trade management: move the stop to breakeven once the previous
-     COMPLETED bar closes `breakevenR` × initial risk in profit. Uses only
-     completed-bar information; the engine applies it tighten-only. */
+  /* Phase-8 trade management, tighten-only and from completed bars only:
+     breakeven moves the stop to entry after `breakevenR` × risk in profit;
+     the trailing stop then follows `trailR` × risk behind each new close.
+     The engine ignores any stop that would widen risk. */
   adjustStop(ctx, snap, pos, params) {
-    const r = Number(params.breakevenR);
-    if (!r || !isFinite(r) || r <= 0) return null;
+    const be = Number(params.breakevenR);
+    const tr = Number(params.trailR);
+    if ((!be || be <= 0) && (!tr || tr <= 0)) return null;
     const vis = snap.bySymbol[pos.symbol];
     if (!vis || vis.index < 1) return null;
     const prev = vis.bars[vis.index - 1];
@@ -255,8 +400,13 @@ export const zoneV5: Strategy<ZoneCtx> = {
     const point = pos.symbol === "MES" ? 5 : 2;
     const stopPts = Math.max(1e-9, (pos.risk / pos.qty - ctx.execution.cost) / point);
     const favorable = pos.side === "LONG" ? prev.close - pos.entry : pos.entry - prev.close;
-    if (favorable >= r * stopPts) return pos.entry;
-    return null;
+    let stop: number | null = null;
+    if (be && isFinite(be) && be > 0 && favorable >= be * stopPts) stop = pos.entry;
+    if (tr && isFinite(tr) && tr > 0 && favorable >= tr * stopPts) {
+      const trailed = pos.side === "LONG" ? prev.close - tr * stopPts : prev.close + tr * stopPts;
+      if (stop === null || (pos.side === "LONG" ? trailed > stop : trailed < stop)) stop = trailed;
+    }
+    return stop;
   },
 
   liveReadout(ctx, snap, params): ReadoutRow[] {

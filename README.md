@@ -24,7 +24,14 @@ performance claim.
 - **Zone Engine v5** (flagship) — demand & supply zones (DBR/RBR/RBD/DBD) with strict
   Daily→4H→1H nesting, freshness, the 80% rule, risk-adaptive 1H/15M entries and
   MES/MNQ intermarket confirmation. Ported line-for-line from the original engine
-  and locked by golden parity tests.
+  and locked by golden parity tests. On top of the parity surface, the full
+  strategy-spec feature set is parameterized: NY-session zone structure (ignore
+  overnight trades), odds-enhancer scoring (fresh / trend / departure / profit
+  margin / time-at-base) with 1H swing-structure trend detection, deep 15M
+  refinement when the 1H stop exceeds the risk cap, fresh-zone-preferring 1H
+  selection, entry triggers (resting limit or confirmation candle), entry-session
+  windows, profit targets (2R default, 3R, next opposing zone, or the $160–165
+  dollar band) and breakeven + trailing stop management.
 - **EMA Crossover**, **RSI Mean-Reversion**, **Opening Range Breakout**,
   **VWAP Reversion**, **Bollinger Squeeze Breakout** — classic parameterized
   strategies implementing the same contract.

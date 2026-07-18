@@ -42,6 +42,19 @@ export interface V5Config {
   slippage: number;
   stopBuffer: number;
   freshGraceSec: number;
+  /* Opt-in refinements (absent = legacy behavior, pinned by the parity tests):
+     deepRefine15 scans EVERY fresh 15M zone nested in the 1H for one whose
+     stop fits the risk cap instead of only the nearest; zoneFallback prefers
+     a fresh, unblocked 1H zone over a nearer stale one; scoring "pdf" uses
+     the odds-enhancer checklist (fresh / trend / departure / profit margin /
+     time-at-base) instead of the classic additive score. */
+  deepRefine15?: boolean;
+  zoneFallback?: boolean;
+  scoring?: "classic" | "pdf";
+  /* HTF proximity gate: a Daily/4H zone counts as "in range" within this
+     many zone-heights of price (legacy hard-coded 2; the PDF has no such
+     gate — wider values watch zones sooner and catch more touches). */
+  htfRangeMult?: number;
 }
 
 export const DEFAULT_CONFIG: V5Config = {
@@ -119,6 +132,10 @@ export interface EvalResult {
   refined15: boolean;
   nyCaution: boolean;
   achieved: boolean; // §3.2 — the zone broke structure/an opposing zone after departure
+  /* Nearest visible opposing zone past the entry (profit-margin odds
+     enhancer + the next-zone profit target). */
+  opposing: Zone | null;
+  trend: "up" | "down" | "side" | null; // 1H swing structure (HH/HL vs LH/LL)
   plan: Plan | null;
   score: number | null;
   bucket: string | null;
@@ -444,8 +461,8 @@ function distanceTo(z: Zone, price: number): number {
   if (price >= z.low && price <= z.high) return 0;
   return price < z.low ? z.low - price : price - z.high;
 }
-function inRange(z: Zone, price: number): boolean {
-  return distanceTo(z, price) <= 2 * (z.high - z.low);
+function inRange(z: Zone, price: number, mult = 2): boolean {
+  return distanceTo(z, price) <= mult * (z.high - z.low);
 }
 function priceInside(z: Zone, price: number): boolean {
   return z.type === "demand"
@@ -464,6 +481,94 @@ function zoneScore(
   if (ctx.fullStack) score += 10;
   if (ctx.nyCaution) score -= 10;
   if (z.wickTolerance) score -= 5;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/* Market structure (Phase 2): swing pivots on completed 1H bars — higher
+   highs + higher lows = uptrend, lower highs + lower lows = downtrend,
+   anything mixed = sideways. Pivot = a bar higher (lower) than the two bars
+   on each side. Only bars fully completed before `time` are used. */
+export function trendAt(frames: FrameBar[], time: number, spanSec: number): "up" | "down" | "side" {
+  const bars: FrameBar[] = [];
+  for (const b of frames) {
+    if (b.time + spanSec <= time) bars.push(b);
+    else break;
+  }
+  if (bars.length < 7) return "side";
+  const highs: number[] = [],
+    lows: number[] = [];
+  for (let i = 2; i < bars.length - 2; i++) {
+    const b = bars[i];
+    if (
+      b.high > bars[i - 1].high &&
+      b.high > bars[i - 2].high &&
+      b.high >= bars[i + 1].high &&
+      b.high >= bars[i + 2].high
+    )
+      highs.push(b.high);
+    if (
+      b.low < bars[i - 1].low &&
+      b.low < bars[i - 2].low &&
+      b.low <= bars[i + 1].low &&
+      b.low <= bars[i + 2].low
+    )
+      lows.push(b.low);
+  }
+  if (highs.length < 2 || lows.length < 2) return "side";
+  const hh = highs[highs.length - 1] > highs[highs.length - 2],
+    hl = lows[lows.length - 1] > lows[lows.length - 2],
+    lh = highs[highs.length - 1] < highs[highs.length - 2],
+    ll = lows[lows.length - 1] < lows[lows.length - 2];
+  if (hh && hl) return "up";
+  if (lh && ll) return "down";
+  return "side";
+}
+
+/* Nearest visible, alive opposing zone past the reference price — the
+   profit-margin odds enhancer and the "next supply/demand zone" target. */
+export function nearestOpposing(
+  stack: Stack,
+  side: Side,
+  fromPrice: number,
+  time: number
+): Zone | null {
+  const wantType: ZoneType = side === "LONG" ? "supply" : "demand";
+  let best: Zone | null = null,
+    bestDist = Infinity;
+  for (const tf of ["D", "240", "60"] as Timeframe[])
+    for (const z of stack.zones[tf]) {
+      if (z.type !== wantType || z.formedAt > time || (z.brokenAt !== null && z.brokenAt <= time))
+        continue;
+      const dist = side === "LONG" ? z.proximal - fromPrice : fromPrice - z.proximal;
+      if (dist > 0 && dist < bestDist) {
+        bestDist = dist;
+        best = z;
+      }
+    }
+  return best;
+}
+
+/* Phase-4 odds enhancers, scored per the strategy notes: Fresh 20 · Trend
+   20 · Departure 20 · Profit margin 20 · Time at base 20 (zones scoring
+   below the caller's threshold are skipped via the minScore param). */
+function pdfScore(
+  z: Zone,
+  ctx: {
+    trend: "up" | "down" | "side";
+    marginRatio: number | null;
+    nyCaution: boolean;
+    achieved: boolean;
+  }
+): number {
+  let score = 20; // fresh — entry zones here are always on their first return
+  const aligned = z.type === "demand" ? "up" : "down";
+  score += ctx.trend === aligned ? 20 : ctx.trend === "side" ? 10 : 0;
+  score += z.wickTolerance ? 8 : 20; // strong departure vs wick-tolerance path
+  score +=
+    ctx.marginRatio === null ? 20 : ctx.marginRatio >= 2 ? 20 : ctx.marginRatio >= 1 ? 10 : 0;
+  score += z.baseCount <= 1 ? 20 : 12; // little time at base
+  if (ctx.achieved) score += 5; // §3.2 achievement bonus
+  if (ctx.nyCaution) score -= 10;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -525,6 +630,8 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
       refined15: false,
       nyCaution: false,
       achieved: false,
+      opposing: null,
+      trend: null,
       plan: null,
       score: null,
       bucket: null,
@@ -561,10 +668,11 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
 
   // 1) HTF selection: Daily primary, 4H fallback (§2.1). Reaction zones
   //    still count as context/structure but are not used as the traded HTF.
-  let htfZone = pick(stack.zones.D, (z) => inRange(z, price));
+  const rangeMult = cfg.htfRangeMult && cfg.htfRangeMult > 0 ? cfg.htfRangeMult : 2;
+  let htfZone = pick(stack.zones.D, (z) => inRange(z, price, rangeMult));
   let htf: Timeframe = "D";
   if (!htfZone) {
-    htfZone = pick(stack.zones["240"], (z) => inRange(z, price));
+    htfZone = pick(stack.zones["240"], (z) => inRange(z, price, rangeMult));
     htf = "240";
   }
   if (!htfZone) {
@@ -577,6 +685,17 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
   result.side = htfZone.type === "demand" ? "LONG" : "SHORT";
 
   // 2) Nested refinement (§2.2) — or directional agreement in v4 mode.
+  //    With zoneFallback the fresh, unblocked 1H zone is preferred even when
+  //    a stale one sits nearer; the nearest is kept as the reported fallback
+  //    so the funnel buckets (notFresh/blocked80) stay meaningful.
+  const tradeable = (z: Zone) => freshAt(z, time, cfg.freshGraceSec) && !blockedBy(z, time);
+  const pick1h = (filter: (z: Zone) => boolean): Zone | null => {
+    if (cfg.zoneFallback) {
+      const fresh = pick(stack.zones["60"], (z) => filter(z) && tradeable(z), true);
+      if (fresh) return fresh;
+    }
+    return pick(stack.zones["60"], filter, true);
+  };
   let parentFor1h = htfZone;
   if (mode === "strict") {
     if (htf === "D") {
@@ -589,11 +708,7 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
       result.fourH = four;
       parentFor1h = four;
     }
-    const oneH = pick(
-      stack.zones["60"],
-      (z) => z.type === htfZone!.type && contains(parentFor1h, z),
-      true
-    );
+    const oneH = pick1h((z) => z.type === htfZone!.type && contains(parentFor1h, z));
     if (!oneH) {
       result.bucket = "nesting";
       result.detail = `No 1H ${htfZone.type} zone nested inside the ${TF_LABEL[result.fourH ? "240" : htf]} zone`;
@@ -602,7 +717,7 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
     result.oneH = oneH;
   } else {
     const four = pick(stack.zones["240"], (z) => z.type === htfZone!.type);
-    const oneH = pick(stack.zones["60"], (z) => z.type === htfZone!.type, true);
+    const oneH = pick1h((z) => z.type === htfZone!.type);
     if (!oneH) {
       result.bucket = "nesting";
       result.detail = "No same-direction 1H zone available";
@@ -647,16 +762,35 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
     entryTf: Timeframe = "60",
     plan = planFromZone(oneH, symbol, cfg);
   if (!plan.fits) {
-    const fifteen = pick(
-      stack.zones["15"],
-      (z) =>
-        z.type === oneH.type &&
-        contains(oneH, z) &&
-        !blockedBy(z, time) &&
-        freshAt(z, time, cfg.freshGraceSec),
-      true
-    );
-    const plan15 = fifteen ? planFromZone(fifteen, symbol, cfg) : null;
+    // Candidates in pick() order (nearest, then newest). Legacy behavior
+    // tries only the nearest; deepRefine15 walks the whole nested list for
+    // the first refinement whose structural stop fits the risk cap (§2.2
+    // "identify a smaller, more precise zone within the larger area").
+    const candidates = stack.zones["15"]
+      .filter(
+        (z) =>
+          visible(z, time) &&
+          alive(z, time) &&
+          !z.reaction &&
+          z.type === oneH.type &&
+          contains(oneH, z) &&
+          !blockedBy(z, time) &&
+          freshAt(z, time, cfg.freshGraceSec)
+      )
+      .sort(
+        (a, b) =>
+          distanceTo(a, price) - a.formedAt / 1e12 - (distanceTo(b, price) - b.formedAt / 1e12)
+      );
+    let fifteen: Zone | null = null,
+      plan15: Plan | null = null;
+    for (const z of cfg.deepRefine15 ? candidates : candidates.slice(0, 1)) {
+      const p = planFromZone(z, symbol, cfg);
+      if (p.fits) {
+        fifteen = z;
+        plan15 = p;
+        break;
+      }
+    }
     if (fifteen && plan15 && plan15.fits) {
       entryZone = fifteen;
       entryTf = "15";
@@ -673,12 +807,27 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
   result.entryZone = entryZone;
   result.entryTf = entryTf;
   result.plan = plan;
-  result.score = zoneScore(entryZone, {
-    achieved,
-    fresh: true,
-    fullStack: mode === "strict" && htf === "D",
-    nyCaution,
-  });
+  result.opposing = nearestOpposing(stack, plan.side, plan.entry, time);
+  if (cfg.scoring === "pdf") {
+    result.trend = trendAt(stack.frames["60"], time, 3600);
+    const marginRatio =
+      result.opposing && plan.stopPoints > 0
+        ? Math.abs(result.opposing.proximal - plan.entry) / plan.stopPoints
+        : null;
+    result.score = pdfScore(entryZone, {
+      trend: result.trend,
+      marginRatio,
+      nyCaution,
+      achieved,
+    });
+  } else {
+    result.score = zoneScore(entryZone, {
+      achieved,
+      fresh: true,
+      fullStack: mode === "strict" && htf === "D",
+      nyCaution,
+    });
+  }
   result.atEntry = priceInside(entryZone, price);
   result.detail = `${TF_LABEL[entryTf]} ${entryZone.pattern} ${entryZone.type} entry inside the ${TF_LABEL[htf]} zone`;
   return result;
