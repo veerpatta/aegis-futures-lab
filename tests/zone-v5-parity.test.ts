@@ -18,7 +18,7 @@ let legacy: LegacyV5;
 
 beforeAll(() => {
   const require = createRequire(import.meta.url);
-  require("../legacy/strategy.js"); // attaches AegisV5 to globalThis
+  require("./legacy/strategy.js"); // attaches AegisV5 to globalThis
   legacy = (globalThis as any).AegisV5;
   expect(legacy).toBeDefined();
 });

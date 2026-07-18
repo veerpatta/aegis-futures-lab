@@ -35,7 +35,7 @@ const EVENT_TIMES = [
 ].map((t) => new Date(t).getTime() / 1000);
 
 beforeAll(() => {
-  require2("../legacy/strategy.js");
+  require2("./legacy/strategy.js");
   legacyV5 = (globalThis as any).AegisV5;
   stacks = {
     MES: legacyV5.buildStack(series.MES),
