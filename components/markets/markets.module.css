@@ -75,6 +75,15 @@
   flex-wrap: wrap;
 }
 
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
 .readout {
   display: flex;
   flex-direction: column;

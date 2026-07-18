@@ -61,6 +61,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 480px) {
+  .tickLabel { font-size: 11px; }
+}
+
 .tooltip {
   position: absolute;
   top: 4px;
