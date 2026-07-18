@@ -45,6 +45,10 @@ export default function EquityChart({
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
+    // Measure synchronously on mount (don't depend on the first RO tick),
+    // then let the observer track subsequent resizes.
+    const initial = Math.round(el.getBoundingClientRect().width);
+    if (initial > 0) setW(initial);
     const ro = new ResizeObserver((entries) => {
       const width = Math.round(entries[0]?.contentRect.width ?? 0);
       if (width > 0) setW(width);
