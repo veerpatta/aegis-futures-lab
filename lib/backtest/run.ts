@@ -17,6 +17,7 @@ export interface RunRequest {
   newsTimes?: number[];
   window?: { fromTime?: number; toTime?: number };
   pointValues: Record<string, number>;
+  keepOpenAtEnd?: boolean;
 }
 
 export type WorkerMessage =
@@ -35,5 +36,6 @@ export function executeRun(req: RunRequest): BacktestResult {
     newsTimes: req.newsTimes,
     window: req.window,
     pointValueOf: (symbol) => req.pointValues[symbol] ?? 1,
+    keepOpenAtEnd: req.keepOpenAtEnd,
   });
 }

@@ -1,0 +1,138 @@
+.quotes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.quoteCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.quoteHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quoteSym {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.quoteName {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.quotePrice {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.quoteChange {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quoteMeta {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sideCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.chartControls {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.readoutRow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+  font-size: 12.5px;
+}
+
+.readoutLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.eventRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+}
+
+.eventTime {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+  min-width: 120px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eventBody b {
+  display: block;
+  font-weight: 500;
+}
+
+.eventBody span {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}

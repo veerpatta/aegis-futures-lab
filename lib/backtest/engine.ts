@@ -37,6 +37,9 @@ export interface BacktestInput {
   newsTimes?: number[]; // unix seconds of high-impact events (±30 min lock)
   window?: { fromTime?: number; toTime?: number };
   pointValueOf: (symbol: string) => number;
+  /* Forward-test mode: keep a position open at the window end (reported in
+     the result) instead of force-closing it. */
+  keepOpenAtEnd?: boolean;
 }
 
 export interface BacktestResult {
@@ -48,6 +51,7 @@ export interface BacktestResult {
   skipReasons: Record<string, number>;
   sessions: number;
   window: { from: number; to: number };
+  openPosition: OpenPosition | null; // only with keepOpenAtEnd
 }
 
 interface PendingEntry {
@@ -297,7 +301,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   }
 
   // Force-close at the window end.
-  if (position) {
+  if (position && !input.keepOpenAtEnd) {
     const p: OpenPosition = position;
     const exec = series[p.symbol];
     for (let i = exec.length - 1; i >= 0; i--) {
@@ -327,5 +331,6 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     skipReasons,
     sessions: sessions.size,
     window: { from: fromTime, to: toTime },
+    openPosition: position,
   };
 }
