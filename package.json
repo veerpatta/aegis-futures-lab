@@ -1,0 +1,5 @@
+{
+  "name": "aegis-futures-lab",
+  "private": true,
+  "scripts": { "build": "node build.js" }
+}
