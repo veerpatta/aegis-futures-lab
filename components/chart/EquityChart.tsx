@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EquityPoint } from "@/lib/types";
 import styles from "./EquityChart.module.css";
 
@@ -10,12 +10,20 @@ export interface EquitySeries {
   points: EquityPoint[];
 }
 
-const W = 720;
-const H = 220;
-const PAD = { top: 10, right: 12, bottom: 22, left: 52 };
+/* The viewBox width tracks the container's CSS pixel width (ResizeObserver),
+   so text renders at its true font size at every screen size instead of
+   scaling down with a fixed 720-wide viewBox. */
+const DEFAULT_W = 720;
 
 function fmtMoney(v: number): string {
   return `${v < 0 ? "−" : ""}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function fmtMoneyTick(v: number, compact: boolean): string {
+  if (compact && Math.abs(v) >= 10000) {
+    return `${v < 0 ? "−" : ""}$${(Math.abs(v) / 1000).toFixed(1)}k`;
+  }
+  return fmtMoney(v);
 }
 
 function fmtDate(sec: number): string {
@@ -30,7 +38,24 @@ export default function EquityChart({
   baseline?: number;
 }) {
   const [hoverX, setHoverX] = useState<number | null>(null);
+  const [w, setW] = useState(DEFAULT_W);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const width = Math.round(entries[0]?.contentRect.width ?? 0);
+      if (width > 0) setW(width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const h = w < 480 ? 200 : 220;
+  const compact = w < 480;
+  const pad = { top: 10, right: 12, bottom: 22, left: compact ? 44 : 52 };
 
   const domain = useMemo(() => {
     const pts = series.flatMap((s) => s.points);
@@ -50,24 +75,25 @@ export default function EquityChart({
   if (!domain) return <div className={styles.emptyNote}>No equity points.</div>;
 
   const x = (t: number) =>
-    PAD.left + ((t - domain.t0) / (domain.t1 - domain.t0)) * (W - PAD.left - PAD.right);
+    pad.left + ((t - domain.t0) / (domain.t1 - domain.t0)) * (w - pad.left - pad.right);
   const y = (e: number) =>
-    H - PAD.bottom - ((e - domain.e0) / (domain.e1 - domain.e0)) * (H - PAD.top - PAD.bottom);
+    h - pad.bottom - ((e - domain.e0) / (domain.e1 - domain.e0)) * (h - pad.top - pad.bottom);
 
   const yTicks = 4;
   const tickVals = Array.from(
     { length: yTicks + 1 },
     (_, i) => domain.e0 + ((domain.e1 - domain.e0) * i) / yTicks
   );
+  const xTickCount = w < 440 ? 3 : 4;
   const xTickTimes = Array.from(
-    { length: 4 },
-    (_, i) => domain.t0 + ((domain.t1 - domain.t0) * (i + 0.5)) / 4
+    { length: xTickCount },
+    (_, i) => domain.t0 + ((domain.t1 - domain.t0) * (i + 0.5)) / xTickCount
   );
 
   const hoverTime =
     hoverX === null
       ? null
-      : domain.t0 + ((hoverX - PAD.left) / (W - PAD.left - PAD.right)) * (domain.t1 - domain.t0);
+      : domain.t0 + ((hoverX - pad.left) / (w - pad.left - pad.right)) * (domain.t1 - domain.t0);
 
   const hoverRows =
     hoverTime === null
@@ -83,15 +109,30 @@ export default function EquityChart({
           })
           .filter((r): r is NonNullable<typeof r> => r !== null);
 
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  /* Pointer events serve mouse and touch alike: hover tracks on mouse, a tap
+     or drag sets the crosshair on touch (persists until the next tap). The
+     viewBox width equals CSS pixels, so no coordinate scaling is needed. */
+  const setFromClientX = (clientX: number) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const px = ((e.clientX - rect.left) / rect.width) * W;
-    setHoverX(px >= PAD.left && px <= W - PAD.right ? px : null);
+    const px = clientX - rect.left;
+    setHoverX(px >= pad.left && px <= w - pad.right ? px : null);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse" || e.buttons > 0) setFromClientX(e.clientX);
+  };
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    setFromClientX(e.clientX);
+  };
+
+  const onPointerLeave = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse") setHoverX(null);
   };
 
   return (
-    <div className={styles.wrap}>
+    <div ref={wrapRef} className={styles.wrap}>
       {series.length > 1 && (
         <div className={styles.legend}>
           {series.map((s) => (
@@ -104,24 +145,25 @@ export default function EquityChart({
       )}
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`0 0 ${w} ${h}`}
         className={styles.svg}
-        onMouseMove={onMove}
-        onMouseLeave={() => setHoverX(null)}
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerDown}
+        onPointerLeave={onPointerLeave}
         role="img"
         aria-label="Equity curve"
       >
         {tickVals.map((v) => (
           <g key={v}>
             <line
-              x1={PAD.left}
-              x2={W - PAD.right}
+              x1={pad.left}
+              x2={w - pad.right}
               y1={y(v)}
               y2={y(v)}
               className={styles.gridLine}
             />
-            <text x={PAD.left - 6} y={y(v) + 3.5} className={styles.tickLabel} textAnchor="end">
-              {fmtMoney(v)}
+            <text x={pad.left - 6} y={y(v) + 3.5} className={styles.tickLabel} textAnchor="end">
+              {fmtMoneyTick(v, compact)}
             </text>
           </g>
         ))}
@@ -129,7 +171,7 @@ export default function EquityChart({
           <text
             key={t}
             x={x(t)}
-            y={H - 6}
+            y={h - 6}
             className={styles.tickLabel}
             textAnchor="middle"
           >
@@ -138,8 +180,8 @@ export default function EquityChart({
         ))}
         {baseline !== undefined && (
           <line
-            x1={PAD.left}
-            x2={W - PAD.right}
+            x1={pad.left}
+            x2={w - pad.right}
             y1={y(baseline)}
             y2={y(baseline)}
             className={styles.baseline}
@@ -158,7 +200,7 @@ export default function EquityChart({
           />
         ))}
         {hoverX !== null && (
-          <line x1={hoverX} x2={hoverX} y1={PAD.top} y2={H - PAD.bottom} className={styles.crosshair} />
+          <line x1={hoverX} x2={hoverX} y1={pad.top} y2={h - pad.bottom} className={styles.crosshair} />
         )}
         {hoverRows.map((r) => (
           <circle
