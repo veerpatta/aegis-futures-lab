@@ -1,8 +1,19 @@
+# Scheduled paper-signal engine: recomputes the tier A/B signal streams from
+# delayed Yahoo data and mirrors them into Supabase for the dashboard.
+#
+# Cron is UTC and GitHub delays cron jobs by 5-15 min — fine for a paper
+# log, never rely on it for live execution. 06:00-21:45 UTC Mon-Fri covers
+# the London+NY entry window (02:00-15:25 ET) in both DST regimes.
+#
+# Writes use the publishable key (RLS allows writes on these paper tables).
+# To tighten later: add a SUPABASE_SERVICE_ROLE_KEY repo secret, set it as
+# SUPABASE_KEY below, and drop the public write policies in Supabase.
+
 name: signal-engine
 
 on:
   schedule:
-    - cron: "*/15 13-20 * * 1-5"
+    - cron: "*/15 6-21 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -15,16 +26,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install deps
-        run: pip install -r requirements.txt
-      - name: Run signal engine
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/engine/run-live.ts
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SYMBOLS: "NQ=F,ES=F"
-          RR: "2.0"
-        run: python signal_engine.py
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

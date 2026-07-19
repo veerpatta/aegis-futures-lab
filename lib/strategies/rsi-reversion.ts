@@ -1,4 +1,5 @@
 import { rsi, atr } from "@/lib/indicators";
+import { nyMeta } from "@/lib/time/ny";
 import type { EntrySignal, ReadoutRow, Strategy } from "./types";
 import { num, visibleSymbols } from "./classic-utils";
 
@@ -35,6 +36,18 @@ export const rsiReversion: Strategy<Ctx> = {
       ],
     },
     { key: "targetR", label: "Target (R)", type: "number", default: 1.5, min: 0.5, max: 10, step: 0.5 },
+    {
+      key: "session",
+      label: "Entry session",
+      type: "select",
+      default: "all",
+      options: [
+        { value: "all", label: "Any hour" },
+        { value: "day", label: "London + New York (02:00–15:25 ET)" },
+        { value: "rth", label: "NY session only (09:30–15:25 ET)" },
+      ],
+      help: "Skip entries outside the chosen window; open positions still manage around the clock.",
+    },
   ],
 
   prepare(series, params) {
@@ -57,6 +70,14 @@ export const rsiReversion: Strategy<Ctx> = {
         r1 = ind.rsi[v.index];
       if (r0 === null || r1 === null) continue;
       note("evaluated");
+      const mins = nyMeta(v.bar.time).minutes;
+      if (
+        (params.session === "rth" && (mins < 570 || mins >= 925)) ||
+        (params.session === "day" && (mins < 120 || mins >= 925))
+      ) {
+        note("hours");
+        continue;
+      }
       const longTrigger = r0 < oversold && r1 >= oversold;
       const shortTrigger = params.bothSides !== false && r0 > overbought && r1 <= overbought;
       if (!longTrigger && !shortTrigger) {

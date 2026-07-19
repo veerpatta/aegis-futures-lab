@@ -59,6 +59,19 @@ export const NAV_LINKS: NavLink[] = [
     ),
   },
   {
+    href: "/signals",
+    label: "Signals",
+    hint: "Live paper signals",
+    icon: (
+      <svg {...iconProps}>
+        {/* radio waves */}
+        <circle cx="12" cy="12" r="1.6" />
+        <path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7" />
+        <path d="M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8" />
+      </svg>
+    ),
+  },
+  {
     href: "/markets",
     label: "Markets",
     hint: "Delayed feed & signals",

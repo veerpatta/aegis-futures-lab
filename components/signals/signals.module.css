@@ -1,0 +1,25 @@
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.error {
+  color: var(--red, #e5484d);
+  font-size: 13px;
+}
+
+.dim {
+  color: var(--text-dim, #8b8fa3);
+  font-size: 13px;
+}
+
+.good {
+  color: var(--green, #30a46c);
+  font-variant-numeric: tabular-nums;
+}
+
+.bad {
+  color: var(--red, #e5484d);
+  font-variant-numeric: tabular-nums;
+}

@@ -18,6 +18,7 @@ performance claim.
 | **Compare** | Up to six strategies or parameter variants over the same window: overlaid equity curves and a best-in-row metrics table. Comparisons are URL-shareable. |
 | **Markets** | Delayed MES/MNQ quotes, candle chart (5m/15m/1H), a live signal readout for any strategy, and the news-lockout calendar. |
 | **Data** | Client-side CSV import (`timestamp,open,high,low,close[,volume]`), replay cutoff slider, and full data provenance. Imported bars never leave the browser. |
+| **Signals** | Live paper-signal log written by the scheduled cloud engine: tier A/B signal stream with statuses and P&L, engine heartbeat, and the current demand/supply zone watchlist. |
 
 ## Strategy library
 
@@ -54,6 +55,34 @@ The engine's behavior is pinned by tests: a verbatim extract of the legacy study
 walker acts as an oracle, and the trade lists must match exactly
 (`tests/engine-v5-parity.test.ts`).
 
+## Cloud signal engine (Supabase + GitHub Actions)
+
+A scheduled job (`.github/workflows/signal-engine.yml`, every 15 minutes during
+the London+NY window) runs `scripts/engine/run-live.ts`: it fetches the delayed
+Yahoo feed, replays the tier streams through the same backtest simulator the app
+uses, and mirrors the results into Supabase (`signals`, `zones`, `engine_runs`).
+The **Signals** page and the Replay journal read/write those tables with the
+publishable key.
+
+Two signal tiers (`scripts/engine/tiers.ts`, tuned via `npm run engine:report`):
+
+- **Tier A — high conviction**: Zone Engine v5 with the app's default parameters.
+  Sparse (~0.3/day) and clustered on the days price reaches Daily/4H structure.
+- **Tier B — daily flow**: RSI mean-reversion (25/75, London+NY, 1.5×ATR stop,
+  1.5R target) per symbol with tight daily discipline locks (max 2 trades, stop
+  after 2 losses / −$250). ~2/day combined.
+
+Together they averaged **2.8 signals/day with ≥1 signal on 45 of 49 trading
+days** on the tuning window — with all three streams net positive. Paper
+research only: GitHub cron can be 5–15 minutes late and the feed is delayed, so
+these signals are a log to study, never execution instructions.
+
+Run locally: `npm run engine` (one engine pass) · `npm run engine:report`
+(re-measure the tier configuration over the trailing 60 days).
+
+The journal on the Replay page also syncs to the Supabase `trades` table and
+imports Tradovate/Topstep performance CSVs directly.
+
 ## Development
 
 ```bash
@@ -67,8 +96,9 @@ Stack: Next.js (App Router, TypeScript), plain CSS custom properties + CSS Modul
 [lightweight-charts](https://github.com/tradingview/lightweight-charts) for candles.
 Serverless API routes proxy the free delayed Yahoo Finance feed
 (`/api/market`, `/api/history`) and serve the verified 2026 economic calendar
-(`/api/events`). No database, no auth, no tracking; presets and the forward test
-persist in `localStorage`.
+(`/api/events`). Presets and the forward test persist in `localStorage`; the
+signal log and journal mirror live in a free-tier Supabase project (RLS-governed,
+publishable key only — no auth, no tracking).
 
 ## Data disclaimers
 

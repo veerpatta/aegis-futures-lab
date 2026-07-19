@@ -55,6 +55,10 @@ export interface V5Config {
      many zone-heights of price (legacy hard-coded 2; the PDF has no such
      gate — wider values watch zones sooner and catch more touches). */
   htfRangeMult?: number;
+  /* Opt-in intraday tier: when no Daily or 4H zone is in range, let an
+     in-range 1H zone anchor the setup (the 1H is then both the HTF and the
+     entry zone, refinable to 15M as usual). Absent = legacy noHtf skip. */
+  htfFallback1h?: boolean;
 }
 
 export const DEFAULT_CONFIG: V5Config = {
@@ -674,6 +678,10 @@ export function evaluate(stack: Stack, opts: EvaluateOpts): EvalResult {
   if (!htfZone) {
     htfZone = pick(stack.zones["240"], (z) => inRange(z, price, rangeMult));
     htf = "240";
+  }
+  if (!htfZone && cfg.htfFallback1h) {
+    htfZone = pick(stack.zones["60"], (z) => inRange(z, price, rangeMult));
+    htf = "60";
   }
   if (!htfZone) {
     result.bucket = "noHtf";

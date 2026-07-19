@@ -36,6 +36,7 @@ function evalConfig(params: ParamValues, execution: ExecutionConfig) {
     zoneFallback: params.zoneFallback === true,
     scoring: params.scoring === "pdf" ? ("pdf" as const) : ("classic" as const),
     htfRangeMult: Number(params.htfRange) > 0 ? Number(params.htfRange) : 2,
+    htfFallback1h: params.htf1h === true,
   };
 }
 
@@ -231,6 +232,13 @@ export const zoneV5: Strategy<ZoneCtx> = {
       max: 8,
       step: 1,
       help: "How far (in zone-heights) a Daily/4H zone may sit from price and still anchor a setup. The legacy engine used 2; wider values watch zones sooner and catch more touches.",
+    },
+    {
+      key: "htf1h",
+      label: "1H HTF fallback (intraday tier)",
+      type: "boolean",
+      default: false,
+      help: "When no Daily/4H zone is in range, let an in-range 1H zone anchor the setup so ordinary days still produce intraday signals. Off = classic v5 (Daily/4H anchors only, signals cluster on the days price reaches HTF structure).",
     },
     {
       key: "deepRefine15",

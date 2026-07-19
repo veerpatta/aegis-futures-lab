@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   journalTradesToCsv,
   parseJournalCsv,
@@ -9,6 +9,8 @@ import {
   type JournalTrade,
 } from "@/lib/journal";
 import { journalPnl } from "@/lib/journal";
+import { parseBrokerCsv } from "@/lib/journal/broker";
+import { fetchCloudJournal, mirrorJournalToCloud } from "@/lib/journal/cloud";
 import { nyClock, nyDateKey, nyTimeToUnix } from "@/lib/time/ny";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import { money } from "@/lib/format";
@@ -53,6 +55,7 @@ export default function JournalPanel({
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cloud, setCloud] = useState<"syncing" | "ok" | "offline">("syncing");
   const [form, setForm] = useState({
     symbol: "MES" as FeedSymbol,
     side: "LONG" as "LONG" | "SHORT",
@@ -68,7 +71,41 @@ export default function JournalPanel({
     const store: JournalStore = { version: 1, trades };
     saveJournal(store);
     onChange(store);
+    mirrorJournalToCloud(trades)
+      .then(() => setCloud("ok"))
+      .catch(() => setCloud("offline"));
   };
+
+  /* On first mount, pull any journal trades that only exist in the cloud
+     (another browser/device) and push local-only trades up. */
+  useEffect(() => {
+    let alive = true;
+    fetchCloudJournal()
+      .then((remote) => {
+        if (!alive) return;
+        const localIds = new Set(journal.trades.map((t) => t.id));
+        const fresh = remote.filter((t) => !localIds.has(t.id));
+        const merged = fresh.length
+          ? [...journal.trades, ...fresh].sort((a, b) => a.entryTime - b.entryTime)
+          : journal.trades;
+        if (fresh.length) {
+          const store: JournalStore = { version: 1, trades: merged };
+          saveJournal(store);
+          onChange(store);
+        }
+        return mirrorJournalToCloud(merged).then(() => {
+          if (alive) setCloud("ok");
+        });
+      })
+      .catch(() => {
+        if (alive) setCloud("offline");
+      });
+    return () => {
+      alive = false;
+    };
+    // mount-only: the merge must not loop on every journal change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addManual = () => {
     setError(null);
@@ -101,12 +138,29 @@ export default function JournalPanel({
   const importCsv = async (file: File) => {
     setError(null);
     try {
-      const parsed = parseJournalCsv(await file.text());
+      const text = await file.text();
+      let parsed: JournalTrade[];
+      let brokerSkipped = 0;
+      try {
+        parsed = parseJournalCsv(text);
+      } catch (journalErr) {
+        // Not the journal schema — try broker exports (Tradovate / Topstep).
+        try {
+          const broker = parseBrokerCsv(text);
+          parsed = broker.trades;
+          brokerSkipped = broker.skipped;
+        } catch {
+          throw journalErr;
+        }
+      }
       const seen = new Set(journal.trades.map(dedupeKey));
       const fresh = parsed.filter((t) => !seen.has(dedupeKey(t)));
       commit([...journal.trades, ...fresh].sort((a, b) => a.entryTime - b.entryTime));
+      const notes: string[] = [];
       if (fresh.length < parsed.length)
-        setError(`Imported ${fresh.length} trades (${parsed.length - fresh.length} duplicates skipped).`);
+        notes.push(`${parsed.length - fresh.length} duplicates skipped`);
+      if (brokerSkipped) notes.push(`${brokerSkipped} non-MES/MNQ rows skipped`);
+      if (notes.length) setError(`Imported ${fresh.length} trades (${notes.join(", ")}).`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -119,7 +173,9 @@ export default function JournalPanel({
   return (
     <Panel
       title="My trades (journal)"
-      hint={`${journal.trades.length} total · stays in your browser`}
+      hint={`${journal.trades.length} total · ${
+        cloud === "ok" ? "synced to cloud" : cloud === "syncing" ? "syncing…" : "cloud offline — saved locally"
+      }`}
       actions={
         <span className={styles.formActions} style={{ marginTop: 0 }}>
           <Button small onClick={() => fileRef.current?.click()}>
@@ -221,9 +277,10 @@ export default function JournalPanel({
           Add to {selectedDay}
         </Button>
         <span className={styles.note}>
-          Times are New York (ET) wall clock, matching the chart. CSV columns:
-          entry_time, exit_time, symbol, side, qty, entry, exit[, notes] — the engine
-          ledger export re-imports directly.
+          Times are New York (ET) wall clock, matching the chart. Import accepts the
+          journal schema (entry_time, exit_time, symbol, side, qty, entry, exit[, notes])
+          or a Tradovate/Topstep performance export — MES/MNQ rows are picked out
+          automatically.
         </span>
       </div>
       {error && <div className={styles.error}>{error}</div>}

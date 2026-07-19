@@ -6,9 +6,12 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "engine": "tsx scripts/engine/run-live.ts",
+    "engine:report": "tsx scripts/engine/report.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.7",
     "lightweight-charts": "^5.0.9",
     "next": "^15.5.6",
     "react": "^19.2.0",
@@ -18,6 +21,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }

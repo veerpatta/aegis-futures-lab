@@ -356,6 +356,14 @@ export function runBacktest(input: BacktestInput): BacktestResult {
           best.side === "LONG"
             ? Math.min(b.open, lim) + execution.slippage
             : Math.max(b.open, lim) - execution.slippage;
+        // Fill sanity: when the bar opens through the zone AND its stop, the
+        // "fill at open, swept same bar" convention would exit at the stop on
+        // the PROFIT side of the entry — a free-money artifact, not a trade.
+        // A real resting order that far through structure is a cancel.
+        if (best.side === "LONG" ? entry <= best.stop : entry >= best.stop) {
+          note("invalidFill", best.symbol);
+          continue;
+        }
         const opened = tryOpen(best, b, entry);
         if (opened) {
           position = opened;
