@@ -97,6 +97,18 @@ export const NAV_LINKS: NavLink[] = [
       </svg>
     ),
   },
+  {
+    href: "/guide",
+    label: "Guide",
+    hint: "How to use this app",
+    icon: (
+      <svg {...iconProps}>
+        {/* open book */}
+        <path d="M12 6.5C10.5 5 8.2 4.5 5.5 4.5c-.8 0-1.5.1-2 .2V18c.5-.1 1.2-.2 2-.2 2.7 0 5 .5 6.5 2 1.5-1.5 3.8-2 6.5-2 .8 0 1.5.1 2 .2V4.7c-.5-.1-1.2-.2-2-.2-2.7 0-5 .5-6.5 2Z" />
+        <path d="M12 6.5v13.3" />
+      </svg>
+    ),
+  },
 ];
 
 export function isActiveLink(href: string, pathname: string): boolean {

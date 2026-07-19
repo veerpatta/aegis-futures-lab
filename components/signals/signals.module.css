@@ -1,3 +1,47 @@
+/* ── First-visit guide pointer ──────────────────────────────────────── */
+.intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  background: var(--blue-soft);
+  border: 1px solid rgba(90, 167, 255, 0.35);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.introActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.introLink {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.introClose {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.introClose:hover {
+  color: var(--text);
+}
+
 /* ── Session heartbeat hero ─────────────────────────────────────────── */
 .hero {
   position: relative;

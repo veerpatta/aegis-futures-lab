@@ -7,6 +7,7 @@
    signals/day target, over a tape of the trading day. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   getSupabase,
   type EngineRunRow,
@@ -179,6 +180,24 @@ export default function SignalsClient() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("aegis.guideSeen.v1")) setShowIntro(true);
+    } catch {
+      /* private mode — skip */
+    }
+  }, []);
+
+  const dismissIntro = () => {
+    setShowIntro(false);
+    try {
+      localStorage.setItem("aegis.guideSeen.v1", "1");
+    } catch {
+      /* ignore */
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -326,6 +345,23 @@ export default function SignalsClient() {
         Tier A = high-conviction zone setups · Tier B = daily RSI flow. Delayed data, paper
         simulation — a log to study, never execution instructions.
       </p>
+
+      {showIntro && (
+        <div className={styles.intro} role="note">
+          <span>
+            <b>New here?</b> The 5-minute guide explains the signals, the two tiers, and the daily
+            routine — in trading language, not tech.
+          </span>
+          <span className={styles.introActions}>
+            <Link href="/guide" className={styles.introLink} onClick={dismissIntro}>
+              Read the guide
+            </Link>
+            <button className={styles.introClose} onClick={dismissIntro} aria-label="Dismiss">
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* ── Session heartbeat ── */}
       <section className={styles.hero} aria-label="Session status">
