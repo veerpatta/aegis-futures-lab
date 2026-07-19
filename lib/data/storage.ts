@@ -32,6 +32,7 @@ export function removeStored(key: string): void {
 export const KEYS = {
   presets: "aegis.presets.v1",
   agent: "aegis.forward.v1",
+  journal: "aegis.journal.v1",
   legacyAgent: "aegis-paper-agent-v5",
 } as const;
 

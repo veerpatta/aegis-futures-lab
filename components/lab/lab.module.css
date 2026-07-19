@@ -169,6 +169,33 @@
   align-items: center;
 }
 
+/* Frequency Doctor */
+.dayLink {
+  color: var(--text);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayLink:hover {
+  color: var(--accent, var(--green));
+}
+
+.blockerCount {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.deltaUp {
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.deltaDown {
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
 .note {
   font-size: 11.5px;
   color: var(--text-faint);

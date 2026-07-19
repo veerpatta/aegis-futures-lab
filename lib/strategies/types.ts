@@ -86,8 +86,9 @@ export interface ReadoutRow {
 }
 
 /* Called by strategies to explain why a snapshot produced no signal;
-   the engine aggregates these into the skip-reason funnel. */
-export type SkipNote = (reason: string) => void;
+   the engine aggregates these into the skip-reason funnel. The optional
+   symbol lets the engine attribute the note in per-day/event views. */
+export type SkipNote = (reason: string, symbol?: string) => void;
 
 export interface Strategy<Ctx = unknown> {
   id: string;

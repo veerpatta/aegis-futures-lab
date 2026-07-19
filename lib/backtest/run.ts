@@ -18,6 +18,7 @@ export interface RunRequest {
   window?: { fromTime?: number; toTime?: number };
   pointValues: Record<string, number>;
   keepOpenAtEnd?: boolean;
+  collectEvents?: boolean;
 }
 
 export type WorkerMessage =
@@ -37,5 +38,6 @@ export function executeRun(req: RunRequest): BacktestResult {
     window: req.window,
     pointValueOf: (symbol) => req.pointValues[symbol] ?? 1,
     keepOpenAtEnd: req.keepOpenAtEnd,
+    collectEvents: req.collectEvents,
   });
 }

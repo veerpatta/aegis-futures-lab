@@ -8,6 +8,7 @@ import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
 import type { RunRequest } from "@/lib/backtest/run";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
+import { decodeParams, encodeParams } from "@/lib/urlparams";
 import type { Bar } from "@/lib/types";
 import { useData } from "@/components/providers/DataProvider";
 import { Badge, Button, Panel, SelectField, Tabs } from "@/components/ui";
@@ -20,23 +21,6 @@ import styles from "./lab.module.css";
 
 type SymbolChoice = "both" | "MES" | "MNQ" | "csv";
 type WindowChoice = "30" | "40" | "60" | "full";
-
-function encodeParams(params: ParamValues, defaults: ParamValues): string | null {
-  const diff: ParamValues = {};
-  for (const [k, v] of Object.entries(params)) if (defaults[k] !== v) diff[k] = v;
-  const keys = Object.keys(diff);
-  if (!keys.length) return null;
-  return btoa(JSON.stringify(diff));
-}
-
-function decodeParams(encoded: string | null, defaults: ParamValues): ParamValues {
-  if (!encoded) return { ...defaults };
-  try {
-    return { ...defaults, ...(JSON.parse(atob(encoded)) as ParamValues) };
-  } catch {
-    return { ...defaults };
-  }
-}
 
 export default function LabClient() {
   const router = useRouter();
@@ -67,6 +51,7 @@ export default function LabClient() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [resultSeries, setResultSeries] = useState<Record<string, Bar[]>>({});
+  const [lastReq, setLastReq] = useState<RunRequest | null>(null);
 
   // Reflect the shareable bits into the URL (debounced replace).
   const urlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,6 +143,7 @@ export default function LabClient() {
       const res = await runBacktestAsync(req);
       setResult(res);
       setResultSeries(picked.series);
+      setLastReq(req);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -274,6 +260,7 @@ export default function LabClient() {
                 series={resultSeries}
                 rampColor="var(--ramp-1)"
                 windowLabel={windowLabel}
+                runRequest={lastReq ?? undefined}
               />
             ) : (
               <Panel title="Results">

@@ -1,36 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { BacktestResult } from "@/lib/backtest/engine";
+import type { RunRequest } from "@/lib/backtest/run";
 import type { Bar } from "@/lib/types";
 import { tradesToCsv } from "@/lib/data/csv";
+import { nyDateKey } from "@/lib/time/ny";
 import { money, pct, ratio, ts, dateOnly } from "@/lib/format";
 import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/ui";
 import EquityChart from "@/components/chart/EquityChart";
 import CandleChart, { type TradeMarker } from "@/components/chart/CandleChart";
+import FrequencyDoctor from "./FrequencyDoctor";
+import { FUNNEL_LABELS } from "./funnel";
 import styles from "./lab.module.css";
-
-const FUNNEL_LABELS: Record<string, string> = {
-  evaluated: "Setups evaluated",
-  noHtf: "No HTF zone in range",
-  nesting: "Nesting failed",
-  notFresh: "Zone not fresh",
-  blocked80: "Blocked by 80% rule",
-  weakZone: "Weak-zone exclusion",
-  nyCaution: "NY caution (diagnostic)",
-  refined15: "Refined to 15M (diagnostic)",
-  belowMinScore: "Below minimum score",
-  intermarket: "Intermarket disagreement",
-  firstZone: "First-zone skip (second-zone rule)",
-  noTouch: "Waiting for zone touch",
-  noConfirm: "No confirmation candle",
-  hours: "Outside entry session",
-  riskUnfit: "Risk did not fit",
-  news: "News lockout",
-  lock: "Discipline lock",
-  noSignal: "No trigger",
-  qualified: "Qualified",
-};
 
 function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv" });
@@ -47,11 +30,13 @@ export default function ResultsPanel({
   series,
   rampColor,
   windowLabel,
+  runRequest,
 }: {
   result: BacktestResult;
   series: Record<string, Bar[]>;
   rampColor: string;
   windowLabel: string;
+  runRequest?: RunRequest;
 }) {
   const m = result.metrics;
   const symbols = Object.keys(series);
@@ -170,6 +155,8 @@ export default function ResultsPanel({
         </div>
       </Panel>
 
+      {runRequest && <FrequencyDoctor result={result} runRequest={runRequest} />}
+
       <Panel
         title="Trades on chart"
         actions={
@@ -221,7 +208,9 @@ export default function ResultsPanel({
             "Score",
           ]}
           rows={result.trades.map((t) => [
-            ts(t.entryTime),
+            <Link key="in" href={`/replay?d=${nyDateKey(t.entryTime)}`} className={styles.dayLink}>
+              {ts(t.entryTime)}
+            </Link>,
             ts(t.exitTime),
             t.symbol,
             <Badge key="side" tone={t.side === "LONG" ? "green" : "red"}>

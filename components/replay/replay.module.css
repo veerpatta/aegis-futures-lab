@@ -1,0 +1,184 @@
+/* Replay page: blotter calendar, day timeline, journal. */
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+/* Blotter calendar */
+.calHead {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.calHead span {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.calCell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.calCell:hover {
+  border-color: var(--text-faint);
+}
+
+.calCellSelected {
+  composes: calCell;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 1px var(--blue);
+}
+
+.calEmpty {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+}
+
+.calDay {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.calTrades {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.calUserAccent {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--amber);
+}
+
+/* Day timeline */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.tlRow {
+  display: grid;
+  grid-template-columns: 92px 56px 1fr;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.tlRowDim {
+  composes: tlRow;
+  color: var(--text-faint);
+}
+
+.tlRowEngine {
+  composes: tlRow;
+  background: var(--blue-soft);
+}
+
+.tlRowUser {
+  composes: tlRow;
+  background: var(--amber-soft);
+}
+
+.tlTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.tlSym {
+  color: var(--text-faint);
+}
+
+/* Journal form */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  align-items: end;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.field input,
+.field select {
+  background: var(--bg-inset, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+.error {
+  color: var(--red);
+  font-size: 12.5px;
+  background: var(--red-soft);
+  border: 1px solid rgba(255, 107, 122, 0.35);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 480px) {
+  .tlRow {
+    grid-template-columns: 78px 44px 1fr;
+  }
+}

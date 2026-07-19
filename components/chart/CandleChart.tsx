@@ -6,6 +6,7 @@ import {
   CandlestickSeries,
   createSeriesMarkers,
   ColorType,
+  LineStyle,
   type IChartApi,
   type UTCTimestamp,
   type SeriesMarker,
@@ -15,17 +16,29 @@ import type { Bar } from "@/lib/types";
 
 export interface TradeMarker {
   time: number;
-  kind: "entryLong" | "entryShort" | "exit";
+  /* entryLong/entryShort/exit = engine trades; the user* kinds are the
+     user's own journaled trades, rendered in amber so the two ledgers stay
+     visually distinct. */
+  kind: "entryLong" | "entryShort" | "exit" | "userEntryLong" | "userEntryShort" | "userExit";
   text?: string;
+}
+
+export interface PriceLine {
+  price: number;
+  color: string;
+  title: string;
+  dashed?: boolean;
 }
 
 export default function CandleChart({
   bars,
   markers = [],
+  lines = [],
   height = 320,
 }: {
   bars: Bar[];
   markers?: TradeMarker[];
+  lines?: PriceLine[];
   height?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -75,27 +88,51 @@ export default function CandleChart({
     );
 
     if (markers.length) {
+      const amber = token("--amber", "#ffb454");
       const sm: SeriesMarker<Time>[] = markers.map((m) => ({
         time: m.time as UTCTimestamp,
-        position: m.kind === "entryShort" ? "aboveBar" : m.kind === "entryLong" ? "belowBar" : "inBar",
+        position:
+          m.kind === "entryShort" || m.kind === "userEntryShort"
+            ? "aboveBar"
+            : m.kind === "entryLong" || m.kind === "userEntryLong"
+              ? "belowBar"
+              : "inBar",
         color:
           m.kind === "entryLong"
             ? token("--green", "#2dd4a0")
             : m.kind === "entryShort"
               ? token("--red", "#ff6b7a")
-              : token("--blue", "#5aa7ff"),
-        shape: m.kind === "entryLong" ? "arrowUp" : m.kind === "entryShort" ? "arrowDown" : "circle",
+              : m.kind === "exit"
+                ? token("--blue", "#5aa7ff")
+                : amber,
+        shape:
+          m.kind === "entryLong" || m.kind === "userEntryLong"
+            ? "arrowUp"
+            : m.kind === "entryShort" || m.kind === "userEntryShort"
+              ? "arrowDown"
+              : m.kind === "userExit"
+                ? "square"
+                : "circle",
         text: m.text,
       }));
       createSeriesMarkers(series, sm);
     }
+    for (const line of lines)
+      series.createPriceLine({
+        price: line.price,
+        color: line.color,
+        title: line.title,
+        lineWidth: 1,
+        lineStyle: line.dashed ? LineStyle.Dashed : LineStyle.Solid,
+        axisLabelVisible: true,
+      });
     chart.timeScale().fitContent();
 
     return () => {
       chart.remove();
       chartRef.current = null;
     };
-  }, [bars, markers, height]);
+  }, [bars, markers, lines, height]);
 
   return <div ref={containerRef} style={{ minWidth: 0 }} />;
 }

@@ -214,13 +214,13 @@ export const zoneV5: Strategy<ZoneCtx> = {
       key: "entryHours",
       label: "Entry session",
       type: "select",
-      default: "rth",
+      default: "day",
       options: [
         { value: "rth", label: "NY session only (09:30–15:25 ET)" },
         { value: "day", label: "London + New York (02:00–15:25 ET, more trades)" },
         { value: "all", label: "Any hour before the 15:25 flat" },
       ],
-      help: "Phase-1 trading-hours rule. Entries outside the chosen window are skipped; open positions still manage around the clock and flatten by 15:25 ET.",
+      help: "Phase-1 trading-hours rule. Entries outside the chosen window are skipped; open positions still manage around the clock and flatten by 15:25 ET. London+NY (default) roughly doubles trade count vs NY-only at a lower but still positive profit factor; NY-only is the stricter, higher-quality window.",
     },
     {
       key: "htfRange",
@@ -271,23 +271,23 @@ export const zoneV5: Strategy<ZoneCtx> = {
       const v = evals[symbol];
       if (!v) continue;
       const { ev, bar, index, bars } = v;
-      note("evaluated");
+      note("evaluated", symbol);
       if (ev.bucket) {
-        note(ev.bucket);
+        note(ev.bucket, symbol);
         continue;
       }
-      if (ev.refined15) note("refined15");
-      if (ev.nyCaution) note("nyCaution");
+      if (ev.refined15) note("refined15", symbol);
+      if (ev.nyCaution) note("nyCaution", symbol);
       // Weak-zone filter (voice note): ordinary zones that have not achieved
       // anything are skipped — everywhere ("always") or in the NY session
       // ("ny", where ~50% of standalone 1H zones break). The engine already
       // enforces this for directional mode in NY; this extends it to strict.
       if (params.requireAchieved === "always" && !ev.achieved) {
-        note("weakZone");
+        note("weakZone", symbol);
         continue;
       }
       if (params.requireAchieved === "ny" && ev.nyCaution) {
-        note("weakZone");
+        note("weakZone", symbol);
         continue;
       }
       const z = ev.entryZone!;
@@ -297,12 +297,12 @@ export const zoneV5: Strategy<ZoneCtx> = {
         (params.entryHours === "rth" && (mins < 570 || mins >= 925)) ||
         (params.entryHours === "day" && (mins < 120 || mins >= 925))
       ) {
-        note("hours");
+        note("hours", symbol);
         continue;
       }
       const touching = z.type === "demand" ? bar.low <= z.proximal : bar.high >= z.proximal;
       if (!touching) {
-        note("noTouch"); // qualified zone in view — waiting for price to reach the proximal
+        note("noTouch", symbol); // qualified zone in view — waiting for price to reach the proximal
         continue;
       }
       // Phase-5 confirmation-candle entry: the touch bar must reject back in
@@ -314,12 +314,12 @@ export const zoneV5: Strategy<ZoneCtx> = {
             ? bar.close > z.proximal && bar.close > bar.open
             : bar.close < z.proximal && bar.close < bar.open;
         if (!confirmed) {
-          note("noConfirm");
+          note("noConfirm", symbol);
           continue;
         }
       }
       if (Number(params.minScore) > 0 && (ev.score ?? 0) < Number(params.minScore)) {
-        note("belowMinScore");
+        note("belowMinScore", symbol);
         continue;
       }
       let speed: string | undefined;
@@ -329,7 +329,7 @@ export const zoneV5: Strategy<ZoneCtx> = {
         const recent = bars.slice(Math.max(0, index - 6), index + 1);
         const inter = intermarketCheck(ev, evals[other]?.ev ?? null, other, recent);
         if (!inter.pass) {
-          note("intermarket");
+          note("intermarket", symbol);
           continue;
         }
         speed = inter.speed;
@@ -348,7 +348,7 @@ export const zoneV5: Strategy<ZoneCtx> = {
               (oz.type === "demand" ? ob.low <= oz.proximal : ob.high >= oz.proximal) ||
               (oz.firstReturnAt !== null && oz.firstReturnAt <= ob.time + 300);
             if (!reached) {
-              note("firstZone");
+              note("firstZone", symbol);
               continue;
             }
           }

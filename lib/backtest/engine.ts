@@ -40,6 +40,17 @@ export interface BacktestInput {
   /* Forward-test mode: keep a position open at the window end (reported in
      the result) instead of force-closing it. */
   keepOpenAtEnd?: boolean;
+  /* Collect every skip note as a timestamped event (replay timeline). Off by
+     default — a 60-day two-symbol run emits ~100k events. */
+  collectEvents?: boolean;
+}
+
+/* One skip note with its bar time and NY date, for the replay timeline. */
+export interface SkipEvent {
+  time: number;
+  date: string; // NY dateKey
+  reason: string;
+  symbol?: string;
 }
 
 export interface BacktestResult {
@@ -49,6 +60,8 @@ export interface BacktestResult {
   byInstrument: Record<string, RunMetrics>;
   buckets: Record<string, RunMetrics> | null;
   skipReasons: Record<string, number>;
+  skipReasonsByDay: Record<string, Record<string, number>>; // NY dateKey → funnel
+  events?: SkipEvent[]; // only with collectEvents
   sessions: number;
   window: { from: number; to: number };
   openPosition: OpenPosition | null; // only with keepOpenAtEnd
@@ -102,8 +115,19 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   ].sort((a, b) => a - b);
 
   const skipReasons: Record<string, number> = {};
-  const note = (reason: string) => {
+  const skipReasonsByDay: Record<string, Record<string, number>> = {};
+  const events: SkipEvent[] = [];
+  const collectEvents = input.collectEvents === true;
+  // cursorTime/currentDate are set at the top of the walk loop before any
+  // note() can fire; bookkeeping only — trades/equity are untouched (parity).
+  let cursorTime = 0;
+  const note = (reason: string, symbol?: string) => {
     skipReasons[reason] = (skipReasons[reason] || 0) + 1;
+    if (currentDate) {
+      const day = (skipReasonsByDay[currentDate] ??= {});
+      day[reason] = (day[reason] || 0) + 1;
+      if (collectEvents) events.push({ time: cursorTime, date: currentDate, reason, symbol });
+    }
   };
 
   const trades: Trade[] = [];
@@ -168,7 +192,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
           ? Math.floor(execution.maxRisk / perContract)
           : 0;
     if (qty <= 0) {
-      note("riskUnfit");
+      note("riskUnfit", sig.symbol);
       return null;
     }
     let target: number | null = null;
@@ -207,6 +231,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     }
     const any = Object.values(visible)[0];
     if (!any) continue;
+    cursorTime = time;
     const date = nyMeta(any.bar.time).dateKey;
     sessions.add(date);
     if (currentDate !== date) {
@@ -266,7 +291,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     const signals = strategy.onSnapshot(ctx, snapshot, params, note);
     if (!signals.length) continue;
     if (newsLocked(time)) {
-      signals.forEach(() => note("news"));
+      signals.forEach((s) => note("news", s.symbol));
       continue;
     }
     if (locks) {
@@ -276,7 +301,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         consecutiveLosses >= locks.maxLosses ||
         maxDrawdownSoFar >= locks.maxDrawdown;
       if (locked) {
-        signals.forEach(() => note("lock"));
+        signals.forEach((s) => note("lock", s.symbol));
         continue;
       }
     }
@@ -287,7 +312,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         // Limit fill happens on THIS bar; it only needs to sit before the
         // flatten minute so the trade can still be managed intraday.
         if (nyMeta(v.bar.time).minutes >= sessionExitMinute) {
-          note("lock");
+          note("lock", sig.symbol);
           return false;
         }
         return true;
@@ -302,13 +327,13 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         next.time > toTime ||
         nyMeta(next.time).minutes >= sessionExitMinute
       ) {
-        note("lock"); // no executable next bar in this session/window
+        note("lock", sig.symbol); // no executable next bar in this session/window
         return false;
       }
       return true;
     });
     if (!viable.length) continue;
-    viable.forEach(() => note("qualified"));
+    viable.forEach((s) => note("qualified", s.symbol));
     const best = viable
       .map((sig, i) => ({ sig, i }))
       .sort(
@@ -380,6 +405,8 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     byInstrument,
     buckets: hasScores ? scoreBuckets(trades, startingCapital) : null,
     skipReasons,
+    skipReasonsByDay,
+    events: collectEvents ? events : undefined,
     sessions: sessions.size,
     window: { from: fromTime, to: toTime },
     openPosition: position,

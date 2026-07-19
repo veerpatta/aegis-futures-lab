@@ -65,3 +65,27 @@ export function inNySession(time: number): boolean {
 export function nyDateKey(time: number): string {
   return nyMeta(time).dateKey;
 }
+
+/* 'HH:MM' in New York — for timeline/journal views that must render ET
+   regardless of the browser's local timezone. */
+export function nyClock(time: number): string {
+  const m = nyMeta(time);
+  return `${String(m.hour).padStart(2, "0")}:${String(m.minute).padStart(2, "0")}`;
+}
+
+/* Convert a New-York wall time (dateKey 'YYYY-MM-DD' + minutes since NY
+   midnight) to unix seconds. Tries the EDT then EST offset and keeps the
+   guess that round-trips through nyMeta, so it is exact across DST without
+   ever touching the browser's local timezone (journal entries typed as ET
+   from any timezone must land on the right bar). */
+export function nyTimeToUnix(dateKey: string, minutes: number): number {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const base = Date.UTC(y, m - 1, d) / 1000 + minutes * 60;
+  for (const offsetHours of [4, 5]) {
+    const guess = base + offsetHours * 3600;
+    const meta = nyMeta(guess);
+    if (meta.dateKey === dateKey && meta.minutes === minutes) return guess;
+  }
+  // Non-existent wall time inside the spring-forward gap: use the EST guess.
+  return base + 5 * 3600;
+}
