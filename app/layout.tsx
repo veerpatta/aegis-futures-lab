@@ -8,6 +8,14 @@ export const metadata: Metadata = {
   title: "Aegis Futures Lab",
   description:
     "Strategy research lab for MES & MNQ futures — pick a strategy, tune it, backtest it. Research edition: delayed data, paper simulation only.",
+  appleWebApp: {
+    capable: true,
+    title: "Aegis",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

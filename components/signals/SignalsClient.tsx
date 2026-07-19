@@ -1,8 +1,10 @@
 "use client";
 
-/* Live paper-signal dashboard: reads the signals / zones / engine_runs
-   tables the scheduled engine (scripts/engine/run-live.ts) writes to
-   Supabase. Read-only; refreshes every 60s. */
+/* Live paper-signal terminal. Reads the signals / zones / engine_runs tables
+   the scheduled engine writes to Supabase, plus the delayed quote feed for
+   zone distances. Signature element: the session heartbeat — market clock,
+   countdown to the next engine pass, and today's pace toward the 2-3
+   signals/day target, over a tape of the trading day. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -11,25 +13,34 @@ import {
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
+import { fetchMarket } from "@/lib/data/fetch";
+import { nyMeta } from "@/lib/time/ny";
 import { money } from "@/lib/format";
-import { Badge, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
+import { Badge, Button, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
 import styles from "./signals.module.css";
 
 const REFRESH_MS = 60_000;
 const STALE_AFTER_MIN = 40; // two missed 15-min cron slots + jitter
+const TARGET_PER_DAY = 3; // pace dots: the 2-3 signals/day goal
 
-const nyTime = new Intl.DateTimeFormat("en-US", {
+const nyDay = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
+  weekday: "short",
   month: "short",
   day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
 });
 
 function fmtEt(isoOrNull: string | null): string {
   if (!isoOrNull) return "—";
-  return `${nyTime.format(new Date(isoOrNull))} ET`;
+  const t = Math.floor(new Date(isoOrNull).getTime() / 1000);
+  const m = nyMeta(t);
+  return `${String(m.hour).padStart(2, "0")}:${String(m.minute).padStart(2, "0")}`;
+}
+
+function fmtEtFull(isoOrNull: string | null): string {
+  if (!isoOrNull) return "—";
+  const d = new Date(isoOrNull);
+  return `${nyDay.format(d)}, ${fmtEt(isoOrNull)} ET`;
 }
 
 function ago(iso: string): string {
@@ -57,6 +68,106 @@ function statusBadge(s: SignalRow["status"]) {
   }
 }
 
+/* ── Session clock ──────────────────────────────────────────────────── */
+
+interface Phase {
+  label: string;
+  detail: string;
+  live: boolean; // pulse the dot
+  tone: "good" | "dim" | "warn";
+}
+
+function marketPhase(nowSec: number): Phase {
+  const m = nyMeta(nowSec);
+  const weekend =
+    m.weekday === "Sat" ||
+    (m.weekday === "Sun" && m.minutes < 18 * 60) ||
+    (m.weekday === "Fri" && m.minutes >= 17 * 60);
+  if (weekend)
+    return {
+      label: "Market closed",
+      detail: "Globex reopens Sunday 18:00 ET",
+      live: false,
+      tone: "dim",
+    };
+  if (m.minutes >= 17 * 60 && m.minutes < 18 * 60)
+    return { label: "Daily break", detail: "Globex reopens 18:00 ET", live: false, tone: "dim" };
+  if (m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925)
+    return {
+      label: "Entry window open",
+      detail: "London + New York · flat by 15:25 ET",
+      live: true,
+      tone: "good",
+    };
+  return {
+    label: "Overnight session",
+    detail: "Zones keep updating — entries resume 02:00 ET",
+    live: true,
+    tone: "warn",
+  };
+}
+
+// Next engine pass: cron every 15 min, 06:00-21:59 UTC, Mon-Fri.
+function nextRunSec(nowSec: number): number {
+  let t = Math.ceil((nowSec + 1) / 900) * 900;
+  for (let i = 0; i < 4 * 24 * 8; i++, t += 900) {
+    const d = new Date(t * 1000);
+    const dow = d.getUTCDay();
+    const h = d.getUTCHours();
+    if (dow >= 1 && dow <= 5 && h >= 6 && h < 22) return t;
+  }
+  return t;
+}
+
+function fmtCountdown(sec: number): string {
+  if (sec >= 48 * 3600) return `${Math.round(sec / 86400)}d`;
+  if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+/* Position of "now" on the 02:00 → 15:25 ET entry tape. */
+function tapeProgress(nowSec: number): number | null {
+  const m = nyMeta(nowSec);
+  if (m.weekday === "Sat" || m.weekday === "Sun") return null;
+  return Math.max(0, Math.min(1, (m.minutes - 120) / (925 - 120)));
+}
+
+/* ── Sparkline (inline SVG, no dependencies) ────────────────────────── */
+
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const W = 600;
+  const H = 56;
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = max - min || 1;
+  const x = (i: number) => (i / (values.length - 1)) * W;
+  const y = (v: number) => H - 4 - ((v - min) / span) * (H - 8);
+  const path = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const last = values[values.length - 1];
+  const up = last >= 0;
+  const stroke = up ? "var(--green)" : "var(--red)";
+  return (
+    <div className={styles.spark} role="img" aria-label={`Cumulative P&L ${money(last)}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={up ? "rgba(45,212,160,0.25)" : "rgba(255,107,122,0.25)"} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <line x1="0" x2={W} y1={y(0)} y2={y(0)} stroke="var(--border-strong)" strokeDasharray="3 5" strokeWidth="1" />
+        <path d={`${path} L${W},${H} L0,${H} Z`} fill="url(#sparkFill)" stroke="none" />
+        <path d={path} fill="none" stroke={stroke} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <circle cx={x(values.length - 1)} cy={y(last)} r="3" fill={stroke} />
+      </svg>
+      <span className={`${styles.sparkLast} ${up ? styles.good : styles.bad}`}>{money(last)}</span>
+    </div>
+  );
+}
+
+/* ── Page ───────────────────────────────────────────────────────────── */
+
 type State =
   | { status: "loading" }
   | { status: "error"; error: string }
@@ -65,22 +176,16 @@ type State =
 export default function SignalsClient() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [tierTab, setTierTab] = useState("all");
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       const supabase = getSupabase();
       const [signals, zones, runs] = await Promise.all([
-        supabase
-          .from("signals")
-          .select("*")
-          .order("signal_ts", { ascending: false })
-          .limit(100),
-        supabase
-          .from("zones")
-          .select("*")
-          .order("symbol")
-          .order("timeframe")
-          .limit(120),
+        supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
+        supabase.from("zones").select("*").limit(120),
         supabase.from("engine_runs").select("*").order("ran_at", { ascending: false }).limit(5),
       ]);
       const err = signals.error || zones.error || runs.error;
@@ -91,8 +196,17 @@ export default function SignalsClient() {
         zones: (zones.data ?? []) as ZoneRow[],
         runs: (runs.data ?? []) as EngineRunRow[],
       });
+      setLoadedAt(Date.now());
     } catch (e) {
-      setState({ status: "error", error: e instanceof Error ? e.message : String(e) });
+      setState((prev) =>
+        prev.status === "ready" ? prev : { status: "error", error: e instanceof Error ? e.message : String(e) }
+      );
+    }
+    // Delayed quotes give the zone-distance column; best effort.
+    for (const symbol of ["MES", "MNQ"] as const) {
+      fetchMarket(symbol)
+        .then((q) => setPrices((p) => ({ ...p, [symbol]: q.price })))
+        .catch(() => undefined);
     }
   }, []);
 
@@ -102,50 +216,327 @@ export default function SignalsClient() {
     return () => clearInterval(id);
   }, [load]);
 
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const ready = state.status === "ready" ? state : null;
   const lastRun = ready?.runs[0] ?? null;
   const engineStale =
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
 
-  const visibleSignals = useMemo(() => {
-    if (!ready) return [];
-    return tierTab === "all" ? ready.signals : ready.signals.filter((s) => s.tier === tierTab);
-  }, [ready, tierTab]);
+  const phase = marketPhase(nowSec);
+  const nextRun = nextRunSec(nowSec);
+  const tape = tapeProgress(nowSec);
+  const todayKey = nyMeta(nowSec).dateKey;
+  const todayCount = useMemo(
+    () =>
+      (ready?.signals ?? []).filter(
+        (s) => nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
+      ).length,
+    [ready, todayKey]
+  );
 
-  const week = useMemo(() => {
+  /* Performance across the loaded window (up to 200 signals). */
+  const perf = useMemo(() => {
     if (!ready) return null;
-    const cutoff = Date.now() - 7 * 86400_000;
-    const recent = ready.signals.filter((s) => new Date(s.signal_ts).getTime() >= cutoff);
-    const closed = recent.filter((s) => s.pnl_usd !== null);
-    const wins = closed.filter((s) => (s.pnl_usd ?? 0) > 0).length;
-    const net = closed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0);
+    const closed = ready.signals
+      .filter((s) => s.pnl_usd !== null)
+      .sort((a, b) => (a.exit_ts ?? a.signal_ts).localeCompare(b.exit_ts ?? b.signal_ts));
+    let acc = 0;
+    const curve = closed.map((s) => (acc += s.pnl_usd ?? 0));
+    const week = ready.signals.filter(
+      (s) => Date.now() - new Date(s.signal_ts).getTime() < 7 * 86400_000
+    );
+    const weekClosed = week.filter((s) => s.pnl_usd !== null);
+    const tier = (t: "A" | "B") => {
+      const rows = ready.signals.filter((s) => s.tier === t);
+      const done = rows.filter((s) => s.pnl_usd !== null);
+      const wins = done.filter((s) => (s.pnl_usd ?? 0) > 0).length;
+      return {
+        total: rows.length,
+        closed: done.length,
+        wins,
+        winRate: done.length ? (wins / done.length) * 100 : null,
+        net: done.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
+        open: rows.filter((s) => s.status === "triggered").length,
+      };
+    };
     return {
-      count: recent.length,
-      a: recent.filter((s) => s.tier === "A").length,
-      b: recent.filter((s) => s.tier === "B").length,
-      perDay: recent.length / 5,
-      winRate: closed.length ? (wins / closed.length) * 100 : null,
-      net,
+      curve,
+      net: acc,
+      weekCount: week.length,
+      weekPerDay: week.length / 5,
+      weekWinRate: weekClosed.length
+        ? (weekClosed.filter((s) => (s.pnl_usd ?? 0) > 0).length / weekClosed.length) * 100
+        : null,
+      weekNet: weekClosed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
+      A: tier("A"),
+      B: tier("B"),
     };
   }, [ready]);
+
+  /* Blotter: signals grouped by NY day, newest day first. */
+  const days = useMemo(() => {
+    const visible = !ready
+      ? []
+      : tierTab === "all"
+        ? ready.signals
+        : ready.signals.filter((s) => s.tier === tierTab);
+    const map = new Map<string, { label: string; rows: SignalRow[]; net: number; open: number }>();
+    for (const s of visible) {
+      const t = Math.floor(new Date(s.signal_ts).getTime() / 1000);
+      const key = nyMeta(t).dateKey;
+      let g = map.get(key);
+      if (!g) {
+        g = { label: nyDay.format(new Date(t * 1000)), rows: [], net: 0, open: 0 };
+        map.set(key, g);
+      }
+      g.rows.push(s);
+      g.net += s.pnl_usd ?? 0;
+      if (s.status === "triggered") g.open++;
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [ready, tierTab]);
+
+  /* Zones ranked by distance from the delayed price. */
+  const rankedZones = useMemo(() => {
+    const zones = ready?.zones ?? [];
+    const withDist = zones.map((z) => {
+      const price = prices[z.symbol];
+      if (!price) return { z, dist: null as number | null, above: false, inside: false };
+      if (price >= z.price_low && price <= z.price_high)
+        return { z, dist: 0, above: false, inside: true };
+      const above = z.price_low > price; // zone sits above current price
+      const edge = above ? z.price_low : z.price_high;
+      return { z, dist: (Math.abs(edge - price) / price) * 100, above, inside: false };
+    });
+    return withDist.sort((a, b) => {
+      if (a.dist === null) return 1;
+      if (b.dist === null) return -1;
+      return a.dist - b.dist;
+    });
+  }, [ready, prices]);
 
   return (
     <>
       <h1 className="pageTitle">Signals</h1>
       <p className="pageSub">
-        Scheduled paper-signal engine on the free delayed feed — research log, never execution-grade.
-        Tier A = high-conviction zone setups; tier B = daily RSI mean-reversion flow.
+        Tier A = high-conviction zone setups · Tier B = daily RSI flow. Delayed data, paper
+        simulation — a log to study, never execution instructions.
       </p>
+
+      {/* ── Session heartbeat ── */}
+      <section className={styles.hero} aria-label="Session status">
+        <div className={styles.heroCell}>
+          <span className={`${styles.phaseDot} ${styles[phase.tone]} ${phase.live ? styles.phaseLive : ""}`} />
+          <div>
+            <div className={styles.heroValue}>{phase.label}</div>
+            <div className={styles.heroDetail}>{phase.detail}</div>
+          </div>
+        </div>
+        <div className={styles.heroCell}>
+          <div>
+            <div className={`${styles.heroValue} num`}>{fmtCountdown(Math.max(0, nextRun - nowSec))}</div>
+            <div className={styles.heroDetail}>
+              next engine pass ·{" "}
+              {lastRun ? (
+                <span className={lastRun.status === "ok" ? (engineStale ? styles.warn : styles.good) : styles.bad}>
+                  last {lastRun.status === "ok" ? "ok" : "failed"} {ago(lastRun.ran_at)}
+                </span>
+              ) : (
+                "no runs yet"
+              )}
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroCell}>
+          <div>
+            <div className={styles.heroValue}>
+              <span className="num">{todayCount}</span>
+              <span className={styles.paceDots} aria-hidden>
+                {Array.from({ length: TARGET_PER_DAY }, (_, i) => (
+                  <i key={i} className={i < todayCount ? styles.paceOn : styles.paceOff} />
+                ))}
+              </span>
+            </div>
+            <div className={styles.heroDetail}>signals today · target 2–3</div>
+          </div>
+        </div>
+        <div className={styles.heroSide}>
+          <Button small variant="ghost" onClick={load} aria-label="Refresh data">
+            ↻ {loadedAt ? `${Math.max(0, Math.round((Date.now() - loadedAt) / 1000))}s` : ""}
+          </Button>
+        </div>
+        {tape !== null && (
+          <div className={styles.tape} aria-hidden>
+            <div className={styles.tapeFill} style={{ width: `${(tape * 100).toFixed(2)}%` }} />
+            <span className={styles.tapeMark} style={{ left: `${(tape * 100).toFixed(2)}%` }} />
+          </div>
+        )}
+      </section>
 
       {state.status === "error" && (
         <Panel title="Connection">
-          <div className={styles.error}>Supabase unreachable: {state.error}</div>
+          <div className={styles.error}>
+            Signal feed unreachable ({state.error}). Retrying every minute — check your network or
+            the Supabase project.
+          </div>
         </Panel>
       )}
 
+      {/* ── Performance ── */}
+      {perf && (
+        <Panel title="Performance" hint="closed simulated signals, costs included">
+          <div className={styles.kpis}>
+            <Kpi label="7-day signals" value={String(perf.weekCount)} sub={`≈ ${perf.weekPerDay.toFixed(1)} / trading day`} />
+            <Kpi
+              label="7-day win rate"
+              value={perf.weekWinRate === null ? "—" : `${perf.weekWinRate.toFixed(0)}%`}
+              tone={perf.weekWinRate !== null && perf.weekWinRate >= 50 ? "good" : undefined}
+            />
+            <Kpi label="7-day net" value={money(perf.weekNet)} tone={perf.weekNet >= 0 ? "good" : "bad"} />
+            <Kpi label="Window net" value={money(perf.net)} tone={perf.net >= 0 ? "good" : "bad"} sub={`last ${perf.curve.length} closed`} />
+          </div>
+          <Sparkline values={perf.curve} />
+          <div className={styles.tierGrid}>
+            {(["A", "B"] as const).map((t) => {
+              const s = perf[t];
+              return (
+                <div key={t} className={styles.tierCard}>
+                  <div className={styles.tierHead}>
+                    <Badge tone={t === "A" ? "blue" : "amber"}>TIER {t}</Badge>
+                    <span className={styles.tierName}>
+                      {t === "A" ? "Zone Engine v5 · high conviction" : "RSI reversion · daily flow"}
+                    </span>
+                  </div>
+                  <div className={styles.tierStats}>
+                    <span>
+                      <b className="num">{s.total}</b> signals
+                      {s.open > 0 && <em className={styles.tierOpen}> · {s.open} open</em>}
+                    </span>
+                    <span>
+                      WR <b className="num">{s.winRate === null ? "—" : `${s.winRate.toFixed(0)}%`}</b>
+                    </span>
+                    <span className={s.net >= 0 ? styles.good : styles.bad}>
+                      <b className="num">{money(s.net)}</b>
+                    </span>
+                  </div>
+                  {s.closed > 0 && (
+                    <div className={styles.wlBar} aria-hidden>
+                      <i style={{ flexGrow: s.wins }} />
+                      <i style={{ flexGrow: Math.max(0, s.closed - s.wins) }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
+
+      {/* ── Blotter ── */}
+      <Panel
+        title="Signal blotter"
+        hint="grouped by trading day · times in ET"
+        actions={
+          <Tabs
+            tabs={[
+              { id: "all", label: "All" },
+              { id: "A", label: "Tier A" },
+              { id: "B", label: "Tier B" },
+            ]}
+            active={tierTab}
+            onChange={setTierTab}
+          />
+        }
+      >
+        {days.length === 0 && (
+          <div className={styles.emptyNote}>
+            {state.status === "loading"
+              ? "Loading…"
+              : "No signals in this view yet — the engine writes them as setups trigger."}
+          </div>
+        )}
+        {days.map(([key, day]) => (
+          <div key={key} className={styles.dayGroup}>
+            <div className={styles.dayHead}>
+              <span className={styles.dayLabel}>{day.label}</span>
+              <span className={styles.dayMeta}>
+                {day.rows.length} signal{day.rows.length === 1 ? "" : "s"}
+                {day.open > 0 && ` · ${day.open} open`}
+              </span>
+              <span className={`${styles.dayNet} num ${day.net >= 0 ? styles.good : styles.bad}`}>
+                {money(day.net)}
+              </span>
+            </div>
+            <DataTable
+              columns={["Time", "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Setup"]}
+              rows={day.rows.map((s) => [
+                <span key="t" className="num">{fmtEt(s.signal_ts)}</span>,
+                <Badge key="b" tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge>,
+                s.symbol,
+                s.direction === "long" ? "LONG" : "SHORT",
+                s.entry_price.toFixed(2),
+                s.stop_price.toFixed(2),
+                s.target_price?.toFixed(2) ?? "—",
+                s.rr?.toFixed(1) ?? "—",
+                statusBadge(s.status),
+                s.pnl_usd === null ? (
+                  "—"
+                ) : (
+                  <span key="p" className={s.pnl_usd >= 0 ? styles.good : styles.bad}>{money(s.pnl_usd)}</span>
+                ),
+                <span key="r" className={styles.dim}>{s.reason ?? "—"}</span>,
+              ])}
+              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10] }}
+            />
+          </div>
+        ))}
+      </Panel>
+
+      {/* ── Zones ── */}
+      <Panel
+        title="Zone watchlist"
+        hint="demand/supply stacks from NY-session structure · nearest to price first"
+      >
+        <DataTable
+          columns={["Symbol", "TF", "Type", "Zone", "Distance", "State", "Formed"]}
+          rows={rankedZones.map(({ z, dist, above, inside }) => [
+            z.symbol,
+            z.timeframe,
+            z.zone_type === "demand" ? (
+              <Badge key="d" tone="green">DEMAND</Badge>
+            ) : (
+              <Badge key="s" tone="red">SUPPLY</Badge>
+            ),
+            <span key="z" className="num">{`${z.price_low.toFixed(2)} – ${z.price_high.toFixed(2)}`}</span>,
+            inside ? (
+              <Badge key="at" tone="amber">AT ZONE</Badge>
+            ) : dist === null ? (
+              <span className={styles.dim}>—</span>
+            ) : (
+              <span key="di" className={`num ${dist < 0.5 ? styles.warn : styles.dim}`}>
+                {dist.toFixed(1)}% {above ? "above" : "below"}
+              </span>
+            ),
+            <span key="st">
+              {z.fresh ? <Badge tone="blue">FRESH</Badge> : <Badge>TESTED</Badge>}{" "}
+              {z.achieved ? <Badge tone="green">ACHIEVED</Badge> : null}
+              {z.blocked80 ? <Badge tone="amber">80% BLOCK</Badge> : null}
+            </span>,
+            fmtEtFull(z.source_candle_ts),
+          ])}
+          empty={state.status === "loading" ? "Loading…" : "No zones snapshotted yet."}
+          mobileCards={{ titleIndexes: [0, 2, 4], hideIndexes: [6] }}
+        />
+      </Panel>
+
+      {/* ── Engine detail ── */}
       <Panel
         title="Engine"
-        hint="GitHub Actions · every 15 min, 02:00–15:25 ET entry window"
+        hint="GitHub Actions · every 15 min · 02:00–15:25 ET entry window"
         actions={
           lastRun ? (
             <Badge tone={lastRun.status === "ok" ? (engineStale ? "amber" : "green") : "red"}>
@@ -156,7 +547,7 @@ export default function SignalsClient() {
       >
         {lastRun ? (
           <div className={styles.kpis}>
-            <Kpi label="Last run" value={ago(lastRun.ran_at)} sub={fmtEt(lastRun.ran_at)} />
+            <Kpi label="Last run" value={ago(lastRun.ran_at)} sub={fmtEtFull(lastRun.ran_at)} />
             <Kpi
               label="Result"
               value={lastRun.status.toUpperCase()}
@@ -177,109 +568,18 @@ export default function SignalsClient() {
         ) : (
           <div className={styles.dim}>No engine runs recorded yet.</div>
         )}
-      </Panel>
-
-      {week && (
-        <Panel title="Last 7 days" hint="closed simulated signals, costs included">
-          <div className={styles.kpis}>
-            <Kpi
-              label="Signals"
-              value={String(week.count)}
-              sub={`≈ ${week.perDay.toFixed(1)} per trading day`}
-            />
-            <Kpi label="Tier split" value={`A ${week.a} · B ${week.b}`} />
-            <Kpi
-              label="Win rate"
-              value={week.winRate === null ? "—" : `${week.winRate.toFixed(0)}%`}
-              tone={week.winRate !== null && week.winRate >= 50 ? "good" : undefined}
-            />
-            <Kpi
-              label="Net P&L"
-              value={money(week.net)}
-              tone={week.net >= 0 ? "good" : "bad"}
-            />
+        {ready && ready.runs.length > 1 && (
+          <div className={styles.runDots}>
+            {[...ready.runs].reverse().map((r) => (
+              <span
+                key={r.id}
+                className={r.status === "ok" ? styles.runOk : styles.runBad}
+                title={`${fmtEtFull(r.ran_at)} · ${r.status}`}
+              />
+            ))}
+            <span className={styles.dim}>last {ready.runs.length} runs</span>
           </div>
-        </Panel>
-      )}
-
-      <Panel
-        title="Signal log"
-        hint="latest 100 · times in ET"
-        actions={
-          <Tabs
-            tabs={[
-              { id: "all", label: "All" },
-              { id: "A", label: "Tier A" },
-              { id: "B", label: "Tier B" },
-            ]}
-            active={tierTab}
-            onChange={setTierTab}
-          />
-        }
-      >
-        <DataTable
-          columns={["Time", "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Setup"]}
-          rows={visibleSignals.map((s) => [
-            fmtEt(s.signal_ts),
-            <Badge key="t" tone={s.tier === "A" ? "blue" : "amber"}>
-              {s.tier}
-            </Badge>,
-            s.symbol,
-            s.direction === "long" ? "LONG" : "SHORT",
-            s.entry_price.toFixed(2),
-            s.stop_price.toFixed(2),
-            s.target_price?.toFixed(2) ?? "—",
-            s.rr?.toFixed(1) ?? "—",
-            statusBadge(s.status),
-            s.pnl_usd === null ? (
-              "—"
-            ) : (
-              <span key="p" className={s.pnl_usd >= 0 ? styles.good : styles.bad}>
-                {money(s.pnl_usd)}
-              </span>
-            ),
-            <span key="r" className={styles.dim}>
-              {s.reason ?? "—"}
-            </span>,
-          ])}
-          empty={
-            state.status === "loading"
-              ? "Loading…"
-              : "No signals yet — the engine writes them as setups trigger."
-          }
-          mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10] }}
-        />
-      </Panel>
-
-      <Panel
-        title="Zone watchlist"
-        hint="current demand/supply stacks (NY-session structure), nearest first"
-      >
-        <DataTable
-          columns={["Symbol", "TF", "Type", "Zone", "State", "Formed"]}
-          rows={(ready?.zones ?? []).map((z) => [
-            z.symbol,
-            z.timeframe,
-            z.zone_type === "demand" ? (
-              <Badge key="d" tone="green">
-                DEMAND
-              </Badge>
-            ) : (
-              <Badge key="s" tone="red">
-                SUPPLY
-              </Badge>
-            ),
-            `${z.price_low.toFixed(2)} – ${z.price_high.toFixed(2)}`,
-            <span key="st">
-              {z.fresh ? <Badge tone="blue">FRESH</Badge> : <Badge>TESTED</Badge>}{" "}
-              {z.achieved ? <Badge tone="green">ACHIEVED</Badge> : null}
-              {z.blocked80 ? <Badge tone="amber">80% BLOCK</Badge> : null}
-            </span>,
-            fmtEt(z.source_candle_ts),
-          ])}
-          empty={state.status === "loading" ? "Loading…" : "No zones snapshotted yet."}
-          mobileCards={{ titleIndexes: [0, 1, 2] }}
-        />
+        )}
       </Panel>
     </>
   );
