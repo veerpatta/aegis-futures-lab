@@ -182,3 +182,9 @@
     grid-template-columns: 78px 44px 1fr;
   }
 }
+
+/* IST echo beside the ET clock fields in the journal form. */
+.fieldEcho {
+  color: var(--text-faint);
+  font-weight: 400;
+}

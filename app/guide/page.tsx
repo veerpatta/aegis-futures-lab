@@ -108,7 +108,8 @@ export default function GuidePage() {
           <dt>Status</dt>
           <dd>
             <b>TARGET</b> = winner. <b>STOP</b> = loser. <b>OPEN</b> = still running.{" "}
-            <b>FLAT CLOSE</b> = closed at 15:25 ET because the strategy never holds overnight.
+            <b>FLAT CLOSE</b> = closed at 15:25 ET (00:55 IST in summer, 01:55 in winter)
+            because the strategy never holds overnight.
           </dd>
           <dt>P&amp;L</dt>
           <dd>
@@ -145,6 +146,38 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>ET or IST — your choice</h2>
+        <p>
+          Every time in the app can be shown on the New York exchange clock (<b>ET</b>) or on
+          your own clock in India (<b>IST</b>). Use the <b>ET / IST</b> switch — bottom of the
+          side menu on a computer, top right on a phone. Your choice is remembered on that
+          device, and it changes every screen at once: the signal times, the chart&apos;s time
+          axis, the journal, the news calendar.
+        </p>
+        <p>
+          Two things deliberately do <b>not</b> move:
+        </p>
+        <ul className={styles.steps}>
+          <li>
+            <b>Trading days.</b> The blotter groups ideas by New York trading day, always. An
+            idea posted at 21:20 IST belongs to that New York session, not to the next Indian
+            date.
+          </li>
+          <li>
+            <b>Journal entry times.</b> You type your own trades in ET, because that is what the
+            chart and the engine&apos;s own timestamps use. When the app is set to IST, the form
+            shows you what your typed ET time means in IST as you go.
+          </li>
+        </ul>
+        <p className={styles.note}>
+          India does not change its clocks but the United States does, so the gap is 9½ hours
+          from March to November and 10½ hours through the winter. The app works this out for
+          you — the session rules always print both, like &ldquo;flat by 15:25 ET (00:55
+          IST)&rdquo;, and that second figure shifts by itself when New York changes its clocks.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>Put it on your phone</h2>
         <p>
           Open this site on your phone, then choose <b>Add to Home Screen</b> (in the browser
@@ -168,7 +201,7 @@ export default function GuidePage() {
           </dd>
           <dt>Paper trading</dt>
           <dd>Practice trades with imaginary money. All trades in this app are paper trades.</dd>
-          <dt>Flat by 15:25 ET</dt>
+          <dt>Flat by 15:25 ET (00:55 IST)</dt>
           <dd>
             The strategy closes everything before the New York session ends. No overnight risk,
             ever.

@@ -8,6 +8,7 @@ import type { Bar } from "@/lib/types";
 import { tradesToCsv } from "@/lib/data/csv";
 import { nyDateKey } from "@/lib/time/ny";
 import { money, pct, ratio, ts, dateOnly } from "@/lib/format";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/ui";
 import EquityChart from "@/components/chart/EquityChart";
 import CandleChart, { type TradeMarker } from "@/components/chart/CandleChart";
@@ -38,6 +39,7 @@ export default function ResultsPanel({
   windowLabel: string;
   runRequest?: RunRequest;
 }) {
+  const { zone } = useZone();
   const m = result.metrics;
   const symbols = Object.keys(series);
   const defaultChartSymbol =
@@ -107,7 +109,7 @@ export default function ResultsPanel({
         </div>
       </Panel>
 
-      <Panel title="Equity curve" hint={`${dateOnly(result.window.from)} → ${dateOnly(result.window.to)}`}>
+      <Panel title="Equity curve" hint={`${dateOnly(result.window.from, zone)} → ${dateOnly(result.window.to, zone)}`}>
         <EquityChart
           series={[{ label: "Equity", color: rampColor, points: result.equityPoints }]}
           baseline={result.equityPoints[0]?.equity}
@@ -209,9 +211,9 @@ export default function ResultsPanel({
           ]}
           rows={result.trades.map((t) => [
             <Link key="in" href={`/replay?d=${nyDateKey(t.entryTime)}`} className={styles.dayLink}>
-              {ts(t.entryTime)}
+              {ts(t.entryTime, zone)}
             </Link>,
-            ts(t.exitTime),
+            ts(t.exitTime, zone),
             t.symbol,
             <Badge key="side" tone={t.side === "LONG" ? "green" : "red"}>
               {t.side}

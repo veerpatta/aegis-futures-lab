@@ -1,9 +1,14 @@
-/* Session clock + ET display helpers shared by the Home dashboard and the
-   Signals terminal: which phase the trading day is in, when the scheduled
-   engine next wakes up, and how to render an ET timestamp. Times are unix
-   seconds unless the name says iso. */
+/* Session clock + timestamp display helpers shared by the Home dashboard and
+   the Signals terminal: which phase the trading day is in, when the scheduled
+   engine next wakes up, and how to render a moment in the zone the reader
+   picked (see components/providers/ZoneProvider).
+
+   Session boundaries are ET rules, so they always print both clocks —
+   "flat by 15:25 ET (00:55 IST)". Timestamps follow the reader's choice.
+   Times are unix seconds unless the name says iso. */
 
 import { nyMeta } from "./ny";
+import { clockIn, dayIn, dayLongIn, etTimeLabel, ZONE_ABBR, type DisplayZone } from "./zones";
 
 export interface Phase {
   label: string;
@@ -21,22 +26,27 @@ export function marketPhase(nowSec: number): Phase {
   if (weekend)
     return {
       label: "Market closed",
-      detail: "Globex reopens Sunday 18:00 ET",
+      detail: `Globex reopens Sunday ${etTimeLabel("18:00")}`,
       live: false,
       tone: "dim",
     };
   if (m.minutes >= 17 * 60 && m.minutes < 18 * 60)
-    return { label: "Daily break", detail: "Globex reopens 18:00 ET", live: false, tone: "dim" };
+    return {
+      label: "Daily break",
+      detail: `Globex reopens ${etTimeLabel("18:00")}`,
+      live: false,
+      tone: "dim",
+    };
   if (m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925)
     return {
       label: "Market open",
-      detail: "London + New York · flat by 15:25 ET",
+      detail: `London + New York · flat by ${etTimeLabel("15:25")}`,
       live: true,
       tone: "good",
     };
   return {
     label: "Overnight session",
-    detail: "Zones keep updating — entries resume 02:00 ET",
+    detail: `Zones keep updating — entries resume ${etTimeLabel("02:00")}`,
     live: true,
     tone: "warn",
   };
@@ -67,41 +77,31 @@ export function tapeProgress(nowSec: number): number | null {
   return Math.max(0, Math.min(1, (m.minutes - 120) / (925 - 120)));
 }
 
-const nyDay = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
+/* ── Timestamp display ───────────────────────────────────────────────────
+   All four take the reader's zone. The *grouping* of signals into trading
+   days stays on New York dates (lib/time/ny.ts) — only the rendering moves. */
 
-const nyDayLong = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "long",
-  month: "short",
-  day: "numeric",
-});
-
-/** "Tue, Jul 21" in New York. */
-export function dayLabel(date: Date): string {
-  return nyDay.format(date);
+/** "Tue, Jul 21" in the reader's zone. */
+export function dayLabel(date: Date, zone: DisplayZone): string {
+  return dayIn(Math.floor(date.getTime() / 1000), zone);
 }
 
-/** "Tuesday, Jul 21" in New York. */
-export function dayLabelLong(date: Date): string {
-  return nyDayLong.format(date);
+/** "Tuesday, Jul 21" in the reader's zone. */
+export function dayLabelLong(date: Date, zone: DisplayZone): string {
+  return dayLongIn(Math.floor(date.getTime() / 1000), zone);
 }
 
-/** "13:20" in ET, or "—" when there is no timestamp. */
-export function fmtEt(isoOrNull: string | null): string {
+/** "22:50" in the reader's zone, or "—" when there is no timestamp. */
+export function fmtTime(isoOrNull: string | null, zone: DisplayZone): string {
   if (!isoOrNull) return "—";
-  const m = nyMeta(Math.floor(new Date(isoOrNull).getTime() / 1000));
-  return `${String(m.hour).padStart(2, "0")}:${String(m.minute).padStart(2, "0")}`;
+  return clockIn(Math.floor(new Date(isoOrNull).getTime() / 1000), zone);
 }
 
-/** "Tue, Jul 21, 13:20 ET". */
-export function fmtEtFull(isoOrNull: string | null): string {
+/** "Tue, Jul 21, 22:50 IST" — a stamp that stands alone. */
+export function fmtStamp(isoOrNull: string | null, zone: DisplayZone): string {
   if (!isoOrNull) return "—";
-  return `${dayLabel(new Date(isoOrNull))}, ${fmtEt(isoOrNull)} ET`;
+  const sec = Math.floor(new Date(isoOrNull).getTime() / 1000);
+  return `${dayIn(sec, zone)}, ${clockIn(sec, zone)} ${ZONE_ABBR[zone]}`;
 }
 
 /** Relative age of an ISO timestamp: "just now", "12 min ago", "3h 4m ago". */

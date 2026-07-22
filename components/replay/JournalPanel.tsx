@@ -11,7 +11,9 @@ import {
 import { journalPnl } from "@/lib/journal";
 import { parseBrokerCsv } from "@/lib/journal/broker";
 import { fetchCloudJournal, mirrorJournalToCloud } from "@/lib/journal/cloud";
-import { nyClock, nyDateKey, nyTimeToUnix } from "@/lib/time/ny";
+import { nyDateKey, nyTimeToUnix } from "@/lib/time/ny";
+import { clockIn, etWallIn, ZONE_ABBR, type DisplayZone } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import { money } from "@/lib/format";
 import { Badge, Button, DataTable, Panel } from "@/components/ui";
@@ -44,6 +46,14 @@ function download(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+/* The two clock fields are always ET — they have to line up with the chart and
+   with the engine's own timestamps. When the app is showing IST, echo what the
+   typed ET time means on an Indian clock so nobody has to do the arithmetic. */
+function istEcho(hhmm: string, zone: DisplayZone): React.ReactNode {
+  if (zone !== "IST" || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null;
+  return <span className={styles.fieldEcho}> = {etWallIn(hhmm, "IST")} IST</span>;
+}
+
 export default function JournalPanel({
   selectedDay,
   journal,
@@ -54,6 +64,7 @@ export default function JournalPanel({
   onChange: (store: JournalStore) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const { zone } = useZone();
   const [error, setError] = useState<string | null>(null);
   const [cloud, setCloud] = useState<"syncing" | "ok" | "offline">("syncing");
   const [form, setForm] = useState({
@@ -232,7 +243,7 @@ export default function JournalPanel({
           />
         </label>
         <label className={styles.field}>
-          Entry (ET)
+          Entry (ET){istEcho(form.entryClock, zone)}
           <input
             placeholder="09:35"
             value={form.entryClock}
@@ -248,7 +259,7 @@ export default function JournalPanel({
           />
         </label>
         <label className={styles.field}>
-          Exit (ET)
+          Exit (ET){istEcho(form.exitClock, zone)}
           <input
             placeholder="10:00"
             value={form.exitClock}
@@ -277,7 +288,8 @@ export default function JournalPanel({
           Add to {selectedDay}
         </Button>
         <span className={styles.note}>
-          Times are New York (ET) wall clock, matching the chart. Import accepts the
+          Times are typed as New York (ET) wall clock, matching the chart — that stays
+          true whichever clock the rest of the app is showing. Import accepts the
           journal schema (entry_time, exit_time, symbol, side, qty, entry, exit[, notes])
           or a Tradovate/Topstep performance export — MES/MNQ rows are picked out
           automatically.
@@ -292,7 +304,7 @@ export default function JournalPanel({
           rows={dayTrades.map((t) => {
             const { grossPnl } = journalPnl(t);
             return [
-              `${nyClock(t.entryTime)}–${nyClock(t.exitTime)} ET`,
+              `${clockIn(t.entryTime, zone)}–${clockIn(t.exitTime, zone)} ${ZONE_ABBR[zone]}`,
               t.symbol,
               <Badge key="s" tone={t.side === "LONG" ? "green" : "red"}>
                 {t.side}

@@ -8,6 +8,8 @@ import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
 import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
 import { money } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
+import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, Panel, SelectField, toneClass } from "@/components/ui";
 import CandleChart from "@/components/chart/CandleChart";
 import styles from "./markets.module.css";
@@ -25,6 +27,7 @@ const TIMEFRAMES = [
 
 export default function MarketsClient() {
   const data = useData();
+  const { zone } = useZone();
   const [quotes, setQuotes] = useState<Record<FeedSymbol, QuoteState>>({
     MES: { status: "loading" },
     MNQ: { status: "loading" },
@@ -132,7 +135,8 @@ export default function MarketsClient() {
                     {money(q.quote.change)} vs prior close
                   </span>
                   <span className={styles.quoteMeta}>
-                    data {new Date(q.quote.dataTimestamp).toLocaleTimeString()} ·{" "}
+                    data {clockIn(Math.floor(new Date(q.quote.dataTimestamp).getTime() / 1000), zone)}{" "}
+                    {ZONE_ABBR[zone]} ·{" "}
                     {q.quote.source}
                   </span>
                 </>
@@ -230,12 +234,7 @@ export default function MarketsClient() {
                   return (
                     <div key={`${e.name}-${e.time}`} className={styles.eventRow}>
                       <span className={styles.eventTime}>
-                        {new Date(e.time).toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {dateTimeIn(e.sec, zone)} {ZONE_ABBR[zone]}
                       </span>
                       <span className={styles.eventBody}>
                         <b>{e.name}</b>

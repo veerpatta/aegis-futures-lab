@@ -16,6 +16,7 @@ import type {
   Snapshot,
   Strategy,
 } from "@/lib/strategies/types";
+import { etTimeLabel, etWindowLabel } from "@/lib/time/zones";
 
 interface ZoneCtx {
   stacks: Record<string, Stack>;
@@ -217,11 +218,11 @@ export const zoneV5: Strategy<ZoneCtx> = {
       type: "select",
       default: "day",
       options: [
-        { value: "rth", label: "NY session only (09:30–15:25 ET)" },
-        { value: "day", label: "London + New York (02:00–15:25 ET, more trades)" },
+        { value: "rth", label: `NY session only — ${etWindowLabel("09:30", "15:25")}` },
+        { value: "day", label: `London + New York — ${etWindowLabel("02:00", "15:25")}, more trades` },
         { value: "all", label: "Any hour before the 15:25 flat" },
       ],
-      help: "Phase-1 trading-hours rule. Entries outside the chosen window are skipped; open positions still manage around the clock and flatten by 15:25 ET. London+NY (default) roughly doubles trade count vs NY-only at a lower but still positive profit factor; NY-only is the stricter, higher-quality window.",
+      help: `Phase-1 trading-hours rule. Entries outside the chosen window are skipped; open positions still manage around the clock and flatten by ${etTimeLabel("15:25")}. London+NY (default) roughly doubles trade count vs NY-only at a lower but still positive profit factor; NY-only is the stricter, higher-quality window.`,
     },
     {
       key: "htfRange",

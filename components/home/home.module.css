@@ -20,8 +20,12 @@
   flex-wrap: wrap;
 }
 
-.phoneBrand {
+.phoneBrand,
+.phoneZone {
   display: none;
+}
+
+.phoneBrand {
   align-items: center;
   gap: var(--space-3);
 }
@@ -788,16 +792,24 @@
   }
 }
 
-@media (max-width: 1100px) {
-  .deskGreeting,
-  .deskOnly {
-    display: none;
-  }
-  .deskInline {
-    display: none;
-  }
+/* Below the shell boundary the sidebar is gone and Home suppresses the global
+   top bar, so the page header carries the brand and the ET/IST switch itself. */
+@media (max-width: 768px) {
   .phoneBrand {
     display: flex;
+  }
+  .phoneZone {
+    display: inline-flex;
+  }
+  .deskGreeting {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .deskOnly,
+  .deskInline {
+    display: none;
   }
   .header {
     flex-wrap: nowrap;

@@ -17,6 +17,8 @@ import type { Bar } from "@/lib/types";
 import { useData } from "@/components/providers/DataProvider";
 import { DEFAULT_EXECUTION } from "@/components/lab/ExecutionPanel";
 import CandleChart, { type PriceLine, type TradeMarker } from "@/components/chart/CandleChart";
+import { ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/ui";
 import BlotterCalendar, { type BlotterDay } from "./BlotterCalendar";
 import DayTimeline from "./DayTimeline";
@@ -32,6 +34,7 @@ import styles from "./replay.module.css";
 const STRATEGY_ID = "zone-v5";
 
 export default function ReplayClient() {
+  const { zone } = useZone();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -320,7 +323,7 @@ export default function ReplayClient() {
             )}
           </Panel>
 
-          <Panel title="Decision timeline" hint={`what the engine saw on ${selectedDay} (ET)`}>
+          <Panel title="Decision timeline" hint={`what the engine saw on ${selectedDay} · times in ${ZONE_ABBR[zone]}`}>
             <DayTimeline
               events={dayEvents}
               trades={dayEngineTrades}

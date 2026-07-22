@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EquityPoint } from "@/lib/types";
+import { dateShortIn, type DisplayZone } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import styles from "./EquityChart.module.css";
 
 export interface EquitySeries {
@@ -26,8 +28,10 @@ function fmtMoneyTick(v: number, compact: boolean): string {
   return fmtMoney(v);
 }
 
-function fmtDate(sec: number): string {
-  return new Date(sec * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+/* Date ticks follow the zone picked in the nav, like every other time in the
+   app — an equity curve read next to the blotter must use the same calendar. */
+function fmtDate(sec: number, zone: DisplayZone): string {
+  return dateShortIn(sec, zone);
 }
 
 export default function EquityChart({
@@ -37,6 +41,7 @@ export default function EquityChart({
   series: EquitySeries[];
   baseline?: number;
 }) {
+  const { zone } = useZone();
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [w, setW] = useState(DEFAULT_W);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -179,7 +184,7 @@ export default function EquityChart({
             className={styles.tickLabel}
             textAnchor="middle"
           >
-            {fmtDate(t)}
+            {fmtDate(t, zone)}
           </text>
         ))}
         {baseline !== undefined && (
@@ -219,7 +224,7 @@ export default function EquityChart({
       </svg>
       {hoverRows.length > 0 && hoverTime !== null && (
         <div className={styles.tooltip}>
-          <span className={styles.tooltipTime}>{fmtDate(hoverTime)}</span>
+          <span className={styles.tooltipTime}>{fmtDate(hoverTime, zone)}</span>
           {hoverRows.map((r) => (
             <span key={r.label} className={styles.tooltipRow}>
               <span className={styles.swatch} style={{ background: r.color }} />

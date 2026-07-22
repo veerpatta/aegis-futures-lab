@@ -20,11 +20,14 @@ import { nyMeta } from "@/lib/time/ny";
 import {
   ago,
   dayLabelLong,
-  fmtEt,
-  fmtEtFull,
+  fmtStamp,
+  fmtTime,
   marketPhase,
   nextRunSec,
 } from "@/lib/time/session";
+import { dayKeyLabel, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
+import ZoneToggle from "@/components/nav/ZoneToggle";
 import { money } from "@/lib/format";
 import styles from "./home.module.css";
 
@@ -82,17 +85,6 @@ function weekdaysBetween(fromMs: number, toMs: number): number {
   return n;
 }
 
-const monthDay = new Intl.DateTimeFormat("en-US", {
-  timeZone: "UTC",
-  month: "short",
-  day: "numeric",
-});
-
-/** "2026-07-13" → "Jul 13" (the key is already a New York calendar date). */
-function dayKeyLabel(key: string): string {
-  return monthDay.format(new Date(`${key}T12:00:00Z`));
-}
-
 /* ── Daily P&L bars ──────────────────────────────────────────────────── */
 
 function PnlBars({ days }: { days: [string, number][] }) {
@@ -137,9 +129,9 @@ function PnlBars({ days }: { days: [string, number][] }) {
         })}
       </svg>
       <div className={styles.barAxis}>
-        <span>{dayKeyLabel(days[0][0])}</span>
-        {days.length > 2 && <span>{dayKeyLabel(days[Math.floor(days.length / 2)][0])}</span>}
-        <span>{dayKeyLabel(days[days.length - 1][0])}</span>
+        <span>{dayKeyLabel(days[0][0], { weekday: false })}</span>
+        {days.length > 2 && <span>{dayKeyLabel(days[Math.floor(days.length / 2)][0], { weekday: false })}</span>}
+        <span>{dayKeyLabel(days[days.length - 1][0], { weekday: false })}</span>
       </div>
     </>
   );
@@ -187,6 +179,7 @@ export default function HomeClient() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   /* null until mounted — the clock must not render on the server. */
   const [nowSec, setNowSec] = useState<number | null>(null);
+  const { zone } = useZone();
 
   const load = useCallback(async () => {
     try {
@@ -336,7 +329,7 @@ export default function HomeClient() {
           <span className={styles.brandText}>
             <strong>Aegis</strong>
             <span className={styles.brandSub}>
-              {nowSec === null ? "—" : dayLabelLong(new Date(nowSec * 1000))}
+              {nowSec === null ? "—" : dayLabelLong(new Date(nowSec * 1000), zone)}
             </span>
           </span>
         </Link>
@@ -346,12 +339,15 @@ export default function HomeClient() {
             {nowSec === null ? "Welcome back" : greeting(nyMeta(nowSec).hour)}
           </h1>
           <p className={styles.sub}>
-            {nowSec === null ? "Loading the session…" : dayLabelLong(new Date(nowSec * 1000))} ·
+            {nowSec === null ? "Loading the session…" : dayLabelLong(new Date(nowSec * 1000), zone)} ·
             here&rsquo;s what the bot has been doing
           </p>
         </div>
 
         <div className={styles.pills}>
+          <span className={styles.phoneZone}>
+            <ZoneToggle />
+          </span>
           <span className={`${styles.pill} ${styles[phase.tone]}`}>
             <i className={`${styles.dot} ${phase.live ? styles.dotLive : ""}`} />
             <span className={styles.pillMain}>{phase.label}</span>
@@ -359,7 +355,7 @@ export default function HomeClient() {
           </span>
           <span className={`${styles.pill} ${styles.pillMuted} ${styles.deskOnly}`}>
             Next check{" "}
-            <b className="num">{nextRun === null ? "—" : `${fmtEt(new Date(nextRun * 1000).toISOString())} ET`}</b>
+            <b className="num">{nextRun === null ? "—" : `${fmtTime(new Date(nextRun * 1000).toISOString(), zone)} ${ZONE_ABBR[zone]}`}</b>
           </span>
         </div>
       </header>
@@ -400,9 +396,9 @@ export default function HomeClient() {
           </span>
         </div>
         <div className={styles.todayCell}>
-          <span className={styles.cellLabel}>Next check</span>
+          <span className={styles.cellLabel}>Next check · {ZONE_ABBR[zone]}</span>
           <b className={`${styles.cellValue} num`}>
-            {nextRun === null ? "—" : fmtEt(new Date(nextRun * 1000).toISOString())}
+            {nextRun === null ? "—" : fmtTime(new Date(nextRun * 1000).toISOString(), zone)}
           </b>
           <span className={`${styles.cellSub} ${engineStale ? styles.warn : styles.good}`}>
             {loading ? "checking…" : engineStale ? "bot idle" : "bot healthy ✓"}
@@ -438,7 +434,7 @@ export default function HomeClient() {
                   }`}
                 >
                   <i className={styles.dotSm} />
-                  {statusLook(hero.status).label} · {fmtEt(hero.signal_ts)} ET
+                  {statusLook(hero.status).label} · {fmtTime(hero.signal_ts, zone)} {ZONE_ABBR[zone]}
                 </span>
               </div>
               <div className={styles.heroStats}>
@@ -487,7 +483,9 @@ export default function HomeClient() {
                     ? "Reading the signal log."
                     : phase.live
                       ? `The bot is watching. Next check ${
-                          nextRun === null ? "shortly" : `at ${fmtEt(new Date(nextRun * 1000).toISOString())} ET`
+                          nextRun === null
+                            ? "shortly"
+                            : `at ${fmtTime(new Date(nextRun * 1000).toISOString(), zone)} ${ZONE_ABBR[zone]}`
                         } — an idea appears here the moment one triggers.`
                       : `${phase.detail}. Ideas resume when the entry window opens.`}
                 </p>
@@ -574,7 +572,7 @@ export default function HomeClient() {
                         <span className="num">{s.entry_price.toFixed(2)}</span>
                       </span>
                       <span className={styles.rowSub}>
-                        {fmtEtFull(s.signal_ts)} · {tierName(s.tier)} (Tier {s.tier})
+                        {fmtStamp(s.signal_ts, zone)} · {tierName(s.tier)} (Tier {s.tier})
                         <span className={styles.deskInline}>
                           {" "}
                           · stop <span className="num">{s.stop_price.toFixed(2)}</span>
@@ -699,7 +697,7 @@ export default function HomeClient() {
             {nextEvent && (
               <div className={styles.statusLine}>
                 <i className={`${styles.dotSm} ${styles.dotWarn}`} />
-                News pause {fmtEtFull(nextEvent.time)} ({nextEvent.name})
+                News pause {fmtStamp(nextEvent.time, zone)} ({nextEvent.name})
               </div>
             )}
             {ready && ready.runs.length > 0 && (
@@ -708,7 +706,7 @@ export default function HomeClient() {
                   <span
                     key={r.id}
                     className={r.status === "ok" ? styles.runOk : styles.runBad}
-                    title={`${fmtEtFull(r.ran_at)} · ${r.status}`}
+                    title={`${fmtStamp(r.ran_at, zone)} · ${r.status}`}
                   />
                 ))}
                 <span className={styles.note}>last {ready.runs.length} checks</span>

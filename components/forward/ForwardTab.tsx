@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
 import type { ParamValues } from "@/lib/strategies/types";
@@ -9,6 +9,8 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { loadStored, saveStored, removeStored, KEYS } from "@/lib/data/storage";
 import { money, pct, ts } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
+import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, DataTable, Kpi, Panel } from "@/components/ui";
 import type { ExecutionSettings } from "@/components/lab/ExecutionPanel";
 import styles from "@/components/lab/lab.module.css";
@@ -41,6 +43,12 @@ export default function ForwardTab({
   execution: ExecutionSettings;
 }) {
   const data = useData();
+  const { zone } = useZone();
+  /* the evaluation callback stamps a time without depending on the zone */
+  const zoneRef = useRef(zone);
+  useEffect(() => {
+    zoneRef.current = zone;
+  }, [zone]);
   const [stored, setStored] = useState<ForwardState | null>(() =>
     loadStored<ForwardState>(KEYS.agent)
   );
@@ -114,7 +122,7 @@ export default function ForwardTab({
         keepOpenAtEnd: true,
       });
       setResult(res);
-      setEvalNote(`evaluated ${new Date().toLocaleTimeString()}`);
+      setEvalNote(`evaluated ${clockIn(Math.floor(Date.now() / 1000), zoneRef.current)} ${ZONE_ABBR[zoneRef.current]}`);
     } catch (e) {
       setEvalNote(`evaluation failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -182,7 +190,7 @@ export default function ForwardTab({
           <>
             <p className={styles.note}>
               <Badge tone="green">ARMED</Badge> {strategy.name} since{" "}
-              {ts(stored.armedAt)} · {evalNote || "evaluating…"}
+              {ts(stored.armedAt, zone)} · {evalNote || "evaluating…"}
             </p>
             <div className={styles.kpiGrid}>
               <Kpi
@@ -231,8 +239,8 @@ export default function ForwardTab({
             mobileCards={{ titleIndexes: [0, 3, 5] }}
             columns={["Entry", "Exit", "Sym", "Side", "Qty", "P&L", "R", "Reason"]}
             rows={(result?.trades ?? []).map((t) => [
-              ts(t.entryTime),
-              ts(t.exitTime),
+              ts(t.entryTime, zone),
+              ts(t.exitTime, zone),
               t.symbol,
               t.side,
               t.qty,

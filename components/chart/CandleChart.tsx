@@ -13,6 +13,8 @@ import {
   type Time,
 } from "lightweight-charts";
 import type { Bar } from "@/lib/types";
+import { clockIn, dateShortIn, stampIn } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 
 export interface TradeMarker {
   time: number;
@@ -43,6 +45,7 @@ export default function CandleChart({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const { zone } = useZone();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -65,7 +68,19 @@ export default function CandleChart({
         horzLines: { color: token("--border", "#1a2436") },
       },
       rightPriceScale: { borderColor: token("--border", "#1a2436") },
-      timeScale: { borderColor: token("--border", "#1a2436"), timeVisible: true },
+      timeScale: {
+        borderColor: token("--border", "#1a2436"),
+        timeVisible: true,
+        /* Without this the axis is UTC — the strategy, the markers and the
+           journal are not, so the ticks would disagree with everything else. */
+        tickMarkFormatter: (time: Time, tickMarkType: number) => {
+          const sec = time as number;
+          return tickMarkType <= 2 ? dateShortIn(sec, zone) : clockIn(sec, zone);
+        },
+      },
+      localization: {
+        timeFormatter: (time: Time) => stampIn(time as number, zone),
+      },
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
@@ -132,7 +147,7 @@ export default function CandleChart({
       chart.remove();
       chartRef.current = null;
     };
-  }, [bars, markers, lines, height]);
+  }, [bars, markers, lines, height, zone]);
 
   return <div ref={containerRef} style={{ minWidth: 0 }} />;
 }

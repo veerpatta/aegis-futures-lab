@@ -3,12 +3,15 @@
 import { useMemo, useRef, useState } from "react";
 import { parseCsv } from "@/lib/data/csv";
 import { useData } from "@/components/providers/DataProvider";
+import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, NumberField, Panel } from "@/components/ui";
 import { dateOnly, ts } from "@/lib/format";
 import styles from "./data.module.css";
 
 export default function DataClient() {
   const data = useData();
+  const { zone } = useZone();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [label, setLabel] = useState("IMPORT");
   const [pointValue, setPointValue] = useState(5);
@@ -90,7 +93,7 @@ export default function DataClient() {
               <p className={styles.note} style={{ marginBottom: 0 }}>
                 <Badge tone="green">LOADED</Badge> {imported.label} ·{" "}
                 {imported.bars.length.toLocaleString()} candles ·{" "}
-                {dateOnly(imported.bars[0].time)} → {dateOnly(imported.bars.at(-1)!.time)} · $
+                {dateOnly(imported.bars[0].time, zone)} → {dateOnly(imported.bars.at(-1)!.time, zone)} · $
                 {imported.pointValue}/pt. Backtest it from the Lab page (Instruments → Imported
                 CSV).
               </p>
@@ -121,7 +124,7 @@ export default function DataClient() {
                     "Cutoff off — drag to enable."
                   ) : (
                     <>
-                      Cutoff at <b>{ts(data.replayCutoff)}</b> (bar {replayIndex + 1} of{" "}
+                      Cutoff at <b>{ts(data.replayCutoff, zone)}</b> (bar {replayIndex + 1} of{" "}
                       {imported.bars.length}).{" "}
                     </>
                   )}
@@ -149,7 +152,9 @@ export default function DataClient() {
                         <>
                           {st.bars.length.toLocaleString()} × 5m NY-session bars ·{" "}
                           {st.source} · fetched{" "}
-                          {st.fetchedAt ? new Date(st.fetchedAt).toLocaleTimeString() : "—"}
+                          {st.fetchedAt
+                            ? `${clockIn(Math.floor(new Date(st.fetchedAt).getTime() / 1000), zone)} ${ZONE_ABBR[zone]}`
+                            : "—"}
                         </>
                       ) : st.status === "error" ? (
                         <span style={{ color: "var(--red)" }}>{st.error}</span>

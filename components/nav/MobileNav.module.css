@@ -31,6 +31,13 @@
   font-size: 16px;
 }
 
+.topBarEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
 /* Compliance badge (mirrors Sidebar's .lock — CSS Modules can't compose
    across files, so the declarations are duplicated deliberately). */
 .lock {

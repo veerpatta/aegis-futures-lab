@@ -2,6 +2,7 @@ import type { ParamValues } from "@/lib/strategies/types";
 import type { BacktestResult } from "./engine";
 import type { RunRequest } from "./run";
 import { runBacktestAsync } from "./client";
+import { etWindowLabel } from "@/lib/time/zones";
 
 /* "What if I relax one gate?" — re-run the exact same backtest with a single
    zone-v5 gate loosened, once per applicable gate, and report the trade-count
@@ -21,7 +22,7 @@ export const RELAXATIONS: Relaxation[] = [
   {
     id: "hoursDay",
     label: "Entry session → London + NY",
-    explain: "Allow entries 02:00–15:25 ET instead of NY-only.",
+    explain: `Allow entries ${etWindowLabel("02:00", "15:25")} instead of NY-only.`,
     applies: (p) => p.entryHours === "rth",
     patch: (p) => ({ ...p, entryHours: "day" }),
   },

@@ -2,6 +2,7 @@ import { rsi, atr } from "@/lib/indicators";
 import { nyMeta } from "@/lib/time/ny";
 import type { EntrySignal, ReadoutRow, Strategy } from "./types";
 import { num, visibleSymbols } from "./classic-utils";
+import { etWindowLabel } from "@/lib/time/zones";
 
 interface Ctx {
   bySymbol: Record<string, { rsi: (number | null)[]; atr: (number | null)[] }>;
@@ -43,8 +44,8 @@ export const rsiReversion: Strategy<Ctx> = {
       default: "all",
       options: [
         { value: "all", label: "Any hour" },
-        { value: "day", label: "London + New York (02:00–15:25 ET)" },
-        { value: "rth", label: "NY session only (09:30–15:25 ET)" },
+        { value: "day", label: `London + New York — ${etWindowLabel("02:00", "15:25")}` },
+        { value: "rth", label: `NY session only — ${etWindowLabel("09:30", "15:25")}` },
       ],
       help: "Skip entries outside the chosen window; open positions still manage around the clock.",
     },

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_LINKS, SECONDARY_LINKS, isActiveLink, type NavLink } from "./links";
+import ZoneToggle from "./ZoneToggle";
 import styles from "./Sidebar.module.css";
 
 export default function Sidebar() {
@@ -43,6 +44,10 @@ export default function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
+        <div className={styles.zoneRow}>
+          <span className={styles.zoneLabel}>Times in</span>
+          <ZoneToggle />
+        </div>
         <span className={styles.lock}>PAPER TRADING</span>
         <span className={styles.footNote}>
           Delayed data · simulation only · no broker connection

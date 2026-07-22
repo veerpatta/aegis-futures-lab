@@ -18,14 +18,15 @@ import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
   ago,
-  dayLabel,
   fmtCountdown,
-  fmtEt,
-  fmtEtFull,
+  fmtStamp,
+  fmtTime,
   marketPhase,
   nextRunSec,
   tapeProgress,
 } from "@/lib/time/session";
+import { dayKeyLabel, etWindowLabel, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { money } from "@/lib/format";
 import { Badge, Button, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
 import styles from "./signals.module.css";
@@ -99,6 +100,7 @@ export default function SignalsClient() {
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [showIntro, setShowIntro] = useState(false);
+  const { zone } = useZone();
 
   useEffect(() => {
     try {
@@ -227,7 +229,7 @@ export default function SignalsClient() {
       const key = nyMeta(t).dateKey;
       let g = map.get(key);
       if (!g) {
-        g = { label: dayLabel(new Date(t * 1000)), rows: [], net: 0, open: 0 };
+        g = { label: dayKeyLabel(key), rows: [], net: 0, open: 0 };
         map.set(key, g);
       }
       g.rows.push(s);
@@ -393,7 +395,7 @@ export default function SignalsClient() {
       {/* ── Blotter ── */}
       <Panel
         title="Signal blotter"
-        hint="grouped by trading day · times in ET"
+        hint={`grouped by New York trading day · times in ${ZONE_ABBR[zone]}`}
         actions={
           <Tabs
             tabs={[
@@ -426,9 +428,9 @@ export default function SignalsClient() {
               </span>
             </div>
             <DataTable
-              columns={["Time", "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Setup"]}
+              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Setup"]}
               rows={day.rows.map((s) => [
-                <span key="t" className="num">{fmtEt(s.signal_ts)}</span>,
+                <span key="t" className="num">{fmtTime(s.signal_ts, zone)}</span>,
                 <Badge key="b" tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge>,
                 s.symbol,
                 s.direction === "long" ? "LONG" : "SHORT",
@@ -480,7 +482,7 @@ export default function SignalsClient() {
               {z.achieved ? <Badge tone="green">ACHIEVED</Badge> : null}
               {z.blocked80 ? <Badge tone="amber">80% BLOCK</Badge> : null}
             </span>,
-            fmtEtFull(z.source_candle_ts),
+            fmtStamp(z.source_candle_ts, zone),
           ])}
           empty={state.status === "loading" ? "Loading…" : "No zones snapshotted yet."}
           mobileCards={{ titleIndexes: [0, 2, 4], hideIndexes: [6] }}
@@ -490,7 +492,7 @@ export default function SignalsClient() {
       {/* ── Engine detail ── */}
       <Panel
         title="Engine"
-        hint="GitHub Actions · every 15 min · 02:00–15:25 ET entry window"
+        hint={`GitHub Actions · every 15 min · ${etWindowLabel("02:00", "15:25")} entry window`}
         actions={
           lastRun ? (
             <Badge tone={lastRun.status === "ok" ? (engineStale ? "amber" : "green") : "red"}>
@@ -501,7 +503,7 @@ export default function SignalsClient() {
       >
         {lastRun ? (
           <div className={styles.kpis}>
-            <Kpi label="Last run" value={ago(lastRun.ran_at)} sub={fmtEtFull(lastRun.ran_at)} />
+            <Kpi label="Last run" value={ago(lastRun.ran_at)} sub={fmtStamp(lastRun.ran_at, zone)} />
             <Kpi
               label="Result"
               value={lastRun.status.toUpperCase()}
@@ -528,7 +530,7 @@ export default function SignalsClient() {
               <span
                 key={r.id}
                 className={r.status === "ok" ? styles.runOk : styles.runBad}
-                title={`${fmtEtFull(r.ran_at)} · ${r.status}`}
+                title={`${fmtStamp(r.ran_at, zone)} · ${r.status}`}
               />
             ))}
             <span className={styles.dim}>last {ready.runs.length} runs</span>

@@ -30,6 +30,13 @@ short sentences. The reader knows trading but not software. Always keep the
   lives at `/lab`, and `/replay` is labelled "Journal" in the nav. `components/nav/links.tsx`
   splits `NAV_LINKS` (sidebar + the five `mobile: true` tab-bar entries) from
   `SECONDARY_LINKS` (Compare, Data — sidebar "More" group only).
+- Times on screen follow a global ET/IST switch (`components/providers/ZoneProvider.tsx`,
+  `lib/time/zones.ts`), persisted per device and defaulting to IST for Asia/Kolkata
+  browsers. Two things stay ET on purpose: signals group by New York trading day
+  (`nyMeta().dateKey`), and journal entry times are typed in ET to match the chart.
+  Fixed session rules print both clocks via `etTimeLabel`/`etWindowLabel`, computed from
+  the current US DST state — never hardcode the 9h30m gap (`tests/zones.test.ts` pins
+  both halves of the year).
 - The engine's live tier configuration lives in `scripts/engine/tiers.ts`; the
   scheduled runner is `scripts/engine/run-live.ts` (GitHub Actions,
   `.github/workflows/signal-engine.yml`, Node 22 required).

@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         mode: "HISTORICAL_DELAYED",
         delayed: true,
         source: "Free delayed Yahoo 5-minute adapter",
-        session: "≈23h CME globex (Sun 18:00 – Fri 17:00 ET)",
+        session: "≈23h CME globex (Sun 18:00 – Fri 17:00 ET)", // ET is the contract's own clock
         range: "60 calendar days",
         interval: "5m",
         fetchedAt: new Date().toISOString(),

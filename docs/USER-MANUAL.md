@@ -59,7 +59,7 @@ Performance panel, and weight your attention accordingly.
 |---|---|
 | Entry / Stop / Target | The full plan. Risk = entry to stop; reward = entry to target. |
 | R:R | Reward-to-risk. 1.5 means the target pays 1.5× what the stop costs — you only need to win about 4 in 10 to come out ahead. |
-| Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **FLAT CLOSE** = closed at 15:25 ET (the strategy never holds overnight). |
+| Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **FLAT CLOSE** = closed at 15:25 ET / 00:55 IST (the strategy never holds overnight). |
 | P&L | Simulated dollars for the position size the engine chose (risking about $160 per trade), commissions already subtracted. |
 
 ## 5. What each page does
@@ -76,25 +76,46 @@ Performance panel, and weight your attention accordingly.
 
 You never need the workshop pages to follow the signals.
 
-## 6. Put it on your phone
+## 6. ET or IST — your choice
+
+Every time in the app can be shown on the New York exchange clock (**ET**) or on your own
+clock in India (**IST**). Use the **ET / IST** switch — bottom of the side menu on a
+computer, top right on a phone. The choice is remembered on that device and it changes
+every screen at once: signal times, the chart's time axis, the journal, the news calendar.
+
+Two things deliberately do **not** move:
+
+- **Trading days.** The blotter groups ideas by New York trading day, always. An idea
+  posted at 21:20 IST belongs to that New York session, not to the next Indian date.
+- **Journal entry times.** You type your own trades in ET, because that is what the chart
+  and the engine's own timestamps use. When the app is set to IST, the form shows what
+  your typed ET time means in IST as you go.
+
+India does not change its clocks but the United States does, so the gap is 9½ hours from
+March to November and 10½ hours through the winter. The app works this out for you — the
+session rules always print both, like "flat by 15:25 ET (00:55 IST)", and that second
+figure shifts by itself when New York changes its clocks.
+
+## 7. Put it on your phone
 
 Open the site on your phone, then choose **Add to Home Screen** in the browser menu. It
 installs like an app and opens straight onto the Home screen, with the five main pages
 along the bottom.
 
-## 7. Words you'll see
+## 8. Words you'll see
 
 | Word | Meaning |
 |---|---|
 | Zone | A price area where big buying (demand) or selling (supply) showed up before. The strategy trades the return to these areas. |
 | Fresh / Tested | Fresh = price hasn't come back to the zone yet (strongest). Tested = touched once already. |
 | Paper trading | Practice trades with imaginary money. All trades in this app are paper trades. |
-| Flat by 15:25 ET | The strategy closes everything before the New York session ends. No overnight risk, ever. |
+| Flat by 15:25 ET | The strategy closes everything before the New York session ends (00:55 IST in summer, 01:55 in winter). No overnight risk, ever. |
 | Engine (the "bot") | The automated checker that re-reads the market every 15 minutes during London and New York hours. If Home or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
 | Win rate | Share of closed trades that made money. |
 | Delayed data | Prices arrive 10–15 minutes late. Fine for studying, useless for live execution. |
+| ET / IST | The two clocks the app can show. ET is New York exchange time — the clock the strategy is written in. |
 
-## 8. If something looks wrong
+## 9. If something looks wrong
 
 - **"Bot idle" on Home / "Engine idle / stale" on Signals** — the scheduled checker
   missed its slot (it runs on a free scheduler that is sometimes 5–15 minutes late). It

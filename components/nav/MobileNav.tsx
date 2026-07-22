@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_LINKS, isActiveLink } from "./links";
+import ZoneToggle from "./ZoneToggle";
 import styles from "./MobileNav.module.css";
 
 /* Phone navigation (≤768px): a slim in-flow top bar carrying the brand and
@@ -21,7 +22,10 @@ export function MobileTopBar() {
           Aegis <strong>Futures Lab</strong>
         </span>
       </Link>
-      <span className={styles.lock}>PAPER TRADING</span>
+      <span className={styles.topBarEnd}>
+        <ZoneToggle />
+        <span className={styles.lock}>PAPER TRADING</span>
+      </span>
     </header>
   );
 }

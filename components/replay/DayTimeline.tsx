@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import type { SkipEvent } from "@/lib/backtest/engine";
 import type { Trade } from "@/lib/types";
 import type { MatchRow } from "@/lib/journal/match";
-import { nyClock } from "@/lib/time/ny";
+import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { money } from "@/lib/format";
 import { FUNNEL_LABELS } from "@/components/lab/funnel";
 import { Badge } from "@/components/ui";
@@ -12,7 +13,8 @@ import styles from "./replay.module.css";
 
 /* The day's decision log: consecutive identical skip reasons collapse into
    one span ("09:30–10:15 · Waiting for zone touch"), engine entries/exits
-   and your journal entries interleave at their timestamps. All times ET. */
+   and your journal entries interleave at their timestamps. Times render in
+   the zone picked in the nav (ET or IST); the underlying bars are unchanged. */
 
 type Item =
   | { kind: "span"; start: number; end: number; reason: string; symbol?: string; count: number }
@@ -31,6 +33,7 @@ export default function DayTimeline({
   rows: MatchRow[];
   symbol: string | "all";
 }) {
+  const { zone } = useZone();
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
     // Every-bar pipeline chatter would flood the list — hide it entirely.
@@ -88,11 +91,11 @@ export default function DayTimeline({
         if (item.kind === "span") {
           const range =
             item.start === item.end
-              ? nyClock(item.start)
-              : `${nyClock(item.start)}–${nyClock(item.end)}`;
+              ? clockIn(item.start, zone)
+              : `${clockIn(item.start, zone)}–${clockIn(item.end, zone)}`;
           return (
             <div key={i} className={styles.tlRowDim}>
-              <span className={styles.tlTime}>{range} ET</span>
+              <span className={styles.tlTime}>{range} {ZONE_ABBR[zone]}</span>
               <span className={styles.tlSym}>{item.symbol ?? ""}</span>
               <span>
                 {FUNNEL_LABELS[item.reason] ?? item.reason}
@@ -105,7 +108,7 @@ export default function DayTimeline({
           const t = item.trade;
           return (
             <div key={i} className={styles.tlRowEngine}>
-              <span className={styles.tlTime}>{nyClock(item.time)} ET</span>
+              <span className={styles.tlTime}>{clockIn(item.time, zone)} {ZONE_ABBR[zone]}</span>
               <span className={styles.tlSym}>{t.symbol}</span>
               <span>
                 {item.kind === "engineEntry" ? (
@@ -129,7 +132,7 @@ export default function DayTimeline({
         const r = item.row;
         return (
           <div key={i} className={styles.tlRowUser}>
-            <span className={styles.tlTime}>{nyClock(item.time)} ET</span>
+            <span className={styles.tlTime}>{clockIn(item.time, zone)} {ZONE_ABBR[zone]}</span>
             <span className={styles.tlSym}>{r.user.symbol}</span>
             <span>
               <Badge tone="amber">YOURS</Badge> {r.user.side} ×{r.user.qty} @{" "}

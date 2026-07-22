@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Sidebar from "@/components/nav/Sidebar";
 import { MobileTopBar, MobileTabBar } from "@/components/nav/MobileNav";
 import { DataProvider } from "@/components/providers/DataProvider";
+import { ZoneProvider } from "@/components/providers/ZoneProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,16 +38,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <DataProvider>
-          <div className="shell">
-            <Sidebar />
-            <div className="contentCol">
-              <MobileTopBar />
-              <main className="main">{children}</main>
+        <ZoneProvider>
+          <DataProvider>
+            <div className="shell">
+              <Sidebar />
+              <div className="contentCol">
+                <MobileTopBar />
+                <main className="main">{children}</main>
+              </div>
             </div>
-          </div>
-          <MobileTabBar />
-        </DataProvider>
+            <MobileTabBar />
+          </DataProvider>
+        </ZoneProvider>
       </body>
     </html>
   );
