@@ -1,0 +1,953 @@
+/* Home dashboard.
+   Layout: desktop is a two-column grid (main + 340px rail); at ≤1100px both
+   wrappers become `display: contents` so every card is a direct flex child of
+   .grid and can be reordered for the phone reading order:
+   open idea → three weeks → markets → recent ideas → zones → bot status. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.phoneBrand {
+  display: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brandMark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--green), #128a68);
+  color: #04110c;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brandText strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.brandSub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.deskGreeting {
+  min-width: 0;
+}
+
+.h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+.pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pillMuted {
+  color: var(--text-dim);
+}
+
+.pillMuted b {
+  color: var(--text);
+  margin-left: 2px;
+}
+
+.pillDetail {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.dotLive {
+  animation: livePulse 2.4s ease-out infinite;
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 160, 0.5);
+    opacity: 1;
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+    opacity: 0.75;
+  }
+}
+
+.paperBadge {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border: 1px solid rgba(245, 180, 82, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+}
+
+.errorBar {
+  background: var(--red-soft);
+  border: 1px solid rgba(255, 107, 122, 0.35);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--red);
+  font-size: 12.5px;
+}
+
+/* ── Today strip ─────────────────────────────────────────────────────── */
+
+.todayStrip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: var(--space-4);
+}
+
+.todayCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.todayCell + .todayCell {
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-3);
+}
+
+.cellLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.cellValueRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cellValue {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cellSub {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.paceDots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.paceDots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.paceOn {
+  background: var(--green);
+}
+
+.paceOff {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+/* ── Grid ────────────────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.mainCol,
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: var(--space-5);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cardHint {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.cardLink {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.note {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.emptyNote {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin: var(--space-2) 0;
+}
+
+/* ── Hero: the open idea ─────────────────────────────────────────────── */
+
+.hero {
+  background: linear-gradient(160deg, rgba(45, 212, 160, 0.13), var(--bg-raised) 55%);
+  border-color: rgba(45, 212, 160, 0.45);
+}
+
+.heroHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.heroTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.sideBuy,
+.sideSell {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  padding: 4px 12px;
+}
+
+.sideBuy {
+  background: var(--green);
+  color: #04110c;
+}
+
+.sideSell {
+  background: var(--red);
+  color: #2a0409;
+}
+
+.heroSymbol {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.heroName {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.heroState {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.heroStats .stat {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.statLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.heroFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.heroFoot .num {
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+/* Empty state — the mockup's happy path is not the common one. */
+.heroEmpty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  border-style: dashed;
+}
+
+.heroEmptyMark {
+  font-size: 22px;
+  color: var(--text-faint);
+}
+
+.heroEmptyTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.heroEmptyBody {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  max-width: 60ch;
+}
+
+.heroEmptyLink {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+/* ── Three-week performance ──────────────────────────────────────────── */
+
+.perfStats {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.bigValue {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tierSplit {
+  margin-left: auto;
+  text-align: right;
+}
+
+.tierLine {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.bars {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.barAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+/* ── Recent ideas ────────────────────────────────────────────────────── */
+
+.recent {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+
+.rowMark {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.markUp {
+  color: var(--green);
+  background: var(--green-soft);
+  border: 1px solid rgba(45, 212, 160, 0.35);
+}
+
+.markDown {
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid rgba(255, 107, 122, 0.35);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rowSub {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.rowEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.rowEnd b {
+  font-size: 14.5px;
+  white-space: nowrap;
+}
+
+.tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+/* ── Markets rail ────────────────────────────────────────────────────── */
+
+.markets,
+.zones,
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 18px 20px;
+}
+
+.markets .cardTitle,
+.zones .cardTitle,
+.status .cardTitle {
+  font-size: 15px;
+}
+
+.quoteList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.quote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.quote + .quote {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.quoteName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quoteName b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.quoteSub {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.quoteSpark {
+  width: 90px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.quoteVals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-mono);
+}
+
+.quoteVals b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.quoteVals span {
+  font-size: 11px;
+}
+
+/* ── Zones ───────────────────────────────────────────────────────────── */
+
+.zoneRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.zoneAt {
+  background: rgba(245, 180, 82, 0.07);
+  border-color: rgba(245, 180, 82, 0.3);
+}
+
+.zoneDist {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.zoneText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.zoneMeta {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── Bot status ──────────────────────────────────────────────────────── */
+
+.statusLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.dotSm {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.dotGood {
+  color: var(--green);
+}
+
+.dotWarn {
+  color: var(--amber);
+}
+
+.runDots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.runOk,
+.runBad {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.runOk {
+  background: var(--green);
+}
+
+.runBad {
+  background: var(--red);
+}
+
+.runDots .note {
+  margin-left: 4px;
+}
+
+/* ── Guide pointer ───────────────────────────────────────────────────── */
+
+.guidePointer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--blue-soft);
+  border: 1px solid rgba(90, 167, 255, 0.3);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.guidePointer:hover {
+  border-color: rgba(90, 167, 255, 0.6);
+}
+
+.guideIcon {
+  font-size: 18px;
+}
+
+.guideText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.guideTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.guideSub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.guideArrow {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* ── Tones ───────────────────────────────────────────────────────────── */
+
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--red);
+}
+.warn {
+  color: var(--amber);
+}
+.info {
+  color: var(--blue);
+}
+.dim {
+  color: var(--text-dim);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+/* Desktop keeps the today numbers in the header pills. */
+@media (min-width: 1101px) {
+  .todayStrip,
+  .paperBadge {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .deskGreeting,
+  .deskOnly {
+    display: none;
+  }
+  .deskInline {
+    display: none;
+  }
+  .phoneBrand {
+    display: flex;
+  }
+  .header {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+  .pillDetail {
+    display: none;
+  }
+
+  /* Flatten both columns into one reading order. */
+  .grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .mainCol,
+  .rail {
+    display: contents;
+  }
+  .hero,
+  .heroEmpty {
+    order: 1;
+  }
+  .perf {
+    order: 2;
+  }
+  .markets {
+    order: 3;
+  }
+  .recent {
+    order: 4;
+  }
+  .zones {
+    order: 5;
+  }
+  .status {
+    order: 6;
+  }
+
+  .card {
+    border-radius: 18px;
+    padding: var(--space-4);
+  }
+  .recent {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .heroStats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .heroStats .stat {
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .statValue {
+    font-size: 16px;
+  }
+  .heroSymbol {
+    font-size: 17px;
+  }
+  .perfStats {
+    gap: var(--space-4);
+  }
+  .bigValue {
+    font-size: 22px;
+  }
+  .cardTitle {
+    font-size: 14px;
+  }
+
+  /* Quotes become two side-by-side cards. */
+  .quoteList {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .quote {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px var(--space-2);
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .quote + .quote {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .quoteSpark {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 28px;
+  }
+  .quoteVals {
+    align-items: flex-end;
+  }
+
+  .row {
+    padding: 11px 0;
+    gap: var(--space-3);
+  }
+  .rowMark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .rowTitle {
+    font-size: 13.5px;
+  }
+  .rowSub {
+    font-size: 11px;
+  }
+  .rowEnd {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .rowEnd b {
+    font-size: 13.5px;
+  }
+  .tag {
+    border: none;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  .heroEmpty {
+    flex-wrap: wrap;
+  }
+  .heroEmptyLink {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .todayStrip {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+  .todayCell + .todayCell {
+    padding-left: var(--space-2);
+  }
+  .cellValue {
+    font-size: 20px;
+  }
+  .heroFoot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}

@@ -20,19 +20,24 @@ stop hit, or closed flat), so you can judge the strategy on evidence instead of 
 
 ## 2. Your daily routine
 
-1. **Open Signals with your morning coffee.** The strip at the top answers three
-   questions at a glance: is the market open, when does the engine check next, and how
-   many ideas has it posted today (the three dots fill toward the 2–3 per day target).
-2. **Read today's ideas in the blotter.** Each row is a complete trade plan: where to get
-   in (Entry), where the idea is wrong (Stop), where to take profit (Target), and how it
-   ended (the Status badge).
-3. **Glance at the Zone watchlist.** These are the buy and sell areas the strategy cares
+1. **Open Home with your morning coffee.** It is the screen the app starts on and it
+   answers the whole morning in one look: how many ideas today (the dots fill toward the
+   2–3 per day target), today's profit or loss, when the bot checks next, and — at the
+   top — the one idea that is live right now, with its entry, stop and target. If nothing
+   is running, it says so plainly.
+2. **Scroll on for the last three weeks.** One bar per trading day, green above the line
+   and red below, with the net, the win rate and the number of ideas beside it. Below
+   that: the two markets, the zones price is closest to, and whether the bot is healthy.
+3. **Open Signals when you want the detail.** Every idea ever posted, grouped by day.
+   Each row is a complete trade plan: where to get in (Entry), where the idea is wrong
+   (Stop), where to take profit (Target), and how it ended (the Status badge).
+4. **Glance at the Zone watchlist.** These are the buy and sell areas the strategy cares
    about, sorted by how close price is. An amber **AT ZONE** badge means price is sitting
    in one right now — the interesting moments happen there.
-4. **After you trade, write it down.** On the Replay page, add your own trades by hand or
-   import the CSV file your broker (Topstep / Tradovate) exports. The journal saves to
+5. **After you trade, write it down.** On the Journal page, add your own trades by hand
+   or import the CSV file your broker (Topstep / Tradovate) exports. The journal saves to
    the cloud automatically.
-5. **On the weekend, keep score.** The Performance panel shows the win rate and running
+6. **On the weekend, keep score.** The Performance panel shows the win rate and running
    profit of each tier. Give the engine a few weeks of evidence before drawing
    conclusions — a handful of trades proves nothing, in either direction.
 
@@ -61,16 +66,21 @@ Performance panel, and weight your attention accordingly.
 
 | Page | What it's for |
 |---|---|
-| **Signals** | The daily feed. If you only use one page, use this one. |
-| **Replay** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
+| **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, and whether the bot is healthy. |
+| **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar. |
-| **Lab / Compare / Data** | The workshop (advanced, optional). Change strategy settings, run backtests, compare variants. You never need these to follow the signals. |
+| **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
+| **Strategy Lab** | The workshop (advanced, optional). Change strategy settings and run backtests. |
+| **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. |
 | **Guide** | The in-app version of this manual. |
+
+You never need the workshop pages to follow the signals.
 
 ## 6. Put it on your phone
 
 Open the site on your phone, then choose **Add to Home Screen** in the browser menu. It
-installs like an app and opens straight onto the signal feed.
+installs like an app and opens straight onto the Home screen, with the five main pages
+along the bottom.
 
 ## 7. Words you'll see
 
@@ -80,15 +90,18 @@ installs like an app and opens straight onto the signal feed.
 | Fresh / Tested | Fresh = price hasn't come back to the zone yet (strongest). Tested = touched once already. |
 | Paper trading | Practice trades with imaginary money. All trades in this app are paper trades. |
 | Flat by 15:25 ET | The strategy closes everything before the New York session ends. No overnight risk, ever. |
-| Engine | The automated checker that re-reads the market every 15 minutes during London and New York hours. If Signals says the engine is stale or failed, the feed is paused — not the market. |
+| Engine (the "bot") | The automated checker that re-reads the market every 15 minutes during London and New York hours. If Home or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
 | Win rate | Share of closed trades that made money. |
 | Delayed data | Prices arrive 10–15 minutes late. Fine for studying, useless for live execution. |
 
 ## 8. If something looks wrong
 
-- **"Engine idle / stale" badge** — the scheduled checker missed its slot (it runs on a
-  free scheduler that is sometimes 5–15 minutes late). It catches up on the next pass;
-  nothing is lost, because every pass recomputes the full picture.
+- **"Bot idle" on Home / "Engine idle / stale" on Signals** — the scheduled checker
+  missed its slot (it runs on a free scheduler that is sometimes 5–15 minutes late). It
+  catches up on the next pass; nothing is lost, because every pass recomputes the full
+  picture.
+- **"Nothing open right now" on Home** — normal. Most of the day there is no live idea;
+  the card tells you when the bot checks next.
 - **No signals today** — quiet days happen, especially for Tier A. The pace dots simply
   stay empty. That is information too.
 - **"Signal feed unreachable"** — your device is offline or the database is briefly
@@ -96,6 +109,6 @@ installs like an app and opens straight onto the signal feed.
 
 ---
 
-*Manual version: matches the app as of 2026-07-19. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-22. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

@@ -225,7 +225,7 @@ export default function ReplayClient() {
 
   return (
     <>
-      <h1 className="pageTitle">Replay</h1>
+      <h1 className="pageTitle">Journal</h1>
       <p className="pageSub">
         Pick a past day and see exactly what the engine did — and would have told you — next to
         your own trades. Delayed data, paper simulation only.

@@ -1,10 +1,19 @@
 /* Shared nav definition for Sidebar (desktop) and MobileNav (phone).
-   Icons are inline 20×20 stroke SVGs — no icon dependency. */
+   Icons are inline 20×20 stroke SVGs — no icon dependency.
+
+   Two groups: PRIMARY is the everyday path through the app (Home first, the
+   research tools last); SECONDARY holds the deep tools that only matter once
+   you are already inside a study. The phone tab bar carries the five primary
+   links flagged `mobile` — Guide is reached from the Home screen pointer. */
 
 export interface NavLink {
   href: string;
   label: string;
+  /** Shorter label for the phone tab bar, when the sidebar label is too wide. */
+  shortLabel?: string;
   hint: string;
+  /** Show in the phone tab bar (five fit). */
+  mobile?: boolean;
   icon: React.ReactNode;
 }
 
@@ -23,38 +32,14 @@ const iconProps = {
 export const NAV_LINKS: NavLink[] = [
   {
     href: "/",
-    label: "Lab",
-    hint: "Tune & backtest",
+    label: "Home",
+    hint: "Today at a glance",
+    mobile: true,
     icon: (
       <svg {...iconProps}>
-        {/* flask */}
-        <path d="M10 3h4M11 3v6l-5.2 8.6A2 2 0 0 0 7.5 21h9a2 2 0 0 0 1.7-3.4L13 9V3" />
-        <path d="M8.5 15h7" />
-      </svg>
-    ),
-  },
-  {
-    href: "/compare",
-    label: "Compare",
-    hint: "Side-by-side runs",
-    icon: (
-      <svg {...iconProps}>
-        {/* twin columns */}
-        <rect x="4" y="10" width="6" height="10" rx="1" />
-        <rect x="14" y="4" width="6" height="16" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    href: "/replay",
-    label: "Replay",
-    hint: "Day review & journal",
-    icon: (
-      <svg {...iconProps}>
-        {/* calendar with rewind */}
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 9h18M8 3v4M16 3v4" />
-        <path d="M13.5 13l-3 2.5 3 2.5" />
+        {/* house */}
+        <path d="M3 11.5 12 4l9 7.5" />
+        <path d="M5.5 10v9.5h13V10" />
       </svg>
     ),
   },
@@ -62,6 +47,7 @@ export const NAV_LINKS: NavLink[] = [
     href: "/signals",
     label: "Signals",
     hint: "Live paper signals",
+    mobile: true,
     icon: (
       <svg {...iconProps}>
         {/* radio waves */}
@@ -75,6 +61,7 @@ export const NAV_LINKS: NavLink[] = [
     href: "/markets",
     label: "Markets",
     hint: "Delayed feed & signals",
+    mobile: true,
     icon: (
       <svg {...iconProps}>
         {/* candlesticks */}
@@ -85,15 +72,30 @@ export const NAV_LINKS: NavLink[] = [
     ),
   },
   {
-    href: "/data",
-    label: "Data",
-    hint: "CSV import & replay",
+    href: "/replay",
+    label: "Journal",
+    hint: "Day review & journal",
+    mobile: true,
     icon: (
       <svg {...iconProps}>
-        {/* database */}
-        <ellipse cx="12" cy="5.5" rx="7" ry="2.5" />
-        <path d="M5 5.5V12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5.5" />
-        <path d="M5 12v6.5C5 19.9 8.1 21 12 21s7-1.1 7-2.5V12" />
+        {/* calendar with rewind */}
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 9h18M8 3v4M16 3v4" />
+        <path d="M13.5 13l-3 2.5 3 2.5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/lab",
+    label: "Strategy Lab",
+    shortLabel: "Lab",
+    hint: "Tune & backtest",
+    mobile: true,
+    icon: (
+      <svg {...iconProps}>
+        {/* flask */}
+        <path d="M10 3h4M11 3v6l-5.2 8.6A2 2 0 0 0 7.5 21h9a2 2 0 0 0 1.7-3.4L13 9V3" />
+        <path d="M8.5 15h7" />
       </svg>
     ),
   },
@@ -110,6 +112,38 @@ export const NAV_LINKS: NavLink[] = [
     ),
   },
 ];
+
+/* Reachable from the sidebar's "More" group, but not from the phone tab bar —
+   both are desk work, not glance-at-the-phone work. */
+export const SECONDARY_LINKS: NavLink[] = [
+  {
+    href: "/compare",
+    label: "Compare",
+    hint: "Side-by-side runs",
+    icon: (
+      <svg {...iconProps}>
+        {/* twin columns */}
+        <rect x="4" y="10" width="6" height="10" rx="1" />
+        <rect x="14" y="4" width="6" height="16" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/data",
+    label: "Data",
+    hint: "CSV import & replay",
+    icon: (
+      <svg {...iconProps}>
+        {/* database */}
+        <ellipse cx="12" cy="5.5" rx="7" ry="2.5" />
+        <path d="M5 5.5V12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5.5" />
+        <path d="M5 12v6.5C5 19.9 8.1 21 12 21s7-1.1 7-2.5V12" />
+      </svg>
+    ),
+  },
+];
+
+export const MOBILE_LINKS: NavLink[] = NAV_LINKS.filter((l) => l.mobile);
 
 export function isActiveLink(href: string, pathname: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);

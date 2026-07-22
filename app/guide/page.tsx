@@ -39,14 +39,22 @@ export default function GuidePage() {
         <h2>Your daily routine</h2>
         <ol className={styles.steps}>
           <li>
-            <b>Open Signals with your morning coffee.</b> The strip at the top tells you three
-            things at a glance: is the market open, when does the engine check next, and how many
-            ideas it has posted today (the three dots fill toward the 2–3 per day target).
+            <b>Open Home with your morning coffee.</b> It is the screen the app starts on and it
+            answers the whole morning in one look: how many ideas today (the dots fill toward the
+            2–3 per day target), today&apos;s profit or loss, when the bot checks next, and — at
+            the top — the one idea that is live right now, with its entry, stop and target. If
+            nothing is running, it says so plainly.
           </li>
           <li>
-            <b>Read today&apos;s ideas in the blotter.</b> Each row is one complete trade plan:
-            where to get in (Entry), where the idea is wrong (Stop), where to take profit
-            (Target), and how it ended (the Status badge).
+            <b>Scroll on for the last three weeks.</b> One bar per trading day, green above the
+            line and red below, with the net, the win rate and the number of ideas beside it.
+            Below that: the two markets, the zones price is closest to, and whether the bot is
+            healthy.
+          </li>
+          <li>
+            <b>Open Signals when you want the detail.</b> Every idea ever posted, grouped by day.
+            Each row is one complete trade plan: where to get in (Entry), where the idea is wrong
+            (Stop), where to take profit (Target), and how it ended (the Status badge).
           </li>
           <li>
             <b>Glance at the Zone watchlist.</b> These are the buy and sell areas the strategy
@@ -54,9 +62,9 @@ export default function GuidePage() {
             is sitting in one right now — the interesting moments happen there.
           </li>
           <li>
-            <b>After you trade, write it down.</b> On the Replay page, add your own trades by hand
-            or import the CSV file your broker (Topstep / Tradovate) exports. The journal saves to
-            the cloud automatically.
+            <b>After you trade, write it down.</b> On the Journal page, add your own trades by
+            hand or import the CSV file your broker (Topstep / Tradovate) exports. The journal
+            saves to the cloud automatically.
           </li>
           <li>
             <b>On the weekend, keep score.</b> The Performance panel shows the win rate and
@@ -113,19 +121,25 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>What each page does</h2>
         <dl className={styles.dl}>
+          <dt>Home</dt>
+          <dd>
+            The screen the app opens on. Today at a glance: the live idea, today&apos;s score, the
+            last three weeks, the two markets, the nearest zones, and whether the bot is healthy.
+          </dd>
           <dt>Signals</dt>
-          <dd>The daily feed. If you only use one page, use this one.</dd>
-          <dt>Replay</dt>
+          <dd>Every idea, grouped by day, with the full zone watchlist and engine detail.</dd>
+          <dt>Markets</dt>
+          <dd>Delayed charts, live strategy readout, and the news calendar.</dd>
+          <dt>Journal</dt>
           <dd>
             Pick any past day: see what the engine did, minute by minute, next to your own
             journaled trades. This is where the learning happens.
           </dd>
-          <dt>Markets</dt>
-          <dd>Delayed charts, live strategy readout, and the news calendar.</dd>
-          <dt>Lab, Compare, Data</dt>
+          <dt>Strategy Lab (plus Compare and Data)</dt>
           <dd>
             The workshop (advanced, optional). Change strategy settings, run backtests, compare
-            variants. You never need these to follow the signals.
+            variants, load your own CSV history. Compare and Data sit under <b>More</b> in the
+            side menu on a computer. You never need any of these to follow the signals.
           </dd>
         </dl>
       </section>
@@ -134,7 +148,8 @@ export default function GuidePage() {
         <h2>Put it on your phone</h2>
         <p>
           Open this site on your phone, then choose <b>Add to Home Screen</b> (in the browser
-          menu). It installs like an app and opens straight onto the signal feed.
+          menu). It installs like an app and opens straight onto the Home screen, with the five
+          main pages along the bottom.
         </p>
       </section>
 
@@ -160,15 +175,16 @@ export default function GuidePage() {
           </dd>
           <dt>Engine</dt>
           <dd>
-            The automated checker that re-reads the market every 15 minutes during London and New
-            York hours and posts what it finds. If the Signals page says the engine is stale or
-            failed, the feed is paused — not the market.
+            The automated checker (the &ldquo;bot&rdquo;) that re-reads the market every 15
+            minutes during London and New York hours and posts what it finds. If Home or Signals
+            says the bot is idle or a run failed, the feed is paused — not the market.
           </dd>
         </dl>
       </section>
 
       <p className={styles.foot}>
-        A printable version of this guide lives in the project as{" "}
+        Matches the app as of 2026-07-22. A printable version of this guide lives in the project
+        as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"
           target="_blank"

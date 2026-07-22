@@ -16,12 +16,20 @@ commit, regenerate `docs/user-manual.pdf` from the markdown, and bump the "match
 app as of <date>" line at the bottom of both documents. Purely internal refactors
 (no user-visible change) do not require a manual update.
 
+Regenerate the PDF with `node scripts/docs/build-manual-pdf.mjs` (renders the markdown
+to a plain A4 print sheet and drives headless Chrome; `KEEP_HTML=1` keeps the
+intermediate HTML when the markdown grows a construct the small converter misses).
+
 Writing style for all three: plain trading language, no tech jargon, sentence case,
 short sentences. The reader knows trading but not software. Always keep the
 "nothing here touches real money / delayed data" warning prominent.
 
 ## Repo facts
 
+- Routes: `/` is the Home dashboard (`components/home/HomeClient.tsx`), the Strategy Lab
+  lives at `/lab`, and `/replay` is labelled "Journal" in the nav. `components/nav/links.tsx`
+  splits `NAV_LINKS` (sidebar + the five `mobile: true` tab-bar entries) from
+  `SECONDARY_LINKS` (Compare, Data — sidebar "More" group only).
 - The engine's live tier configuration lives in `scripts/engine/tiers.ts`; the
   scheduled runner is `scripts/engine/run-live.ts` (GitHub Actions,
   `.github/workflows/signal-engine.yml`, Node 22 required).

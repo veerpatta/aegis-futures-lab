@@ -16,6 +16,16 @@ import {
 } from "@/lib/supabase/client";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
+import {
+  ago,
+  dayLabel,
+  fmtCountdown,
+  fmtEt,
+  fmtEtFull,
+  marketPhase,
+  nextRunSec,
+  tapeProgress,
+} from "@/lib/time/session";
 import { money } from "@/lib/format";
 import { Badge, Button, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
 import styles from "./signals.module.css";
@@ -23,34 +33,6 @@ import styles from "./signals.module.css";
 const REFRESH_MS = 60_000;
 const STALE_AFTER_MIN = 40; // two missed 15-min cron slots + jitter
 const TARGET_PER_DAY = 3; // pace dots: the 2-3 signals/day goal
-
-const nyDay = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
-
-function fmtEt(isoOrNull: string | null): string {
-  if (!isoOrNull) return "—";
-  const t = Math.floor(new Date(isoOrNull).getTime() / 1000);
-  const m = nyMeta(t);
-  return `${String(m.hour).padStart(2, "0")}:${String(m.minute).padStart(2, "0")}`;
-}
-
-function fmtEtFull(isoOrNull: string | null): string {
-  if (!isoOrNull) return "—";
-  const d = new Date(isoOrNull);
-  return `${nyDay.format(d)}, ${fmtEt(isoOrNull)} ET`;
-}
-
-function ago(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.floor(mins / 60);
-  return `${h}h ${mins % 60}m ago`;
-}
 
 function statusBadge(s: SignalRow["status"]) {
   switch (s) {
@@ -67,70 +49,6 @@ function statusBadge(s: SignalRow["status"]) {
     default:
       return <Badge>{s.toUpperCase()}</Badge>;
   }
-}
-
-/* ── Session clock ──────────────────────────────────────────────────── */
-
-interface Phase {
-  label: string;
-  detail: string;
-  live: boolean; // pulse the dot
-  tone: "good" | "dim" | "warn";
-}
-
-function marketPhase(nowSec: number): Phase {
-  const m = nyMeta(nowSec);
-  const weekend =
-    m.weekday === "Sat" ||
-    (m.weekday === "Sun" && m.minutes < 18 * 60) ||
-    (m.weekday === "Fri" && m.minutes >= 17 * 60);
-  if (weekend)
-    return {
-      label: "Market closed",
-      detail: "Globex reopens Sunday 18:00 ET",
-      live: false,
-      tone: "dim",
-    };
-  if (m.minutes >= 17 * 60 && m.minutes < 18 * 60)
-    return { label: "Daily break", detail: "Globex reopens 18:00 ET", live: false, tone: "dim" };
-  if (m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925)
-    return {
-      label: "Entry window open",
-      detail: "London + New York · flat by 15:25 ET",
-      live: true,
-      tone: "good",
-    };
-  return {
-    label: "Overnight session",
-    detail: "Zones keep updating — entries resume 02:00 ET",
-    live: true,
-    tone: "warn",
-  };
-}
-
-// Next engine pass: cron every 15 min, 06:00-21:59 UTC, Mon-Fri.
-function nextRunSec(nowSec: number): number {
-  let t = Math.ceil((nowSec + 1) / 900) * 900;
-  for (let i = 0; i < 4 * 24 * 8; i++, t += 900) {
-    const d = new Date(t * 1000);
-    const dow = d.getUTCDay();
-    const h = d.getUTCHours();
-    if (dow >= 1 && dow <= 5 && h >= 6 && h < 22) return t;
-  }
-  return t;
-}
-
-function fmtCountdown(sec: number): string {
-  if (sec >= 48 * 3600) return `${Math.round(sec / 86400)}d`;
-  if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-}
-
-/* Position of "now" on the 02:00 → 15:25 ET entry tape. */
-function tapeProgress(nowSec: number): number | null {
-  const m = nyMeta(nowSec);
-  if (m.weekday === "Sat" || m.weekday === "Sun") return null;
-  return Math.max(0, Math.min(1, (m.minutes - 120) / (925 - 120)));
 }
 
 /* ── Sparkline (inline SVG, no dependencies) ────────────────────────── */
@@ -309,7 +227,7 @@ export default function SignalsClient() {
       const key = nyMeta(t).dateKey;
       let g = map.get(key);
       if (!g) {
-        g = { label: nyDay.format(new Date(t * 1000)), rows: [], net: 0, open: 0 };
+        g = { label: dayLabel(new Date(t * 1000)), rows: [], net: 0, open: 0 };
         map.set(key, g);
       }
       g.rows.push(s);

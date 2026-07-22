@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import LabClient from "@/components/lab/LabClient";
+import HomeClient from "@/components/home/HomeClient";
 
-export default function LabPage() {
-  return (
-    <Suspense>
-      <LabClient />
-    </Suspense>
-  );
+export default function HomePage() {
+  return <HomeClient />;
 }

@@ -170,7 +170,7 @@ export default function LabClient() {
 
   return (
     <>
-      <h1 className="pageTitle">Lab</h1>
+      <h1 className="pageTitle">Strategy Lab</h1>
       <p className="pageSub">
         Pick a strategy, tune it, and see how it would have performed. Delayed data, paper
         simulation only — execution is permanently locked.
