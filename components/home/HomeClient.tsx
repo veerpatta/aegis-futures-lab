@@ -19,6 +19,7 @@ import type { FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
 import {
   ago,
+  dataDelayed,
   dayLabelLong,
   fmtStamp,
   fmtTime,
@@ -234,6 +235,7 @@ export default function HomeClient() {
   const lastRun = ready?.runs[0] ?? null;
   const engineStale =
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
+  const delayed = dataDelayed(ready?.runs ?? [], nowSec ?? Math.floor(Date.now() / 1000));
 
   const phase = marketPhase(nowSec ?? 0);
   const nextRun = nowSec === null ? null : nextRunSec(nowSec);
@@ -694,6 +696,12 @@ export default function HomeClient() {
                   ? "Checking…"
                   : "No engine runs recorded yet"}
             </div>
+            {delayed && (
+              <div className={`${styles.statusLine} ${styles.warn}`}>
+                <i className={`${styles.dotSm} ${styles.dotWarn}`} />
+                Data delayed more than usual — signals catch up on the next pass
+              </div>
+            )}
             {nextEvent && (
               <div className={styles.statusLine}>
                 <i className={`${styles.dotSm} ${styles.dotWarn}`} />

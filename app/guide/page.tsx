@@ -217,7 +217,10 @@ export default function GuidePage() {
           <dd>
             The automated checker (the &ldquo;bot&rdquo;) that re-reads the market every 15
             minutes during London and New York hours and posts what it finds. If Home or Signals
-            says the bot is idle or a run failed, the feed is paused — not the market.
+            says the bot is idle or a run failed, the feed is paused — not the market. An amber
+            &ldquo;data delayed more than usual&rdquo; note means the bot is running but the
+            prices it last saw are older than the usual 10–15 minutes — ideas catch up on the
+            next pass.
           </dd>
         </dl>
       </section>

@@ -17,6 +17,7 @@ import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
+import { inEntryWindow } from "@/lib/time/session";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
@@ -285,7 +286,13 @@ async function main() {
     if (error) throw new Error(`zones cleanup: ${error.message}`);
   }
 
-  // 3) Heartbeat.
+  // 3) Heartbeat, with per-symbol data freshness. "(stale)" is a marker the
+  // dashboard looks for (lib/time/session.ts dataDelayed) — newest bar more
+  // than 30 min old inside the 02:00–15:25 ET entry window.
+  const ageMin = (bars: Bar[]) => Math.max(0, Math.round((nowSec - bars[bars.length - 1].time) / 60));
+  const mesAge = ageMin(mes);
+  const mnqAge = ageMin(mnq);
+  const stale = inEntryWindow(nowSec) && (mesAge > 30 || mnqAge > 30);
   const { error: runError } = await supabase.from("engine_runs").insert({
     status: "ok",
     symbols: ["MES", "MNQ"],
@@ -299,6 +306,7 @@ async function main() {
       `bars MES ${mes.length} / MNQ ${mnq.length}, last ${iso(
         Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time)
       )}`,
+      `age MES ${mesAge}m / MNQ ${mnqAge}m${stale ? " (stale)" : ""}`,
       ...warnings,
     ].join("; "),
   });

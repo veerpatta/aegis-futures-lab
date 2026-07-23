@@ -117,6 +117,10 @@ along the bottom.
 
 ## 9. If something looks wrong
 
+- **"Data delayed more than usual"** — an amber note on Home (Bot status) and on the
+  Signals heartbeat. The bot is running, but the prices it last saw are older than the
+  usual 10–15 minutes (a slow feed or a missed check during market hours). Ideas simply
+  catch up on the next pass — treat the current ones as extra-delayed.
 - **"Bot idle" on Home / "Engine idle / stale" on Signals** — the scheduled checker
   missed its slot (it runs on a free scheduler that is sometimes 5–15 minutes late). It
   catches up on the next pass; nothing is lost, because every pass recomputes the full

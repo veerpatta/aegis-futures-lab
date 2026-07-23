@@ -18,6 +18,7 @@ import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
   ago,
+  dataDelayed,
   fmtCountdown,
   fmtStamp,
   fmtTime,
@@ -166,6 +167,7 @@ export default function SignalsClient() {
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
 
   const phase = marketPhase(nowSec);
+  const delayed = dataDelayed(ready?.runs ?? [], nowSec);
   const nextRun = nextRunSec(nowSec);
   const tape = tapeProgress(nowSec);
   const todayKey = nyMeta(nowSec).dateKey;
@@ -304,6 +306,7 @@ export default function SignalsClient() {
               ) : (
                 "no runs yet"
               )}
+              {delayed && <span className={styles.warn}> · data delayed more than usual</span>}
             </div>
           </div>
         </div>

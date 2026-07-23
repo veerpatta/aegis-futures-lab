@@ -52,6 +52,34 @@ export function marketPhase(nowSec: number): Phase {
   };
 }
 
+/* The 02:00–15:25 ET Mon–Fri entry window — when data staleness matters. */
+export function inEntryWindow(nowSec: number): boolean {
+  const m = nyMeta(nowSec);
+  return m.weekday !== "Sat" && m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925;
+}
+
+/* Amber "data delayed more than usual" state, shared by the Home bot-status
+   card and the Signals heartbeat: the latest engine run flagged stale bars
+   (run-live.ts appends "(stale)" to its message when the newest bar is
+   >30 min old inside the entry window), or the last successful run is older
+   than 40 minutes during the entry window (cron is every 15 min plus up to
+   15 min of GitHub delay — 40 means two missed slots). */
+export interface RunLike {
+  ran_at: string;
+  status: string;
+  message: string | null;
+}
+
+export function dataDelayed(runs: RunLike[], nowSec: number): boolean {
+  const last = runs[0];
+  if (last?.message?.includes("stale")) return true;
+  if (!inEntryWindow(nowSec)) return false;
+  if (!runs.length) return false;
+  const lastOk = runs.find((r) => r.status === "ok");
+  if (!lastOk) return true; // only failed runs during the entry window
+  return nowSec * 1000 - new Date(lastOk.ran_at).getTime() > 40 * 60_000;
+}
+
 /* Next engine pass: cron every 15 min, 06:00-21:59 UTC, Mon-Fri. */
 export function nextRunSec(nowSec: number): number {
   let t = Math.ceil((nowSec + 1) / 900) * 900;
