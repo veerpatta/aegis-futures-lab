@@ -5,9 +5,10 @@
 # log, never rely on it for live execution. 06:00-21:45 UTC Mon-Fri covers
 # the London+NY entry window (02:00-15:25 ET) in both DST regimes.
 #
-# Writes use the publishable key (RLS allows writes on these paper tables).
-# To tighten later: add a SUPABASE_SERVICE_ROLE_KEY repo secret, set it as
-# SUPABASE_KEY below, and drop the public write policies in Supabase.
+# Writes need the service-role key: public write policies were dropped
+# (supabase/migrations/20260723100000_lock_down_public_writes.sql), so the
+# publishable key can only read. The secret may live under either name;
+# run-live.ts exits with an actionable error if neither is set.
 
 name: signal-engine
 
@@ -33,4 +34,4 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/engine/run-live.ts
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}

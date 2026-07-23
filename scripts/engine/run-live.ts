@@ -25,6 +25,16 @@ const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal
 
 const url = process.env.SUPABASE_URL || SUPABASE_URL;
 const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
+/* RLS blocks anonymous writes on the engine tables, so a CI run without the
+   service-role key would fail row by row. Fail fast with the fix instead. */
+if (process.env.GITHUB_ACTIONS && (!process.env.SUPABASE_KEY || key === SUPABASE_PUBLISHABLE_KEY)) {
+  console.error(
+    "SUPABASE_KEY is missing or is the publishable key — engine writes are blocked by RLS.\n" +
+      "Add the Supabase service-role key as the SUPABASE_SERVICE_ROLE_KEY repo secret\n" +
+      "(GitHub → Settings → Secrets and variables → Actions) so the workflow can pass it."
+  );
+  process.exit(1);
+}
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
 interface SignalRow {

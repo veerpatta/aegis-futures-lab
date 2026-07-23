@@ -45,7 +45,10 @@ short sentences. The reader knows trading but not software. Always keep the
   behavior. Run `npm test` before every push.
 - Supabase project "Trading Bot Aegis" (`bizgcoljagsnytrnaicr`) holds signals/zones/
   trades/engine_runs; the publishable key is committed in `lib/supabase/config.ts`
-  by design.
+  by design and can only READ (plus journal-scoped writes on `trades`). Engine
+  writes need the service-role key (GitHub secret). Schema/policy changes are
+  SQL files under `supabase/migrations/` — applied manually or via MCP, never
+  assumed applied just because they are committed.
 - Public production URL: https://aegis-futures-lab-khaki.vercel.app (Vercel
   auto-deploys main).
 - The parent "AI trading" folder outside this repo is a stale mirror — never edit it.
