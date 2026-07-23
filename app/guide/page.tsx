@@ -116,6 +116,13 @@ export default function GuidePage() {
             Simulated dollars for the position size the engine chose (risking about $160 a trade),
             with commissions already subtracted.
           </dd>
+          <dt>Regime</dt>
+          <dd>
+            What kind of market the idea was born into: trending or ranging, quiet or volatile
+            (e.g. <b>TR·HV</b> = trending, high volatility). It never changes the ideas — it is a
+            label, so the Performance panel can show which conditions the strategy actually earns
+            in.
+          </dd>
         </dl>
       </section>
 

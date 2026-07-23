@@ -61,6 +61,7 @@ Performance panel, and weight your attention accordingly.
 | R:R | Reward-to-risk. 1.5 means the target pays 1.5× what the stop costs — you only need to win about 4 in 10 to come out ahead. |
 | Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **FLAT CLOSE** = closed at 15:25 ET / 00:55 IST (the strategy never holds overnight). |
 | P&L | Simulated dollars for the position size the engine chose (risking about $160 per trade), commissions already subtracted. |
+| Regime | What kind of market the idea was born into: trending or ranging, quiet or volatile (e.g. **TR·HV** = trending, high volatility). It never changes the ideas — it is a label, so the Performance panel can show which conditions the strategy actually earns in. |
 
 ## 5. What each page does
 

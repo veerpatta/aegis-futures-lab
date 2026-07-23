@@ -32,6 +32,7 @@ export interface SignalRow {
   exit_price: number | null;
   pnl_usd: number | null;
   risk_usd: number | null;
+  regime: string | null;
 }
 
 export interface ZoneRow {

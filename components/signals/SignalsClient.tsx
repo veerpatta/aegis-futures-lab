@@ -53,6 +53,33 @@ function statusBadge(s: SignalRow["status"]) {
   }
 }
 
+/* Market regime the engine stamped at entry (trend/range × volatility).
+   Bookkeeping only — the strategies never read it. */
+const REGIME_ORDER = ["trend-high-vol", "trend-low-vol", "range-high-vol", "range-low-vol"];
+const REGIME_LABEL: Record<string, string> = {
+  "trend-high-vol": "TREND · HIGH VOL",
+  "trend-low-vol": "TREND · LOW VOL",
+  "range-high-vol": "RANGE · HIGH VOL",
+  "range-low-vol": "RANGE · LOW VOL",
+};
+const REGIME_SHORT: Record<string, string> = {
+  "trend-high-vol": "TR·HV",
+  "trend-low-vol": "TR·LV",
+  "range-high-vol": "RG·HV",
+  "range-low-vol": "RG·LV",
+};
+
+function regimeBadge(regime: string | null) {
+  if (!regime) return <span className={styles.dim}>—</span>;
+  return (
+    <span title={REGIME_LABEL[regime] ?? regime}>
+      <Badge tone={regime.startsWith("trend") ? "blue" : undefined}>
+        {REGIME_SHORT[regime] ?? regime.toUpperCase()}
+      </Badge>
+    </span>
+  );
+}
+
 /* ── Sparkline (inline SVG, no dependencies) ────────────────────────── */
 
 function Sparkline({ values }: { values: number[] }) {
@@ -204,6 +231,19 @@ export default function SignalsClient() {
         open: rows.filter((s) => s.status === "triggered").length,
       };
     };
+    const regimes = REGIME_ORDER.map((key) => {
+      const rows = ready.signals.filter((s) => s.regime === key);
+      const done = rows.filter((s) => s.pnl_usd !== null);
+      const wins = done.filter((s) => (s.pnl_usd ?? 0) > 0).length;
+      return {
+        key,
+        total: rows.length,
+        closed: done.length,
+        wins,
+        winRate: done.length ? (wins / done.length) * 100 : null,
+        net: done.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
+      };
+    }).filter((r) => r.total > 0);
     return {
       curve,
       net: acc,
@@ -215,6 +255,7 @@ export default function SignalsClient() {
       weekNet: weekClosed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
       A: tier("A"),
       B: tier("B"),
+      regimes,
     };
   }, [ready]);
 
@@ -392,6 +433,37 @@ export default function SignalsClient() {
               );
             })}
           </div>
+          {perf.regimes.length > 0 && (
+            <div className={styles.tierGrid}>
+              {perf.regimes.map((r) => (
+                <div key={r.key} className={styles.tierCard}>
+                  <div className={styles.tierHead}>
+                    <Badge tone={r.key.startsWith("trend") ? "blue" : undefined}>
+                      {REGIME_LABEL[r.key] ?? r.key}
+                    </Badge>
+                    <span className={styles.tierName}>market regime at entry</span>
+                  </div>
+                  <div className={styles.tierStats}>
+                    <span>
+                      <b className="num">{r.total}</b> signals
+                    </span>
+                    <span>
+                      WR <b className="num">{r.winRate === null ? "—" : `${r.winRate.toFixed(0)}%`}</b>
+                    </span>
+                    <span className={r.net >= 0 ? styles.good : styles.bad}>
+                      <b className="num">{money(r.net)}</b>
+                    </span>
+                  </div>
+                  {r.closed > 0 && (
+                    <div className={styles.wlBar} aria-hidden>
+                      <i style={{ flexGrow: r.wins }} />
+                      <i style={{ flexGrow: Math.max(0, r.closed - r.wins) }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
       )}
 
@@ -431,7 +503,7 @@ export default function SignalsClient() {
               </span>
             </div>
             <DataTable
-              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Setup"]}
+              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Regime", "Setup"]}
               rows={day.rows.map((s) => [
                 <span key="t" className="num">{fmtTime(s.signal_ts, zone)}</span>,
                 <Badge key="b" tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge>,
@@ -447,9 +519,10 @@ export default function SignalsClient() {
                 ) : (
                   <span key="p" className={s.pnl_usd >= 0 ? styles.good : styles.bad}>{money(s.pnl_usd)}</span>
                 ),
+                regimeBadge(s.regime),
                 <span key="r" className={styles.dim}>{s.reason ?? "—"}</span>,
               ])}
-              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10] }}
+              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10, 11] }}
             />
           </div>
         ))}

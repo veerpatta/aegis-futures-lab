@@ -18,6 +18,7 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { inEntryWindow } from "@/lib/time/session";
+import { computeRegime } from "./regime";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
@@ -57,6 +58,7 @@ interface SignalRow {
   exit_price: number | null;
   pnl_usd: number | null;
   risk_usd: number | null;
+  regime: string | null;
   updated_at: string;
 }
 
@@ -173,6 +175,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     exit_price: t.exitPrice,
     pnl_usd: +t.pnl.toFixed(2),
     risk_usd: t.rMultiple ? +Math.abs(t.pnl / t.rMultiple).toFixed(2) : null,
+    regime: null, // stamped by the caller from the symbol's bars
     updated_at: new Date().toISOString(),
   };
 }
@@ -201,6 +204,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     exit_price: null,
     pnl_usd: null,
     risk_usd: +p.risk.toFixed(2),
+    regime: null, // stamped by the caller from the symbol's bars
     updated_at: new Date().toISOString(),
   };
 }
@@ -254,10 +258,12 @@ async function main() {
     for (const t of res.trades) {
       if (t.entryTime < cutoff) continue;
       const row = rowFromTrade(stream.tier, stream.label, t);
+      row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
       signalRows.set(row.dedupe_key, row);
     }
     if (res.openPosition && res.openPosition.openedAt >= cutoff) {
       const row = rowFromOpen(stream.tier, stream.label, res.openPosition);
+      row.regime = computeRegime(bySymbol[res.openPosition.symbol] ?? [], res.openPosition.openedAt);
       signalRows.set(row.dedupe_key, row);
     }
     const n = res.trades.filter((t) => t.entryTime >= cutoff).length + (res.openPosition ? 1 : 0);
