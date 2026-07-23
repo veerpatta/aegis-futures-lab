@@ -13,18 +13,15 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
-import { nyMeta, inNySession } from "@/lib/time/ny";
 import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES } from "@/lib/market/contracts";
-import { buildStack, TF_LABEL, type Timeframe, type Zone } from "@/lib/strategies/zone-v5/engine";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
+import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
-const ZONE_TFS: Timeframe[] = ["D", "240", "60", "15"];
-const MAX_ZONES_PER_FRAME = 12;
 
 const url = process.env.SUPABASE_URL || SUPABASE_URL;
 const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
@@ -107,45 +104,6 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     risk_usd: +p.risk.toFixed(2),
     updated_at: new Date().toISOString(),
   };
-}
-
-function zoneRows(symbol: string, bars: Bar[], nowSec: number): Record<string, unknown>[] {
-  const rthBars = bars.filter((b) => inNySession(b.time));
-  const stack = buildStack(rthBars.length ? rthBars : bars);
-  const price = bars[bars.length - 1].close;
-  const out: Record<string, unknown>[] = [];
-  for (const tf of ZONE_TFS) {
-    const zones = (stack.zones[tf] || [])
-      .filter(
-        (z: Zone) =>
-          z.formedAt <= nowSec && (z.brokenAt === null || z.brokenAt > nowSec)
-      )
-      .sort(
-        (a: Zone, b: Zone) =>
-          Math.abs((a.proximal + a.distal) / 2 - price) - Math.abs((b.proximal + b.distal) / 2 - price)
-      )
-      .slice(0, MAX_ZONES_PER_FRAME);
-    for (const z of zones) {
-      const fresh = z.firstReturnAt === null || z.firstReturnAt > nowSec;
-      out.push({
-        dedupe_key: `${symbol}:${TF_LABEL[tf]}:${z.type}:${z.formedAt}`,
-        symbol,
-        timeframe: TF_LABEL[tf],
-        zone_type: z.type,
-        price_high: z.high,
-        price_low: z.low,
-        status: fresh ? "fresh" : "tested",
-        fresh,
-        achieved: z.achievedAt !== null && z.achievedAt <= nowSec,
-        blocked80: z.blocked80 !== null && z.blocked80.at <= nowSec,
-        touches: fresh ? 0 : 1,
-        source_candle_ts: iso(z.formedAt),
-        active: true,
-        updated_at: new Date().toISOString(),
-      });
-    }
-  }
-  return out;
 }
 
 async function main() {
