@@ -34,6 +34,10 @@ export interface BacktestInput {
   locks: DisciplineLocks | null;
   startingCapital: number;
   sessionExitMinute: number; // NY minutes; 925 = flat by 15:25
+  /* Per-day override of sessionExitMinute (NY dateKey → minutes), for CME
+     early-close days. Bookkeeping/configuration only: absent → legacy
+     behavior, and no strategy ever reads it. */
+  sessionExitMinuteByDay?: Record<string, number>;
   newsTimes?: number[]; // unix seconds of high-impact events (±30 min lock)
   window?: { fromTime?: number; toTime?: number };
   pointValueOf: (symbol: string) => number;
@@ -90,6 +94,13 @@ export function runBacktest(input: BacktestInput): BacktestResult {
 
   const symbols = Object.keys(series).filter((s) => series[s]?.length);
   if (!symbols.length) throw new Error("No bars to backtest");
+
+  // Session flatten minute for a bar's NY day — normal exit unless an
+  // early-close override is configured for that date.
+  const pastSessionExit = (time: number) => {
+    const m = nyMeta(time);
+    return m.minutes >= (input.sessionExitMinuteByDay?.[m.dateKey] ?? sessionExitMinute);
+  };
 
   const lastTimes = symbols.map((s) => series[s][series[s].length - 1].time);
   const toTime = Math.min(input.window?.toTime ?? Infinity, Math.min(...lastTimes));
@@ -269,7 +280,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
           strategy.shouldExit(ctx, snapshot, p, params)
         )
           closeTrade(b, "signal", b.close);
-        else if (nyMeta(b.time).minutes >= sessionExitMinute) closeTrade(b, "session", b.close);
+        else if (pastSessionExit(b.time)) closeTrade(b, "session", b.close);
       }
     }
 
@@ -311,7 +322,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       if (limitFills && sig.limit != null) {
         // Limit fill happens on THIS bar; it only needs to sit before the
         // flatten minute so the trade can still be managed intraday.
-        if (nyMeta(v.bar.time).minutes >= sessionExitMinute) {
+        if (pastSessionExit(v.bar.time)) {
           note("lock", sig.symbol);
           return false;
         }
@@ -325,7 +336,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         !next ||
         nyMeta(next.time).dateKey !== date ||
         next.time > toTime ||
-        nyMeta(next.time).minutes >= sessionExitMinute
+        pastSessionExit(next.time)
       ) {
         note("lock", sig.symbol); // no executable next bar in this session/window
         return false;

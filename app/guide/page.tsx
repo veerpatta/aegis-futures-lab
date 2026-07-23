@@ -239,7 +239,9 @@ export default function GuidePage() {
             says the bot is idle or a run failed, the feed is paused — not the market. An amber
             &ldquo;data delayed more than usual&rdquo; note means the bot is running but the
             prices it last saw are older than the usual 10–15 minutes — ideas catch up on the
-            next pass.
+            next pass. On CME holidays the app simply shows &ldquo;Market closed&rdquo; with the
+            holiday&apos;s name — the bot rests on purpose — and on half days (like the day
+            after Thanksgiving) everything closes and flattens early.
           </dd>
         </dl>
       </section>

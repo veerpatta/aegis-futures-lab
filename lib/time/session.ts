@@ -7,8 +7,14 @@
    "flat by 15:25 ET (00:55 IST)". Timestamps follow the reader's choice.
    Times are unix seconds unless the name says iso. */
 
+import { flattenMinuteNy, holidayFor, isMarketHoliday } from "@/lib/market/holidays";
 import { nyMeta } from "./ny";
 import { clockIn, dayIn, dayLongIn, etTimeLabel, ZONE_ABBR, type DisplayZone } from "./zones";
+
+const NORMAL_EXIT_MIN = 925; // flat by 15:25 ET on a full session
+
+const hhmm = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
 export interface Phase {
   label: string;
@@ -30,6 +36,14 @@ export function marketPhase(nowSec: number): Phase {
       live: false,
       tone: "dim",
     };
+  const holiday = holidayFor(m.dateKey);
+  if (holiday?.kind === "closed")
+    return {
+      label: "Market closed",
+      detail: `${holiday.name} — CME holiday`,
+      live: false,
+      tone: "dim",
+    };
   if (m.minutes >= 17 * 60 && m.minutes < 18 * 60)
     return {
       label: "Daily break",
@@ -37,12 +51,22 @@ export function marketPhase(nowSec: number): Phase {
       live: false,
       tone: "dim",
     };
-  if (m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925)
+  const flatten = flattenMinuteNy(m.dateKey, NORMAL_EXIT_MIN);
+  if (m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < flatten)
     return {
       label: "Market open",
-      detail: `London + New York · flat by ${etTimeLabel("15:25")}`,
+      detail: holiday
+        ? `${holiday.name} — early close · flat by ${etTimeLabel(hhmm(flatten))}`
+        : `London + New York · flat by ${etTimeLabel("15:25")}`,
       live: true,
       tone: "good",
+    };
+  if (holiday && m.weekday !== "Sun" && m.minutes >= flatten && m.minutes < 17 * 60)
+    return {
+      label: "Closed early",
+      detail: `${holiday.name} — closed ${etTimeLabel(holiday.earlyCloseEt ?? "13:00")}`,
+      live: false,
+      tone: "dim",
     };
   return {
     label: "Overnight session",
@@ -52,10 +76,14 @@ export function marketPhase(nowSec: number): Phase {
   };
 }
 
-/* The 02:00–15:25 ET Mon–Fri entry window — when data staleness matters. */
+/* The 02:00–15:25 ET Mon–Fri entry window — when data staleness matters.
+   CME full holidays are never in-window; early-close days end at the
+   flatten minute so a quiet holiday afternoon never reads as "delayed". */
 export function inEntryWindow(nowSec: number): boolean {
   const m = nyMeta(nowSec);
-  return m.weekday !== "Sat" && m.weekday !== "Sun" && m.minutes >= 120 && m.minutes < 925;
+  if (m.weekday === "Sat" || m.weekday === "Sun") return false;
+  if (isMarketHoliday(m.dateKey)) return false;
+  return m.minutes >= 120 && m.minutes < flattenMinuteNy(m.dateKey, NORMAL_EXIT_MIN);
 }
 
 /* Amber "data delayed more than usual" state, shared by the Home bot-status

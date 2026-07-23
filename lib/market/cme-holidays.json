@@ -1,0 +1,28 @@
+{
+  "_comment": "CME equity-index futures holidays, 2026-2027. Single source of truth: lib/market/holidays.ts (app/engine) and scripts/engine/watchdog.mjs (plain node) both read this file. Verified 2026-07-23 against the CME Group holiday calendar and the NYSE 2026/2027 holiday announcement; CME finalizes exact hours ~2 weeks before each holiday, so re-check near each date. kind 'closed' = no NY day session (engine skips the run); 'early-close' = equity futures halt early (earlyCloseEt, NY wall clock) and the engine flattens 5 minutes before. Thanksgiving is marked closed (NYSE closed; Globex liquidity is nominal) even though Globex technically halts midday.",
+  "holidays": [
+    { "date": "2026-01-01", "kind": "closed", "name": "New Year's Day" },
+    { "date": "2026-01-19", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Martin Luther King Jr. Day" },
+    { "date": "2026-02-16", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Presidents' Day" },
+    { "date": "2026-04-03", "kind": "closed", "name": "Good Friday" },
+    { "date": "2026-05-25", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Memorial Day" },
+    { "date": "2026-06-19", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Juneteenth" },
+    { "date": "2026-07-03", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Independence Day (observed)" },
+    { "date": "2026-09-07", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Labor Day" },
+    { "date": "2026-11-26", "kind": "closed", "name": "Thanksgiving Day" },
+    { "date": "2026-11-27", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Day after Thanksgiving" },
+    { "date": "2026-12-24", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Christmas Eve" },
+    { "date": "2026-12-25", "kind": "closed", "name": "Christmas Day" },
+    { "date": "2027-01-01", "kind": "closed", "name": "New Year's Day" },
+    { "date": "2027-01-18", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Martin Luther King Jr. Day" },
+    { "date": "2027-02-15", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Presidents' Day" },
+    { "date": "2027-03-26", "kind": "closed", "name": "Good Friday" },
+    { "date": "2027-05-31", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Memorial Day" },
+    { "date": "2027-06-18", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Juneteenth (observed)" },
+    { "date": "2027-07-05", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Independence Day (observed)" },
+    { "date": "2027-09-06", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Labor Day" },
+    { "date": "2027-11-25", "kind": "closed", "name": "Thanksgiving Day" },
+    { "date": "2027-11-26", "kind": "early-close", "earlyCloseEt": "13:00", "name": "Day after Thanksgiving" },
+    { "date": "2027-12-24", "kind": "closed", "name": "Christmas Day (observed)" }
+  ]
+}

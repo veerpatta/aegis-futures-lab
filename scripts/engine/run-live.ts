@@ -15,6 +15,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
+import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
+import { nyMeta } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { inEntryWindow } from "@/lib/time/session";
@@ -215,6 +217,33 @@ async function main() {
   const started = Date.now();
   const runStartIso = new Date().toISOString();
   const nowSec = Math.floor(started / 1000);
+
+  // CME full holiday: no NY day session. Record a green heartbeat (the cron
+  // did run — watchdog and run-dots stay calm) and skip the recompute.
+  const todayHoliday = holidayFor(nyMeta(nowSec).dateKey);
+  if (todayHoliday?.kind === "closed") {
+    const message = `holiday: ${todayHoliday.name} — market closed, run skipped`;
+    const { error } = await supabase.from("engine_runs").insert({
+      status: "ok",
+      symbols: ["MES", "MNQ"],
+      duration_ms: Date.now() - started,
+      source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
+      message,
+    });
+    if (error) throw new Error(`engine_runs insert: ${error.message}`);
+    console.log(message);
+    return;
+  }
+
+  // Early-close days flatten positions 5 min before the halt. Built for every
+  // early-close date in the table so historical half-days inside the 60d
+  // recompute window simulate correctly too — configuration through the
+  // sessionExitMinute plumbing, never a strategy change.
+  const exitMinuteByDay: Record<string, number> = {};
+  for (const h of MARKET_HOLIDAYS)
+    if (h.kind === "early-close")
+      exitMinuteByDay[h.date] = flattenMinuteNy(h.date, SESSION_EXIT_MINUTE);
+
   const warnings: string[] = [];
   const [mesLoad, mnqLoad] = await Promise.all([
     loadBars("MES", nowSec, warnings),
@@ -254,6 +283,7 @@ async function main() {
       locks: stream.locks,
       startingCapital: STARTING_CAPITAL,
       sessionExitMinute: SESSION_EXIT_MINUTE,
+      sessionExitMinuteByDay: exitMinuteByDay,
       pointValues: POINT_VALUES,
       keepOpenAtEnd: true,
     });

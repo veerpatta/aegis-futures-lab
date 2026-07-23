@@ -127,6 +127,11 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ## 9. If something looks wrong
 
+- **"Market closed — <holiday name>"** — a CME holiday (Good Friday, Thanksgiving,
+  Christmas…). The bot rests on purpose and the day shows calmly as closed, not as a
+  problem. On half days (MLK day, the day after Thanksgiving, Christmas Eve…) trading
+  stops early — the session bar says "early close" and simulated positions are flat
+  before the earlier bell.
 - **"Data delayed more than usual"** — an amber note on Home (Bot status) and on the
   Signals heartbeat. The bot is running, but the prices it last saw are older than the
   usual 10–15 minutes (a slow feed or a missed check during market hours). Ideas simply
