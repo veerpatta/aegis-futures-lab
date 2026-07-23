@@ -14,7 +14,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
-import { POINT_VALUES } from "@/lib/market/contracts";
+import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { zoneRows } from "./zone-rows";
@@ -60,6 +60,94 @@ interface SignalRow {
 }
 
 const iso = (sec: number) => new Date(sec * 1000).toISOString();
+
+/* ── Bar archive (bars_5m) ───────────────────────────────────────────────
+   Yahoo only serves a sliding 60-day window of 5m history, so every
+   successful fetch is upserted into bars_5m (only bars newer than what is
+   already stored — steady-state writes are a handful of rows). When Yahoo
+   fails all retries the trailing 60d is loaded back from the archive and
+   the run continues with a warning; the run only errors when BOTH sources
+   are unavailable. When both exist, Yahoo wins — the archive is a fallback
+   and a long-term store, never a merge source. */
+
+const ARCHIVE_CHUNK = 1000; // rows per request, safely under Supabase limits
+const ARCHIVE_WINDOW_SEC = 60 * 86400;
+
+async function archiveNewBars(symbol: FeedSymbol, bars: Bar[]): Promise<number> {
+  const { data, error } = await supabase
+    .from("bars_5m")
+    .select("time")
+    .eq("symbol", symbol)
+    .order("time", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`bars_5m max(time) for ${symbol}: ${error.message}`);
+  const maxStored = data?.length ? Number(data[0].time) : null;
+  const fresh = maxStored === null ? bars : bars.filter((b) => b.time > maxStored);
+  for (let i = 0; i < fresh.length; i += ARCHIVE_CHUNK) {
+    const chunk = fresh.slice(i, i + ARCHIVE_CHUNK).map((b) => ({
+      symbol,
+      time: b.time,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume ?? 0,
+    }));
+    const { error: upsertError } = await supabase
+      .from("bars_5m")
+      .upsert(chunk, { onConflict: "symbol,time" });
+    if (upsertError) throw new Error(`bars_5m upsert for ${symbol}: ${upsertError.message}`);
+  }
+  return fresh.length;
+}
+
+async function archiveTrailingBars(symbol: FeedSymbol, nowSec: number): Promise<Bar[]> {
+  const from = nowSec - ARCHIVE_WINDOW_SEC;
+  const out: Bar[] = [];
+  for (let offset = 0; ; offset += ARCHIVE_CHUNK) {
+    const { data, error } = await supabase
+      .from("bars_5m")
+      .select("time, open, high, low, close, volume")
+      .eq("symbol", symbol)
+      .gte("time", from)
+      .order("time", { ascending: true })
+      .range(offset, offset + ARCHIVE_CHUNK - 1);
+    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
+    for (const r of data ?? [])
+      out.push({
+        time: Number(r.time),
+        open: Number(r.open),
+        high: Number(r.high),
+        low: Number(r.low),
+        close: Number(r.close),
+        volume: Number(r.volume ?? 0),
+      });
+    if (!data || data.length < ARCHIVE_CHUNK) break;
+  }
+  return out;
+}
+
+async function loadBars(
+  symbol: FeedSymbol,
+  nowSec: number,
+  warnings: string[]
+): Promise<{ bars: Bar[]; fromArchive: boolean }> {
+  try {
+    return { bars: await fetchYahooBars(symbol), fromArchive: false };
+  } catch (yahooErr) {
+    const yahooMsg = yahooErr instanceof Error ? yahooErr.message : String(yahooErr);
+    let archived: Bar[];
+    try {
+      archived = await archiveTrailingBars(symbol, nowSec);
+    } catch (archiveErr) {
+      const archiveMsg = archiveErr instanceof Error ? archiveErr.message : String(archiveErr);
+      throw new Error(`${symbol}: yahoo (${yahooMsg}) and archive (${archiveMsg}) both unavailable`);
+    }
+    if (!archived.length) throw new Error(`${symbol}: yahoo down (${yahooMsg}), archive empty`);
+    warnings.push(`${symbol} from archive (yahoo down)`);
+    return { bars: archived, fromArchive: true };
+  }
+}
 
 function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
   const status =
@@ -119,10 +207,32 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
 async function main() {
   const started = Date.now();
   const runStartIso = new Date().toISOString();
-  const [mes, mnq] = await Promise.all([fetchYahooBars("MES"), fetchYahooBars("MNQ")]);
-  const bySymbol: Record<string, Bar[]> = { MES: mes, MNQ: mnq };
   const nowSec = Math.floor(started / 1000);
+  const warnings: string[] = [];
+  const [mesLoad, mnqLoad] = await Promise.all([
+    loadBars("MES", nowSec, warnings),
+    loadBars("MNQ", nowSec, warnings),
+  ]);
+  const mes = mesLoad.bars;
+  const mnq = mnqLoad.bars;
+  const bySymbol: Record<string, Bar[]> = { MES: mes, MNQ: mnq };
   const cutoff = nowSec - LOOKBACK_DAYS * 86400;
+
+  // Archive fresh Yahoo bars for the long-term store; never archive bars
+  // that themselves came from the archive. Best effort — an archive write
+  // failure must not kill the signal run.
+  for (const [symbol, load] of [
+    ["MES", mesLoad],
+    ["MNQ", mnqLoad],
+  ] as const) {
+    if (load.fromArchive) continue;
+    try {
+      const n = await archiveNewBars(symbol, load.bars);
+      if (n) console.log(`${symbol}: archived ${n} new bars`);
+    } catch (e) {
+      warnings.push(`${symbol} archive write failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
 
   // 1) Signals from every tier stream.
   const signalRows = new Map<string, SignalRow>();
@@ -185,9 +295,12 @@ async function main() {
     tier_b_signals: tierB,
     duration_ms: Date.now() - started,
     source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
-    message: `bars MES ${mes.length} / MNQ ${mnq.length}, last ${iso(
-      Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time)
-    )}`,
+    message: [
+      `bars MES ${mes.length} / MNQ ${mnq.length}, last ${iso(
+        Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time)
+      )}`,
+      ...warnings,
+    ].join("; "),
   });
   if (runError) throw new Error(`engine_runs insert: ${runError.message}`);
 

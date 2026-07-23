@@ -71,7 +71,7 @@ Performance panel, and weight your attention accordingly.
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
 | **Strategy Lab** | The workshop (advanced, optional). Change strategy settings and run backtests. |
-| **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. |
+| **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. The Data page also shows the app's own price archive: it saves its five-minute history to the cloud every day, so over time backtests can reach further back than the feed's 60-day limit. |
 | **Guide** | The in-app version of this manual. |
 
 You never need the workshop pages to follow the signals.
@@ -130,6 +130,6 @@ along the bottom.
 
 ---
 
-*Manual version: matches the app as of 2026-07-22. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-23. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

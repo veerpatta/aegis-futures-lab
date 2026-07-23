@@ -140,7 +140,10 @@ export default function GuidePage() {
           <dd>
             The workshop (advanced, optional). Change strategy settings, run backtests, compare
             variants, load your own CSV history. Compare and Data sit under <b>More</b> in the
-            side menu on a computer. You never need any of these to follow the signals.
+            side menu on a computer. The Data page also shows the app&apos;s own price archive —
+            it saves its five-minute history to the cloud every day, so over time backtests can
+            reach further back than the feed&apos;s 60-day limit. You never need any of these
+            pages to follow the signals.
           </dd>
         </dl>
       </section>
@@ -216,7 +219,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-22. A printable version of this guide lives in the project
+        Matches the app as of 2026-07-23. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

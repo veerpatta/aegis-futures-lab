@@ -56,8 +56,28 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
+export interface ArchivePayload {
+  symbol: string;
+  mode: string;
+  delayed: boolean;
+  source: string;
+  interval: string;
+  from: number;
+  to: number;
+  count: number;
+  fetchedAt: string;
+  firstTimestamp: string | null;
+  lastTimestamp: string | null;
+  bars: Bar[];
+}
+
 export const fetchHistory = (symbol: FeedSymbol) =>
   getJson<HistoryPayload>(`/api/history?symbol=${symbol}`);
+/* Archived bars_5m history — grows past Yahoo's 60-day cap one day at a time. */
+export const fetchArchive = (symbol: FeedSymbol, from?: number, to?: number) =>
+  getJson<ArchivePayload>(
+    `/api/archive?symbol=${symbol}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`
+  );
 export const fetchMarket = (symbol: FeedSymbol) =>
   getJson<MarketPayload>(`/api/market?symbol=${symbol}`);
 export const fetchEvents = () => getJson<EventsPayload>("/api/events");

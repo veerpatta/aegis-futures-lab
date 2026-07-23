@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseCsv } from "@/lib/data/csv";
+import { getSupabase } from "@/lib/supabase/client";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -16,6 +17,31 @@ export default function DataClient() {
   const [label, setLabel] = useState("IMPORT");
   const [pointValue, setPointValue] = useState(5);
   const [importError, setImportError] = useState<string | null>(null);
+  const [archive, setArchive] = useState<
+    Partial<Record<"MES" | "MNQ", { count: number; first: number | null }>>
+  >({});
+
+  /* The cloud bar archive the engine fills on every pass — best effort. */
+  useEffect(() => {
+    const supabase = getSupabase();
+    for (const s of ["MES", "MNQ"] as const) {
+      Promise.all([
+        supabase.from("bars_5m").select("time", { count: "exact", head: true }).eq("symbol", s),
+        supabase.from("bars_5m").select("time").eq("symbol", s).order("time").limit(1),
+      ])
+        .then(([counted, first]) => {
+          if (counted.error || first.error) return;
+          setArchive((p) => ({
+            ...p,
+            [s]: {
+              count: counted.count ?? 0,
+              first: first.data?.length ? Number(first.data[0].time) : null,
+            },
+          }));
+        })
+        .catch(() => undefined);
+    }
+  }, []);
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -168,6 +194,27 @@ export default function DataClient() {
               <div className={styles.provRow}>
                 <span className={styles.provLabel}>Session filter</span>
                 <span>09:30–15:30 America/New_York, weekdays, completed bars only</span>
+              </div>
+              <div className={styles.provRow}>
+                <span className={styles.provLabel}>Archived history (grows daily)</span>
+                <span>
+                  every engine pass saves its 5-minute bars to a cloud archive, so history keeps
+                  building past the feed&apos;s 60-day window
+                  {(["MES", "MNQ"] as const).some((s) => archive[s]) && (
+                    <>
+                      {" — "}
+                      {(["MES", "MNQ"] as const)
+                        .filter((s) => archive[s])
+                        .map(
+                          (s) =>
+                            `${s} ${archive[s]!.count.toLocaleString()} bars${
+                              archive[s]!.first ? ` since ${dateOnly(archive[s]!.first!, zone)}` : ""
+                            }`
+                        )
+                        .join(" · ")}
+                    </>
+                  )}
+                </span>
               </div>
               <div className={styles.provRow}>
                 <span className={styles.provLabel}>Economic calendar</span>
