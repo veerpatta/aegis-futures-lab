@@ -18,6 +18,8 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { inEntryWindow } from "@/lib/time/session";
+import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
+import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
@@ -274,9 +276,34 @@ async function main() {
     );
   }
   const signals = [...signalRows.values()];
+
+  // Telegram diff baseline: what the table says BEFORE this run rewrites it.
+  // A failed read only disables alerting (null) — never the run, and never
+  // a spam-everything-as-new fallback.
+  let oldStatus: Map<string, string> | null = new Map();
+  try {
+    const keys = signals.map((s) => s.dedupe_key);
+    for (let i = 0; i < keys.length; i += 200) {
+      const { data, error } = await supabase
+        .from("signals")
+        .select("dedupe_key, status")
+        .in("dedupe_key", keys.slice(i, i + 200));
+      if (error) throw new Error(error.message);
+      for (const r of data ?? []) oldStatus.set(r.dedupe_key as string, r.status as string);
+    }
+  } catch (e) {
+    console.error(`alert baseline read failed — alerts skipped: ${e instanceof Error ? e.message : e}`);
+    oldStatus = null;
+  }
+
   if (signals.length) {
     const { error } = await supabase.from("signals").upsert(signals, { onConflict: "dedupe_key" });
     if (error) throw new Error(`signals upsert: ${error.message}`);
+  }
+
+  if (oldStatus) {
+    const message = formatAlertMessage(diffSignalAlerts(oldStatus, signals));
+    if (message) await sendTelegram(message); // never throws
   }
 
   // 2) Zone snapshot (tier-A structure: NY-session bars only).
@@ -325,15 +352,17 @@ async function main() {
 
 main().catch(async (err) => {
   console.error(err);
+  const message = String(err instanceof Error ? err.message : err);
   try {
     await supabase.from("engine_runs").insert({
       status: "error",
       symbols: ["MES", "MNQ"],
       source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
-      message: String(err instanceof Error ? err.message : err).slice(0, 500),
+      message: message.slice(0, 500),
     });
   } catch {
     /* best effort */
   }
+  await sendTelegram(`⚠️ Engine run failed: ${escapeHtml(message.slice(0, 200))}`); // never throws
   process.exit(1);
 });

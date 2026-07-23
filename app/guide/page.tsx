@@ -201,6 +201,18 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>Telegram alerts (optional)</h2>
+        <p>
+          The bot can message you on Telegram the moment an idea triggers — entry, stop, target
+          and reward-to-risk, with the time in both ET and IST — and again when it closes with the
+          result. These are <b>paper ideas, not orders</b>: same delayed data, same simulation as
+          the app, just delivered to your phone. It also messages if an engine run fails, so a
+          quiet feed means a healthy bot, not a broken one. (Set up once by the operator with a
+          free Telegram bot; nothing to configure in the app.)
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>Words you&apos;ll see</h2>
         <dl className={styles.dl}>
           <dt>Zone</dt>
