@@ -154,7 +154,9 @@ export async function GET() {
         : ["CPI", "PPI", "Employment Situation (NFP)", "FOMC policy decisions"],
       limitation: live
         ? "Weekly feed covers the current week only; beyond it, the official BLS/Fed schedule fills in. Unscheduled speeches still require a licensed real-time calendar."
-        : `Live weekly feed unavailable (${ffError ?? "unknown"}); serving the official BLS/Fed schedule. Unscheduled events require a licensed real-time calendar.`,
+        : ffError
+          ? `Live weekly feed unavailable (${ffError}); serving the official BLS/Fed schedule. Unscheduled events require a licensed real-time calendar.`
+          : "No high-impact USD events in the live weekly feed right now; serving the official BLS/Fed schedule. Unscheduled events require a licensed real-time calendar.",
       events,
     },
     { headers: { "Cache-Control": "s-maxage=3600, stale-while-revalidate=21600" } }
