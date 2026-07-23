@@ -1,0 +1,40 @@
+# Dead-cron detector for the signal engine. Twice hourly at :17/:47 —
+# offset from the engine's */15 cadence so it always sees the freshest
+# heartbeat. Plain node, no npm install: scripts/engine/watchdog.mjs reads
+# the public engine_runs heartbeat, checks the cron window + CME holiday
+# table, and alerts via Telegram + a self-healing `watchdog` GitHub issue.
+# The script exits 0 on its own flakiness — only a totally failed alert
+# path produces a red X.
+
+name: watchdog
+
+on:
+  schedule:
+    - cron: "17,47 6-21 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      stale_minutes:
+        description: "Staleness threshold in minutes (lower it, e.g. 1, to test the alert end-to-end)"
+        required: false
+        default: "45"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/engine/watchdog.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WATCHDOG_STALE_MINUTES: ${{ inputs.stale_minutes || '45' }}
