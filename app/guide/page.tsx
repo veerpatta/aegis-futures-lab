@@ -130,7 +130,11 @@ export default function GuidePage() {
           <dt>Signals</dt>
           <dd>Every idea, grouped by day, with the full zone watchlist and engine detail.</dd>
           <dt>Markets</dt>
-          <dd>Delayed charts, live strategy readout, and the news calendar.</dd>
+          <dd>
+            Delayed charts, live strategy readout, and the news calendar — each week&apos;s
+            high-impact U.S. events from a free live feed, backed by the official BLS and Fed
+            schedules when the feed is down.
+          </dd>
           <dt>Journal</dt>
           <dd>
             Pick any past day: see what the engine did, minute by minute, next to your own

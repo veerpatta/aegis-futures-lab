@@ -68,7 +68,7 @@ Performance panel, and weight your attention accordingly.
 |---|---|
 | **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, and whether the bot is healthy. |
 | **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
-| **Markets** | Delayed charts, a live strategy readout, and the news calendar. |
+| **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
 | **Strategy Lab** | The workshop (advanced, optional). Change strategy settings and run backtests. |
 | **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. The Data page also shows the app's own price archive: it saves its five-minute history to the cloud every day, so over time backtests can reach further back than the feed's 60-day limit. |

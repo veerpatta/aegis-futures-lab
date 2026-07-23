@@ -219,7 +219,7 @@ export default function DataClient() {
               <div className={styles.provRow}>
                 <span className={styles.provLabel}>Economic calendar</span>
                 <span>
-                  {data.eventsSource ?? "unavailable"} · {data.events.length} verified events ·
+                  {data.eventsSource ?? "unavailable"} · {data.events.length} events ·
                   unscheduled events require a licensed real-time calendar
                 </span>
               </div>
