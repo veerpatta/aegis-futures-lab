@@ -215,7 +215,6 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
 
 async function main() {
   const started = Date.now();
-  const runStartIso = new Date().toISOString();
   const nowSec = Math.floor(started / 1000);
 
   // CME full holiday: no NY day session. Record a green heartbeat (the cron
@@ -338,15 +337,27 @@ async function main() {
 
   // 2) Zone snapshot (tier-A structure: NY-session bars only).
   const zones = [...zoneRows("MES", mes, nowSec), ...zoneRows("MNQ", mnq, nowSec)];
+  // Prune BEFORE upserting, not after: a fresh formation at a price level
+  // that already has a row from an earlier run carries a different
+  // dedupe_key but the SAME natural key (symbol, timeframe, zone_type,
+  // price_high, price_low), and the leftover row aborts the whole upsert
+  // (bit us live 2026-07-23). Anything not in this snapshot is superseded —
+  // consumed, out of the nearest-N window, or an older formation of a level
+  // this batch re-emits — so drop it first.
+  {
+    const query = supabase.from("zones").delete();
+    const { error } = zones.length
+      ? await query.filter(
+          "dedupe_key",
+          "not.in",
+          `(${zones.map((z) => `"${z.dedupe_key}"`).join(",")})`
+        )
+      : await query.gte("id", 0);
+    if (error) throw new Error(`zones cleanup: ${error.message}`);
+  }
   if (zones.length) {
     const { error } = await supabase.from("zones").upsert(zones, { onConflict: "dedupe_key" });
     if (error) throw new Error(`zones upsert: ${error.message}`);
-  }
-  // Zones not refreshed this run are gone from the current stack (consumed,
-  // out of the nearest-N window, or from an older schema) — drop them.
-  {
-    const { error } = await supabase.from("zones").delete().lt("updated_at", runStartIso);
-    if (error) throw new Error(`zones cleanup: ${error.message}`);
   }
 
   // 3) Heartbeat, with per-symbol data freshness. "(stale)" is a marker the
