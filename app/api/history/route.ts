@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { YAHOO_SYMBOLS, isFeedSymbol } from "@/lib/market/contracts";
+import { fetchYahooBars } from "@/lib/data/yahoo";
 
 export const dynamic = "force-dynamic";
 
@@ -9,39 +10,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Supported symbols: MES, MNQ" }, { status: 400 });
   }
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-      YAHOO_SYMBOLS[symbol]
-    )}?interval=5m&range=60d&includePrePost=true&events=div%2Csplits`;
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 AegisResearch/1.0", Accept: "application/json" },
-    });
-    if (!response.ok) throw new Error("Upstream response " + response.status);
-    const json = await response.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) throw new Error(json?.chart?.error?.description || "No chart result");
-    const quote = result.indicators?.quote?.[0] || {};
-    const completedBefore = Math.floor(Date.now() / 300000) * 300 - 300;
-    const bars = ((result.timestamp || []) as number[])
-      .map((time, i) => ({
-        time,
-        open: quote.open?.[i],
-        high: quote.high?.[i],
-        low: quote.low?.[i],
-        close: quote.close?.[i],
-        volume: quote.volume?.[i] || 0,
-      }))
-      // Keep the full ~23h CME globex session so the zone engine sees real
-      // Daily/4H structure; execution stays intraday via the simulator's
-      // flatten-by-15:25 gate. (Previously an inNySession filter kept only
-      // 09:30–15:30 RTH bars, which collapsed each day into 2 misaligned 4H
-      // candles and starved the strict Daily→4H→1H nesting.)
-      .filter(
-        (b) =>
-          b.time % 300 === 0 &&
-          b.time <= completedBefore &&
-          [b.open, b.high, b.low, b.close].every(Number.isFinite)
-      );
-    if (!bars.length) throw new Error("No valid session candles");
+    // Keep the full ~23h CME globex session so the zone engine sees real
+    // Daily/4H structure; execution stays intraday via the simulator's
+    // flatten-by-15:25 gate. (Previously an inNySession filter kept only
+    // 09:30–15:30 RTH bars, which collapsed each day into 2 misaligned 4H
+    // candles and starved the strict Daily→4H→1H nesting.)
+    const bars = await fetchYahooBars(symbol);
     return NextResponse.json(
       {
         symbol,
