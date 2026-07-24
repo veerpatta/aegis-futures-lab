@@ -6,7 +6,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   GRADUATE_MIN_TRAIN,
+  MODEL_NAME,
   scoreRow,
+  trainingRows,
   trainModel,
   type ModelArtifact,
   type ModelRow,
@@ -43,7 +45,7 @@ export async function retrainModel(
   rows: ModelRow[]
 ): Promise<{ status: string; train_n: number; oos_brier: number | null; baseline_brier: number | null }> {
   const frozen = process.env.BOT_POLICY_FREEZE === "1";
-  const artifact: ModelArtifact = trainModel(rows);
+  const artifact: ModelArtifact | null = trainModel(rows);
 
   const { data: prev, error: prevErr } = await supabase
     .from("model_registry")
@@ -52,6 +54,26 @@ export async function retrainModel(
     .limit(1);
   if (prevErr) throw new Error(`model_registry read: ${prevErr.message}`);
   const prevStatus = (prev?.[0]?.status as string | undefined) ?? "observe";
+
+  // Too little clean data to emit a real model — record an observe placeholder
+  // with NO coefficients (never an all-zero set that would veto everything) and
+  // take no lifecycle action. loadLatestModel treats null coefficients as
+  // "no model", so nothing scores.
+  if (artifact === null) {
+    const trainN = trainingRows(rows).length;
+    const { error } = await supabase.from("model_registry").insert({
+      model: MODEL_NAME,
+      coefficients: null,
+      features: null,
+      train_n: trainN,
+      oos_brier: null,
+      baseline_brier: null,
+      calibration: null,
+      status: prevStatus,
+    });
+    if (error) throw new Error(`model_registry insert: ${error.message}`);
+    return { status: prevStatus, train_n: trainN, oos_brier: null, baseline_brier: null };
+  }
 
   const beatsBaseline =
     artifact.oos_brier !== null &&
@@ -153,11 +175,35 @@ export async function applyWinProb<
     ...rows.map((r) => r.win_prob ?? NaN),
   ];
   const threshold = percentile(pooled, VETO_PERCENTILE);
+  const vetoSet = new Set(selectVetoes(rows, threshold));
 
   let vetoed = 0;
   for (const row of rows) {
-    row.model_veto = row.win_prob !== null && threshold !== null && row.win_prob <= threshold;
+    row.model_veto = vetoSet.has(row);
     if (row.model_veto) vetoed++;
   }
   return { status: model.status, active: model.status === "active", threshold, vetoed };
+}
+
+/* Which rows to veto: at most ceil(0.1 * n) of the scored rows — the strictly
+   lowest that are at/below the trailing-decile threshold. If ties at the cap
+   boundary would overflow, veto NONE of the tied rows (fail open) so a model
+   that can't discriminate (e.g. all equal probabilities) flags nothing.
+   Pure — no I/O — so it is unit-tested directly (finding 7). */
+export function selectVetoes<T extends { win_prob: number | null }>(
+  rows: T[],
+  threshold: number | null
+): T[] {
+  const scored = rows.filter((r) => r.win_prob !== null);
+  const cap = Math.ceil(0.1 * scored.length);
+  if (cap === 0 || threshold === null) return [];
+  const sorted = [...scored].sort((a, b) => (a.win_prob as number) - (b.win_prob as number));
+  const eligible = sorted.filter((r) => (r.win_prob as number) <= threshold);
+  if (eligible.length <= cap) return eligible;
+  const boundary = eligible[cap - 1].win_prob as number;
+  // Only fail open when the cap boundary is TIED with the next row — otherwise
+  // take exactly the lowest `cap`.
+  if ((eligible[cap].win_prob as number) === boundary)
+    return eligible.filter((r) => (r.win_prob as number) < boundary);
+  return eligible.slice(0, cap);
 }

@@ -70,7 +70,7 @@ describe("trainingRows", () => {
 
 describe("trainModel", () => {
   it("learns the signal: tier B scores higher than tier A", () => {
-    const model = trainModel(makeRows(200));
+    const model = trainModel(makeRows(200))!;
     const pB = scoreRow(model, { ...makeRows(1)[0], tier: "B" });
     const pA = scoreRow(model, { ...makeRows(1)[0], tier: "A" });
     expect(pB).toBeGreaterThan(pA);
@@ -79,7 +79,7 @@ describe("trainModel", () => {
   });
 
   it("beats the base-rate baseline out-of-sample on a learnable set", () => {
-    const model = trainModel(makeRows(200));
+    const model = trainModel(makeRows(200))!;
     expect(model.train_n).toBe(200);
     expect(model.oos_brier).not.toBeNull();
     expect(model.baseline_brier).not.toBeNull();
@@ -87,15 +87,16 @@ describe("trainModel", () => {
   });
 
   it("is deterministic — same data, same coefficients", () => {
-    const a = trainModel(makeRows(120));
-    const b = trainModel(makeRows(120));
+    const a = trainModel(makeRows(120))!;
+    const b = trainModel(makeRows(120))!;
     expect(a.coefficients).toEqual(b.coefficients);
   });
 
-  it("returns a zeroed model with no training data, without throwing", () => {
-    const model = trainModel([]);
-    expect(model.train_n).toBe(0);
-    expect(model.oos_brier).toBeNull();
-    expect(predictProba(model.coefficients, featurize(makeRows(1)[0], norm0))).toBeCloseTo(0.5);
+  it("refuses to emit a model with too little clean data (F7)", () => {
+    expect(trainModel([])).toBeNull();
+    expect(trainModel(makeRows(40))).toBeNull(); // < 50 clean rows
+    expect(trainModel(makeRows(50))).not.toBeNull(); // exactly at the floor
+    // never an all-zero coefficient set that would veto everything
+    expect(predictProba(new Array(FEATURE_NAMES.length).fill(0), featurize(makeRows(1)[0], norm0))).toBeCloseTo(0.5);
   });
 });

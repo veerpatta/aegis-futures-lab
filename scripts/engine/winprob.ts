@@ -233,14 +233,20 @@ function calibration(preds: number[], ys: number[]): CalibrationBin[] {
   return bins;
 }
 
+/* Fewer than this many clean-fill closed rows ⇒ refuse to emit a model at all
+   (returns null). A model trained on a handful of rows — worst case, an
+   all-zero coefficient set from an empty set — would predict a constant and
+   veto everything; better to have no model than a degenerate one. */
+export const MIN_TRAIN_TO_EMIT = 50;
+
 /* Train the production model on ALL training rows + attach the walk-forward
-   evaluation. This is the artifact learn.ts persists to model_registry. */
-export function trainModel(rows: ModelRow[]): ModelArtifact {
+   evaluation. Returns null when there isn't enough clean data to emit a real
+   model (never an all-zero coefficient set). */
+export function trainModel(rows: ModelRow[]): ModelArtifact | null {
   const training = trainingRows(rows);
+  if (training.length < MIN_TRAIN_TO_EMIT) return null;
   const norm = normalizerOf(training);
-  const coefficients = training.length
-    ? trainLogit(training.map((r) => featurize(r, norm)), training.map(label))
-    : new Array(FEATURE_NAMES.length).fill(0);
+  const coefficients = trainLogit(training.map((r) => featurize(r, norm)), training.map(label));
   const wf = evaluateWalkForward(training);
   return {
     model: MODEL_NAME,
