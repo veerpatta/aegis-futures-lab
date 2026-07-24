@@ -1,0 +1,36 @@
+# Ring 0 — nightly knowledge job. Recomputes everything the bot "knows" from
+# the accumulated data and versions it into learned_stats (one row per
+# stat_key per NY trading day). Pure learning, zero behaviour change.
+#
+# 05:30 UTC Tue-Sat = shortly after each New York close (00:30/01:30 ET), so
+# each run describes the session that just finished. Cron is UTC and GitHub
+# delays it 5-15 min — fine, this is bookkeeping, never execution.
+#
+# Writes go to learned_stats (RLS-on): needs the service-role key, same as
+# the signal engine. The publishable key can only read.
+
+name: nightly-learn
+
+on:
+  schedule:
+    - cron: "30 5 * * 2-6"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-learn
+  cancel-in-progress: false
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/engine/learn.ts
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
