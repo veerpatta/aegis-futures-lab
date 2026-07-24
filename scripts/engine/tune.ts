@@ -24,22 +24,24 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
-import { executeRun } from "@/lib/backtest/run";
-import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { defaultParams, type ParamValues } from "@/lib/strategies/types";
-import { rsiReversion } from "@/lib/strategies/rsi-reversion";
+import type { FeedSymbol } from "@/lib/market/contracts";
+import type { ParamValues } from "@/lib/strategies/types";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf, profitFactor as profitFactorOf } from "@/lib/stats";
-import { fetchYahooBars } from "./data";
 import { resampleDrawdowns } from "./montecarlo";
 import { promotionReport, type ShadowLike } from "./promotion";
-import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams, type TierStream } from "./tiers";
-
-const OOS_DAYS = 30;
-const MIN_OOS_TRADES = 8;
-const MIN_TRAIN_TRADES = 20;
-const MC_RESAMPLES = 1000;
-const MC_P95_TOLERANCE = 1.25; // candidate p95 DD may be at most 25% worse
+import { tierStreams } from "./tiers";
+import {
+  evaluate,
+  loadSeries,
+  rsiCandidates,
+  MC_RESAMPLES,
+  MC_P95_TOLERANCE,
+  MIN_OOS_TRADES,
+  MIN_TRAIN_TRADES,
+  OOS_DAYS,
+  type EvalResult,
+} from "./tune-core";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -47,93 +49,8 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-const PAGE = 1000;
 const money = (v: number) => `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(0)}`;
 const day = (sec: number) => new Date(sec * 1000).toISOString().slice(0, 10);
-
-async function archiveAllBars(symbol: FeedSymbol): Promise<Bar[]> {
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
-}
-
-async function loadSeries(symbol: FeedSymbol): Promise<Bar[]> {
-  const [archive, yahoo] = await Promise.all([
-    archiveAllBars(symbol).catch(() => [] as Bar[]),
-    fetchYahooBars(symbol).catch(() => [] as Bar[]),
-  ]);
-  const byTime = new Map(archive.map((b) => [b.time, b]));
-  for (const b of yahoo) byTime.set(b.time, b); // Yahoo wins on overlap
-  const bars = [...byTime.values()].sort((a, b) => a.time - b.time);
-  if (!bars.length) throw new Error(`No bars for ${symbol} from archive or Yahoo`);
-  return bars;
-}
-
-interface EvalResult {
-  trades: number;
-  net: number;
-  pf: number | null;
-  pnls: number[];
-}
-
-function evaluate(
-  stream: TierStream,
-  params: ParamValues,
-  bySymbol: Record<string, Bar[]>,
-  window: { fromTime?: number; toTime?: number }
-): EvalResult {
-  const res = executeRun({
-    strategyId: stream.strategyId,
-    params,
-    series: Object.fromEntries(stream.symbols.map((s) => [s, bySymbol[s]])),
-    execution: { ...EXECUTION, fillModel: stream.fillModel },
-    locks: stream.locks,
-    startingCapital: STARTING_CAPITAL,
-    sessionExitMinute: SESSION_EXIT_MINUTE,
-    pointValues: POINT_VALUES,
-    window,
-  });
-  return {
-    trades: res.metrics.trades,
-    net: res.metrics.net,
-    pf: res.metrics.profitFactor,
-    pnls: res.trades.map((t) => t.pnl),
-  };
-}
-
-/* Candidate grid for the RSI streams — deliberately small; a wide grid on a
-   few months of data is an overfitting machine. */
-function rsiCandidates(): { label: string; params: ParamValues }[] {
-  const base: ParamValues = { ...defaultParams(rsiReversion), session: "day" };
-  const out: { label: string; params: ParamValues }[] = [];
-  for (const oversold of [20, 25, 30])
-    for (const overbought of [70, 75, 80])
-      for (const targetR of [1.5, 2]) {
-        out.push({
-          label: `os${oversold}/ob${overbought}/t${targetR}R`,
-          params: { ...base, oversold, overbought, targetR },
-        });
-      }
-  return out;
-}
 
 const line = (label: string, r: EvalResult) =>
   `| ${label} | ${r.trades} | ${money(r.net)} | ${fmtPf(r.pf)} |`;
@@ -142,7 +59,7 @@ async function main() {
   const streams = tierStreams();
   const symbols = [...new Set(streams.flatMap((s) => s.symbols))] as FeedSymbol[];
   const bySymbol: Record<string, Bar[]> = {};
-  for (const s of symbols) bySymbol[s] = await loadSeries(s);
+  for (const s of symbols) bySymbol[s] = await loadSeries(supabase, s);
 
   const firstBar = Math.min(...symbols.map((s) => bySymbol[s][0].time));
   const lastBar = Math.max(...symbols.map((s) => bySymbol[s][bySymbol[s].length - 1].time));

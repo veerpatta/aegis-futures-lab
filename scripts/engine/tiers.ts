@@ -20,6 +20,7 @@ import type { DisciplineLocks } from "@/lib/backtest/engine";
 import { defaultParams, type ExecutionConfig, type ParamValues } from "@/lib/strategies/types";
 import { zoneV5 } from "@/lib/strategies/zone-v5";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
+import { strategyById } from "@/lib/strategies/registry";
 
 export const EXECUTION: ExecutionConfig = {
   cost: 2.4,
@@ -70,6 +71,21 @@ export const B_LOCKS: DisciplineLocks = {
   maxDrawdown: 999999,
 };
 
+/* ── Bot-editable blocks — the ONLY things the weekly-challenger bot may edit,
+   and only ever via a human-merged PR. Both DEFAULT EMPTY, so live behaviour
+   (and the golden parity tests) are unchanged until a human merges. Keying:
+   "A" for the zone stream, "B:MES"/"B:MNQ" for the RSI streams. */
+
+/** Param overrides adopted from a surviving challenger. */
+export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = {};
+
+/** Shadow strategies promoted to live tier-B2 streams. */
+export const PROMOTED_SHADOWS: { label: string; strategyId: string; symbols: ("MES" | "MNQ")[] }[] = [];
+
+export function streamOverrideKey(tier: "A" | "B", symbols: ("MES" | "MNQ")[]): string {
+  return tier === "A" ? "A" : `B:${symbols.join("+")}`;
+}
+
 export function tierStreams(): TierStream[] {
   const rsiParams: ParamValues = {
     ...defaultParams(rsiReversion),
@@ -77,7 +93,7 @@ export function tierStreams(): TierStream[] {
     oversold: 25,
     overbought: 75,
   };
-  return [
+  const base: TierStream[] = [
     {
       tier: "A",
       label: "zone-v5",
@@ -106,4 +122,20 @@ export function tierStreams(): TierStream[] {
       locks: B_LOCKS,
     },
   ];
+  // Apply human-merged challenger overrides (empty by default → live params).
+  const withOverrides = base.map((s) => {
+    const ov = CHALLENGER_OVERRIDES[streamOverrideKey(s.tier, s.symbols)];
+    return ov ? { ...s, params: { ...s.params, ...ov } as ParamValues } : s;
+  });
+  // Append human-merged shadow promotions as tier-B2 streams (same B locks).
+  const promoted: TierStream[] = PROMOTED_SHADOWS.map((p) => ({
+    tier: "B",
+    label: p.label,
+    strategyId: p.strategyId,
+    symbols: p.symbols,
+    params: defaultParams(strategyById(p.strategyId)),
+    fillModel: "nextOpen",
+    locks: B_LOCKS,
+  }));
+  return [...withOverrides, ...promoted];
 }
