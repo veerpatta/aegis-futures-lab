@@ -94,6 +94,38 @@ function openBotPrExists(streamSlug: string): boolean {
   }
 }
 
+/* GitHub suppresses `pull_request` workflow triggers for PRs created with
+   GITHUB_TOKEN, so ci.yml never fires on a bot PR. We therefore run the guard
+   HERE, inside the proposing workflow, against the challenger branch: full
+   tsc + test suite, a machine-set commit status, a PR comment, and the PR is
+   left as a DRAFT if anything is red — so a human never sees a bot PR without a
+   visible pass/fail. */
+function runBotCi(branch: string): boolean {
+  const sha = execSync(`git rev-parse HEAD`, { encoding: "utf8" }).trim();
+  let pass = true;
+  try {
+    execSync(`npx tsc --noEmit`, { stdio: "pipe" });
+    execSync(`npm test`, { stdio: "pipe" });
+  } catch {
+    pass = false;
+  }
+  try {
+    gh(
+      `api repos/${REPO}/statuses/${sha} -f state=${pass ? "success" : "failure"} ` +
+        `-f context=bot-ci -f description=${JSON.stringify(pass ? "parity + full test suite green" : "tests failed — PR left as draft")}`
+    );
+    gh(
+      `pr comment ${branch} --repo ${REPO} --body ${JSON.stringify(
+        `CI ran inside the proposing workflow: **${pass ? "PASS" : "FAIL"}** (tsc + full test suite) on \`${sha.slice(0, 7)}\`. See the commit status.${pass ? "" : " Converted to draft until green."}`
+      )}`
+    );
+    if (!pass) gh(`pr ready ${branch} --repo ${REPO} --undo`); // convert to draft
+  } catch (e) {
+    console.error(`bot CI status/comment failed: ${e instanceof Error ? e.message : e}`);
+  }
+  return pass;
+}
+
 function openPr(args: { branch: string; edit: () => void; title: string; body: string; commitMsg: string }): boolean {
   try {
     execSync(`git checkout -b ${args.branch}`, { stdio: "pipe" });
@@ -104,7 +136,8 @@ function openPr(args: { branch: string; edit: () => void; title: string; body: s
     const bodyFile = join(tmpdir(), `pr-body-${args.branch.replace(/\//g, "_")}.md`);
     writeFileSync(bodyFile, args.body);
     gh(`pr create --repo ${REPO} --base main --head ${args.branch} --title ${JSON.stringify(args.title)} --body-file ${JSON.stringify(bodyFile)}`);
-    console.log(`opened PR on ${args.branch}`);
+    const ciPass = runBotCi(args.branch);
+    console.log(`opened PR on ${args.branch} (bot CI ${ciPass ? "green" : "RED — draft"})`);
     return true;
   } catch (e) {
     console.error(`PR open failed for ${args.branch}: ${e instanceof Error ? e.message : e}`);
@@ -135,7 +168,7 @@ function editPromotion(label: string, strategyId: string, symbols: string[]): vo
 }
 
 const REVIEW_LINE = (kind: string) =>
-  `Merging this changes live paper params. Close to reject; the bot will not re-propose this exact ${kind} for ${COOLDOWN_WEEKS} weeks.`;
+  `Merging this changes live paper params. Close to reject; the bot will not re-propose this exact ${kind} for ${COOLDOWN_WEEKS} weeks.\n\n_CI (tsc + full parity/test suite) ran inside the proposing workflow — see the \`bot-ci\` commit status on this branch. A red run leaves this PR as a draft._`;
 
 async function main() {
   const nowSec = Math.floor(Date.now() / 1000);
