@@ -15,6 +15,7 @@ import { earlyCloseMinuteNy, isMarketHoliday } from "@/lib/market/holidays";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf, profitFactor } from "@/lib/stats";
 import { sendTelegram } from "./notify";
+import { promotionReport, type ShadowLike } from "./promotion";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -201,6 +202,32 @@ async function main() {
   const integrityBad =
     integrityTotal.gaps + integrityTotal.dupes + integrityTotal.negativeRange > 0;
 
+  // ── Shadow auditions (all-time — the whole point is the growing sample) ──
+  interface ShadowDbRow extends ShadowLike {
+    strategy: string;
+    symbol: string;
+  }
+  let shadowRows: ShadowDbRow[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("shadow_signals")
+      .select("strategy, symbol, status, pnl_usd, regime, fill_confidence");
+    if (error) throw new Error(error.message);
+    shadowRows = (data ?? []) as ShadowDbRow[];
+  } catch (e) {
+    console.error(`shadow read failed (section skipped): ${e instanceof Error ? e.message : e}`);
+  }
+  const shadowStreams = [...new Set(shadowRows.map((r) => `${r.strategy}|${r.symbol}`))]
+    .sort()
+    .map((key) => {
+      const [strategy, symbol] = key.split("|");
+      return {
+        strategy,
+        symbol,
+        report: promotionReport(shadowRows.filter((r) => r.strategy === strategy && r.symbol === symbol)),
+      };
+    });
+
   // ── Watchdog issues opened this week (best effort) ──
   let watchdogOpened: number | null = null;
   if (GH_TOKEN) {
@@ -243,6 +270,16 @@ async function main() {
         ? `⚠ ${integrityTotal.gaps} gaps / ${integrityTotal.dupes} dupes / ${integrityTotal.negativeRange} bad bars`
         : "OK"
     }`,
+    ...(shadowStreams.length
+      ? [
+          `Shadow auditions (not signals): ${shadowStreams
+            .map(
+              (s) =>
+                `${s.strategy}/${s.symbol} ${s.report.closed}cl PF ${fmtPf(s.report.pf)} ${money(s.report.net)}${s.report.promotable ? " ✅" : ""}`
+            )
+            .join(" · ")}`,
+        ]
+      : []),
   ].join("\n");
   await sendTelegram(tg);
 
@@ -283,6 +320,20 @@ async function main() {
     errorRuns.length
       ? `- Error messages:\n${errorRuns.map((r) => `  - \`${(r.message ?? "").slice(0, 160)}\``).join("\n")}`
       : ``,
+    ``,
+    `## Shadow auditions — strategies auditioning on live data, NOT signals`,
+    shadowStreams.length === 0
+      ? `No shadow rows yet.`
+      : [
+          `All-time since audition start. Promotable only when ALL boxes tick: ≥60 closed signals AND PF ≥ 1.2 (costs included) AND positive net in ≥2 regimes with data.`,
+          ``,
+          `| Stream | Signals | Closed | Net | PF | WR | ex-doubtful | Checklist | Promotable |`,
+          `|---|---:|---:|---:|---:|---:|---|---|---|`,
+          ...shadowStreams.map(({ strategy, symbol, report: r }) => {
+            const checklist = r.checklist.map((c) => `${c.pass ? "✅" : "❌"} ${c.label}`).join("<br>");
+            return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${r.winRate ?? "—"}${r.winRate === null ? "" : "%"} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
+          }),
+        ].join("\n"),
     ``,
     `## Bar archive`,
     `- Rows added this week: ${weekRows.toLocaleString()} · total span ≈ ${spanDays} days`,

@@ -6,8 +6,10 @@ import { getSupabase } from "@/lib/supabase/client";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { Badge, Button, NumberField, Panel } from "@/components/ui";
-import { dateOnly, ts } from "@/lib/format";
+import { Badge, Button, DataTable, NumberField, Panel } from "@/components/ui";
+import { dateOnly, money, ts } from "@/lib/format";
+import { fmtPf } from "@/lib/stats";
+import { promotionReport, type PromotionReport } from "@/scripts/engine/promotion";
 import styles from "./data.module.css";
 
 export default function DataClient() {
@@ -20,6 +22,33 @@ export default function DataClient() {
   const [archive, setArchive] = useState<
     Partial<Record<"MES" | "MNQ", { count: number; first: number | null }>>
   >({});
+  const [shadow, setShadow] = useState<
+    { strategy: string; symbol: string; report: PromotionReport }[] | null
+  >(null);
+
+  /* Shadow lab scoreboard — strategies auditioning on live data. Read-only,
+     best effort; these rows are never signals. */
+  useEffect(() => {
+    getSupabase()
+      .from("shadow_signals")
+      .select("strategy, symbol, status, pnl_usd, regime, fill_confidence")
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const streams = [...new Set(data.map((r) => `${r.strategy}|${r.symbol}`))].sort();
+        setShadow(
+          streams.map((key) => {
+            const [strategy, symbol] = key.split("|");
+            return {
+              strategy,
+              symbol,
+              report: promotionReport(
+                data.filter((r) => r.strategy === strategy && r.symbol === symbol)
+              ),
+            };
+          })
+        );
+      });
+  }, []);
 
   /* The cloud bar archive the engine fills on every pass — best effort. */
   useEffect(() => {
@@ -238,6 +267,39 @@ export default function DataClient() {
                 </span>
               </div>
             </div>
+          </Panel>
+
+          <Panel
+            title="Shadow lab"
+            hint="strategies auditioning on live data — not signals, never alerted"
+          >
+            <p className={styles.note}>
+              Four extra strategies run silently beside the live tiers, on the same simulator,
+              costs and daily discipline locks. A stream earns promotion interest only when it
+              ticks every box: <b>≥60 closed</b>, <b>PF ≥ 1.2</b>, and <b>positive in ≥2 market
+              regimes</b>. Nothing here is a trade idea.
+            </p>
+            <DataTable
+              columns={["Stream", "Signals", "Closed", "Net", "PF", "Ex-doubtful", "Ready?"]}
+              rows={(shadow ?? []).map(({ strategy, symbol, report: r }) => [
+                <span key="s">
+                  <b>{strategy}</b> · {symbol}
+                </span>,
+                String(r.total),
+                String(r.closed),
+                <span key="n" className="num">{money(r.net)}</span>,
+                fmtPf(r.pf),
+                `PF ${fmtPf(r.exPf)} · ${money(r.exNet)}`,
+                r.promotable ? (
+                  <Badge key="y" tone="green">PROMOTABLE</Badge>
+                ) : (
+                  <span key="c" title={r.checklist.map((c) => `${c.pass ? "✓" : "✗"} ${c.label}`).join("\n")}>
+                    <Badge>AUDITIONING</Badge>
+                  </span>
+                ),
+              ])}
+              empty={shadow === null ? "Loading…" : "No shadow rows yet — they appear as the engine runs."}
+            />
           </Panel>
 
           <Panel title="Safety state">

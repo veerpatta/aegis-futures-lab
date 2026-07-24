@@ -24,6 +24,7 @@ import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
+import { runShadows } from "./shadow";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
@@ -248,10 +249,15 @@ async function main() {
       exitMinuteByDay[h.date] = flattenMinuteNy(h.date, SESSION_EXIT_MINUTE);
 
   const warnings: string[] = [];
+  const phaseT = (label: string, since: number) =>
+    console.log(`phase ${label}: ${((Date.now() - since) / 1000).toFixed(1)}s`);
+  let phaseStart = Date.now();
   const [mesLoad, mnqLoad] = await Promise.all([
     loadBars("MES", nowSec, warnings),
     loadBars("MNQ", nowSec, warnings),
   ]);
+  phaseT("fetch", phaseStart);
+  phaseStart = Date.now();
   const mes = mesLoad.bars;
   const mnq = mnqLoad.bars;
   const bySymbol: Record<string, Bar[]> = { MES: mes, MNQ: mnq };
@@ -364,6 +370,8 @@ async function main() {
     const message = formatAlertMessage(diffSignalAlerts(oldStatus, signals));
     if (message) await sendTelegram(message); // never throws
   }
+  phaseT("signals", phaseStart);
+  phaseStart = Date.now();
 
   // 2) Zone snapshot (tier-A structure: NY-session bars only).
   const zones = [...zoneRows("MES", mes, nowSec), ...zoneRows("MNQ", mnq, nowSec)];
@@ -389,6 +397,32 @@ async function main() {
     const { error } = await supabase.from("zones").upsert(zones, { onConflict: "dedupe_key" });
     if (error) throw new Error(`zones upsert: ${error.message}`);
   }
+  phaseT("zones", phaseStart);
+  phaseStart = Date.now();
+
+  // 2b) Shadow auditions — observation only. Quarantined: separate table,
+  // no Telegram, and NOTHING here may fail the run; a 60s budget caps what
+  // a slow strategy can cost the cron (skipped streams catch up next run).
+  try {
+    const shadow = await runShadows({
+      supabase,
+      bySymbol,
+      nowSec,
+      cutoff,
+      exitMinuteByDay,
+      timeBudgetMs: 60_000,
+    });
+    console.log(
+      `shadow: ${shadow.upserted} rows from ${shadow.streamsRun} streams` +
+        (shadow.streamsSkipped ? ` (${shadow.streamsSkipped} skipped on time budget)` : "")
+    );
+    if (shadow.errors.length)
+      warnings.push(`shadow_errors: ${shadow.errors.join(" | ").slice(0, 160)}`);
+  } catch (e) {
+    warnings.push(`shadow_errors: ${String(e instanceof Error ? e.message : e).slice(0, 160)}`);
+  }
+  phaseT("shadow", phaseStart);
+  phaseStart = Date.now();
 
   // 3) Heartbeat, with per-symbol data freshness. "(stale)" is a marker the
   // dashboard looks for (lib/time/session.ts dataDelayed) — newest bar more

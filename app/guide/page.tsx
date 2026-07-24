@@ -163,8 +163,12 @@ export default function GuidePage() {
             variants, load your own CSV history. Compare and Data sit under <b>More</b> in the
             side menu on a computer. The Data page also shows the app&apos;s own price archive —
             it saves its five-minute history to the cloud every day, so over time backtests can
-            reach further back than the feed&apos;s 60-day limit. You never need any of these
-            pages to follow the signals.
+            reach further back than the feed&apos;s 60-day limit — and the <b>Shadow lab</b>:
+            four extra strategies auditioning silently on live data. Shadow results are{" "}
+            <b>not signals</b> and never send alerts; a stream only earns promotion interest
+            after at least 60 finished trades, a profit factor of 1.2 or better, and profits in
+            two different market regimes. You never need any of these pages to follow the
+            signals.
           </dd>
         </dl>
       </section>

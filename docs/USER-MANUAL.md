@@ -73,7 +73,7 @@ Performance panel, and weight your attention accordingly.
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
 | **Strategy Lab** | The workshop (advanced, optional). Change strategy settings and run backtests. |
-| **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. The Data page also shows the app's own price archive: it saves its five-minute history to the cloud every day, so over time backtests can reach further back than the feed's 60-day limit. |
+| **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. The Data page also shows the app's own price archive (its five-minute history saved to the cloud daily, growing past the feed's 60-day limit) and the **Shadow lab**: four extra strategies auditioning silently on live data. Shadow results are **not signals** and never alert; a stream earns promotion interest only after ≥60 finished trades, PF ≥ 1.2, and profits in two different market regimes. |
 | **Guide** | The in-app version of this manual. |
 
 You never need the workshop pages to follow the signals.
