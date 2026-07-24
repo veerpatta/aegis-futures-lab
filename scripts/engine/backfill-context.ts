@@ -42,7 +42,9 @@ async function main() {
       rows
         .map((r) => `  ('${r.date_key}', ${sqlNum(r.vix)}, ${sqlNum(r.dxy)}, ${sqlNum(r.tnx)})`)
         .join(",\n") +
-        `\non conflict (date_key) do update set vix = excluded.vix, dxy = excluded.dxy, tnx = excluded.tnx, updated_at = now();`
+        // coalesce: a null (e.g. today's not-yet-final VIX) must never
+        // clobber a value the engine already stored.
+        `\non conflict (date_key) do update set vix = coalesce(excluded.vix, context_daily.vix), dxy = coalesce(excluded.dxy, context_daily.dxy), tnx = coalesce(excluded.tnx, context_daily.tnx), updated_at = now();`
     );
   }
 
