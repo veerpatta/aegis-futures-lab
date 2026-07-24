@@ -35,6 +35,7 @@ interface SignalRow {
   regime: string | null;
   fill_confidence: string | null;
   vix_bucket: string | null;
+  model_veto: boolean | null;
   signal_ts: string;
 }
 
@@ -205,7 +206,7 @@ async function main() {
   // ── Signals ──
   const { data: sigData, error: sigErr } = await supabase
     .from("signals")
-    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, signal_ts")
+    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, signal_ts")
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);
@@ -330,6 +331,35 @@ async function main() {
   // ── What I learned this week (Ring 0 diff) ──
   const lessons = await weeklyLessons();
 
+  // ── Win-probability model (Ring 1b): status + how its vetoes would have done ──
+  let modelLine = "Win-prob model: not trained yet.";
+  try {
+    const { data: reg } = await supabase
+      .from("model_registry")
+      .select("status, train_n, oos_brier, baseline_brier")
+      .order("trained_at", { ascending: false })
+      .limit(1);
+    const m = reg?.[0] as
+      | { status: string; train_n: number | null; oos_brier: number | null; baseline_brier: number | null }
+      | undefined;
+    if (m) {
+      const vetoed = signals.filter((s) => s.model_veto);
+      const vc = vetoed.filter((s) => s.pnl_usd !== null);
+      const w = vc.filter((s) => (s.pnl_usd ?? 0) > 0).length;
+      const l = vc.length - w;
+      const net = vc.reduce((a, s) => a + (s.pnl_usd ?? 0), 0);
+      const ghost = m.status !== "active";
+      modelLine =
+        `Win-prob model: <b>${m.status}</b> (${m.train_n ?? 0} clean examples, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}). ` +
+        (vetoed.length === 0
+          ? `${ghost ? "Would have vetoed" : "Vetoed"} 0 signals this week.`
+          : `${ghost ? "Would have vetoed" : "Vetoed"} ${vetoed.length} this week; those closed ${w}-${l} for ${money(net)}` +
+            (ghost ? " — a losing net there means the vetoes would have helped." : "."));
+    }
+  } catch {
+    /* model_registry absent — section stays as "not trained yet" */
+  }
+
   const statLine = (label: string, s: ReturnType<typeof stats>) =>
     `${label}: ${s.total} signals · ${s.closed} closed · net ${money(s.net)} · PF ${fmtPf(s.pf)}${
       s.winRate === null ? "" : ` · WR ${s.winRate}%`
@@ -368,6 +398,7 @@ async function main() {
         ]
       : []),
     `Learned: ${lessons.length === 1 ? lessons[0] : `${lessons.length} new lessons this week (see digest issue)`}`,
+    modelLine,
   ].join("\n");
   await sendTelegram(tg);
 
@@ -425,6 +456,10 @@ async function main() {
             return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${r.winRate ?? "—"}${r.winRate === null ? "" : "%"} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
           }),
         ].join("\n"),
+    ``,
+    `## Win-probability model`,
+    `${modelLine.replace(/<\/?b>/g, "**")}`,
+    `The model can only ever veto the worst signals (bottom decile) and never create a trade; it acts only once it has ≥300 clean-fill examples and beats the base-rate baseline out-of-sample, and demotes itself if it slips.`,
     ``,
     `## What I learned this week`,
     `Changes in the nightly knowledge tables (condition ledger) vs the snapshot ~7 days ago. Only cells with ≥10 closed signals whose profit factor moved >0.2 or win rate moved >10pts are reported.`,

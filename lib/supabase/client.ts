@@ -54,6 +54,19 @@ export interface BotPolicyRow {
   metrics: Record<string, unknown> | null;
 }
 
+/* model_registry: one row per nightly training of the win-probability model.
+   Latest row = current model + lifecycle status. */
+export interface ModelRegistryRow {
+  id: number;
+  trained_at: string;
+  model: string;
+  train_n: number | null;
+  oos_brier: number | null;
+  baseline_brier: number | null;
+  calibration: { bin: number; meanPredicted: number; actual: number; n: number }[] | null;
+  status: "observe" | "active" | "demoted";
+}
+
 /* learned_stats: one versioned row per stat_key per NY trading day, written
    by the nightly learn job (scripts/engine/learn.ts). payload is stat-shaped
    JSON — the /brain page narrows it per stat_key. */

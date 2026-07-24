@@ -5,7 +5,7 @@
    of it changes what the bot does. Paper only, delayed data. */
 
 import { useEffect, useMemo, useState } from "react";
-import { getSupabase, type LearnedStatsRow } from "@/lib/supabase/client";
+import { getSupabase, type LearnedStatsRow, type ModelRegistryRow } from "@/lib/supabase/client";
 import { Badge, DataTable, Kpi, Panel } from "@/components/ui";
 import { money } from "@/lib/format";
 import { fmtPf } from "@/lib/stats";
@@ -96,6 +96,17 @@ function cellNode(c: Cell | undefined, key: string) {
 
 export default function BrainClient() {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [models, setModels] = useState<ModelRegistryRow[] | null>(null);
+
+  useEffect(() => {
+    // Win-probability model history — best effort; absent before it trains.
+    getSupabase()
+      .from("model_registry")
+      .select("*")
+      .order("trained_at", { ascending: false })
+      .limit(14)
+      .then(({ data, error }) => setModels(error ? [] : ((data ?? []) as ModelRegistryRow[])));
+  }, []);
 
   useEffect(() => {
     getSupabase()
@@ -323,6 +334,67 @@ export default function BrainClient() {
             empty="collecting"
           />
         )}
+      </Panel>
+
+      {/* ── Win-probability model ── */}
+      <Panel title="The win-probability model" hint="predicts each signal's odds — can only veto the worst, never create a trade">
+        <p className={styles.note}>
+          A simple model learns, from signals it has already seen, which setups are least likely to
+          win. It has to earn the right to act: it only starts vetoing (the bottom 10% of predicted
+          odds) once it has ≥300 clean-fill examples <b>and</b> its out-of-sample accuracy beats a
+          dumb baseline. Lower &ldquo;Brier&rdquo; is better; it must stay below the baseline to keep
+          its authority, and it demotes itself if it slips. Until then it only shadow-votes.
+        </p>
+        {(() => {
+          const latest = models && models[0];
+          if (models === null) return <p className={styles.note}>Loading…</p>;
+          if (!latest) return <p className={styles.collecting}>Collecting — the model has not trained yet.</p>;
+          const tone = latest.status === "active" ? "green" : latest.status === "demoted" ? "red" : "amber";
+          const beats = latest.oos_brier !== null && latest.baseline_brier !== null && latest.oos_brier < latest.baseline_brier;
+          return (
+            <>
+              <div className={styles.asOf}>
+                <Badge tone={tone}>{latest.status.toUpperCase()}</Badge>
+                <span className={styles.dim}>
+                  &nbsp;{latest.train_n ?? 0} clean-fill examples · out-of-sample Brier{" "}
+                  <b className={beats ? styles.good : styles.bad}>{latest.oos_brier ?? "—"}</b> vs baseline{" "}
+                  {latest.baseline_brier ?? "—"} {latest.oos_brier === null ? "(collecting)" : beats ? "(beating baseline)" : "(not beating baseline)"}
+                </span>
+              </div>
+              {models.length > 1 && (
+                <>
+                  <h3 className={styles.subhead}>Brier trend (recent trainings, lower is better)</h3>
+                  <DataTable
+                    columns={["Trained", "Status", "Examples", "OOS Brier", "Baseline"]}
+                    rows={models.map((m) => [
+                      m.trained_at.slice(0, 10),
+                      m.status,
+                      String(m.train_n ?? "—"),
+                      <span key="b" className={m.oos_brier !== null && m.baseline_brier !== null && m.oos_brier < m.baseline_brier ? styles.good : undefined}>{m.oos_brier ?? "—"}</span>,
+                      String(m.baseline_brier ?? "—"),
+                    ])}
+                    empty="collecting"
+                  />
+                </>
+              )}
+              {latest.calibration && latest.calibration.length > 0 && (
+                <>
+                  <h3 className={styles.subhead}>Calibration (predicted vs actual win rate)</h3>
+                  <DataTable
+                    columns={["Band", "Predicted", "Actual", "n"]}
+                    rows={latest.calibration.map((c) => [
+                      `#${c.bin}`,
+                      `${Math.round(c.meanPredicted * 100)}%`,
+                      `${Math.round(c.actual * 100)}%`,
+                      String(c.n),
+                    ])}
+                    empty="collecting"
+                  />
+                </>
+              )}
+            </>
+          );
+        })()}
       </Panel>
 
       <Panel>
