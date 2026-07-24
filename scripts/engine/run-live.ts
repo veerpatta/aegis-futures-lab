@@ -26,6 +26,7 @@ import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
+import { applyBreakers, streamKeyFor } from "./breakers";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
@@ -68,6 +69,7 @@ interface SignalRow {
   regime: string | null;
   fill_confidence: FillConfidence | null;
   vix_bucket: string | null;
+  suppressed: boolean;
   updated_at: string;
 }
 
@@ -187,6 +189,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     regime: null, // stamped by the caller from the symbol's bars
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
+    suppressed: false, // stamped by the caller (breakers.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -218,6 +221,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     regime: null, // stamped by the caller from the symbol's bars
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
+    suppressed: false, // stamped by the caller (breakers.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -365,6 +369,28 @@ async function main() {
   }
   const signals = [...signalRows.values()];
 
+  // 1b) Circuit breakers (Ring 1a). Read each stream's closed history + policy
+  // state, decide pause/resume, record flips (bot_policy + Telegram), and stamp
+  // suppressed on this run's rows. Presentation-layer only: the simulator ran
+  // unchanged above; suppressed just hides a benched stream from headline stats
+  // and alerts while it keeps simulating. Never fails the run (fail-safe:
+  // active). Frozen via BOT_POLICY_FREEZE.
+  let breakerNotes: string[] = [];
+  try {
+    const { suppressedByStream, notes } = await applyBreakers(supabase, nowSec);
+    breakerNotes = notes;
+    for (const row of signals)
+      row.suppressed = suppressedByStream.get(streamKeyFor(row.tier, row.symbol)) ?? false;
+    const paused = [...suppressedByStream.entries()].filter(([, s]) => s).map(([k]) => k);
+    console.log(
+      `breakers: ${paused.length ? `paused ${paused.join(", ")}` : "all active"}` +
+        (notes.length ? ` · ${notes.join("; ")}` : "")
+    );
+  } catch (e) {
+    warnings.push(`breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+  }
+  if (breakerNotes.length) warnings.push(`breakers: ${breakerNotes.join("; ")}`);
+
   // Telegram diff baseline: what the table says BEFORE this run rewrites it.
   // A failed read only disables alerting (null) — never the run, and never
   // a spam-everything-as-new fallback.
@@ -390,7 +416,8 @@ async function main() {
   }
 
   if (oldStatus) {
-    const message = formatAlertMessage(diffSignalAlerts(oldStatus, signals));
+    // Suppressed (breaker-paused) streams never alert — they simulate silently.
+    const message = formatAlertMessage(diffSignalAlerts(oldStatus, signals.filter((s) => !s.suppressed)));
     if (message) await sendTelegram(message); // never throws
   }
   phaseT("signals", phaseStart);
