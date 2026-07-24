@@ -117,6 +117,19 @@ export const NAV_LINKS: NavLink[] = [
    both are desk work, not glance-at-the-phone work. */
 export const SECONDARY_LINKS: NavLink[] = [
   {
+    href: "/brain",
+    label: "What the bot knows",
+    shortLabel: "Brain",
+    hint: "Nightly self-learned stats",
+    icon: (
+      <svg {...iconProps}>
+        {/* brain / lightbulb of knowledge */}
+        <path d="M9 18h6M10 21h4" />
+        <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.95v.25h5.2v-.25c0-.8.4-1.5 1-1.95A6 6 0 0 0 12 3Z" />
+      </svg>
+    ),
+  },
+  {
     href: "/compare",
     label: "Compare",
     hint: "Side-by-side runs",

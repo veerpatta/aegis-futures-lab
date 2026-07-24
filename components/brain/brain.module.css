@@ -1,0 +1,51 @@
+.note {
+  font-size: 13px;
+  color: var(--dim, #8a94a6);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.subhead {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 16px 0 8px;
+}
+
+.asOf {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+
+.dim {
+  color: var(--dim, #8a94a6);
+}
+
+.good {
+  color: var(--green, #21ba72);
+}
+
+.bad {
+  color: var(--red, #e5484d);
+}
+
+.collecting {
+  color: var(--dim, #8a94a6);
+  font-style: italic;
+}
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}

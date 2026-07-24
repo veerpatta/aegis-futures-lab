@@ -37,6 +37,17 @@ export interface SignalRow {
   vix_bucket: "low" | "high" | null;
 }
 
+/* learned_stats: one versioned row per stat_key per NY trading day, written
+   by the nightly learn job (scripts/engine/learn.ts). payload is stat-shaped
+   JSON — the /brain page narrows it per stat_key. */
+export interface LearnedStatsRow {
+  id: number;
+  computed_at: string;
+  stat_key: string;
+  date_key: string;
+  payload: unknown;
+}
+
 export interface ZoneRow {
   id: number;
   symbol: string;
