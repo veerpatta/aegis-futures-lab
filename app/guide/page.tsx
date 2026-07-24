@@ -184,6 +184,26 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>When the bot benches a strategy</h2>
+        <p>
+          The bot watches how each stream is actually doing. When a stream&apos;s recent results
+          slump — its profit factor drops below 0.8 over its last 20 finished trades — the bot{" "}
+          <b>benches it</b>: it stops showing that stream&apos;s ideas and stops counting them in
+          the headline numbers, but it keeps simulating them silently in the background. When the
+          silent practice run recovers — profit factor back to 1.1 or better over the next 15 — the
+          bot puts the stream back in the game on its own. It waits at least three trading days
+          between changes so it never flip-flops.
+        </p>
+        <p className={styles.note}>
+          Paused streams show up in their own <b>Paused streams</b> box on the Signals page and a
+          note on Home, with the date they were benched and how their practice run is recovering.
+          Every bench and every return is recorded and sent to Telegram, so nothing happens
+          silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
+          like everything here, it is paper only.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>ET or IST — your choice</h2>
         <p>
           Every time in the app can be shown on the New York exchange clock (<b>ET</b>) or on

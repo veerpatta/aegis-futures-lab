@@ -53,6 +53,18 @@ stop hit, or closed flat), so you can judge the strategy on evidence instead of 
 The point of the labels: over time, watch **which tier actually makes money** in the
 Performance panel, and weight your attention accordingly.
 
+### When the bot benches a strategy (circuit breakers)
+
+The bot watches how each stream is doing. When a stream's recent results slump — profit
+factor below 0.8 over its last 20 finished trades — it **benches** that stream: it stops
+showing its ideas and stops counting them in the headline numbers, but keeps simulating
+them silently. When the silent practice recovers (profit factor 1.1 or better over the
+next 15), the bot returns the stream to the game on its own, waiting at least three
+trading days between changes so it never flip-flops. Paused streams appear in their own
+**Paused streams** box on Signals and a note on Home; every bench and return is recorded
+and sent to Telegram. It is the safest kind of automation — learning when *not* to trade —
+and it is paper only.
+
 ## 4. How to read one signal
 
 | Field | Meaning |
