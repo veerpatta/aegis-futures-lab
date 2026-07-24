@@ -130,17 +130,26 @@ export interface WinProbResult {
    the digest grades. Mutates rows in place. Never throws to the caller's fatal
    path — the caller wraps this. */
 export async function applyWinProb<
-  T extends ModelRow & { win_prob: number | null; model_veto: boolean }
+  T extends ModelRow & { win_prob: number | null; model_veto: boolean; dedupe_key: string }
 >(supabase: SupabaseClient, rows: T[]): Promise<WinProbResult> {
   const model = await loadLatestModel(supabase);
   if (!model) return { status: null, active: false, threshold: null, vetoed: 0 };
 
   for (const row of rows) row.win_prob = +scoreRow(model, row).toFixed(4);
 
-  // Trailing distribution = stored win_prob pooled with this run's scores.
-  const { data: dist } = await supabase.from("signals").select("win_prob").not("win_prob", "is", null);
+  // Trailing distribution: the 500 MOST RECENT stored scores (descending +
+  // range, so it never truncates at Supabase's 1000-row cap), excluding this
+  // run's own rows so their prior stored win_prob isn't double-counted against
+  // their fresh score (finding 2).
+  const runKeys = new Set(rows.map((r) => r.dedupe_key));
+  const { data: dist } = await supabase
+    .from("signals")
+    .select("win_prob, dedupe_key")
+    .not("win_prob", "is", null)
+    .order("signal_ts", { ascending: false })
+    .range(0, 499);
   const pooled = [
-    ...(dist ?? []).map((r) => Number(r.win_prob)),
+    ...(dist ?? []).filter((r) => !runKeys.has(String(r.dedupe_key))).map((r) => Number(r.win_prob)),
     ...rows.map((r) => r.win_prob ?? NaN),
   ];
   const threshold = percentile(pooled, VETO_PERCENTILE);

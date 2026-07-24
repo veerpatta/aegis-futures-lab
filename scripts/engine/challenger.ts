@@ -24,6 +24,7 @@ import { nyMeta } from "@/lib/time/ny";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
 import { challengerFor, loadSeries, streamTuneKey, type ChallengerVerdict } from "./tune-core";
+import { fetchAllRows } from "./paginate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -232,8 +233,12 @@ async function main() {
 
   // ── Shadow promotions ──
   try {
-    const { data } = await supabase.from("shadow_signals").select("strategy, symbol, status, pnl_usd, regime, fill_confidence");
-    const rows = (data ?? []) as (ShadowLike & { strategy: string; symbol: string })[];
+    // Full history — the promotion checklist needs every closed shadow signal.
+    const rows = await fetchAllRows<ShadowLike & { strategy: string; symbol: string }>(
+      supabase,
+      "shadow_signals",
+      "strategy, symbol, status, pnl_usd, regime, fill_confidence"
+    );
     const keys = [...new Set(rows.map((r) => `${r.strategy}|${r.symbol}`))].sort();
     for (const k of keys) {
       const [strategy, symbol] = k.split("|");

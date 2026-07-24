@@ -15,6 +15,7 @@ import { earlyCloseMinuteNy, isMarketHoliday } from "@/lib/market/holidays";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf, profitFactor } from "@/lib/stats";
 import { sendTelegram } from "./notify";
+import { fetchAllRows } from "./paginate";
 import { promotionReport, type ShadowLike } from "./promotion";
 
 const supabase = createClient(
@@ -293,11 +294,12 @@ async function main() {
   }
   let shadowRows: ShadowDbRow[] = [];
   try {
-    const { data, error } = await supabase
-      .from("shadow_signals")
-      .select("strategy, symbol, status, pnl_usd, regime, fill_confidence");
-    if (error) throw new Error(error.message);
-    shadowRows = (data ?? []) as ShadowDbRow[];
+    // Full history (paginated) — the scoreboard is the whole growing sample.
+    shadowRows = await fetchAllRows<ShadowDbRow>(
+      supabase,
+      "shadow_signals",
+      "strategy, symbol, status, pnl_usd, regime, fill_confidence"
+    );
   } catch (e) {
     console.error(`shadow read failed (section skipped): ${e instanceof Error ? e.message : e}`);
   }
