@@ -11,4 +11,5 @@ export function profitFactor(pnls: number[]): number | null {
   return losses > 0 ? wins / losses : null;
 }
 
-export const fmtPf = (pf: number | null): string => (pf === null ? "—" : pf.toFixed(2));
+export const fmtPf = (pf: number | null): string =>
+  pf === null ? "—" : Number.isFinite(pf) ? pf.toFixed(2) : "∞";

@@ -49,31 +49,15 @@ jobs:
           cache: npm
       - run: npm ci
         if: steps.guard.outputs.run == 'true'
-      - name: Baseline — live params over the trailing 60 Yahoo days
+      - name: Honest tune — expanding walk-forward, held-out month, Monte Carlo
         if: steps.guard.outputs.run == 'true'
-        run: npx tsx scripts/engine/report.ts --markdown > baseline.md
-      - name: Walk-forward — live params over the full bar archive
-        if: steps.guard.outputs.run == 'true'
-        run: npx tsx scripts/engine/report.ts --markdown --archive > archive.md
-      - name: Post the comparison as an issue
+        run: npx tsx scripts/engine/tune.ts > body.md
+      - name: Post the tune as an issue
         if: steps.guard.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           month=$(date -u +%Y-%m)
-          {
-            echo "The live tier configuration (\`scripts/engine/tiers.ts\`, tuned 2026-07-19) replayed over two windows. Same simulator, same costs, same discipline locks as the live engine."
-            echo
-            echo "## Trailing 60 days (original tuning window, Yahoo)"
-            cat baseline.md
-            echo
-            echo "## Longest window the bar archive supports"
-            cat archive.md
-            echo
-            echo "---"
-            echo
-            echo "**No automatic change is made.** \`tiers.ts\` is only ever edited by a human commit. If the walk-forward numbers have degraded, re-tune by hand and commit; if they hold up, close this issue with \"keep\"."
-          } > body.md
           gh issue create \
             --repo "$GITHUB_REPOSITORY" \
             --title "Monthly tune $month: keep or adjust tiers" \
