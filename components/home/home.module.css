@@ -963,3 +963,28 @@
     gap: 2px;
   }
 }
+
+/* ── Live vs tuning window ─────────────────────────────────────────── */
+
+.gapRow {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.gapRow:last-of-type {
+  border-bottom: none;
+}
+.gapHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.gapLabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+.gapMeta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-dim);
+}

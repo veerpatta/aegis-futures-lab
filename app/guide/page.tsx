@@ -211,6 +211,25 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>&ldquo;Live vs tuning window&rdquo; — is it still working?</h2>
+        <p>
+          The strategy&apos;s settings were chosen on past data, which promised a certain profit
+          factor and pace for each stream. This Home panel compares that promise with what the
+          live ideas have actually delivered since go-live. While a stream has fewer than 20
+          finished ideas it only says <b>collecting data</b> — a handful of trades proves nothing.
+          After that: green <b>tracking</b> means reality matches the promise, amber{" "}
+          <b>lagging</b> means it is earning less than promised but still above water, and red{" "}
+          <b>underwater</b> means the stream is losing money over a meaningful sample.
+        </p>
+        <p className={styles.note}>
+          A red stream means <b>stop trusting that stream</b> — the market may have changed since
+          the settings were tuned. It never means &ldquo;trade harder to catch up&rdquo;. The
+          muted line under each stream repeats the numbers excluding doubtful fills, the stricter
+          honest version.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>Telegram alerts (optional)</h2>
         <p>
           The bot can message you on Telegram the moment an idea triggers — entry, stop, target

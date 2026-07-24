@@ -104,6 +104,20 @@ Open the site on your phone, then choose **Add to Home Screen** in the browser m
 installs like an app and opens straight onto the Home screen, with the five main pages
 along the bottom.
 
+## 7a. "Live vs tuning window" — is it still working?
+
+The strategy's settings were chosen on past data, which promised a certain profit factor
+and pace for each stream. The Home panel **Live vs tuning window** compares that promise
+with what the live ideas have actually delivered since go-live. While a stream has fewer
+than 20 finished ideas it only says **collecting data** — a handful of trades proves
+nothing. After that: green **tracking** = reality matches the promise; amber **lagging** =
+earning less than promised but still above water; red **underwater** = the stream is
+losing money over a meaningful sample.
+
+A red stream means **stop trusting that stream** — the market may have changed since the
+settings were tuned. It never means "trade harder to catch up". The muted line under each
+stream repeats the numbers excluding doubtful fills, the stricter honest version.
+
 ## 7b. Telegram alerts (optional)
 
 The bot can message you on Telegram the moment an idea triggers — entry, stop, target

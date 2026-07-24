@@ -29,6 +29,7 @@ import {
 import { dayKeyLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import ZoneToggle from "@/components/nav/ZoneToggle";
+import LiveVsTuning from "./LiveVsTuning";
 import { money } from "@/lib/format";
 import { fmtPf, profitFactor } from "@/lib/stats";
 import styles from "./home.module.css";
@@ -709,6 +710,8 @@ export default function HomeClient() {
               ))
             )}
           </section>
+
+          <LiveVsTuning signals={signals} />
 
           <section className={`${styles.status} ${styles.card}`} aria-label="Bot status">
             <h2 className={styles.cardTitle}>Bot status</h2>

@@ -32,6 +32,27 @@ export const EXECUTION: ExecutionConfig = {
 export const STARTING_CAPITAL = 3000;
 export const SESSION_EXIT_MINUTE = 925; // flat by 15:25 ET
 
+/* What the tuning window promised (trailing 60d as of 2026-07-19) —
+   structured so the dashboard's "Live vs tuning window" panel can compare
+   reality against the promise. Bands restate the header notes above; they
+   are expectations from one 60-day sample, not guarantees. */
+export const GO_LIVE_DATE = "2026-07-19"; // NY dateKey of the first live signals
+
+export interface TuningBaseline {
+  key: "A" | "B:MES" | "B:MNQ";
+  label: string;
+  tier: "A" | "B";
+  symbol: "MES" | "MNQ" | null; // null = every symbol the tier trades
+  pfBand: [number, number];
+  tradesPerDay: [number, number];
+}
+
+export const TUNING_BASELINE: TuningBaseline[] = [
+  { key: "A", label: "Zone setups · MES+MNQ", tier: "A", symbol: null, pfBand: [1.3, 1.4], tradesPerDay: [0.3, 0.4] },
+  { key: "B:MES", label: "Daily flow · MES", tier: "B", symbol: "MES", pfBand: [1.2, 1.3], tradesPerDay: [0.8, 1.2] },
+  { key: "B:MNQ", label: "Daily flow · MNQ", tier: "B", symbol: "MNQ", pfBand: [1.2, 1.3], tradesPerDay: [0.8, 1.2] },
+];
+
 export interface TierStream {
   tier: "A" | "B";
   label: string;
