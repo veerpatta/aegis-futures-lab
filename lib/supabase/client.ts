@@ -33,6 +33,7 @@ export interface SignalRow {
   pnl_usd: number | null;
   risk_usd: number | null;
   regime: string | null;
+  fill_confidence: "clean" | "marginal" | "doubtful" | null;
 }
 
 export interface ZoneRow {

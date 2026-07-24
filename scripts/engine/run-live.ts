@@ -21,6 +21,7 @@ import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { inEntryWindow } from "@/lib/time/session";
 import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
+import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { zoneRows } from "./zone-rows";
@@ -63,6 +64,7 @@ interface SignalRow {
   pnl_usd: number | null;
   risk_usd: number | null;
   regime: string | null;
+  fill_confidence: FillConfidence | null;
   updated_at: string;
 }
 
@@ -180,6 +182,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     pnl_usd: +t.pnl.toFixed(2),
     risk_usd: t.rMultiple ? +Math.abs(t.pnl / t.rMultiple).toFixed(2) : null,
     regime: null, // stamped by the caller from the symbol's bars
+    fill_confidence: null, // stamped by the caller (fill-audit.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -209,6 +212,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     pnl_usd: null,
     risk_usd: +p.risk.toFixed(2),
     regime: null, // stamped by the caller from the symbol's bars
+    fill_confidence: null, // stamped by the caller (fill-audit.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -286,15 +290,41 @@ async function main() {
       pointValues: POINT_VALUES,
       keepOpenAtEnd: true,
     });
+    // Fill-realism audit against the bars in memory. For limit streams the
+    // resting level is recovered as entry ∓ slippage (the engine fills at
+    // limit + slippage when price arrives against the order).
+    const audit = (
+      side: "LONG" | "SHORT",
+      symbol: string,
+      entryPrice: number,
+      entryTime: number,
+      exitTime: number | null
+    ) =>
+      auditFill({
+        fillModel: stream.fillModel,
+        direction: side === "LONG" ? "long" : "short",
+        limit:
+          stream.fillModel === "limit"
+            ? side === "LONG"
+              ? entryPrice - EXECUTION.slippage
+              : entryPrice + EXECUTION.slippage
+            : entryPrice,
+        entryTime,
+        exitTime,
+        bars: bySymbol[symbol] ?? [],
+      });
     for (const t of res.trades) {
       if (t.entryTime < cutoff) continue;
       const row = rowFromTrade(stream.tier, stream.label, t);
       row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
+      row.fill_confidence = audit(t.side, t.symbol, t.entryPrice, t.entryTime, t.exitTime);
       signalRows.set(row.dedupe_key, row);
     }
     if (res.openPosition && res.openPosition.openedAt >= cutoff) {
-      const row = rowFromOpen(stream.tier, stream.label, res.openPosition);
-      row.regime = computeRegime(bySymbol[res.openPosition.symbol] ?? [], res.openPosition.openedAt);
+      const p = res.openPosition;
+      const row = rowFromOpen(stream.tier, stream.label, p);
+      row.regime = computeRegime(bySymbol[p.symbol] ?? [], p.openedAt);
+      row.fill_confidence = audit(p.side, p.symbol, p.entry, p.openedAt, null);
       signalRows.set(row.dedupe_key, row);
     }
     const n = res.trades.filter((t) => t.entryTime >= cutoff).length + (res.openPosition ? 1 : 0);

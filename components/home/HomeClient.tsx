@@ -30,6 +30,7 @@ import { dayKeyLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import ZoneToggle from "@/components/nav/ZoneToggle";
 import { money } from "@/lib/format";
+import { fmtPf, profitFactor } from "@/lib/stats";
 import styles from "./home.module.css";
 
 const REFRESH_MS = 60_000;
@@ -281,7 +282,12 @@ export default function HomeClient() {
     const tradingDays = weekdaysBetween(fromMs, Date.now());
     const tierNet = (t: "A" | "B") =>
       closed.filter((s) => s.tier === t).reduce((a, s) => a + (s.pnl_usd ?? 0), 0);
+    const exPnls = closed
+      .filter((s) => s.fill_confidence !== "doubtful")
+      .map((s) => s.pnl_usd ?? 0);
     return {
+      exNet: exPnls.reduce((a, v) => a + v, 0),
+      exPf: profitFactor(exPnls),
       ideas: window.length,
       closed: closed.length,
       net: closed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
@@ -541,6 +547,10 @@ export default function HomeClient() {
               </div>
             </div>
             <PnlBars days={perf.days} />
+            <p className={styles.emptyNote}>
+              excluding doubtful fills: PF {fmtPf(perf.exPf)} · net {money(perf.exNet)} — ideas
+              where price only kissed the entry level are counted out here
+            </p>
           </section>
 
           {/* Recent ideas */}
@@ -596,6 +606,22 @@ export default function HomeClient() {
                         {s.pnl_usd === null ? "—" : money(s.pnl_usd)}
                       </b>
                       <span className={`${styles.tag} ${styles[look.tone]}`}>{look.label}</span>
+                      {s.fill_confidence === "marginal" && (
+                        <span
+                          className={`${styles.tag} ${styles.warn}`}
+                          title="Price barely reached the entry level — a real resting order may not have filled first time"
+                        >
+                          MARGINAL FILL
+                        </span>
+                      )}
+                      {s.fill_confidence === "doubtful" && (
+                        <span
+                          className={`${styles.tag} ${styles.bad}`}
+                          title="Price only kissed the entry level and never came back — a real order likely never filled"
+                        >
+                          DOUBTFUL FILL
+                        </span>
+                      )}
                     </span>
                   </div>
                 );

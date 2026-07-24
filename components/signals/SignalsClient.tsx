@@ -29,6 +29,7 @@ import {
 import { dayKeyLabel, etWindowLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { money } from "@/lib/format";
+import { fmtPf, profitFactor } from "@/lib/stats";
 import { Badge, Button, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
 import styles from "./signals.module.css";
 
@@ -51,6 +52,31 @@ function statusBadge(s: SignalRow["status"]) {
     default:
       return <Badge>{s.toUpperCase()}</Badge>;
   }
+}
+
+/* Fill-realism chip: nothing for a clean fill; a warning when the 5m bar
+   path only thinly supports the simulated fill. */
+function fillChip(fc: SignalRow["fill_confidence"]) {
+  if (fc === "marginal")
+    return (
+      <span title="Marginal fill — price barely reached the level; a real resting order may not have filled first time">
+        <Badge tone="amber">MARGINAL FILL</Badge>
+      </span>
+    );
+  if (fc === "doubtful")
+    return (
+      <span title="Doubtful fill — price only kissed the level and never came back; a real order likely never filled">
+        <Badge tone="red">DOUBTFUL FILL</Badge>
+      </span>
+    );
+  return null;
+}
+
+/* Net + PF over closed rows, excluding doubtful fills — the honest restatement. */
+function exDoubtful(rows: SignalRow[]): { net: number; pf: number | null; n: number } {
+  const closed = rows.filter((s) => s.pnl_usd !== null && s.fill_confidence !== "doubtful");
+  const pnls = closed.map((s) => s.pnl_usd ?? 0);
+  return { net: pnls.reduce((a, v) => a + v, 0), pf: profitFactor(pnls), n: closed.length };
 }
 
 /* Market regime the engine stamped at entry (trend/range × volatility).
@@ -229,6 +255,7 @@ export default function SignalsClient() {
         winRate: done.length ? (wins / done.length) * 100 : null,
         net: done.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
         open: rows.filter((s) => s.status === "triggered").length,
+        ex: exDoubtful(rows),
       };
     };
     const regimes = REGIME_ORDER.map((key) => {
@@ -253,6 +280,8 @@ export default function SignalsClient() {
         ? (weekClosed.filter((s) => (s.pnl_usd ?? 0) > 0).length / weekClosed.length) * 100
         : null,
       weekNet: weekClosed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
+      weekEx: exDoubtful(week),
+      windowEx: exDoubtful(ready.signals),
       A: tier("A"),
       B: tier("B"),
       regimes,
@@ -399,6 +428,11 @@ export default function SignalsClient() {
             <Kpi label="7-day net" value={money(perf.weekNet)} tone={perf.weekNet >= 0 ? "good" : "bad"} />
             <Kpi label="Window net" value={money(perf.net)} tone={perf.net >= 0 ? "good" : "bad"} sub={`last ${perf.curve.length} closed`} />
           </div>
+          <p className={styles.dim}>
+            excluding doubtful fills — 7-day: PF {fmtPf(perf.weekEx.pf)} · net{" "}
+            {money(perf.weekEx.net)} · window: PF {fmtPf(perf.windowEx.pf)} · net{" "}
+            {money(perf.windowEx.net)}
+          </p>
           <Sparkline values={perf.curve} />
           <div className={styles.tierGrid}>
             {(["A", "B"] as const).map((t) => {
@@ -422,6 +456,9 @@ export default function SignalsClient() {
                     <span className={s.net >= 0 ? styles.good : styles.bad}>
                       <b className="num">{money(s.net)}</b>
                     </span>
+                  </div>
+                  <div className={styles.dim}>
+                    excluding doubtful fills: PF {fmtPf(s.ex.pf)} · {money(s.ex.net)}
                   </div>
                   {s.closed > 0 && (
                     <div className={styles.wlBar} aria-hidden>
@@ -513,7 +550,9 @@ export default function SignalsClient() {
                 s.stop_price.toFixed(2),
                 s.target_price?.toFixed(2) ?? "—",
                 s.rr?.toFixed(1) ?? "—",
-                statusBadge(s.status),
+                <span key="s">
+                  {statusBadge(s.status)} {fillChip(s.fill_confidence)}
+                </span>,
                 s.pnl_usd === null ? (
                   "—"
                 ) : (

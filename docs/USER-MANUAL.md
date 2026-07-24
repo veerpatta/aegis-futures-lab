@@ -62,6 +62,7 @@ Performance panel, and weight your attention accordingly.
 | Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **FLAT CLOSE** = closed at 15:25 ET / 00:55 IST (the strategy never holds overnight). |
 | P&L | Simulated dollars for the position size the engine chose (risking about $160 per trade), commissions already subtracted. |
 | Regime | What kind of market the idea was born into: trending or ranging, quiet or volatile (e.g. **TR·HV** = trending, high volatility). It never changes the ideas — it is a label, so the Performance panel can show which conditions the strategy actually earns in. |
+| Marginal / doubtful fill | An honesty check on the entry. The simulation assumes a resting order fills when price touches the entry level — in a real market a touch is often not enough. No chip = price traded cleanly through the level. **MARGINAL FILL** (amber) = price barely reached it but came back later. **DOUBTFUL FILL** (red) = price only kissed the level once; a real order likely never filled, so treat that idea's profit as imaginary. Every performance number is also restated "excluding doubtful fills". |
 
 ## 5. What each page does
 

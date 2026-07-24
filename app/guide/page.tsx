@@ -123,6 +123,16 @@ export default function GuidePage() {
             label, so the Performance panel can show which conditions the strategy actually earns
             in.
           </dd>
+          <dt>Marginal / doubtful fill</dt>
+          <dd>
+            An honesty check on the entry itself. The simulation assumes a resting order fills the
+            moment price touches the entry level — in a real market a touch is often not enough.
+            No chip means price traded cleanly through the level. <b>MARGINAL FILL</b> (amber)
+            means price barely reached it but came back later; <b>DOUBTFUL FILL</b> (red) means
+            price only kissed the level once — a real order likely never filled, so treat that
+            idea&apos;s profit as imaginary. Every performance number is also restated
+            &ldquo;excluding doubtful fills&rdquo; so you can see both versions.
+          </dd>
         </dl>
       </section>
 
