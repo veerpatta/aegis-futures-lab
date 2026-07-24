@@ -25,6 +25,8 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { profitFactor } from "@/lib/stats";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
+import { retrainModel } from "./model";
+import type { ModelRow } from "./winprob";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -42,6 +44,7 @@ interface SignalRow {
   symbol: string;
   direction: string | null;
   score: number | null;
+  rr: number | null;
   status: string;
   pnl_usd: number | null;
   regime: string | null;
@@ -54,6 +57,8 @@ interface ShadowDbRow extends ShadowLike {
   strategy: string;
   symbol: string;
   score: number | null;
+  rr: number | null;
+  vix_bucket: string | null;
   signal_ts: string;
 }
 
@@ -153,7 +158,7 @@ async function main() {
 
   const signals = await fetchAll<SignalRow>(
     "signals",
-    "tier, symbol, direction, score, status, pnl_usd, regime, fill_confidence, vix_bucket, signal_ts"
+    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, signal_ts"
   );
   const closed = signals.filter((s) => s.pnl_usd !== null);
 
@@ -164,7 +169,7 @@ async function main() {
     shadowClosed = (
       await fetchAll<ShadowDbRow>(
         "shadow_signals",
-        "strategy, symbol, status, score, pnl_usd, regime, fill_confidence, signal_ts"
+        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts"
       )
     ).filter((r) => r.pnl_usd !== null);
   } catch (e) {
@@ -226,7 +231,7 @@ async function main() {
   try {
     allShadow = await fetchAll<ShadowDbRow>(
       "shadow_signals",
-      "strategy, symbol, status, score, pnl_usd, regime, fill_confidence, signal_ts"
+      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts"
     );
   } catch {
     allShadow = shadowClosed;
@@ -252,6 +257,41 @@ async function main() {
       };
     }),
   };
+
+  // ── Ring 1b: retrain the win-probability model + lifecycle transitions ──
+  // Training set = closed clean-fill rows across real signals + shadow
+  // auditions (the model auditions on the same data). retrainModel writes a
+  // model_registry row and, on graduation/demotion, a bot_policy + Telegram.
+  const modelRows: ModelRow[] = [
+    ...signals.map((s) => ({
+      tier: s.tier,
+      regime: s.regime,
+      vix_bucket: s.vix_bucket,
+      score: s.score,
+      rr: s.rr,
+      signal_ts: s.signal_ts,
+      pnl_usd: s.pnl_usd,
+      fill_confidence: s.fill_confidence,
+    })),
+    ...allShadow.map((s) => ({
+      tier: null,
+      regime: s.regime,
+      vix_bucket: s.vix_bucket,
+      score: s.score,
+      rr: s.rr,
+      signal_ts: s.signal_ts,
+      pnl_usd: s.pnl_usd,
+      fill_confidence: s.fill_confidence,
+    })),
+  ];
+  try {
+    const m = await retrainModel(supabase, modelRows);
+    console.log(
+      `model: ${m.status}, train_n ${m.train_n}, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}`
+    );
+  } catch (e) {
+    console.error(`model retrain failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+  }
 
   const rows = [
     { stat_key: "score_calibration", date_key, computed_at, payload: { real: realCal, inclusive: inclusiveCal, minCell: MIN_CELL_N } },

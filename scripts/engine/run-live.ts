@@ -27,6 +27,7 @@ import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
 import { applyBreakers, streamKeyFor } from "./breakers";
+import { applyWinProb } from "./model";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
@@ -70,6 +71,8 @@ interface SignalRow {
   fill_confidence: FillConfidence | null;
   vix_bucket: string | null;
   suppressed: boolean;
+  win_prob: number | null;
+  model_veto: boolean;
   updated_at: string;
 }
 
@@ -190,6 +193,8 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
     suppressed: false, // stamped by the caller (breakers.ts)
+    win_prob: null, // stamped by the caller (model.ts)
+    model_veto: false, // stamped by the caller (model.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -222,6 +227,8 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
     suppressed: false, // stamped by the caller (breakers.ts)
+    win_prob: null, // stamped by the caller (model.ts)
+    model_veto: false, // stamped by the caller (model.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -391,6 +398,23 @@ async function main() {
   }
   if (breakerNotes.length) warnings.push(`breakers: ${breakerNotes.join("; ")}`);
 
+  // 1c) Win-probability model (Ring 1b). Score each signal's win_prob and flag
+  // the bottom decile of the trailing distribution as model_veto. The veto only
+  // takes real effect (alert exclusion) when the model is ACTIVE; in observe/
+  // demoted it is a ghost flag the digest grades. Never fails the run.
+  let modelActive = false;
+  try {
+    const res = await applyWinProb(supabase, signals);
+    modelActive = res.active;
+    if (res.status)
+      console.log(
+        `winprob: model ${res.status}, threshold ${res.threshold?.toFixed(3) ?? "—"}, ` +
+          `${res.vetoed} bottom-decile${res.active ? " (vetoed)" : " (ghost)"}`
+      );
+  } catch (e) {
+    warnings.push(`winprob_error: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+  }
+
   // Telegram diff baseline: what the table says BEFORE this run rewrites it.
   // A failed read only disables alerting (null) — never the run, and never
   // a spam-everything-as-new fallback.
@@ -416,8 +440,10 @@ async function main() {
   }
 
   if (oldStatus) {
-    // Suppressed (breaker-paused) streams never alert — they simulate silently.
-    const message = formatAlertMessage(diffSignalAlerts(oldStatus, signals.filter((s) => !s.suppressed)));
+    // Suppressed (breaker-paused) streams never alert. When the model is active,
+    // its bottom-decile vetoes are also held back from NEW-idea alerts.
+    const alertable = signals.filter((s) => !s.suppressed && !(modelActive && s.model_veto));
+    const message = formatAlertMessage(diffSignalAlerts(oldStatus, alertable));
     if (message) await sendTelegram(message); // never throws
   }
   phaseT("signals", phaseStart);
