@@ -26,7 +26,7 @@ import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
-import { applyBreakers, isSuppressedAt, streamKeyFor } from "./breakers";
+import { applyBreakers, isSuppressedAt, streamKeyForRow } from "./breakers";
 import { applyWinProb } from "./model";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
@@ -391,7 +391,7 @@ async function main() {
     // A pause/resume therefore never rewrites already-decided history, and the
     // result is deterministic each run (idempotent upsert).
     for (const row of signals) {
-      const intervals = intervalsByStream.get(streamKeyFor(row.tier, row.symbol)) ?? [];
+      const intervals = intervalsByStream.get(streamKeyForRow(row)) ?? [];
       row.suppressed = isSuppressedAt(intervals, Math.floor(new Date(row.signal_ts).getTime() / 1000));
     }
     console.log(

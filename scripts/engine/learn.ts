@@ -26,6 +26,7 @@ import { profitFactor } from "@/lib/stats";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
 import { retrainModel } from "./model";
+import { buildModelRows } from "./train-set";
 import type { ModelRow } from "./winprob";
 
 const supabase = createClient(
@@ -50,6 +51,7 @@ interface SignalRow {
   regime: string | null;
   fill_confidence: string | null;
   vix_bucket: string | null;
+  dedupe_key: string;
   signal_ts: string;
 }
 
@@ -158,7 +160,7 @@ async function main() {
 
   const signals = await fetchAll<SignalRow>(
     "signals",
-    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, signal_ts"
+    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts"
   );
   const closed = signals.filter((s) => s.pnl_usd !== null);
 
@@ -262,28 +264,9 @@ async function main() {
   // Training set = closed clean-fill rows across real signals + shadow
   // auditions (the model auditions on the same data). retrainModel writes a
   // model_registry row and, on graduation/demotion, a bot_policy + Telegram.
-  const modelRows: ModelRow[] = [
-    ...signals.map((s) => ({
-      tier: s.tier,
-      regime: s.regime,
-      vix_bucket: s.vix_bucket,
-      score: s.score,
-      rr: s.rr,
-      signal_ts: s.signal_ts,
-      pnl_usd: s.pnl_usd,
-      fill_confidence: s.fill_confidence,
-    })),
-    ...allShadow.map((s) => ({
-      tier: null,
-      regime: s.regime,
-      vix_bucket: s.vix_bucket,
-      score: s.score,
-      rr: s.rr,
-      signal_ts: s.signal_ts,
-      pnl_usd: s.pnl_usd,
-      fill_confidence: s.fill_confidence,
-    })),
-  ];
+  // Training set with real-vs-shadow dedup (finding 8) — a promoted strategy
+  // that appears as both a live signal and a shadow row is counted once (real).
+  const modelRows: ModelRow[] = buildModelRows(signals, allShadow);
   try {
     const m = await retrainModel(supabase, modelRows);
     console.log(

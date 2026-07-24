@@ -15,7 +15,7 @@ import {
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
-import { streamKeyFor, streamLabel } from "@/lib/engine/streams";
+import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { fetchEvents, fetchMarket, type CalendarEvent, type MarketPayload } from "@/lib/data/fetch";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
@@ -249,7 +249,7 @@ export default function HomeClient() {
     for (const [stream, p] of latest) {
       if (p.action !== "paused") continue;
       const recent = ready.signals
-        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyFor(s.tier, s.symbol) === stream)
+        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyForRow(s) === stream)
         .slice(0, 15);
       out.push({ stream, since: p.changed_at, recoveryPf: profitFactor(recent.map((s) => s.pnl_usd ?? 0)), n: recent.length });
     }

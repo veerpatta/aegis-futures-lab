@@ -17,6 +17,7 @@ export interface SignalRow {
   id: number;
   tier: "A" | "B";
   symbol: string;
+  dedupe_key: string;
   timeframe: string;
   direction: "long" | "short";
   entry_price: number;

@@ -19,7 +19,7 @@ function makeSupabase(resolve: (table: string, state: CallState) => unknown[]) {
   const from = (table: string) => {
     const state: CallState = { table, ops: [] };
     const b: Record<string, unknown> = {};
-    for (const m of ["select", "not", "eq", "order", "range", "limit", "gte", "in"])
+    for (const m of ["select", "not", "eq", "order", "range", "limit", "gte", "in", "like"])
       b[m] = (...args: unknown[]) => (state.ops.push([m, ...args]), b);
     b.then = (onResolve: (v: { data: unknown[]; error: null }) => void) => {
       calls.push(state);

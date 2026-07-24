@@ -312,7 +312,7 @@ async function main() {
         `|---:|---:|---:|---:|`,
         `| ${report.closed} | ${pf(report.pf)} | ${money(Math.round(report.net))} | ${report.regimesPositive}/${report.regimesWithData} |`,
         ``,
-        `Adds \`PROMOTED_SHADOWS\` entry \`{ label: "${strategy}", strategyId: "${strategy}", symbols: ["${symbol}"] }\` with the standard tier-B locks.`,
+        `Adds \`PROMOTED_SHADOWS\` entry \`{ label: "${strategy}", strategyId: "${strategy}", symbols: ["${symbol}"] }\` with the standard tier-B locks. On merge, ${strategy}/${symbol} stops auditioning as a shadow (it now runs live), so it is never double-counted.`,
         ``,
         REVIEW_LINE("promotion"),
       ].join("\n");

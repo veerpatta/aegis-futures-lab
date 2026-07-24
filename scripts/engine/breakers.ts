@@ -19,11 +19,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { profitFactor } from "@/lib/stats";
-import { streamKeyFor, streamLabel } from "@/lib/engine/streams";
+import { legacyStreamKeyFor, streamKeyFor, streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { tradingDaysBetween } from "@/lib/time/trading-days";
 import { sendTelegram } from "./notify";
+import { tierStreams } from "./tiers";
 
-export { streamKeyFor, streamLabel, tradingDaysBetween };
+export { streamKeyFor, streamKeyForRow, streamLabel, tradingDaysBetween };
 
 export const PAUSE_WINDOW = 20;
 export const PAUSE_PF = 0.8;
@@ -161,13 +162,15 @@ export function evaluateBreaker(args: {
   return stay;
 }
 
-const STREAM_KEYS = ["A", "B:MES", "B:MNQ"] as const;
-
-/* Orchestration: read each stream's current policy state + closed history from
+/* Orchestration: for every LIVE stream (tierStreams, so promoted tier-B2
+   streams are covered too) read its policy state + closed history from
    Supabase, run the pure decision, record any flip (bot_policy row + Telegram),
-   and return the suppressed state to stamp on this run's rows. Every step is
-   wrapped so a breaker failure NEVER fails the engine run — on any error the
-   stream defaults to active (unsuppressed) and the run continues. */
+   and return per-stream pause intervals to stamp rows in run-live. Streams are
+   keyed by strategy label + symbol (finding 8), and policy reads also pick up
+   the legacy tier+symbol key so pauses recorded before the fix still count.
+   Every step is wrapped so a breaker failure NEVER fails the engine run — on
+   any error the stream defaults to active (no suppression) and the run
+   continues. */
 export async function applyBreakers(
   supabase: SupabaseClient,
   nowSec: number
@@ -177,13 +180,18 @@ export async function applyBreakers(
   const pausedStreams: string[] = [];
   const notes: string[] = [];
 
-  for (const key of STREAM_KEYS) {
+  for (const stream of tierStreams()) {
+    const symbol = stream.symbols.length === 1 ? stream.symbols[0] : "";
+    const key = streamKeyFor(stream.tier, stream.label, symbol);
+    if (intervalsByStream.has(key)) continue; // the single tier-A stream, once
+    const legacy = legacyStreamKeyFor(stream.tier, symbol);
     try {
-      // Full policy history for the stream (small table; newest-first, capped).
+      // Policy history: new key + legacy key (newest-first, capped), reversed
+      // to ascending. Merging both is correct — they name the same stream.
       const { data: pol, error: polErr } = await supabase
         .from("bot_policy")
         .select("action, changed_at")
-        .eq("stream", key)
+        .in("stream", key === legacy ? [key] : [key, legacy])
         .order("changed_at", { ascending: false })
         .range(0, 499);
       if (polErr) throw new Error(polErr.message);
@@ -191,16 +199,17 @@ export async function applyBreakers(
         .map((r) => ({ action: String(r.action), changed_at: String(r.changed_at) }))
         .reverse();
 
-      // Most-recent closed signals for the stream (descending + range, then
-      // reversed to ascending): windows of 20/15 only need the recent tail, and
-      // this never blows past Supabase's 1000-row cap (finding 2).
+      // Most-recent closed signals for the stream (descending + range, reversed
+      // to ascending) — never past Supabase's 1000-row cap (finding 2). Tier A
+      // spans both symbols; tier B is matched by its dedupe_key prefix so the
+      // RSI and a promoted shadow on the same symbol don't mix (finding 8).
       let q = supabase
         .from("signals")
         .select("pnl_usd, fill_confidence, signal_ts")
         .not("pnl_usd", "is", null)
         .order("signal_ts", { ascending: false })
         .range(0, 199);
-      q = key === "A" ? q.eq("tier", "A") : q.eq("tier", "B").eq("symbol", key.slice(2));
+      q = stream.tier === "A" ? q.eq("tier", "A") : q.like("dedupe_key", `B:${stream.label}:${symbol}:%`);
       const { data: sigs, error: sigErr } = await q;
       if (sigErr) throw new Error(sigErr.message);
       const closed: ClosedSignal[] = (sigs ?? [])
@@ -217,7 +226,7 @@ export async function applyBreakers(
         const changedAt = new Date(decision.flip.atSec * 1000).toISOString();
         const { error: insErr } = await supabase.from("bot_policy").insert({
           actor: "breaker",
-          stream: key,
+          stream: key, // always the new key going forward
           action: decision.flip.action,
           reason: decision.flip.reason,
           metrics: decision.flip.metrics,
@@ -234,8 +243,6 @@ export async function applyBreakers(
         notes.push(`${key} ${decision.flip.action}`);
       }
 
-      // Final intervals (including any flip just recorded) drive per-row
-      // suppression in run-live.ts — deterministic, so re-runs are idempotent.
       const intervals = pauseIntervals(events);
       intervalsByStream.set(key, intervals);
       const openNow = intervals.length && intervals[intervals.length - 1].end === null;

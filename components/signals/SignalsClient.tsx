@@ -15,7 +15,7 @@ import {
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
-import { streamKeyFor, streamLabel } from "@/lib/engine/streams";
+import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -353,7 +353,7 @@ export default function SignalsClient() {
     for (const [stream, p] of latest) {
       if (p.action !== "paused") continue;
       const recent = ready.signals
-        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyFor(s.tier, s.symbol) === stream)
+        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyForRow(s) === stream)
         .slice(0, 15); // signals are ts-desc → first 15 are the most recent
       out.push({
         stream,

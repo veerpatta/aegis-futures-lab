@@ -19,7 +19,7 @@ import { strategyById } from "@/lib/strategies/registry";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { auditFill } from "./fill-audit";
 import { computeRegime } from "./regime";
-import { B_LOCKS, EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL } from "./tiers";
+import { B_LOCKS, EXECUTION, PROMOTED_SHADOWS, SESSION_EXIT_MINUTE, STARTING_CAPITAL } from "./tiers";
 
 export const SHADOW_STRATEGIES = ["vwap-reversion", "orb", "bollinger-breakout", "ema-cross"] as const;
 export const SHADOW_SYMBOLS = ["MES", "MNQ"] as const;
@@ -135,6 +135,11 @@ export async function runShadows(args: {
 
   for (const strategyId of SHADOW_STRATEGIES) {
     for (const symbol of SHADOW_SYMBOLS) {
+      // Once a (strategy, symbol) pair is promoted to a live tier-B2 stream it
+      // must stop auditioning as a shadow — otherwise it double-runs and
+      // double-counts into model training (finding 8).
+      if (PROMOTED_SHADOWS.some((p) => p.strategyId === strategyId && p.symbols.includes(symbol)))
+        continue;
       if (Date.now() - started > timeBudgetMs) {
         streamsSkipped++;
         continue;

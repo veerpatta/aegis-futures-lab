@@ -30,9 +30,9 @@ const winnersAt = (n: number, startSec: number, includeLoss = true) =>
   Array.from({ length: n }, (_, i) => sig(includeLoss && i % 2 ? -40 : 100, startSec + i * 3600));
 
 describe("streamKeyFor", () => {
-  it("maps tier A to one stream and tier B per symbol", () => {
-    expect(streamKeyFor("A", "MES")).toBe("A");
-    expect(streamKeyFor("B", "MNQ")).toBe("B:MNQ");
+  it("maps tier A to one stream and tier B per label+symbol", () => {
+    expect(streamKeyFor("A", "zone-v5", "MES")).toBe("A");
+    expect(streamKeyFor("B", "rsi-reversion", "MNQ")).toBe("B:rsi-reversion:MNQ");
   });
 });
 
