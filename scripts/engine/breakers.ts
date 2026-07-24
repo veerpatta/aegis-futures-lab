@@ -57,37 +57,84 @@ export function tradingDaysBetween(fromSec: number, toSec: number): number {
 export interface ClosedSignal {
   pnl_usd: number | null;
   fill_confidence: string | null;
-  suppressed: boolean;
   signal_ts: string;
 }
 
+export interface PolicyEvent {
+  action: string;
+  changed_at: string;
+}
+
+/** A pause period [start, end) in unix seconds; end === null while still open. */
+export interface PauseInterval {
+  start: number;
+  end: number | null;
+}
+
 export interface BreakerDecision {
-  suppressed: boolean; // state to stamp on this run's rows for the stream
+  currentlyPaused: boolean; // paused state BEFORE this run's flip
   flip: null | {
     action: "paused" | "resumed";
     reason: string;
     metrics: Record<string, unknown>;
+    atSec: number;
   };
 }
 
 const pf = (pnls: number[]) => profitFactor(pnls);
 const round2 = (v: number | null) => (v === null ? null : Math.round(v * 100) / 100);
+const secOf = (ts: string) => Math.floor(Date.parse(ts) / 1000);
 
-/* Pure decision: given a stream's closed-signal history (ascending by ts),
-   its current paused state and last flip time, return the resulting suppressed
-   state and any flip to record. No I/O. */
+/* Build the stream's pause periods from its chronological bot_policy events.
+   A `paused` opens a period; the next `resumed` closes it. The last period is
+   open (end === null) while the stream is still benched. Deterministic — the
+   same policy history always yields the same intervals, which is what makes
+   per-row suppression idempotent. */
+export function pauseIntervals(events: PolicyEvent[]): PauseInterval[] {
+  const sorted = [...events].sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+  const intervals: PauseInterval[] = [];
+  let open: number | null = null;
+  for (const e of sorted) {
+    if (e.action === "paused") {
+      if (open === null) open = secOf(e.changed_at);
+    } else if (e.action === "resumed") {
+      if (open !== null) {
+        intervals.push({ start: open, end: secOf(e.changed_at) });
+        open = null;
+      }
+    }
+  }
+  if (open !== null) intervals.push({ start: open, end: null });
+  return intervals;
+}
+
+/** True iff `sec` falls inside any pause period — the entry-time suppression rule. */
+export function isSuppressedAt(intervals: PauseInterval[], sec: number): boolean {
+  return intervals.some((iv) => sec >= iv.start && (iv.end === null || sec < iv.end));
+}
+
+/* Pure decision: given the stream's policy events and recent closed history
+   (ascending by ts), return whether it is currently paused and any flip to
+   record. Suppression itself is NOT returned per stream — rows are suppressed
+   per-row at their entry time via the intervals (see isSuppressedAt), so a
+   pause/resume never rewrites already-decided history. No I/O. */
 export function evaluateBreaker(args: {
-  currentlyPaused: boolean;
-  lastFlipSec: number | null;
-  closed: ClosedSignal[]; // ascending by signal_ts
+  events: PolicyEvent[];
+  closed: ClosedSignal[]; // ascending by signal_ts, recent window
   nowSec: number;
   frozen: boolean;
 }): BreakerDecision {
-  const { currentlyPaused, lastFlipSec, closed, nowSec, frozen } = args;
-  const stay: BreakerDecision = { suppressed: currentlyPaused, flip: null };
+  const { events, closed, nowSec, frozen } = args;
+  const intervals = pauseIntervals(events);
+  const current = intervals.length ? intervals[intervals.length - 1] : null;
+  const currentlyPaused = current !== null && current.end === null;
+  const lastFlipSec = events.length
+    ? Math.max(...events.map((e) => secOf(e.changed_at)))
+    : null;
+  const stay: BreakerDecision = { currentlyPaused, flip: null };
 
   // Not enough evidence to ever act — a young stream is always active.
-  if (closed.length < MIN_CLOSED_TO_EVALUATE) return { suppressed: currentlyPaused, flip: null };
+  if (closed.length < MIN_CLOSED_TO_EVALUATE) return stay;
   // Freeze: no new actions, existing pauses persist.
   if (frozen) return stay;
   // Hysteresis: minimum trading days between flips.
@@ -101,29 +148,39 @@ export function evaluateBreaker(args: {
     const rollingPf = pf(recent.map((r) => r.pnl_usd ?? 0));
     if (rollingPf !== null && rollingPf < PAUSE_PF)
       return {
-        suppressed: true,
+        currentlyPaused: false,
         flip: {
           action: "paused",
           reason: `rolling PF ${round2(rollingPf)} over last ${recent.length} closed (< ${PAUSE_PF})`,
           metrics: { rollingPf: round2(rollingPf), window: recent.length },
+          atSec: nowSec,
         },
       };
-    return { suppressed: false, flip: null };
+    return stay;
   }
 
-  // Currently paused → check the silent (suppressed) simulation for recovery.
-  const suppressedClosed = exDoubtful(closed.filter((r) => r.suppressed)).slice(-RESUME_WINDOW);
-  const recoveryPf = pf(suppressedClosed.map((r) => r.pnl_usd ?? 0));
-  if (recoveryPf !== null && suppressedClosed.length >= 1 && recoveryPf >= RESUME_PF)
+  // Currently paused → the silent-practice set is the closed rows whose entry
+  // falls INSIDE the current (open) pause period — never retro-stamped losers.
+  const inPause = exDoubtful(closed.filter((r) => current !== null && secOf(r.signal_ts) >= current.start));
+  // Require a full RESUME_WINDOW of practice before judging recovery.
+  if (inPause.length < RESUME_WINDOW) return stay;
+  const window = inPause.slice(-RESUME_WINDOW);
+  const pnls = window.map((r) => r.pnl_usd ?? 0);
+  const wins = pnls.filter((p) => p > 0).length;
+  const recoveryPf = pf(pnls);
+  // Resume on PF ≥ 1.1, OR a zero-loss window with wins (PF is null but perfect).
+  const passes = (recoveryPf !== null && recoveryPf >= RESUME_PF) || (recoveryPf === null && wins > 0);
+  if (passes)
     return {
-      suppressed: false,
+      currentlyPaused: true,
       flip: {
         action: "resumed",
-        reason: `recovery PF ${round2(recoveryPf)} over last ${suppressedClosed.length} suppressed closed (≥ ${RESUME_PF})`,
-        metrics: { recoveryPf: round2(recoveryPf), window: suppressedClosed.length },
+        reason: `recovery ${recoveryPf === null ? "PF ∞ (no losses)" : `PF ${round2(recoveryPf)}`} over ${window.length} in-pause closed (≥ ${RESUME_PF})`,
+        metrics: { recoveryPf: recoveryPf === null ? null : round2(recoveryPf), window: window.length, wins },
+        atSec: nowSec,
       },
     };
-  return { suppressed: true, flip: null };
+  return stay;
 }
 
 const STREAM_KEYS = ["A", "B:MES", "B:MNQ"] as const;
@@ -136,51 +193,60 @@ const STREAM_KEYS = ["A", "B:MES", "B:MNQ"] as const;
 export async function applyBreakers(
   supabase: SupabaseClient,
   nowSec: number
-): Promise<{ suppressedByStream: Map<string, boolean>; notes: string[] }> {
+): Promise<{ intervalsByStream: Map<string, PauseInterval[]>; pausedStreams: string[]; notes: string[] }> {
   const frozen = process.env.BOT_POLICY_FREEZE === "1";
-  const out = new Map<string, boolean>();
+  const intervalsByStream = new Map<string, PauseInterval[]>();
+  const pausedStreams: string[] = [];
   const notes: string[] = [];
 
   for (const key of STREAM_KEYS) {
     try {
+      // Full policy history for the stream (small table; newest-first, capped).
       const { data: pol, error: polErr } = await supabase
         .from("bot_policy")
         .select("action, changed_at")
         .eq("stream", key)
         .order("changed_at", { ascending: false })
-        .limit(1);
+        .range(0, 499);
       if (polErr) throw new Error(polErr.message);
-      const last = pol?.[0] as { action: string; changed_at: string } | undefined;
-      const currentlyPaused = last ? last.action === "paused" : false;
-      const lastFlipSec = last ? Math.floor(Date.parse(last.changed_at) / 1000) : null;
+      const events: PolicyEvent[] = (pol ?? [])
+        .map((r) => ({ action: String(r.action), changed_at: String(r.changed_at) }))
+        .reverse();
 
+      // Most-recent closed signals for the stream (descending + range, then
+      // reversed to ascending): windows of 20/15 only need the recent tail, and
+      // this never blows past Supabase's 1000-row cap (finding 2).
       let q = supabase
         .from("signals")
-        .select("pnl_usd, fill_confidence, suppressed, signal_ts")
+        .select("pnl_usd, fill_confidence, signal_ts")
         .not("pnl_usd", "is", null)
-        .order("signal_ts", { ascending: true });
+        .order("signal_ts", { ascending: false })
+        .range(0, 199);
       q = key === "A" ? q.eq("tier", "A") : q.eq("tier", "B").eq("symbol", key.slice(2));
       const { data: sigs, error: sigErr } = await q;
       if (sigErr) throw new Error(sigErr.message);
-      const closed: ClosedSignal[] = (sigs ?? []).map((r) => ({
-        pnl_usd: r.pnl_usd === null ? null : Number(r.pnl_usd),
-        fill_confidence: (r.fill_confidence as string | null) ?? null,
-        suppressed: Boolean(r.suppressed),
-        signal_ts: String(r.signal_ts),
-      }));
+      const closed: ClosedSignal[] = (sigs ?? [])
+        .map((r) => ({
+          pnl_usd: r.pnl_usd === null ? null : Number(r.pnl_usd),
+          fill_confidence: (r.fill_confidence as string | null) ?? null,
+          signal_ts: String(r.signal_ts),
+        }))
+        .reverse();
 
-      const decision = evaluateBreaker({ currentlyPaused, lastFlipSec, closed, nowSec, frozen });
-      out.set(key, decision.suppressed);
+      const decision = evaluateBreaker({ events, closed, nowSec, frozen });
 
       if (decision.flip) {
+        const changedAt = new Date(decision.flip.atSec * 1000).toISOString();
         const { error: insErr } = await supabase.from("bot_policy").insert({
           actor: "breaker",
           stream: key,
           action: decision.flip.action,
           reason: decision.flip.reason,
           metrics: decision.flip.metrics,
+          changed_at: changedAt,
         });
         if (insErr) throw new Error(`bot_policy insert: ${insErr.message}`);
+        events.push({ action: decision.flip.action, changed_at: changedAt });
         const paused = decision.flip.action === "paused";
         await sendTelegram(
           `${paused ? "⏸️" : "▶️"} ${paused ? "Paused" : "Resumed"} ${streamLabel(key)}: ${decision.flip.reason}. ` +
@@ -189,10 +255,17 @@ export async function applyBreakers(
         );
         notes.push(`${key} ${decision.flip.action}`);
       }
+
+      // Final intervals (including any flip just recorded) drive per-row
+      // suppression in run-live.ts — deterministic, so re-runs are idempotent.
+      const intervals = pauseIntervals(events);
+      intervalsByStream.set(key, intervals);
+      const openNow = intervals.length && intervals[intervals.length - 1].end === null;
+      if (openNow) pausedStreams.push(key);
     } catch (e) {
-      out.set(key, false); // fail safe: never suppress on a breaker error
+      intervalsByStream.set(key, []); // fail safe: no suppression on a breaker error
       notes.push(`${key} breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`);
     }
   }
-  return { suppressedByStream: out, notes };
+  return { intervalsByStream, pausedStreams, notes };
 }

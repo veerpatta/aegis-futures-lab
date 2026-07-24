@@ -26,7 +26,7 @@ import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
-import { applyBreakers, streamKeyFor } from "./breakers";
+import { applyBreakers, isSuppressedAt, streamKeyFor } from "./breakers";
 import { applyWinProb } from "./model";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
@@ -384,13 +384,18 @@ async function main() {
   // active). Frozen via BOT_POLICY_FREEZE.
   let breakerNotes: string[] = [];
   try {
-    const { suppressedByStream, notes } = await applyBreakers(supabase, nowSec);
+    const { intervalsByStream, pausedStreams, notes } = await applyBreakers(supabase, nowSec);
     breakerNotes = notes;
-    for (const row of signals)
-      row.suppressed = suppressedByStream.get(streamKeyFor(row.tier, row.symbol)) ?? false;
-    const paused = [...suppressedByStream.entries()].filter(([, s]) => s).map(([k]) => k);
+    // Per-row suppression at ENTRY TIME: a row is suppressed iff its stream was
+    // paused at the row's signal_ts (derived from the pause-interval history).
+    // A pause/resume therefore never rewrites already-decided history, and the
+    // result is deterministic each run (idempotent upsert).
+    for (const row of signals) {
+      const intervals = intervalsByStream.get(streamKeyFor(row.tier, row.symbol)) ?? [];
+      row.suppressed = isSuppressedAt(intervals, Math.floor(new Date(row.signal_ts).getTime() / 1000));
+    }
     console.log(
-      `breakers: ${paused.length ? `paused ${paused.join(", ")}` : "all active"}` +
+      `breakers: ${pausedStreams.length ? `paused ${pausedStreams.join(", ")}` : "all active"}` +
         (notes.length ? ` · ${notes.join("; ")}` : "")
     );
   } catch (e) {
