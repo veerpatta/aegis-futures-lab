@@ -10,10 +10,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   getSupabase,
+  type BotPolicyRow,
   type EngineRunRow,
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
+import { streamKeyFor, streamLabel } from "@/lib/engine/streams";
 import { fetchEvents, fetchMarket, type CalendarEvent, type MarketPayload } from "@/lib/data/fetch";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
@@ -174,7 +176,7 @@ function QuoteSpark({ closes, up }: { closes: number[]; up: boolean }) {
 type State =
   | { status: "loading" }
   | { status: "error"; error: string }
-  | { status: "ready"; signals: SignalRow[]; zones: ZoneRow[]; runs: EngineRunRow[] };
+  | { status: "ready"; signals: SignalRow[]; zones: ZoneRow[]; runs: EngineRunRow[]; policy: BotPolicyRow[] };
 
 export default function HomeClient() {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -187,10 +189,11 @@ export default function HomeClient() {
   const load = useCallback(async () => {
     try {
       const supabase = getSupabase();
-      const [signals, zones, runs] = await Promise.all([
+      const [signals, zones, runs, policy] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
         supabase.from("zones").select("*").limit(120),
         supabase.from("engine_runs").select("*").order("ran_at", { ascending: false }).limit(5),
+        supabase.from("bot_policy").select("*").order("changed_at", { ascending: false }).limit(50),
       ]);
       const err = signals.error || zones.error || runs.error;
       if (err) throw new Error(err.message);
@@ -199,6 +202,7 @@ export default function HomeClient() {
         signals: (signals.data ?? []) as SignalRow[],
         zones: (zones.data ?? []) as ZoneRow[],
         runs: (runs.data ?? []) as EngineRunRow[],
+        policy: (policy.data ?? []) as BotPolicyRow[],
       });
     } catch (e) {
       setState((prev) =>
@@ -233,7 +237,24 @@ export default function HomeClient() {
   }, []);
 
   const ready = state.status === "ready" ? state : null;
-  const signals = useMemo(() => ready?.signals ?? [], [ready]);
+  // Headline surfaces (today, hero, three-week window, recent) exclude
+  // breaker-suppressed streams; they simulate silently and are surfaced
+  // separately as "paused" below.
+  const signals = useMemo(() => (ready?.signals ?? []).filter((s) => !s.suppressed), [ready]);
+  const pausedStreams = useMemo(() => {
+    if (!ready) return [];
+    const latest = new Map<string, BotPolicyRow>();
+    for (const p of ready.policy) if (!latest.has(p.stream)) latest.set(p.stream, p);
+    const out: { stream: string; since: string; recoveryPf: number | null; n: number }[] = [];
+    for (const [stream, p] of latest) {
+      if (p.action !== "paused") continue;
+      const recent = ready.signals
+        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyFor(s.tier, s.symbol) === stream)
+        .slice(0, 15);
+      out.push({ stream, since: p.changed_at, recoveryPf: profitFactor(recent.map((s) => s.pnl_usd ?? 0)), n: recent.length });
+    }
+    return out;
+  }, [ready]);
   const lastRun = ready?.runs[0] ?? null;
   const engineStale =
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
@@ -414,6 +435,19 @@ export default function HomeClient() {
           </span>
         </div>
       </section>
+
+      {pausedStreams.length > 0 && (
+        <section className={`${styles.card}`} aria-label="Paused streams" style={{ padding: "12px 16px" }}>
+          {pausedStreams.map((p) => (
+            <div key={p.stream} className={styles.cellSub} style={{ display: "block", marginBottom: 2 }}>
+              <span className={styles.warn}>⏸︎ {streamLabel(p.stream)} paused by the breaker</span>{" "}
+              since {fmtStamp(p.since, zone)} —{" "}
+              {p.n === 0 ? "recovering in silent practice" : `recovering: PF ${fmtPf(p.recoveryPf)} over ${p.n}`}. Still
+              simulating, hidden from the numbers above.
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className={styles.grid}>
         {/* ── Main column ── */}

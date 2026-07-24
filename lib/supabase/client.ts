@@ -35,6 +35,23 @@ export interface SignalRow {
   regime: string | null;
   fill_confidence: "clean" | "marginal" | "doubtful" | null;
   vix_bucket: "low" | "high" | null;
+  /* Breaker-paused streams: the row still simulates but is hidden from headline
+     stats and alerts (shown only in the "paused streams" drawer). Defaults
+     false; may be absent on old rows read before the column existed. */
+  suppressed?: boolean;
+}
+
+/* bot_policy: append-only audit of automatic policy actions (breaker pauses/
+   resumes, model graduation/demotion). Current state of a stream = its latest
+   row by changed_at. */
+export interface BotPolicyRow {
+  id: number;
+  changed_at: string;
+  actor: "breaker" | "model" | "human";
+  stream: string;
+  action: "paused" | "resumed" | "veto_enabled" | "veto_disabled" | "observe";
+  reason: string | null;
+  metrics: Record<string, unknown> | null;
 }
 
 /* learned_stats: one versioned row per stat_key per NY trading day, written

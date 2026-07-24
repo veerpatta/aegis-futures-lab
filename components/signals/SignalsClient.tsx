@@ -10,10 +10,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   getSupabase,
+  type BotPolicyRow,
   type EngineRunRow,
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
+import { streamKeyFor, streamLabel } from "@/lib/engine/streams";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -145,7 +147,7 @@ function Sparkline({ values }: { values: number[] }) {
 type State =
   | { status: "loading" }
   | { status: "error"; error: string }
-  | { status: "ready"; signals: SignalRow[]; zones: ZoneRow[]; runs: EngineRunRow[] };
+  | { status: "ready"; signals: SignalRow[]; zones: ZoneRow[]; runs: EngineRunRow[]; policy: BotPolicyRow[] };
 
 export default function SignalsClient() {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -176,10 +178,12 @@ export default function SignalsClient() {
   const load = useCallback(async () => {
     try {
       const supabase = getSupabase();
-      const [signals, zones, runs] = await Promise.all([
+      const [signals, zones, runs, policy] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
         supabase.from("zones").select("*").limit(120),
         supabase.from("engine_runs").select("*").order("ran_at", { ascending: false }).limit(5),
+        // Breaker/model policy log — best effort; absent before the table exists.
+        supabase.from("bot_policy").select("*").order("changed_at", { ascending: false }).limit(50),
       ]);
       const err = signals.error || zones.error || runs.error;
       if (err) throw new Error(err.message);
@@ -188,6 +192,7 @@ export default function SignalsClient() {
         signals: (signals.data ?? []) as SignalRow[],
         zones: (zones.data ?? []) as ZoneRow[],
         runs: (runs.data ?? []) as EngineRunRow[],
+        policy: (policy.data ?? []) as BotPolicyRow[],
       });
       setLoadedAt(Date.now());
     } catch (e) {
@@ -227,7 +232,9 @@ export default function SignalsClient() {
   const todayCount = useMemo(
     () =>
       (ready?.signals ?? []).filter(
-        (s) => nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
+        (s) =>
+          !s.suppressed &&
+          nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
       ).length,
     [ready, todayKey]
   );
@@ -235,17 +242,20 @@ export default function SignalsClient() {
   /* Performance across the loaded window (up to 200 signals). */
   const perf = useMemo(() => {
     if (!ready) return null;
-    const closed = ready.signals
+    // Headline stats exclude breaker-suppressed streams (shown in their own
+    // drawer). They still simulate — they just don't count here or alert.
+    const active = ready.signals.filter((s) => !s.suppressed);
+    const closed = active
       .filter((s) => s.pnl_usd !== null)
       .sort((a, b) => (a.exit_ts ?? a.signal_ts).localeCompare(b.exit_ts ?? b.signal_ts));
     let acc = 0;
     const curve = closed.map((s) => (acc += s.pnl_usd ?? 0));
-    const week = ready.signals.filter(
+    const week = active.filter(
       (s) => Date.now() - new Date(s.signal_ts).getTime() < 7 * 86400_000
     );
     const weekClosed = week.filter((s) => s.pnl_usd !== null);
     const tier = (t: "A" | "B") => {
-      const rows = ready.signals.filter((s) => s.tier === t);
+      const rows = active.filter((s) => s.tier === t);
       const done = rows.filter((s) => s.pnl_usd !== null);
       const wins = done.filter((s) => (s.pnl_usd ?? 0) > 0).length;
       return {
@@ -259,7 +269,7 @@ export default function SignalsClient() {
       };
     };
     const regimes = REGIME_ORDER.map((key) => {
-      const rows = ready.signals.filter((s) => s.regime === key);
+      const rows = active.filter((s) => s.regime === key);
       const done = rows.filter((s) => s.pnl_usd !== null);
       const wins = done.filter((s) => (s.pnl_usd ?? 0) > 0).length;
       return {
@@ -281,7 +291,7 @@ export default function SignalsClient() {
         : null,
       weekNet: weekClosed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
       weekEx: exDoubtful(week),
-      windowEx: exDoubtful(ready.signals),
+      windowEx: exDoubtful(active),
       A: tier("A"),
       B: tier("B"),
       regimes,
@@ -290,11 +300,13 @@ export default function SignalsClient() {
 
   /* Blotter: signals grouped by NY day, newest day first. */
   const days = useMemo(() => {
+    // Blotter shows active streams only; suppressed streams live in their drawer.
+    const activeSignals = ready ? ready.signals.filter((s) => !s.suppressed) : [];
     const visible = !ready
       ? []
       : tierTab === "all"
-        ? ready.signals
-        : ready.signals.filter((s) => s.tier === tierTab);
+        ? activeSignals
+        : activeSignals.filter((s) => s.tier === tierTab);
     const map = new Map<string, { label: string; rows: SignalRow[]; net: number; open: number }>();
     for (const s of visible) {
       const t = Math.floor(new Date(s.signal_ts).getTime() / 1000);
@@ -329,6 +341,30 @@ export default function SignalsClient() {
       return a.dist - b.dist;
     });
   }, [ready, prices]);
+
+  /* Streams the breaker has benched: current state = each stream's latest
+     bot_policy row being a pause. Recovery hint = PF over the most recent
+     suppressed closed signals (the engine does the authoritative calc). */
+  const pausedStreams = useMemo(() => {
+    if (!ready) return [];
+    const latest = new Map<string, BotPolicyRow>();
+    for (const p of ready.policy) if (!latest.has(p.stream)) latest.set(p.stream, p);
+    const out: { stream: string; since: string; reason: string | null; recoveryPf: number | null; n: number }[] = [];
+    for (const [stream, p] of latest) {
+      if (p.action !== "paused") continue;
+      const recent = ready.signals
+        .filter((s) => s.suppressed && s.pnl_usd !== null && s.fill_confidence !== "doubtful" && streamKeyFor(s.tier, s.symbol) === stream)
+        .slice(0, 15); // signals are ts-desc → first 15 are the most recent
+      out.push({
+        stream,
+        since: p.changed_at,
+        reason: p.reason,
+        recoveryPf: profitFactor(recent.map((s) => s.pnl_usd ?? 0)),
+        n: recent.length,
+      });
+    }
+    return out;
+  }, [ready]);
 
   return (
     <>
@@ -501,6 +537,32 @@ export default function SignalsClient() {
               ))}
             </div>
           )}
+        </Panel>
+      )}
+
+      {/* ── Paused streams (breaker drawer) ── */}
+      {pausedStreams.length > 0 && (
+        <Panel
+          title="Paused streams"
+          hint="benched by the breaker — still simulating, hidden from the numbers above"
+        >
+          <p className={styles.emptyNote} style={{ marginBottom: 10 }}>
+            When a stream&apos;s recent profit factor slumps, the bot benches it and lets it win its
+            spot back in practice. These keep simulating silently and auto-resume when the practice
+            run recovers. Paper only.
+          </p>
+          <DataTable
+            columns={["Stream", "Paused since", "Why", "Recovering"]}
+            rows={pausedStreams.map((p) => [
+              <span key="s"><Badge tone="amber">PAUSED</Badge> {streamLabel(p.stream)}</span>,
+              fmtStamp(p.since, zone),
+              <span key="r" className={styles.dim}>{p.reason ?? "—"}</span>,
+              p.n === 0
+                ? "no closed practice signals yet"
+                : `PF ${fmtPf(p.recoveryPf)} over ${p.n} (resumes at ≥ 1.1 over 15)`,
+            ])}
+            empty="none"
+          />
         </Panel>
       )}
 
