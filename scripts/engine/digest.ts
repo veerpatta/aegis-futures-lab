@@ -55,6 +55,80 @@ function stats(rows: SignalRow[]) {
 
 const exDoubtful = (rows: SignalRow[]) => rows.filter((r) => r.fill_confidence !== "doubtful");
 
+/* ── "What I learned this week" ────────────────────────────────────────────
+   Diff the latest condition_ledger against the snapshot ~7 days prior and
+   surface only cells that crossed a significance-ish threshold: the latest
+   cell has n ≥ 10 AND (profit factor moved > 0.2 OR win rate moved > 10pts).
+   A cell that only just reached n ≥ 10 (prior was thin/absent) counts as a
+   new lesson too. Everything degrades to "still collecting" — a missing
+   learned_stats table or no prior snapshot is not an error. */
+interface LedgerCell {
+  n: number;
+  pf: number | null;
+  winRate: number | null;
+}
+type LedgerGroup = Record<string, LedgerCell>;
+interface LedgerPayload {
+  tierRegime?: LedgerGroup;
+  tierVix?: LedgerGroup;
+  dayOfWeek?: LedgerGroup;
+  entryHour?: LedgerGroup;
+}
+const LEDGER_GROUPS: { key: keyof LedgerPayload; label: string }[] = [
+  { key: "tierRegime", label: "regime" },
+  { key: "tierVix", label: "VIX" },
+  { key: "dayOfWeek", label: "weekday" },
+  { key: "entryHour", label: "hour" },
+];
+
+async function weeklyLessons(): Promise<string[]> {
+  let rows: { date_key: string; payload: LedgerPayload }[];
+  try {
+    const { data, error } = await supabase
+      .from("learned_stats")
+      .select("date_key, payload")
+      .eq("stat_key", "condition_ledger")
+      .order("date_key", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+    rows = (data ?? []) as { date_key: string; payload: LedgerPayload }[];
+  } catch {
+    return ["No new lessons this week — the nightly knowledge job has not populated its tables yet."];
+  }
+  if (rows.length < 2) return ["No new lessons this week — still collecting (need a prior week to compare)."];
+
+  const latest = rows[0];
+  const [ly, lm, ld] = latest.date_key.split("-").map(Number);
+  const cutoff = Date.UTC(ly, lm - 1, ld) - 7 * 86400_000;
+  const prior = rows.find((r) => {
+    const [y, m, d] = r.date_key.split("-").map(Number);
+    return Date.UTC(y, m - 1, d) <= cutoff;
+  });
+  if (!prior) return ["No new lessons this week — still collecting (no snapshot from ~7 days ago yet)."];
+
+  const out: string[] = [];
+  for (const { key, label } of LEDGER_GROUPS) {
+    const now = latest.payload[key] ?? {};
+    const then = prior.payload[key] ?? {};
+    for (const [bucket, cell] of Object.entries(now)) {
+      if (cell.n < 10) continue;
+      const before = then[bucket];
+      const pfNow = cell.pf ?? null;
+      if (!before || before.n < 10) {
+        out.push(`${label} · ${bucket}: now enough data (n=${cell.n}) — PF ${fmtPf(pfNow)}, WR ${cell.winRate ?? "—"}%`);
+        continue;
+      }
+      const dPf = pfNow !== null && before.pf !== null ? pfNow - before.pf : null;
+      const dWr = cell.winRate !== null && before.winRate !== null ? cell.winRate - before.winRate : null;
+      if ((dPf !== null && Math.abs(dPf) > 0.2) || (dWr !== null && Math.abs(dWr) > 10))
+        out.push(
+          `${label} · ${bucket}: PF ${fmtPf(before.pf)} → ${fmtPf(pfNow)}, WR ${before.winRate ?? "—"}% → ${cell.winRate ?? "—"}% (n ${before.n}→${cell.n})`
+        );
+    }
+  }
+  return out.length ? out : ["No new lessons this week — still collecting (no cell crossed the threshold)."];
+}
+
 async function weekBars(symbol: string, fromSec: number) {
   const out: { time: number; high: number; low: number }[] = [];
   for (let offset = 0; ; offset += PAGE) {
@@ -253,6 +327,9 @@ async function main() {
     }
   }
 
+  // ── What I learned this week (Ring 0 diff) ──
+  const lessons = await weeklyLessons();
+
   const statLine = (label: string, s: ReturnType<typeof stats>) =>
     `${label}: ${s.total} signals · ${s.closed} closed · net ${money(s.net)} · PF ${fmtPf(s.pf)}${
       s.winRate === null ? "" : ` · WR ${s.winRate}%`
@@ -290,6 +367,7 @@ async function main() {
             .join(" · ")}`,
         ]
       : []),
+    `Learned: ${lessons.length === 1 ? lessons[0] : `${lessons.length} new lessons this week (see digest issue)`}`,
   ].join("\n");
   await sendTelegram(tg);
 
@@ -347,6 +425,11 @@ async function main() {
             return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${r.winRate ?? "—"}${r.winRate === null ? "" : "%"} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
           }),
         ].join("\n"),
+    ``,
+    `## What I learned this week`,
+    `Changes in the nightly knowledge tables (condition ledger) vs the snapshot ~7 days ago. Only cells with ≥10 closed signals whose profit factor moved >0.2 or win rate moved >10pts are reported.`,
+    ``,
+    ...lessons.map((l) => `- ${l}`),
     ``,
     `## Bar archive`,
     `- Rows added this week: ${weekRows.toLocaleString()} · total span ≈ ${spanDays} days`,
