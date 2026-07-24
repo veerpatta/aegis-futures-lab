@@ -13,9 +13,10 @@ import { createClient } from "@supabase/supabase-js";
 import { inNySession, nyMeta } from "@/lib/time/ny";
 import { earlyCloseMinuteNy, isMarketHoliday } from "@/lib/market/holidays";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
-import { fmtPf, profitFactor } from "@/lib/stats";
+import { fmtPf } from "@/lib/stats";
 import { sendTelegram } from "./notify";
 import { fetchAllRows } from "./paginate";
+import { activeOnly, exDoubtful, pausedPractice, stats } from "./digest-stats";
 import { promotionReport, type ShadowLike } from "./promotion";
 
 const supabase = createClient(
@@ -37,25 +38,11 @@ interface SignalRow {
   fill_confidence: string | null;
   vix_bucket: string | null;
   model_veto: boolean | null;
+  suppressed: boolean | null;
   signal_ts: string;
 }
 
 const money = (v: number) => `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(0)}`;
-
-function stats(rows: SignalRow[]) {
-  const closed = rows.filter((r) => r.pnl_usd !== null);
-  const pnls = closed.map((r) => r.pnl_usd ?? 0);
-  const wins = pnls.filter((p) => p > 0).length;
-  return {
-    total: rows.length,
-    closed: closed.length,
-    net: pnls.reduce((a, v) => a + v, 0),
-    pf: profitFactor(pnls),
-    winRate: closed.length ? Math.round((wins / closed.length) * 100) : null,
-  };
-}
-
-const exDoubtful = (rows: SignalRow[]) => rows.filter((r) => r.fill_confidence !== "doubtful");
 
 /* ── "What I learned this week" ────────────────────────────────────────────
    Diff the latest condition_ledger against the snapshot ~7 days prior and
@@ -207,38 +194,42 @@ async function main() {
   // ── Signals ──
   const { data: sigData, error: sigErr } = await supabase
     .from("signals")
-    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, signal_ts")
+    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, suppressed, signal_ts")
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);
   const signals = (sigData ?? []) as SignalRow[];
+  // Headline stats exclude breaker-suppressed rows (consistent with Home and
+  // the Signals page); the benched streams' practice is reported separately.
+  const active = activeOnly(signals);
+  const practice = pausedPractice(signals);
 
-  const all = stats(signals);
-  const ex = stats(exDoubtful(signals));
-  const tierA = stats(signals.filter((s) => s.tier === "A"));
-  const tierB = stats(signals.filter((s) => s.tier === "B"));
-  const tierAEx = stats(exDoubtful(signals.filter((s) => s.tier === "A")));
-  const tierBEx = stats(exDoubtful(signals.filter((s) => s.tier === "B")));
+  const all = stats(active);
+  const ex = stats(exDoubtful(active));
+  const tierA = stats(active.filter((s) => s.tier === "A"));
+  const tierB = stats(active.filter((s) => s.tier === "B"));
+  const tierAEx = stats(exDoubtful(active.filter((s) => s.tier === "A")));
+  const tierBEx = stats(exDoubtful(active.filter((s) => s.tier === "B")));
 
   const byStatus = new Map<string, number>();
-  for (const s of signals) byStatus.set(s.status, (byStatus.get(s.status) ?? 0) + 1);
+  for (const s of active) byStatus.set(s.status, (byStatus.get(s.status) ?? 0) + 1);
   const statusLine =
     [...byStatus.entries()].map(([k, n]) => `${n} ${k}`).join(" · ") || "none";
 
   const regimes = new Map<string, { n: number; net: number }>();
-  for (const s of signals) {
+  for (const s of active) {
     const key = s.regime ?? "untagged";
     const r = regimes.get(key) ?? { n: 0, net: 0 };
     r.n++;
     r.net += s.pnl_usd ?? 0;
     regimes.set(key, r);
   }
-  const doubtfulCount = signals.filter((s) => s.fill_confidence === "doubtful").length;
-  const marginalCount = signals.filter((s) => s.fill_confidence === "marginal").length;
+  const doubtfulCount = active.filter((s) => s.fill_confidence === "doubtful").length;
+  const marginalCount = active.filter((s) => s.fill_confidence === "marginal").length;
 
   // VIX-bucket split — only judged once both buckets have ≥10 signals.
-  const vixLow = stats(signals.filter((s) => s.vix_bucket === "low"));
-  const vixHigh = stats(signals.filter((s) => s.vix_bucket === "high"));
+  const vixLow = stats(active.filter((s) => s.vix_bucket === "low"));
+  const vixHigh = stats(active.filter((s) => s.vix_bucket === "high"));
   const vixReady = vixLow.total >= 10 && vixHigh.total >= 10;
   const vixLine = vixReady
     ? `VIX split: low ${vixLow.total} (net ${money(vixLow.net)}, PF ${fmtPf(vixLow.pf)}) · high ${vixHigh.total} (net ${money(vixHigh.net)}, PF ${fmtPf(vixHigh.pf)})`
@@ -388,10 +379,10 @@ async function main() {
   const tg = [
     `<b>Aegis weekly digest</b> — week ending ${weekEnding}`,
     `paper only · delayed data · never orders`,
-    signals.length === 0
+    all.total === 0
       ? `No signals this week — quiet market, not a breakage (engine health below).`
       : `Net ${money(all.net)} · PF ${fmtPf(all.pf)}${all.winRate === null ? "" : ` · WR ${all.winRate}%`} (${all.closed} closed of ${all.total})`,
-    ...(signals.length
+    ...(all.total
       ? [
           `excluding ${doubtfulCount} doubtful fills: net ${money(ex.net)} · PF ${fmtPf(ex.pf)}`,
           `Tier A ${tierA.total} (net ${money(tierA.net)}) · Tier B ${tierB.total} (net ${money(tierB.net)})`,
@@ -399,6 +390,7 @@ async function main() {
           vixLine,
         ]
       : []),
+    ...(practice.total ? [`Paused-stream practice (not counted above): ${practice.total} signals, ${practice.closed} closed, net ${money(practice.net)}`] : []),
     `Health: ${runs.length} runs, ${errorRuns.length} error${errorRuns.length === 1 ? "" : "s"}, worst bar age ${worstAge}m` +
       (watchdogOpened !== null ? `, ${watchdogOpened} watchdog alert${watchdogOpened === 1 ? "" : "s"}` : ""),
     `Archive: +${weekRows.toLocaleString()} bars this week · span ${spanDays}d · integrity ${
@@ -427,7 +419,7 @@ async function main() {
     `Trailing 7 days ending **${weekEnding}** (NY). Paper only, delayed data — never orders.`,
     ``,
     `## Signals`,
-    signals.length === 0
+    all.total === 0
       ? `**No signals this week.** That is a quiet market, not a breakage — engine health below.`
       : [
           `| Scope | Signals | Closed | Net | PF | Win rate |`,
@@ -453,6 +445,10 @@ async function main() {
           ``,
           `### VIX bucket (low/high vs trailing 20-day median)`,
           vixLine,
+          ``,
+          practice.total
+            ? `### Paused-stream practice (breaker-benched — excluded from every table above)\n${practice.total} signals · ${practice.closed} closed · net ${money(practice.net)}. These streams keep simulating silently until they earn their spot back.`
+            : `_No paused streams this week._`,
         ].join("\n"),
     ``,
     `## Engine health`,

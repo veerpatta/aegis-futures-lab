@@ -197,8 +197,9 @@ export default function GuidePage() {
         <p className={styles.note}>
           Paused streams show up in their own <b>Paused streams</b> box on the Signals page and a
           note on Home, with the date they were benched and how their practice run is recovering.
-          Every bench and every return is recorded and sent to Telegram, so nothing happens
-          silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
+          The weekly digest keeps their practice out of the headline numbers too and reports it on
+          its own line. Every bench and every return is recorded and sent to Telegram, so nothing
+          happens silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
           like everything here, it is paper only.
         </p>
       </section>

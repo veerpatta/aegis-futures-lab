@@ -61,9 +61,10 @@ showing its ideas and stops counting them in the headline numbers, but keeps sim
 them silently. When the silent practice recovers (profit factor 1.1 or better over the
 next 15), the bot returns the stream to the game on its own, waiting at least three
 trading days between changes so it never flip-flops. Paused streams appear in their own
-**Paused streams** box on Signals and a note on Home; every bench and return is recorded
-and sent to Telegram. It is the safest kind of automation — learning when *not* to trade —
-and it is paper only.
+**Paused streams** box on Signals and a note on Home; the weekly digest also keeps their
+practice out of the headline numbers and reports it on its own line. Every bench and return
+is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
+to trade — and it is paper only.
 
 ### The model that learns to skip weak signals
 
