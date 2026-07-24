@@ -49,11 +49,16 @@ export async function retrainModel(
 
   const { data: prev, error: prevErr } = await supabase
     .from("model_registry")
-    .select("status")
+    .select("status, oos_brier, baseline_brier")
     .order("trained_at", { ascending: false })
     .limit(1);
   if (prevErr) throw new Error(`model_registry read: ${prevErr.message}`);
-  const prevStatus = (prev?.[0]?.status as string | undefined) ?? "observe";
+  const prevRow = prev?.[0] as { status?: string; oos_brier?: number | null; baseline_brier?: number | null } | undefined;
+  const prevSnap: EvalSnapshot = {
+    status: (prevRow?.status as EvalSnapshot["status"]) ?? "observe",
+    oos_brier: prevRow?.oos_brier ?? null,
+    baseline_brier: prevRow?.baseline_brier ?? null,
+  };
 
   // Too little clean data to emit a real model — record an observe placeholder
   // with NO coefficients (never an all-zero set that would veto everything) and
@@ -69,39 +74,15 @@ export async function retrainModel(
       oos_brier: null,
       baseline_brier: null,
       calibration: null,
-      status: prevStatus,
+      status: prevSnap.status,
     });
     if (error) throw new Error(`model_registry insert: ${error.message}`);
-    return { status: prevStatus, train_n: trainN, oos_brier: null, baseline_brier: null };
+    return { status: prevSnap.status, train_n: trainN, oos_brier: null, baseline_brier: null };
   }
 
-  const beatsBaseline =
-    artifact.oos_brier !== null &&
-    artifact.baseline_brier !== null &&
-    artifact.oos_brier < artifact.baseline_brier;
-
-  let status = prevStatus;
-  let flip: { action: "veto_enabled" | "veto_disabled"; reason: string } | null = null;
-  if (prevStatus === "active") {
-    if (!beatsBaseline) {
-      status = "demoted";
-      flip = {
-        action: "veto_disabled",
-        reason: `OOS Brier ${artifact.oos_brier} no longer beats baseline ${artifact.baseline_brier}`,
-      };
-    }
-  } else if (prevStatus === "demoted") {
-    status = "demoted"; // terminal: keeps scoring, never re-vetoes on its own
-  } else {
-    // observe
-    if (artifact.train_n >= GRADUATE_MIN_TRAIN && beatsBaseline && !frozen) {
-      status = "active";
-      flip = {
-        action: "veto_enabled",
-        reason: `train_n ${artifact.train_n} ≥ ${GRADUATE_MIN_TRAIN}, OOS Brier ${artifact.oos_brier} < baseline ${artifact.baseline_brier}`,
-      };
-    } else status = "observe";
-  }
+  const decision = nextModelStatus(prevSnap, artifact, frozen);
+  const status = decision.status;
+  const flip = decision.flip;
 
   const { error: insErr } = await supabase.from("model_registry").insert({
     model: artifact.model,
@@ -115,6 +96,11 @@ export async function retrainModel(
   });
   if (insErr) throw new Error(`model_registry insert: ${insErr.message}`);
 
+  if (decision.skipped)
+    console.log(
+      `model evaluation skipped: insufficient out-of-sample data tonight — status kept at ${status}.`
+    );
+
   if (flip) {
     await supabase.from("bot_policy").insert({
       actor: "model",
@@ -126,10 +112,74 @@ export async function retrainModel(
     await sendTelegram(
       flip.action === "veto_enabled"
         ? `🎓 win-prob model graduated to active — ${flip.reason}. It may now veto the bottom-decile signals. Paper only, delayed data.`
-        : `⚠️ win-prob model demoted to scoring-only — ${flip.reason}. Vetoes off; it keeps auditing. Paper only.`
+        : flip.action === "veto_disabled"
+          ? `⚠️ win-prob model demoted to scoring-only — ${flip.reason}. Vetoes off; it keeps auditing. Paper only.`
+          : `🔄 win-prob model recovered — ${flip.reason}. Back to observe (re-auditioning before it can veto again). Paper only.`
     );
   }
   return { status, train_n: artifact.train_n, oos_brier: artifact.oos_brier, baseline_brier: artifact.baseline_brier };
+}
+
+export interface EvalSnapshot {
+  status: "observe" | "active" | "demoted";
+  oos_brier: number | null;
+  baseline_brier: number | null;
+}
+export interface ModelDecision {
+  status: "observe" | "active" | "demoted";
+  flip: { action: "veto_enabled" | "veto_disabled" | "observe"; reason: string } | null;
+  skipped: boolean;
+}
+
+/* Pure lifecycle transition (finding 11). Null metrics (a transient read
+   failure or too-thin OOS) mean the model can't be judged tonight: KEEP the
+   current status, take no action (skipped). A genuine measured regression
+   demotes an active model only when it's the SECOND consecutive one — one bad
+   night doesn't strip authority. Demotion is reversible: a demoted model that
+   beats baseline two evaluations running returns to observe (it must then
+   re-graduate by the normal rule, not jump straight back to active). */
+export function nextModelStatus(
+  prev: EvalSnapshot,
+  current: { train_n: number; oos_brier: number | null; baseline_brier: number | null },
+  frozen: boolean
+): ModelDecision {
+  const beats = (o: number | null, b: number | null) => o !== null && b !== null && o < b;
+  const regressed = (o: number | null, b: number | null) => o !== null && b !== null && o >= b;
+
+  if (current.oos_brier === null || current.baseline_brier === null)
+    return { status: prev.status, flip: null, skipped: true };
+
+  const currentBeat = beats(current.oos_brier, current.baseline_brier);
+  const currentRegressed = regressed(current.oos_brier, current.baseline_brier);
+  const prevBeat = beats(prev.oos_brier, prev.baseline_brier);
+  const prevRegressed = regressed(prev.oos_brier, prev.baseline_brier);
+
+  if (prev.status === "active") {
+    if (currentRegressed && prevRegressed)
+      return {
+        status: "demoted",
+        flip: { action: "veto_disabled", reason: `OOS Brier ${current.oos_brier} ≥ baseline ${current.baseline_brier} for a 2nd straight evaluation` },
+        skipped: false,
+      };
+    return { status: "active", flip: null, skipped: false };
+  }
+  if (prev.status === "demoted") {
+    if (currentBeat && prevBeat)
+      return {
+        status: "observe",
+        flip: { action: "observe", reason: `beat baseline (${current.oos_brier} < ${current.baseline_brier}) two evaluations running` },
+        skipped: false,
+      };
+    return { status: "demoted", flip: null, skipped: false };
+  }
+  // observe
+  if (current.train_n >= GRADUATE_MIN_TRAIN && currentBeat && !frozen)
+    return {
+      status: "active",
+      flip: { action: "veto_enabled", reason: `train_n ${current.train_n} ≥ ${GRADUATE_MIN_TRAIN}, OOS Brier ${current.oos_brier} < baseline ${current.baseline_brier}` },
+      skipped: false,
+    };
+  return { status: "observe", flip: null, skipped: false };
 }
 
 function percentile(values: number[], p: number): number | null {
