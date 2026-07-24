@@ -102,8 +102,16 @@ export function rsiCandidates(): { label: string; params: ParamValues }[] {
 export const incumbentLabel = (stream: TierStream): string =>
   `os${stream.params.oversold}/ob${stream.params.overbought}/t${stream.params.targetR ?? 1.5}R`;
 
+/* Comparable profit factor. profitFactor() is null when there are no losses:
+   a profitable no-loss window is the BEST possible (+Infinity), not the worst
+   (the `?? -1` bug); a window with no/negative trades ranks worst (finding 9). */
+export function pfRank(r: EvalResult): number {
+  if (r.pf !== null) return r.pf;
+  return r.trades > 0 && r.net > 0 ? Infinity : -Infinity;
+}
+
 export interface ChallengerVerdict {
-  verdict: "challenger" | "none";
+  verdict: "challenger" | "none" | "insufficient-oos";
   label: string | null;
   params: ParamValues | null;
   oosPf: number | null;
@@ -160,7 +168,20 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
   const candFull = evaluate(stream, best.params, bySymbol, {});
   const candMc = resampleDrawdowns(candFull.pnls, MC_RESAMPLES);
 
-  const oosBeats = candOos.trades >= MIN_OOS_TRADES && (candOos.pf ?? -1) > (incOos.pf ?? -1) && candOos.net > incOos.net;
+  // Both sides need a real held-out month before any comparison — otherwise the
+  // week is inconclusive, not a pass or a fail.
+  if (incOos.trades < MIN_OOS_TRADES || candOos.trades < MIN_OOS_TRADES)
+    return {
+      ...none(`insufficient held-out trades (incumbent ${incOos.trades}, candidate ${candOos.trades}; need ≥${MIN_OOS_TRADES} each)`, base),
+      verdict: "insufficient-oos",
+      label: best.label,
+      params: best.params,
+      oosPf: candOos.pf,
+      oosNet: candOos.net,
+    };
+
+  // A no-loss (perfect) OOS month has null PF — rank it as best, not worst.
+  const oosBeats = pfRank(candOos) > pfRank(incOos) && candOos.net > incOos.net;
   const mcOk = candMc.p95 <= incMc.p95 * MC_P95_TOLERANCE;
 
   if (!oosBeats)
