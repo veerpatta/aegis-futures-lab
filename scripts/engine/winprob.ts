@@ -10,11 +10,18 @@
    so a re-run reproduces the same model. Paper only, delayed data. */
 
 import { nyMeta } from "@/lib/time/ny";
+import { tradingDaysBetween } from "@/lib/time/trading-days";
 
 export const MODEL_NAME = "winprob-logit-v1";
 export const GRADUATE_MIN_TRAIN = 300; // clean-fill closed samples before active
-export const EMBARGO_DAYS = 5; // gap between train end and test start
+export const EMBARGO_DAYS = 5; // TRADING-day gap between train end and test start
 export const WF_FOLDS = 5; // walk-forward test folds
+
+/** A train row is far enough from the test fold iff ≥ EMBARGO_DAYS TRADING days
+    separate its entry from the test-fold start. */
+export function pastEmbargo(rowSec: number, testStartSec: number): boolean {
+  return tradingDaysBetween(rowSec, testStartSec) >= EMBARGO_DAYS;
+}
 const ITERATIONS = 400;
 const LEARNING_RATE = 0.1;
 const L2 = 1e-3;
@@ -181,11 +188,13 @@ export function evaluateWalkForward(training: ModelRow[]): {
     const testEnd = f === WF_FOLDS ? n : (f + 1) * foldSize;
     const testRows = training.slice(testStart, testEnd);
     if (!testRows.length) continue;
-    const embargoSec = EMBARGO_DAYS * 86400;
     const testStartSec = Math.floor(Date.parse(testRows[0].signal_ts) / 1000);
+    // Embargo in TRADING days (not calendar): a weekend-adjacent fold would
+    // otherwise get only ~3 trading days of gap, leaking recent structure and
+    // inflating OOS optimism that gates graduation.
     const trainRows = training
       .slice(0, testStart)
-      .filter((r) => Math.floor(Date.parse(r.signal_ts) / 1000) <= testStartSec - embargoSec);
+      .filter((r) => pastEmbargo(Math.floor(Date.parse(r.signal_ts) / 1000), testStartSec));
     if (trainRows.length < 20) continue;
 
     const norm = normalizerOf(trainRows);

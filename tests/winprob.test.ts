@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   featurize,
   FEATURE_NAMES,
+  pastEmbargo,
   predictProba,
   scoreRow,
   trainModel,
@@ -25,12 +26,28 @@ function makeRows(n: number): ModelRow[] {
       vix_bucket: i % 3 ? "low" : "high",
       score: 50 + (i % 10),
       rr: 1.5,
-      signal_ts: new Date((T0 + i * 3600) * 1000).toISOString(),
+      // One row per day so the walk-forward folds have room for a 5-trading-day
+      // embargo between train end and test start.
+      signal_ts: new Date((T0 + i * 86400) * 1000).toISOString(),
       pnl_usd: tierB ? 100 : -100,
       fill_confidence: "clean",
     } as ModelRow;
   });
 }
+
+describe("pastEmbargo — trading-day embargo (F6)", () => {
+  const at = (day: string) => Math.floor(Date.parse(`${day}T12:00:00Z`) / 1000);
+  const testStart = at("2024-03-11"); // Monday, no US market holiday that week
+  it("excludes a Friday row only 1 trading day before the Monday fold", () => {
+    expect(pastEmbargo(at("2024-03-08"), testStart)).toBe(false);
+  });
+  it("excludes a Wed row that is 5 CALENDAR but only 3 TRADING days before (the bug)", () => {
+    expect(pastEmbargo(at("2024-03-06"), testStart)).toBe(false);
+  });
+  it("includes a row a full 5 trading days before", () => {
+    expect(pastEmbargo(at("2024-03-04"), testStart)).toBe(true);
+  });
+});
 
 describe("featurize", () => {
   it("produces a vector aligned to FEATURE_NAMES with a bias term", () => {
