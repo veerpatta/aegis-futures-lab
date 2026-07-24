@@ -29,7 +29,7 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
-import { fmtPf } from "@/lib/stats";
+import { fmtPf, profitFactor as profitFactorOf } from "@/lib/stats";
 import { fetchYahooBars } from "./data";
 import { resampleDrawdowns } from "./montecarlo";
 import { promotionReport, type ShadowLike } from "./promotion";
@@ -243,6 +243,31 @@ async function main() {
         `**Verdict: candidate \`${best.label}\` survives OOS and Monte Carlo — worth a human look.** Edit scripts/engine/tiers.ts by hand if adopting.`,
         ``
       );
+  }
+
+  // VIX-bucket split over live signals — judged only at ≥10 per bucket.
+  try {
+    const { data, error } = await supabase.from("signals").select("pnl_usd, vix_bucket");
+    if (error) throw new Error(error.message);
+    const pnlsFor = (bucket: string) =>
+      (data ?? [])
+        .filter((r) => r.vix_bucket === bucket && r.pnl_usd !== null)
+        .map((r) => Number(r.pnl_usd));
+    const lowN = (data ?? []).filter((r) => r.vix_bucket === "low").length;
+    const highN = (data ?? []).filter((r) => r.vix_bucket === "high").length;
+    md.push(`## VIX-bucket split (live signals, all-time)`, ``);
+    if (lowN >= 10 && highN >= 10) {
+      const low = pnlsFor("low");
+      const high = pnlsFor("high");
+      md.push(
+        `low ${lowN} signals · net ${money(low.reduce((a, v) => a + v, 0))} · PF ${fmtPf(profitFactorOf(low))}`,
+        ``,
+        `high ${highN} signals · net ${money(high.reduce((a, v) => a + v, 0))} · PF ${fmtPf(profitFactorOf(high))}`,
+        ``
+      );
+    } else md.push(`Collecting (low ${lowN} / high ${highN} — judged at ≥10 each).`, ``);
+  } catch (e) {
+    md.push(`_VIX split unavailable: ${e instanceof Error ? e.message : e}_`, ``);
   }
 
   // Shadow-audition scoreboard, same checklist as the weekly digest.

@@ -45,6 +45,7 @@ export interface ShadowRow {
   risk_usd: number | null;
   regime: string | null;
   fill_confidence: string | null;
+  vix_bucket: string | null;
   updated_at: string;
 }
 
@@ -75,6 +76,7 @@ function fromTrade(strategy: string, t: Trade): ShadowRow {
     risk_usd: t.rMultiple ? +Math.abs(t.pnl / t.rMultiple).toFixed(2) : null,
     regime: null,
     fill_confidence: null,
+    vix_bucket: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -102,6 +104,7 @@ function fromOpen(strategy: string, p: OpenPosition): ShadowRow {
     risk_usd: +p.risk.toFixed(2),
     regime: null,
     fill_confidence: null,
+    vix_bucket: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -120,6 +123,8 @@ export async function runShadows(args: {
   cutoff: number; // mirror window start (same 7-day rule as real signals)
   exitMinuteByDay: Record<string, number>;
   timeBudgetMs: number;
+  /** vix_bucket tag for an entry time (context.ts) — same rule as real signals. */
+  vixBucketFor?: (entrySec: number) => string | null;
 }): Promise<ShadowResult> {
   const { supabase, bySymbol, nowSec, cutoff, exitMinuteByDay, timeBudgetMs } = args;
   const started = Date.now();
@@ -155,6 +160,7 @@ export async function runShadows(args: {
         streamsRun++;
         const stamp = (row: ShadowRow, entrySec: number, exitSec: number | null) => {
           row.regime = computeRegime(bySymbol[symbol] ?? [], entrySec);
+          row.vix_bucket = args.vixBucketFor ? args.vixBucketFor(entrySec) : null;
           row.fill_confidence = auditFill({
             fillModel: "nextOpen",
             direction: row.direction,

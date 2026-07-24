@@ -34,6 +34,7 @@ interface SignalRow {
   pnl_usd: number | null;
   regime: string | null;
   fill_confidence: string | null;
+  vix_bucket: string | null;
   signal_ts: string;
 }
 
@@ -130,7 +131,7 @@ async function main() {
   // ── Signals ──
   const { data: sigData, error: sigErr } = await supabase
     .from("signals")
-    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, signal_ts")
+    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, signal_ts")
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);
@@ -158,6 +159,14 @@ async function main() {
   }
   const doubtfulCount = signals.filter((s) => s.fill_confidence === "doubtful").length;
   const marginalCount = signals.filter((s) => s.fill_confidence === "marginal").length;
+
+  // VIX-bucket split — only judged once both buckets have ≥10 signals.
+  const vixLow = stats(signals.filter((s) => s.vix_bucket === "low"));
+  const vixHigh = stats(signals.filter((s) => s.vix_bucket === "high"));
+  const vixReady = vixLow.total >= 10 && vixHigh.total >= 10;
+  const vixLine = vixReady
+    ? `VIX split: low ${vixLow.total} (net ${money(vixLow.net)}, PF ${fmtPf(vixLow.pf)}) · high ${vixHigh.total} (net ${money(vixHigh.net)}, PF ${fmtPf(vixHigh.pf)})`
+    : `VIX split: collecting (low ${vixLow.total} / high ${vixHigh.total} — judged at ≥10 each)`;
 
   // ── Engine health ──
   const { data: runData, error: runErr } = await supabase
@@ -261,6 +270,7 @@ async function main() {
           `excluding ${doubtfulCount} doubtful fills: net ${money(ex.net)} · PF ${fmtPf(ex.pf)}`,
           `Tier A ${tierA.total} (net ${money(tierA.net)}) · Tier B ${tierB.total} (net ${money(tierB.net)})`,
           `Regimes: ${[...regimes.entries()].map(([k, v]) => `${k} ${v.n} (${money(v.net)})`).join(" · ") || "—"}`,
+          vixLine,
         ]
       : []),
     `Health: ${runs.length} runs, ${errorRuns.length} error${errorRuns.length === 1 ? "" : "s"}, worst bar age ${worstAge}m` +
@@ -311,6 +321,9 @@ async function main() {
           `| Regime | Signals | Net |`,
           `|---|---:|---:|`,
           ...[...regimes.entries()].map(([k, v]) => `| ${k} | ${v.n} | ${money(v.net)} |`),
+          ``,
+          `### VIX bucket (low/high vs trailing 20-day median)`,
+          vixLine,
         ].join("\n"),
     ``,
     `## Engine health`,

@@ -34,6 +34,7 @@ export interface SignalRow {
   risk_usd: number | null;
   regime: string | null;
   fill_confidence: "clean" | "marginal" | "doubtful" | null;
+  vix_bucket: "low" | "high" | null;
 }
 
 export interface ZoneRow {

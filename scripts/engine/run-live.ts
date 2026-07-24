@@ -21,6 +21,7 @@ import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { inEntryWindow } from "@/lib/time/session";
 import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
+import { loadContextRows, updateContextDaily, vixBucketFor, type ContextRow } from "./context";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
@@ -66,6 +67,7 @@ interface SignalRow {
   risk_usd: number | null;
   regime: string | null;
   fill_confidence: FillConfidence | null;
+  vix_bucket: string | null;
   updated_at: string;
 }
 
@@ -184,6 +186,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     risk_usd: t.rMultiple ? +Math.abs(t.pnl / t.rMultiple).toFixed(2) : null,
     regime: null, // stamped by the caller from the symbol's bars
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
+    vix_bucket: null, // stamped by the caller (context.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -214,6 +217,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     risk_usd: +p.risk.toFixed(2),
     regime: null, // stamped by the caller from the symbol's bars
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
+    vix_bucket: null, // stamped by the caller (context.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -258,6 +262,23 @@ async function main() {
   ]);
   phaseT("fetch", phaseStart);
   phaseStart = Date.now();
+
+  // Market context (context_daily): refresh once per NY day, load the rows
+  // for vix_bucket tagging. Both non-fatal — buckets just stay null.
+  let ctxRows: ContextRow[] = [];
+  try {
+    const refreshed = await updateContextDaily(supabase, nowSec);
+    if (refreshed) console.log(`context_daily: refreshed ${refreshed} rows`);
+  } catch (e) {
+    warnings.push(`context update failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+  }
+  try {
+    ctxRows = await loadContextRows(supabase);
+  } catch {
+    /* buckets stay null this run */
+  }
+  const bucketFor = (entrySec: number) =>
+    vixBucketFor(ctxRows, nyMeta(entrySec).dateKey);
   const mes = mesLoad.bars;
   const mnq = mnqLoad.bars;
   const bySymbol: Record<string, Bar[]> = { MES: mes, MNQ: mnq };
@@ -324,6 +345,7 @@ async function main() {
       const row = rowFromTrade(stream.tier, stream.label, t);
       row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
       row.fill_confidence = audit(t.side, t.symbol, t.entryPrice, t.entryTime, t.exitTime);
+      row.vix_bucket = bucketFor(t.entryTime);
       signalRows.set(row.dedupe_key, row);
     }
     if (res.openPosition && res.openPosition.openedAt >= cutoff) {
@@ -331,6 +353,7 @@ async function main() {
       const row = rowFromOpen(stream.tier, stream.label, p);
       row.regime = computeRegime(bySymbol[p.symbol] ?? [], p.openedAt);
       row.fill_confidence = audit(p.side, p.symbol, p.entry, p.openedAt, null);
+      row.vix_bucket = bucketFor(p.openedAt);
       signalRows.set(row.dedupe_key, row);
     }
     const n = res.trades.filter((t) => t.entryTime >= cutoff).length + (res.openPosition ? 1 : 0);
@@ -411,6 +434,7 @@ async function main() {
       cutoff,
       exitMinuteByDay,
       timeBudgetMs: 60_000,
+      vixBucketFor: bucketFor,
     });
     console.log(
       `shadow: ${shadow.upserted} rows from ${shadow.streamsRun} streams` +

@@ -33,12 +33,13 @@ export interface ChartResult {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/* Fetch chart data and run it through `shape`. A throw anywhere — network,
-   non-200, missing chart result, or shape rejecting an empty/invalid payload
-   — triggers the next attempt on the alternate host. */
-export async function fetchChart<T>(
-  symbol: FeedSymbol,
-  interval: "1m" | "5m",
+/* Fetch chart data for a raw Yahoo symbol and run it through `shape`.
+   A throw anywhere — network, non-200, missing chart result, or shape
+   rejecting an empty/invalid payload — triggers the next attempt on the
+   alternate host. */
+export async function fetchChartBySymbol<T>(
+  vendorSymbol: string,
+  interval: "1m" | "5m" | "1d",
   range: string,
   shape: (result: ChartResult) => T
 ): Promise<T> {
@@ -48,21 +49,31 @@ export async function fetchChart<T>(
     const host = HOSTS[attempt % HOSTS.length];
     try {
       const url = `https://${host}/v8/finance/chart/${encodeURIComponent(
-        YAHOO_SYMBOLS[symbol]
+        vendorSymbol
       )}?interval=${interval}&range=${range}&includePrePost=true&events=div%2Csplits`;
       const response = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 AegisResearch/1.0", Accept: "application/json" },
       });
-      if (!response.ok) throw new Error(`Yahoo upstream ${response.status} for ${symbol}`);
+      if (!response.ok) throw new Error(`Yahoo upstream ${response.status} for ${vendorSymbol}`);
       const json = await response.json();
       const result = json?.chart?.result?.[0];
-      if (!result) throw new Error(json?.chart?.error?.description || `No chart result for ${symbol}`);
+      if (!result)
+        throw new Error(json?.chart?.error?.description || `No chart result for ${vendorSymbol}`);
       return shape(result as ChartResult);
     } catch (e) {
       lastError = e;
     }
   }
   throw lastError;
+}
+
+export function fetchChart<T>(
+  symbol: FeedSymbol,
+  interval: "1m" | "5m",
+  range: string,
+  shape: (result: ChartResult) => T
+): Promise<T> {
+  return fetchChartBySymbol(YAHOO_SYMBOLS[symbol], interval, range, shape);
 }
 
 export function rawBars(result: ChartResult): Bar[] {
