@@ -170,6 +170,16 @@ export default function GuidePage() {
             two different market regimes. You never need any of these pages to follow the
             signals.
           </dd>
+          <dt>What the bot knows</dt>
+          <dd>
+            Under <b>More</b> in the side menu. Every night the bot re-reads everything it has
+            recorded and re-derives its own statistics — whether the zone score actually predicts
+            winners, which market conditions each tier does well in, what the filters are turning
+            away, whether the fills still look believable, and how the shadow strategies are doing.
+            It is pure observation: nothing on this page is a trade idea and none of it changes what
+            the bot does. Anything with too few finished trades to judge reads &ldquo;collecting
+            (n=X of 10)&rdquo; — the bot will not draw a lesson from a handful of trades.
+          </dd>
         </dl>
       </section>
 
