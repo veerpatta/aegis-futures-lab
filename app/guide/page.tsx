@@ -204,6 +204,24 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>The model that learns to skip weak signals</h2>
+        <p>
+          Alongside the strategies, a small model studies every signal the bot has already seen and
+          learns which setups are <b>least</b> likely to win. It can only ever do one thing: quietly
+          skip the weakest 1-in-10 signals. It can never invent a trade or make one bigger.
+        </p>
+        <p>
+          It has to <b>earn the right</b> to act. Until it has at least 300 clean examples <i>and</i>{" "}
+          its predictions beat a simple baseline on data it has never seen, it only shadow-votes —
+          it marks which signals it <i>would</i> have skipped, and the Saturday digest reports how
+          those would have done, so you can watch it audition just like the shadow strategies. If it
+          graduates and later starts slipping, it demotes itself back to watching. You can see its
+          status, accuracy trend and calibration on the <b>What the bot knows</b> page, and it is
+          paper only, like everything here.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>ET or IST — your choice</h2>
         <p>
           Every time in the app can be shown on the New York exchange clock (<b>ET</b>) or on

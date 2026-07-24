@@ -65,6 +65,16 @@ trading days between changes so it never flip-flops. Paused streams appear in th
 and sent to Telegram. It is the safest kind of automation — learning when *not* to trade —
 and it is paper only.
 
+### The model that learns to skip weak signals
+
+A small model studies every signal the bot has seen and learns which setups are **least**
+likely to win. It can only ever do one thing: quietly skip the weakest 1-in-10 signals — it
+can never invent or enlarge a trade. It must **earn the right** to act: until it has at least
+300 clean examples *and* beats a simple baseline on unseen data, it only shadow-votes
+(marking what it *would* have skipped, with the Saturday digest reporting how those would
+have done). If it graduates and later slips, it demotes itself. Its status, accuracy trend
+and calibration are on the **What the bot knows** page. Paper only.
+
 ## 4. How to read one signal
 
 | Field | Meaning |
