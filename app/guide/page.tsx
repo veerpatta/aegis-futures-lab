@@ -222,6 +222,24 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>The bot proposes its own upgrades</h2>
+        <p>
+          Once a week the bot searches for better strategy settings and tests them the honest way:
+          it tunes on older data, checks the result on a month it never saw, and stress-tests the
+          worst-case drawdown. If the same improved setting wins two weeks in a row — or a shadow
+          strategy passes its promotion checklist two weeks running — the bot opens a{" "}
+          <b>pull request</b> on GitHub with the full evidence attached.
+        </p>
+        <p className={styles.note}>
+          A pull request is just a proposal. <b>Nothing changes until you merge it</b> — the bot can
+          never edit the live settings by itself, and it will not pester you with the same idea more
+          than once a month. Most weeks it finds nothing and stays quiet, which is exactly what a
+          disciplined system should do. Merging is the one job left to you; everything else —
+          noticing, measuring, proposing — is the bot&apos;s.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>ET or IST — your choice</h2>
         <p>
           Every time in the app can be shown on the New York exchange clock (<b>ET</b>) or on

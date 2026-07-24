@@ -360,6 +360,23 @@ async function main() {
     /* model_registry absent — section stays as "not trained yet" */
   }
 
+  // ── Open bot PRs (Ring 2) ──
+  let botPrs: { number: number; title: string; html_url: string }[] = [];
+  if (GH_TOKEN) {
+    try {
+      const pulls = await gh("GET", `/repos/${REPO}/pulls?state=open&per_page=50`);
+      if (Array.isArray(pulls))
+        botPrs = pulls
+          .filter((p) => {
+            const ref = p?.head?.ref;
+            return typeof ref === "string" && (ref.startsWith("bot/challenger-") || ref.startsWith("bot/promote-"));
+          })
+          .map((p) => ({ number: p.number, title: p.title, html_url: p.html_url }));
+    } catch (e) {
+      console.error(`bot PR list failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const statLine = (label: string, s: ReturnType<typeof stats>) =>
     `${label}: ${s.total} signals · ${s.closed} closed · net ${money(s.net)} · PF ${fmtPf(s.pf)}${
       s.winRate === null ? "" : ` · WR ${s.winRate}%`
@@ -399,6 +416,7 @@ async function main() {
       : []),
     `Learned: ${lessons.length === 1 ? lessons[0] : `${lessons.length} new lessons this week (see digest issue)`}`,
     modelLine,
+    ...(botPrs.length ? [`🤖 Bot is proposing ${botPrs.length} upgrade PR${botPrs.length === 1 ? "" : "s"} — review on GitHub.`] : []),
   ].join("\n");
   await sendTelegram(tg);
 
@@ -456,6 +474,12 @@ async function main() {
             return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${r.winRate ?? "—"}${r.winRate === null ? "" : "%"} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
           }),
         ].join("\n"),
+    ``,
+    `## The bot is proposing`,
+    botPrs.length === 0
+      ? `No open bot PRs. The weekly challenger runs Sundays; "no challenger survives yet" is the normal outcome.`
+      : botPrs.map((p) => `- [#${p.number} ${p.title}](${p.html_url})`).join("\n"),
+    `Nothing changes live paper params without a human merge.`,
     ``,
     `## Win-probability model`,
     `${modelLine.replace(/<\/?b>/g, "**")}`,

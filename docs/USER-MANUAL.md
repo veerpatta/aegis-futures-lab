@@ -75,6 +75,16 @@ can never invent or enlarge a trade. It must **earn the right** to act: until it
 have done). If it graduates and later slips, it demotes itself. Its status, accuracy trend
 and calibration are on the **What the bot knows** page. Paper only.
 
+### The bot proposes its own upgrades
+
+Once a week the bot searches for better strategy settings and tests them honestly — tuning on
+older data, checking on a held-out month it never saw, and stress-testing the worst-case
+drawdown. If the same improvement wins two weeks running (or a shadow strategy passes its
+promotion checklist two weeks running), it opens a **pull request** on GitHub with the
+evidence attached. A pull request is only a proposal: **nothing changes until you merge it**,
+the bot can never edit live settings itself, and it will not re-propose the same idea for a
+month. Most weeks it finds nothing and stays quiet. Merging is the one job left to you.
+
 ## 4. How to read one signal
 
 | Field | Meaning |
