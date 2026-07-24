@@ -25,6 +25,7 @@ import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
 import { challengerFor, loadSeries, streamTuneKey, type ChallengerVerdict } from "./tune-core";
 import { fetchAllRows } from "./paginate";
+import { canonicalParams, confirmsTwoWeeks } from "./challenger-logic";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -48,8 +49,6 @@ function isoWeek(sec: number): string {
 }
 const weeksAgo = (sec: number, n: number) => isoWeek(sec - n * 7 * 86400);
 
-const canonical = (p: unknown): string =>
-  JSON.stringify(p, Object.keys((p as object) ?? {}).sort());
 const slug = (s: string) => s.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
 const money = (v: number | null) => (v === null ? "—" : `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(0)}`);
 const pf = (v: number | null) => (v === null ? "—" : v.toFixed(2));
@@ -65,7 +64,9 @@ interface HistoryRow {
 }
 
 async function recordHistory(row: HistoryRow) {
-  const { error } = await supabase.from("challenger_history").upsert(row, { onConflict: "week_key,stream,verdict" });
+  // One row per (week_key, stream) — a rerun replaces the week's verdict in
+  // place, so the 2-week confirmation can't trust a retracted verdict (F10).
+  const { error } = await supabase.from("challenger_history").upsert(row, { onConflict: "week_key,stream" });
   if (error) throw new Error(`challenger_history upsert: ${error.message}`);
 }
 
@@ -206,16 +207,15 @@ async function main() {
     console.log(`  ${key}: ${v.verdict}${v.label ? ` (${v.label})` : ""} — ${v.reason}`);
     if (v.verdict !== "challenger" || !v.params) continue;
 
-    // Confirmed only if last week proposed the SAME param set.
-    const prev = (await priorRows(key, [lastWeek])).find((r) => r.verdict === "challenger");
-    if (!prev || canonical(prev.params) !== canonical(v.params)) {
+    // Confirmed only if last week's single row is a challenger with the SAME set.
+    if (!confirmsTwoWeeks(v.params, await priorRows(key, [lastWeek]))) {
       console.log(`    not confirmed yet — needs the same set two weeks running.`);
       continue;
     }
     // Cooldown: not proposed in the last COOLDOWN_WEEKS weeks.
     const cooldownWeeks = Array.from({ length: COOLDOWN_WEEKS }, (_, i) => weeksAgo(nowSec, i + 1));
     const proposedRecently = (await priorRows(key, cooldownWeeks)).some(
-      (r) => r.verdict === "proposed" && canonical(r.params) === canonical(v.params)
+      (r) => r.verdict === "proposed" && canonicalParams(r.params) === canonicalParams(v.params)
     );
     if (proposedRecently) {
       console.log(`    in cooldown — proposed within ${COOLDOWN_WEEKS} weeks.`);
