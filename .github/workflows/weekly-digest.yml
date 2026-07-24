@@ -1,0 +1,37 @@
+# Weekly digest: Saturday 03:30 UTC (= 09:00 IST) — a trailing-7-day report
+# of the paper signals, engine health, archive growth and data integrity.
+# Delivered to Telegram (compact) and as a GitHub issue labeled `digest`
+# (the previous week's issue is closed automatically). A zero-signal week
+# still reports — silence must be distinguishable from breakage.
+
+name: weekly-digest
+
+on:
+  schedule:
+    - cron: "30 3 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/engine/digest.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
