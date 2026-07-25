@@ -30,10 +30,11 @@ import { NY_SESSION_START_MIN, inNySession, nyMeta } from "@/lib/time/ny";
 
 /* Whether archive slices are trimmed to whole NY sessions.
 
-   Defaults to the legacy instant-slice so every stored number stays
-   reproducible and the golden parity tests are untouched; flipped to true in a
-   separate commit carrying the before/after backtest table. */
-export const ARCHIVE_DAY_ALIGN = false;
+   ON since the flip commit. With it on, a mid-session and a pre-open window
+   start over the same archive produce IDENTICAL funnels (nesting 3,654,
+   invalidFill 4, 14 tier-A trades either way) instead of disagreeing by ~80%.
+   Tier B is untouched by construction — it reads no multi-day frame. */
+export const ARCHIVE_DAY_ALIGN = true;
 
 /* Drop the leading NY date when the slice cut into its session.
 
