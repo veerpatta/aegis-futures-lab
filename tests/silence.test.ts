@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import manifest from "@/lib/engine/expected-streams.json";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { tierStreams } from "../scripts/engine/tiers";
-// @ts-expect-error — plain-node watchdog, no types; the pure helper is exported.
 import { findSilentStreams } from "../scripts/engine/watchdog.mjs";
 
 /* Item 2.5. Tier A produced zero signals from go-live without a single alert,
