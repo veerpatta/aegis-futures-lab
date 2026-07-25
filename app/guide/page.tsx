@@ -125,6 +125,16 @@ export default function GuidePage() {
             label, so the Performance panel can show which conditions the strategy actually earns
             in.
           </dd>
+          <dt>Stale data</dt>
+          <dd>
+            The feed is delayed 10–15 minutes by design, but sometimes it stalls for far longer. If
+            the newest price bar is more than <b>30 minutes</b> old when the bot runs, any idea it
+            works out is describing a market that has already moved on. Those ideas are still
+            written down — hiding them would hide the outage — but they are marked{" "}
+            <b>STALE DATA</b>, kept out of every score on Home and Signals, never sent to Telegram,
+            and never used to teach the model. You will find them in their own{" "}
+            <b>Excluded: stale data</b> box on the Signals page.
+          </dd>
           <dt>Marginal / doubtful fill</dt>
           <dd>
             An honesty check on the entry itself. The simulation assumes a resting order fills the

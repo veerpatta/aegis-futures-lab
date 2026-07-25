@@ -16,6 +16,7 @@ import {
   type ZoneRow,
 } from "@/lib/supabase/client";
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
+import { STALE_BAR_AGE_MIN, STALE_LABEL } from "@/lib/signals/freshness";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -372,6 +373,14 @@ export default function SignalsClient() {
     return out;
   }, [ready]);
 
+  /* Item 2.4 — rows whose run was computed on stale bars. Recorded, excluded
+     from every headline number, and shown here under their own label so an
+     outage is visible rather than silently absorbed. */
+  const staleRows = useMemo(
+    () => (ready ? ready.signals.filter((s) => s.stale_data) : []),
+    [ready]
+  );
+
   return (
     <>
       <h1 className="pageTitle">Signals</h1>
@@ -566,6 +575,34 @@ export default function SignalsClient() {
               p.n === 0
                 ? "no closed practice signals yet"
                 : `PF ${fmtPf(p.recoveryPf)} over ${p.n} (resumes at ≥ 1.1 over 15)`,
+            ])}
+            empty="none"
+          />
+        </Panel>
+      )}
+
+      {/* ── Stale-data drawer (item 2.4) — its own label, never hidden ── */}
+      {staleRows.length > 0 && (
+        <Panel
+          title="Excluded: stale data"
+          hint={`computed on bars over ${STALE_BAR_AGE_MIN} min old — kept for the record, out of the numbers above`}
+        >
+          <p className={styles.emptyNote} style={{ marginBottom: 10 }}>
+            The price feed is delayed 10–15 minutes by design. Sometimes it stalls for much longer,
+            and an idea worked out from bars that old describes a market that has already moved on.
+            Those ideas are still recorded — hiding them would hide the outage — but they are left
+            out of every headline number, never alerted, and never used to train the model. Paper
+            only.
+          </p>
+          <DataTable
+            columns={["When", "Stream", "Symbol", "Direction", "Result", "P&L"]}
+            rows={staleRows.map((s) => [
+              fmtStamp(s.signal_ts, zone),
+              <span key="t"><Badge tone="amber">{STALE_LABEL}</Badge> {s.tier}</span>,
+              s.symbol,
+              s.direction.toUpperCase(),
+              statusBadge(s.status),
+              <span key="p" className="num">{s.pnl_usd === null ? "—" : money(s.pnl_usd)}</span>,
             ])}
             empty="none"
           />

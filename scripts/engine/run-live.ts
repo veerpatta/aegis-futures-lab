@@ -16,6 +16,7 @@ import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { statusFromExit } from "@/lib/signals/status";
+import { assessStaleness } from "@/lib/signals/freshness";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
@@ -73,6 +74,10 @@ interface SignalRow {
   fill_confidence: FillConfidence | null;
   vix_bucket: string | null;
   suppressed: boolean;
+  /* Item 2.4 — the run that produced this row was computed on bars older than
+     STALE_BAR_AGE_MIN. Same treatment as `suppressed`: out of headline stats,
+     out of Telegram, out of the model's training set, visible in the drawer. */
+  stale_data: boolean;
   win_prob: number | null;
   model_veto: boolean;
   updated_at: string;
@@ -196,6 +201,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
     suppressed: false, // stamped by the caller (breakers.ts)
+    stale_data: false, // stamped by the caller (lib/signals/freshness.ts)
     win_prob: null, // stamped by the caller (model.ts)
     model_veto: false, // stamped by the caller (model.ts)
     updated_at: new Date().toISOString(),
@@ -230,6 +236,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     fill_confidence: null, // stamped by the caller (fill-audit.ts)
     vix_bucket: null, // stamped by the caller (context.ts)
     suppressed: false, // stamped by the caller (breakers.ts)
+    stale_data: false, // stamped by the caller (lib/signals/freshness.ts)
     win_prob: null, // stamped by the caller (model.ts)
     model_veto: false, // stamped by the caller (model.ts)
     updated_at: new Date().toISOString(),
@@ -379,6 +386,21 @@ async function main() {
   }
   const signals = [...signalRows.values()];
 
+  // 1a) Bar-age gate (item 2.4). One verdict for the run from the freshest bar
+  // of each symbol; when the feed has stalled past the threshold every row this
+  // run produced is flagged stale_data. The rows are still written — deleting
+  // them would hide the outage — but they are excluded from headline stats,
+  // Telegram and the model's training set, exactly like `suppressed`.
+  const staleness = assessStaleness(bySymbol, nowSec);
+  if (staleness.stale) {
+    for (const row of signals) row.stale_data = true;
+    warnings.push(staleness.note as string);
+    console.log(
+      `stale data: worst bar age ${staleness.worstAgeMin}m > ${staleness.thresholdMin}m — ` +
+        `${signals.length} row(s) flagged stale_data`
+    );
+  }
+
   // 1b) Circuit breakers (Ring 1a). Read each stream's closed history + policy
   // state, decide pause/resume, record flips (bot_policy + Telegram), and stamp
   // suppressed on this run's rows. Presentation-layer only: the simulator ran
@@ -448,9 +470,12 @@ async function main() {
   }
 
   if (oldStatus) {
-    // Suppressed (breaker-paused) streams never alert. When the model is active,
-    // its bottom-decile vetoes are also held back from NEW-idea alerts.
-    const alertable = signals.filter((s) => !s.suppressed && !(modelActive && s.model_veto));
+    // Suppressed (breaker-paused) streams never alert, and neither do rows
+    // computed on stale bars (item 2.4). When the model is active, its
+    // bottom-decile vetoes are also held back from NEW-idea alerts.
+    const alertable = signals.filter(
+      (s) => !s.suppressed && !s.stale_data && !(modelActive && s.model_veto)
+    );
     const message = formatAlertMessage(diffSignalAlerts(oldStatus, alertable));
     if (message) await sendTelegram(message); // never throws
   }
@@ -496,6 +521,7 @@ async function main() {
       exitMinuteByDay,
       timeBudgetMs: 60_000,
       vixBucketFor: bucketFor,
+      staleData: staleness.stale, // same gate as real signals (item 2.4)
     });
     console.log(
       `shadow: ${shadow.upserted} rows from ${shadow.streamsRun} streams` +
@@ -512,10 +538,11 @@ async function main() {
   // 3) Heartbeat, with per-symbol data freshness. "(stale)" is a marker the
   // dashboard looks for (lib/time/session.ts dataDelayed) — newest bar more
   // than 30 min old inside the 02:00–15:25 ET entry window.
-  const ageMin = (bars: Bar[]) => Math.max(0, Math.round((nowSec - bars[bars.length - 1].time) / 60));
-  const mesAge = ageMin(mes);
-  const mnqAge = ageMin(mnq);
-  const stale = inEntryWindow(nowSec) && (mesAge > 30 || mnqAge > 30);
+  const mesAge = staleness.ageBySymbol.MES ?? 0;
+  const mnqAge = staleness.ageBySymbol.MNQ ?? 0;
+  // The dashboard's dataDelayed marker keeps its in-session-only meaning; the
+  // row-level stale_data flag above is deliberately clock-independent.
+  const stale = inEntryWindow(nowSec) && staleness.stale;
   const { error: runError } = await supabase.from("engine_runs").insert({
     status: "ok",
     symbols: ["MES", "MNQ"],

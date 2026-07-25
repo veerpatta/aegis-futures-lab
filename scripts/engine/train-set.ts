@@ -16,6 +16,7 @@ export interface RealTrainRow {
   rr: number | null;
   pnl_usd: number | null;
   fill_confidence: string | null;
+  stale_data?: boolean | null;
 }
 
 export interface ShadowTrainRow {
@@ -28,13 +29,22 @@ export interface ShadowTrainRow {
   rr: number | null;
   pnl_usd: number | null;
   fill_confidence: string | null;
+  stale_data?: boolean | null;
 }
 
 /** A real row's strategy label is the 2nd segment of its dedupe_key
     (`${tier}:${label}:${symbol}:${entryTime}`). */
 export const realStrategyLabel = (dedupe_key: string): string => dedupe_key.split(":")[1] ?? "";
 
-export function buildModelRows(real: RealTrainRow[], shadow: ShadowTrainRow[]): ModelRow[] {
+export function buildModelRows(realIn: RealTrainRow[], shadowIn: ShadowTrainRow[]): ModelRow[] {
+  /* Item 2.4 — a row computed on stale bars never enters the training set. Its
+     features (and its fill classification in particular) describe a market
+     state the engine could not actually see, so learning from it teaches the
+     model the feed's outages rather than the strategy's edge. Dropped before
+     the real-vs-shadow dedup so a stale real row cannot mask a clean shadow
+     row for the same (strategy, symbol, entry). */
+  const real = realIn.filter((s) => !s.stale_data);
+  const shadow = shadowIn.filter((s) => !s.stale_data);
   const realKeys = new Set(real.map((s) => `${realStrategyLabel(s.dedupe_key)}|${s.symbol}|${s.signal_ts}`));
   const pick = (s: RealTrainRow | ShadowTrainRow, tier: "A" | "B" | null): ModelRow => ({
     tier,

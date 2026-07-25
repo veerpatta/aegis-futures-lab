@@ -55,6 +55,7 @@ export interface ShadowRow {
   regime: string | null;
   fill_confidence: string | null;
   vix_bucket: string | null;
+  stale_data: boolean; // item 2.4 — same gate the live signals get
   updated_at: string;
 }
 
@@ -85,6 +86,7 @@ function fromTrade(strategy: string, t: Trade): ShadowRow {
     regime: null,
     fill_confidence: null,
     vix_bucket: null,
+    stale_data: false, // set from the run-level verdict by the caller
     updated_at: new Date().toISOString(),
   };
 }
@@ -113,6 +115,7 @@ function fromOpen(strategy: string, p: OpenPosition): ShadowRow {
     regime: null,
     fill_confidence: null,
     vix_bucket: null,
+    stale_data: false, // set from the run-level verdict by the caller
     updated_at: new Date().toISOString(),
   };
 }
@@ -133,6 +136,8 @@ export async function runShadows(args: {
   timeBudgetMs: number;
   /** vix_bucket tag for an entry time (context.ts) — same rule as real signals. */
   vixBucketFor?: (entrySec: number) => string | null;
+  /** Run-level bar-age verdict (item 2.4) — flags every row this run writes. */
+  staleData?: boolean;
 }): Promise<ShadowResult> {
   const { supabase, bySymbol, nowSec, cutoff, exitMinuteByDay, timeBudgetMs } = args;
   const started = Date.now();
@@ -174,6 +179,7 @@ export async function runShadows(args: {
         const stamp = (row: ShadowRow, entrySec: number, exitSec: number | null) => {
           row.regime = computeRegime(bySymbol[symbol] ?? [], entrySec);
           row.vix_bucket = args.vixBucketFor ? args.vixBucketFor(entrySec) : null;
+          row.stale_data = args.staleData === true;
           row.fill_confidence = auditFill({
             fillModel: "nextOpen",
             direction: row.direction,

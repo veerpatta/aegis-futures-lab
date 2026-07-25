@@ -16,7 +16,8 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf } from "@/lib/stats";
 import { sendTelegram } from "./notify";
 import { fetchAllRows } from "./paginate";
-import { activeOnly, exDoubtful, pausedPractice, stats } from "./digest-stats";
+import { activeOnly, exDoubtful, pausedPractice, staleExcluded, stats } from "./digest-stats";
+import { STALE_BAR_AGE_MIN } from "@/lib/signals/freshness";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
 
@@ -40,6 +41,7 @@ interface SignalRow {
   vix_bucket: string | null;
   model_veto: boolean | null;
   suppressed: boolean | null;
+  stale_data: boolean | null; // item 2.4
   signal_ts: string;
 }
 
@@ -195,7 +197,7 @@ async function main() {
   // ── Signals ──
   const { data: sigData, error: sigErr } = await supabase
     .from("signals")
-    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, suppressed, signal_ts")
+    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, suppressed, stale_data, signal_ts")
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);
@@ -204,6 +206,9 @@ async function main() {
   // the Signals page); the benched streams' practice is reported separately.
   const active = activeOnly(signals);
   const practice = pausedPractice(signals);
+  // Item 2.4 — rows computed on bars past the age limit, reported on their own
+  // line so an outage is visible instead of quietly absorbed.
+  const staleRows = staleExcluded(signals);
 
   const all = stats(active);
   const ex = stats(exDoubtful(active));
@@ -290,7 +295,7 @@ async function main() {
     shadowRows = await fetchAllRows<ShadowDbRow>(
       supabase,
       "shadow_signals",
-      "strategy, symbol, status, pnl_usd, regime, fill_confidence, target_price"
+      "strategy, symbol, status, pnl_usd, regime, fill_confidence, target_price, stale_data"
     );
   } catch (e) {
     console.error(`shadow read failed (section skipped): ${e instanceof Error ? e.message : e}`);
@@ -392,6 +397,7 @@ async function main() {
         ]
       : []),
     ...(practice.total ? [`Paused-stream practice (not counted above): ${practice.total} signals, ${practice.closed} closed, net ${money(practice.net)}`] : []),
+    ...(staleRows.total ? [`⏱ Stale data (not counted above): ${staleRows.total} signals, ${staleRows.closed} closed, net ${money(staleRows.net)} — computed on bars over ${STALE_BAR_AGE_MIN}m old`] : []),
     `Health: ${runs.length} runs, ${errorRuns.length} error${errorRuns.length === 1 ? "" : "s"}, worst bar age ${worstAge}m` +
       (watchdogOpened !== null ? `, ${watchdogOpened} watchdog alert${watchdogOpened === 1 ? "" : "s"}` : ""),
     `Archive: +${weekRows.toLocaleString()} bars this week · span ${spanDays}d · integrity ${
@@ -450,6 +456,11 @@ async function main() {
           practice.total
             ? `### Paused-stream practice (breaker-benched — excluded from every table above)\n${practice.total} signals · ${practice.closed} closed · net ${money(practice.net)}. These streams keep simulating silently until they earn their spot back.`
             : `_No paused streams this week._`,
+          ``,
+          staleRows.total
+            ? `### Stale data (excluded from every table above)
+${staleRows.total} signals · ${staleRows.closed} closed · net ${money(staleRows.net)}. These were computed on bars more than ${STALE_BAR_AGE_MIN} minutes old — the feed had stalled, so the market they describe had already moved on. They are recorded (hiding them would hide the outage), never alerted, and never used to train the model.`
+            : `_No stale-data signals this week (bar-age limit ${STALE_BAR_AGE_MIN}m)._`,
         ].join("\n"),
     ``,
     `## Engine health`,

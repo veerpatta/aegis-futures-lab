@@ -53,6 +53,7 @@ interface SignalRow {
   vix_bucket: string | null;
   dedupe_key: string;
   signal_ts: string;
+  stale_data: boolean | null; // item 2.4 — kept out of ledgers and training
 }
 
 interface ShadowDbRow extends ShadowLike {
@@ -62,6 +63,7 @@ interface ShadowDbRow extends ShadowLike {
   rr: number | null;
   vix_bucket: string | null;
   signal_ts: string;
+  stale_data: boolean | null;
 }
 
 /* The NY trading day the stats describe: the latest session that has closed
@@ -160,9 +162,15 @@ async function main() {
 
   const signals = await fetchAll<SignalRow>(
     "signals",
-    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts"
+    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data"
   );
-  const closed = signals.filter((s) => s.pnl_usd !== null);
+  /* Item 2.4 — stale-data rows are out of every learned statistic for the same
+     reason they are out of the headline numbers: they describe a market the
+     engine could not actually see. They stay in the table, and the invariant
+     check reports how many were dropped, so the exclusion is never silent. */
+  const fresh = signals.filter((s) => !s.stale_data);
+  const staleDropped = signals.length - fresh.length;
+  const closed = fresh.filter((s) => s.pnl_usd !== null);
 
   // ── score_calibration ──
   const realCal = scoreCalibration(closed.map((s) => ({ score: s.score, pnl: s.pnl_usd ?? 0 })));
@@ -171,7 +179,7 @@ async function main() {
     shadowClosed = (
       await fetchAll<ShadowDbRow>(
         "shadow_signals",
-        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price"
+        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price, stale_data"
       )
     ).filter((r) => r.pnl_usd !== null);
   } catch (e) {
@@ -233,7 +241,7 @@ async function main() {
   try {
     allShadow = await fetchAll<ShadowDbRow>(
       "shadow_signals",
-      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price"
+      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price, stale_data"
     );
   } catch {
     allShadow = shadowClosed;

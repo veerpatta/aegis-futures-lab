@@ -50,6 +50,10 @@ export interface SignalRow {
      stats and alerts (shown only in the "paused streams" drawer). Defaults
      false; may be absent on old rows read before the column existed. */
   suppressed?: boolean;
+  /* Item 2.4 — the run that produced this row read bars past the age limit.
+     Excluded from every headline number, from alerts and from model training,
+     on the same footing as `suppressed`; shown in its own drawer. */
+  stale_data?: boolean;
 }
 
 /* bot_policy: append-only audit of automatic policy actions (breaker pauses/

@@ -242,7 +242,13 @@ export default function HomeClient() {
   // Headline surfaces (today, hero, three-week window, recent) exclude
   // breaker-suppressed streams; they simulate silently and are surfaced
   // separately as "paused" below.
-  const signals = useMemo(() => (ready?.signals ?? []).filter((s) => !s.suppressed), [ready]);
+  // Stale-data rows (item 2.4) are excluded here for the same reason
+  // breaker-suppressed rows are: they were computed on bars the engine could
+  // not actually have seen. Both stay visible in their drawers on Signals.
+  const signals = useMemo(
+    () => (ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
+    [ready]
+  );
   const pausedStreams = useMemo(() => {
     if (!ready) return [];
     const latest = new Map<string, BotPolicyRow>();
