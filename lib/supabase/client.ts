@@ -26,7 +26,17 @@ export interface SignalRow {
   rr: number | null;
   qty: number | null;
   score: number | null;
-  status: "pending" | "triggered" | "hit_target" | "hit_stop" | "expired" | "cancelled";
+  status:
+    | "pending"
+    | "triggered"
+    | "hit_target"
+    | "hit_stop"
+    /* Closed profitably without touching the bracket — a strategy-signal or
+       session-flat exit that made money. Was mislabelled "expired" until the
+       2.2 fix (lib/signals/status.ts). */
+    | "closed_win"
+    | "expired"
+    | "cancelled";
   reason: string | null;
   signal_ts: string;
   exit_ts: string | null;

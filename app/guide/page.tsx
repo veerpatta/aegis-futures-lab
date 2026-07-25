@@ -108,8 +108,10 @@ export default function GuidePage() {
           <dt>Status</dt>
           <dd>
             <b>TARGET</b> = winner. <b>STOP</b> = loser. <b>OPEN</b> = still running.{" "}
-            <b>FLAT CLOSE</b> = closed at 15:25 ET (00:55 IST in summer, 01:55 in winter)
-            because the strategy never holds overnight.
+            <b>CLOSED UP</b> = finished in profit without reaching a target — some strategies exit
+            on their own signal instead of a fixed target, and those wins used to be mislabelled as
+            flat closes. <b>FLAT CLOSE</b> = closed at 15:25 ET (00:55 IST in summer, 01:55 in
+            winter) with nothing gained, because the strategy never holds overnight.
           </dd>
           <dt>P&amp;L</dt>
           <dd>

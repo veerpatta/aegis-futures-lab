@@ -67,6 +67,8 @@ function statusLook(s: SignalRow["status"]): StatusLook {
       return { label: "OPEN", tone: "info" };
     case "pending":
       return { label: "WAITING", tone: "warn" };
+    case "closed_win":
+      return { label: "CLOSED UP", tone: "good" };
     case "expired":
       return { label: "FLAT CLOSE", tone: "dim" };
     default:

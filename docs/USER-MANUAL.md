@@ -93,7 +93,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 |---|---|
 | Entry / Stop / Target | The full plan. Risk = entry to stop; reward = entry to target. |
 | R:R | Reward-to-risk. 1.5 means the target pays 1.5× what the stop costs — you only need to win about 4 in 10 to come out ahead. |
-| Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **FLAT CLOSE** = closed at 15:25 ET / 00:55 IST (the strategy never holds overnight). |
+| Status | **TARGET** = winner · **STOP** = loser · **OPEN** = still running · **CLOSED UP** = finished in profit without reaching a target (some strategies exit on their own signal rather than a fixed target; those wins used to be mislabelled as flat closes) · **FLAT CLOSE** = closed at 15:25 ET / 00:55 IST with nothing gained (the strategy never holds overnight). |
 | P&L | Simulated dollars for the position size the engine chose (risking about $160 per trade), commissions already subtracted. |
 | Regime | What kind of market the idea was born into: trending or ranging, quiet or volatile (e.g. **TR·HV** = trending, high volatility). It never changes the ideas — it is a label, so the Performance panel can show which conditions the strategy actually earns in. |
 | Marginal / doubtful fill | An honesty check on the entry. The simulation assumes a resting order fills when price touches the entry level — in a real market a touch is often not enough. No chip = price traded cleanly through the level. **MARGINAL FILL** (amber) = price barely reached it but came back later. **DOUBTFUL FILL** (red) = price only kissed the level once; a real order likely never filled, so treat that idea's profit as imaginary. Every performance number is also restated "excluding doubtful fills". |

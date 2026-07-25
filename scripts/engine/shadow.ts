@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES } from "@/lib/market/contracts";
+import { statusFromExit } from "@/lib/signals/status";
 import { defaultParams } from "@/lib/strategies/types";
 import { strategyById } from "@/lib/strategies/registry";
 import type { OpenPosition } from "@/lib/strategies/types";
@@ -21,7 +22,15 @@ import { auditFill } from "./fill-audit";
 import { computeRegime } from "./regime";
 import { B_LOCKS, EXECUTION, PROMOTED_SHADOWS, SESSION_EXIT_MINUTE, STARTING_CAPITAL } from "./tiers";
 
-export const SHADOW_STRATEGIES = ["vwap-reversion", "orb", "bollinger-breakout", "ema-cross"] as const;
+/* The audition roster. `ema-cross` was RETIRED on 2026-07-25 (item 2.2c): 2
+   profitable of 28 closed, net −$2,718, and its `signalOnly` exit style meant
+   every row carried a null target, so its stop bucket was doing all the work.
+   Mislabelled AND genuinely bad — the labelling hole is fixed in
+   lib/signals/status.ts for the next signalOnly candidate, but ema-cross does
+   not get another slot. Its existing shadow_signals rows are kept (history is
+   evidence); it simply stops generating new ones. */
+export const SHADOW_STRATEGIES = ["vwap-reversion", "orb", "bollinger-breakout"] as const;
+export const RETIRED_SHADOW_STRATEGIES = ["ema-cross"] as const;
 export const SHADOW_SYMBOLS = ["MES", "MNQ"] as const;
 
 export interface ShadowRow {
@@ -52,8 +61,7 @@ export interface ShadowRow {
 const iso = (sec: number) => new Date(sec * 1000).toISOString();
 
 function fromTrade(strategy: string, t: Trade): ShadowRow {
-  const status =
-    t.exitReason === "target" ? "hit_target" : t.exitReason === "stop" ? "hit_stop" : "expired";
+  const status = statusFromExit(t.exitReason, t.pnl);
   const stopDist = Math.abs(t.entryPrice - t.stop);
   return {
     dedupe_key: `${strategy}:${t.symbol}:${t.entryTime}`,

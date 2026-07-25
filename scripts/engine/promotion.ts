@@ -8,6 +8,7 @@
    Pure function so the digest and the monthly tune print the same verdict. */
 
 import { profitFactor } from "@/lib/stats";
+import { TARGETLESS_NOTE, targetlessStream } from "@/lib/signals/status";
 
 export const PROMOTION_MIN_CLOSED = 60;
 export const PROMOTION_MIN_PF = 1.2;
@@ -19,6 +20,9 @@ export interface ShadowLike {
   pnl_usd: number | null;
   regime: string | null;
   fill_confidence: string | null;
+  /* Absent on older callers; a stream where this is null on EVERY row has no
+     bracket, so its win rate is not comparable with a bracketed stream's. */
+  target_price?: number | null;
 }
 
 export interface PromotionReport {
@@ -33,6 +37,10 @@ export interface PromotionReport {
   regimesPositive: number;
   promotable: boolean;
   checklist: { label: string; pass: boolean }[];
+  /* True when NO row in the stream carries a price target. winRate is then
+     null and every surface must print winRateNote instead of a percentage. */
+  targetless: boolean;
+  winRateNote: string | null;
 }
 
 export function promotionReport(rows: ShadowLike[]): PromotionReport {
@@ -55,6 +63,14 @@ export function promotionReport(rows: ShadowLike[]): PromotionReport {
   const withData = [...byRegime.values()].filter((v) => v.length >= REGIME_DATA_MIN_CLOSED);
   const positive = withData.filter((v) => v.reduce((a, x) => a + x, 0) > 0).length;
 
+  /* Item 2.2(b): a stream with no bracket on any row cannot have a target-hit
+     rate, and its win rate is not comparable with a bracketed stream's — there
+     is no R to normalise by. Refuse to print one rather than show a number
+     that ranks alongside the others as if it meant the same thing. */
+  const targetless = targetlessStream(
+    rows.filter((r) => r.target_price !== undefined) as { target_price: number | null }[]
+  );
+
   const closedOk = closedRows.length >= PROMOTION_MIN_CLOSED;
   const pfOk = pf !== null && pf >= PROMOTION_MIN_PF;
   const regimeOk =
@@ -66,7 +82,7 @@ export function promotionReport(rows: ShadowLike[]): PromotionReport {
     closed: closedRows.length,
     net: pnls.reduce((a, v) => a + v, 0),
     pf,
-    winRate: closedRows.length ? Math.round((wins / closedRows.length) * 100) : null,
+    winRate: targetless || !closedRows.length ? null : Math.round((wins / closedRows.length) * 100),
     exNet: exPnls.reduce((a, v) => a + v, 0),
     exPf: profitFactor(exPnls),
     regimesWithData: withData.length,
@@ -79,6 +95,9 @@ export function promotionReport(rows: ShadowLike[]): PromotionReport {
         label: `positive in ≥${PROMOTION_MIN_POSITIVE_REGIMES} regimes with data (${positive}/${withData.length})`,
         pass: regimeOk,
       },
+      ...(targetless ? [{ label: TARGETLESS_NOTE, pass: false }] : []),
     ],
+    targetless,
+    winRateNote: targetless ? TARGETLESS_NOTE : null,
   };
 }

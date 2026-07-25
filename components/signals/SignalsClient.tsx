@@ -49,6 +49,12 @@ function statusBadge(s: SignalRow["status"]) {
       return <Badge tone="blue">OPEN</Badge>;
     case "pending":
       return <Badge tone="amber">PENDING</Badge>;
+    case "closed_win":
+      return (
+        <span title="Closed in profit on the strategy's own exit signal or the 15:25 flat — there was no price target to hit">
+          <Badge tone="green">CLOSED UP</Badge>
+        </span>
+      );
     case "expired":
       return <Badge>FLAT CLOSE</Badge>;
     default:

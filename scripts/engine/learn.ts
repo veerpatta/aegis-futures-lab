@@ -171,7 +171,7 @@ async function main() {
     shadowClosed = (
       await fetchAll<ShadowDbRow>(
         "shadow_signals",
-        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts"
+        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price"
       )
     ).filter((r) => r.pnl_usd !== null);
   } catch (e) {
@@ -233,7 +233,7 @@ async function main() {
   try {
     allShadow = await fetchAll<ShadowDbRow>(
       "shadow_signals",
-      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts"
+      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price"
     );
   } catch {
     allShadow = shadowClosed;
@@ -250,6 +250,10 @@ async function main() {
         net: round2(report.net),
         pf: report.pf === null ? null : round2(report.pf),
         winRate: report.winRate,
+        // 2.2(b): carried into the payload so every surface reading this stat
+        // prints the note instead of inventing a percentage.
+        targetless: report.targetless,
+        winRateNote: report.winRateNote,
         exPf: report.exPf === null ? null : round2(report.exPf),
         exNet: round2(report.exNet),
         regimesWithData: report.regimesWithData,

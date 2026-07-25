@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
+import { statusFromExit } from "@/lib/signals/status";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
@@ -170,8 +171,7 @@ async function loadBars(
 }
 
 function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
-  const status =
-    t.exitReason === "target" ? "hit_target" : t.exitReason === "stop" ? "hit_stop" : "expired";
+  const status = statusFromExit(t.exitReason, t.pnl);
   const stopDist = Math.abs(t.entryPrice - t.stop);
   return {
     dedupe_key: `${tier}:${label}:${t.symbol}:${t.entryTime}`,

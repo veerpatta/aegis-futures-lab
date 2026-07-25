@@ -31,7 +31,7 @@ export default function DataClient() {
   useEffect(() => {
     getSupabase()
       .from("shadow_signals")
-      .select("strategy, symbol, status, pnl_usd, regime, fill_confidence")
+      .select("strategy, symbol, status, pnl_usd, regime, fill_confidence, target_price")
       .then(({ data, error }) => {
         if (error || !data) return;
         const streams = [...new Set(data.map((r) => `${r.strategy}|${r.symbol}`))].sort();

@@ -27,7 +27,7 @@ export interface SignalAlerts {
   closed: AlertSignal[];
 }
 
-const CLOSED_STATUSES = new Set(["hit_target", "hit_stop", "expired"]);
+import { CLOSED_STATUSES } from "@/lib/signals/status";
 
 /* Newly triggered: the dedupe key was absent before, or its status just
    became "triggered". Newly closed: it just moved from "triggered" to a

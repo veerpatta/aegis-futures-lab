@@ -290,7 +290,7 @@ async function main() {
     shadowRows = await fetchAllRows<ShadowDbRow>(
       supabase,
       "shadow_signals",
-      "strategy, symbol, status, pnl_usd, regime, fill_confidence"
+      "strategy, symbol, status, pnl_usd, regime, fill_confidence, target_price"
     );
   } catch (e) {
     console.error(`shadow read failed (section skipped): ${e instanceof Error ? e.message : e}`);
@@ -470,8 +470,13 @@ async function main() {
           `|---|---:|---:|---:|---:|---:|---|---|---|`,
           ...shadowStreams.map(({ strategy, symbol, report: r }) => {
             const checklist = r.checklist.map((c) => `${c.pass ? "✅" : "❌"} ${c.label}`).join("<br>");
-            return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${r.winRate ?? "—"}${r.winRate === null ? "" : "%"} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
+            // 2.2(b): a targetless stream gets the note, never a percentage
+            // that would rank next to bracketed streams as if comparable.
+            const wr = r.winRateNote ?? (r.winRate === null ? "—" : `${r.winRate}%`);
+            return `| ${strategy} / ${symbol} | ${r.total} | ${r.closed} | ${money(r.net)} | ${fmtPf(r.pf)} | ${wr} | PF ${fmtPf(r.exPf)} · ${money(r.exNet)} | ${checklist} | ${r.promotable ? "**YES**" : "no"} |`;
           }),
+          ``,
+          `**ema-cross retired from the audition roster on 2026-07-25.** It was both mislabelled and genuinely bad: 2 profitable of 28, net −$2,718, and every row had a null target because its \`signalOnly\` exit style has no price bracket. The labelling hole is fixed for the next \`signalOnly\` candidate (a profitable non-bracket exit is now \`closed_win\`, not \`expired\`); ema-cross itself does not get another slot.`,
         ].join("\n"),
     ``,
     `## The bot is proposing`,

@@ -65,6 +65,10 @@ interface ShadowStream {
   regimesPositive: number;
   promotable: boolean;
   checklist: { label: string; pass: boolean }[];
+  /* A stream with no price target on any row: winRate is null and the note is
+     shown instead, so it can never rank beside a bracketed stream's number. */
+  targetless?: boolean;
+  winRateNote?: string | null;
 }
 interface ShadowScoreboard {
   streams: ShadowStream[];
@@ -309,20 +313,29 @@ export default function BrainClient() {
       {/* ── Shadow scoreboard ── */}
       <Panel title="Shadow auditions" hint="strategies practising on live data — not signals, never alerted">
         <p className={styles.note}>
-          Four extra strategies run silently beside the live tiers. A stream earns promotion interest
-          only when it ticks every box: ≥60 closed, PF ≥ 1.2 (costs included), and positive in ≥2
-          market regimes. Nothing here is a trade idea.
+          Extra strategies run silently beside the live tiers. A stream earns promotion interest only
+          when it ticks every box: ≥60 closed, PF ≥ 1.2 (costs included), and positive in ≥2 market
+          regimes. Nothing here is a trade idea. A stream that sets no profit target shows{" "}
+          <i>no target defined</i> instead of a win rate — without a target there is nothing to
+          compare it against. <b>ema-cross was retired on 2026-07-25</b> (2 profitable of 28).
         </p>
         {!shadow || shadow.streams.length === 0 ? (
           <p className={styles.collecting}>No shadow rows yet — they appear as the engine runs.</p>
         ) : (
           <DataTable
-            columns={["Stream", "Closed", "Net", "PF", "Checklist", "Ready?"]}
+            columns={["Stream", "Closed", "Net", "PF", "Win rate", "Checklist", "Ready?"]}
             rows={shadow.streams.map((s) => [
               <span key="s"><b>{s.strategy}</b> · {s.symbol}</span>,
               String(s.closed),
               <span key="n" className="num">{money(s.net)}</span>,
               fmtPf(s.pf),
+              s.winRateNote ? (
+                <span key="wr" className={styles.dim}>{s.winRateNote}</span>
+              ) : s.winRate === null ? (
+                "—"
+              ) : (
+                `${s.winRate}%`
+              ),
               <span key="c" className={styles.checklist}>
                 {s.checklist.map((c) => (
                   <span key={c.label} className={c.pass ? styles.good : styles.dim}>
