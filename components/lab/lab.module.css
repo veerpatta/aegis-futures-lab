@@ -107,9 +107,20 @@
   flex: 1;
 }
 
+/* The design gives Run backtest the full width of the card and the app's only
+   full-height primary button — it is the one action the page exists for. */
 .runBar .runBtnWrap {
-  flex: 0 0 auto;
+  flex: 1 0 100%;
   min-width: 0;
+  margin-top: var(--space-2);
+}
+
+.runBar .runBtnWrap button {
+  width: 100%;
+  height: 50px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  font-weight: 700;
 }
 
 .kpiGrid {

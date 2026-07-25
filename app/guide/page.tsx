@@ -244,10 +244,19 @@ export default function GuidePage() {
           the model&apos;s win probability, and it reads &ldquo;—&rdquo; when the model has not
           scored that idea.
         </p>
+        <p>
+          On Markets, the top card is whichever contract you are looking at: its price, its move on
+          the day, and a chart with a dashed blue line at yesterday&apos;s close so you can see at a
+          glance whether the day is up or down. The five pills under it change the bar size — 5m
+          through 1D — and <b>Line / Candles</b> switches between the quick shape and the full
+          candlestick chart. The other contract sits in a row further down; tap it to bring it into
+          the top card.
+        </p>
         <p className={styles.note}>
-          In the Journal, the coloured grid is three weeks of daily P&amp;L — pattern first, numbers
-          second — and <b>Bot vs you</b> compares the engine against your own logged trades over the
-          days you actually journaled. Your side is gross of costs and the engine&apos;s already has
+          In the Journal, the coloured grid is three weeks of daily P&amp;L — one square per trading
+          day, showing the date and that day&apos;s result, pattern first and numbers second. Hover
+          or long-press a square for the exact figure, or tap it to load that day. <b>Bot vs you</b>{" "}
+          compares the engine against your own logged trades over the days you actually journaled. Your side is gross of costs and the engine&apos;s already has
           commission and slippage taken out, so a close race is really a win for the bot. In the
           Strategy Lab, the front panel now holds only the settings that genuinely change
           behaviour, in plain words, with everything else in <b>Advanced</b>.

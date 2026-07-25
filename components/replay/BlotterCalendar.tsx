@@ -2,11 +2,17 @@
 
 import { useMemo } from "react";
 import { nyMeta, nyTimeToUnix } from "@/lib/time/ny";
+import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { money } from "@/lib/format";
 import styles from "./replay.module.css";
 
 /* 60-day blotter heatmap and day-picker: Mon–Fri columns, one row per week.
-   Cell tint = engine P&L, amber underline = you journaled trades that day. */
+   Cell tint = engine P&L, amber underline = you journaled trades that day.
+
+   The native pass made the cells square and cut them down to the day number
+   and a compact P&L — pattern first, numbers second. The full reading (trade
+   count, exact P&L, how many of yours) stays in the cell's tooltip, and the
+   day panel below shows it in full once a day is picked. */
 
 export interface BlotterDay {
   date: string; // NY dateKey
@@ -17,6 +23,15 @@ export interface BlotterDay {
 
 const WEEKDAY_COL: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
 
+/* A day cell is ~44px wide, so "+$1,284.00" has to become "+1.3k". Rounded to
+   whole dollars below 1000 — the exact figure lives in the tooltip. */
+function compact(v: number): string {
+  const sign = v < 0 ? "−" : "+";
+  const abs = Math.abs(v);
+  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}k`;
+  return `${sign}${Math.round(abs)}`;
+}
+
 export default function BlotterCalendar({
   days,
   selected,
@@ -26,6 +41,7 @@ export default function BlotterCalendar({
   selected: string | null;
   onSelect: (date: string) => void;
 }) {
+  const { mask } = usePrivacy();
   const weeks = useMemo(() => {
     const byWeek = new Map<number, (BlotterDay & { col: number })[]>();
     for (const d of days) {
@@ -51,7 +67,9 @@ export default function BlotterCalendar({
     <div>
       <div className={styles.calHead}>
         {["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => (
-          <span key={d}>{d}</span>
+          <span key={d} title={d}>
+            {d.charAt(0)}
+          </span>
         ))}
       </div>
       {weeks.map((week, i) => {
@@ -79,9 +97,9 @@ export default function BlotterCalendar({
                     d.engineTrades ? ` · ${money(d.enginePnl)}` : ""
                   }${d.userTrades ? ` · ${d.userTrades} of yours` : ""}`}
                 >
-                  <span className={styles.calDay}>{d.date.slice(5)}</span>
+                  <span className={styles.calDay}>{Number(d.date.slice(8))}</span>
                   <span className={styles.calTrades}>
-                    {d.engineTrades ? `${d.engineTrades}× ${money(d.enginePnl)}` : "—"}
+                    {d.engineTrades ? mask(compact(d.enginePnl)) : "—"}
                   </span>
                   {d.userTrades > 0 && <span className={styles.calUserAccent} />}
                 </button>

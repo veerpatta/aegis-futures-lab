@@ -14,6 +14,7 @@ import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, Panel, SelectField, toneClass } from "@/components/ui";
 import CandleChart from "@/components/chart/CandleChart";
+import PriceArea from "./PriceArea";
 import styles from "./markets.module.css";
 
 type QuoteState =
@@ -21,11 +22,52 @@ type QuoteState =
   | { status: "ready"; quote: MarketPayload }
   | { status: "error"; error: string };
 
+/* The design's five timeframe pills. 4H and 1D are aggregated from the same
+   5-minute feed the others use. */
 const TIMEFRAMES = [
   { id: 5, label: "5m" },
   { id: 15, label: "15m" },
   { id: 60, label: "1H" },
+  { id: 240, label: "4H" },
+  { id: 1440, label: "1D" },
 ];
+
+/* Short names for the hero header — CONTRACT_LABELS is the long legal name and
+   is too wide for the card. */
+const SHORT_NAME: Record<FeedSymbol, string> = {
+  MES: "S&P 500 micro",
+  MNQ: "Nasdaq micro",
+};
+
+/* The 100×30 sparkline on the secondary contract row. */
+function MiniSpark({ closes, up }: { closes: number[]; up: boolean }) {
+  if (closes.length < 2) return <span className={styles.otherSpark} />;
+  const W = 100;
+  const H = 30;
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const span = max - min || 1;
+  const d = closes
+    .map((c, i) => {
+      const x = (i / (closes.length - 1)) * W;
+      const y = H - 3 - ((c - min) / span) * (H - 6);
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg className={styles.otherSpark} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
+      <path
+        d={d}
+        fill="none"
+        stroke={up ? "var(--green)" : "var(--red)"}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
 
 export default function MarketsClient() {
   const data = useData();
@@ -36,6 +78,9 @@ export default function MarketsClient() {
   });
   const [chartSymbol, setChartSymbol] = useState<FeedSymbol>("MES");
   const [tf, setTf] = useState(5);
+  /* The hero opens on the design's line chart; candles are one tap away on the
+     same card rather than a second chart further down the page. */
+  const [chartStyle, setChartStyle] = useState<"line" | "candles">("line");
   const [readoutStrategy, setReadoutStrategy] = useState("zone-v5");
   const [zones, setZones] = useState<ZoneRow[]>([]);
   /* null until mounted — the session countdown must not render on the server. */
@@ -137,6 +182,20 @@ export default function MarketsClient() {
   const phase = marketPhase(tick ?? 0);
   const remaining = tick === null ? null : sessionRemainingSec(tick);
 
+  /* Hero = the contract in the chart; the other one gets the compact row under
+     the zones, and tapping it swaps the two. */
+  const otherSymbol: FeedSymbol = chartSymbol === "MES" ? "MNQ" : "MES";
+  const heroState = quotes[chartSymbol];
+  const heroQuote = heroState.status === "ready" ? heroState.quote : null;
+  const otherState = quotes[otherSymbol];
+  const otherQuote = otherState.status === "ready" ? otherState.quote : null;
+  const pctOf = (q: MarketPayload | null) =>
+    q && q.previousClose ? (q.change / q.previousClose) * 100 : null;
+  const heroPct = pctOf(heroQuote);
+  const otherPct = pctOf(otherQuote);
+  const heroUp = (heroQuote?.change ?? 0) >= 0;
+  const otherUp = (otherQuote?.change ?? 0) >= 0;
+
   const nowSec = Date.now() / 1000;
   const upcoming = data.events
     .map((e) => ({ ...e, sec: new Date(e.time).getTime() / 1000 }))
@@ -167,105 +226,128 @@ export default function MarketsClient() {
         )}
       </div>
 
-      <div className={styles.quotes}>
-        {(["MES", "MNQ"] as FeedSymbol[]).map((symbol) => {
-          const q = quotes[symbol];
-          return (
-            <div key={symbol} className={styles.quoteCard}>
-              <div className={styles.quoteHead}>
-                <span>
-                  <span className={styles.quoteSym}>{symbol}</span>{" "}
-                  <span className={styles.quoteName}>{CONTRACT_LABELS[symbol]}</span>
-                </span>
-                <Badge tone={q.status === "error" ? "red" : "amber"}>
-                  {q.status === "error" ? "FEED OFFLINE" : "DELAYED"}
-                </Badge>
-              </div>
-              {q.status === "ready" ? (
-                <>
-                  <span className={`${styles.quotePrice} num`}>
-                    {q.quote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                  <span
-                    className={styles.quoteChange}
-                    style={{ color: q.quote.change >= 0 ? "var(--green)" : "var(--red)" }}
-                  >
-                    {money(q.quote.change)} vs prior close
-                  </span>
-                  <span className={styles.quoteMeta}>
-                    data {clockIn(Math.floor(new Date(q.quote.dataTimestamp).getTime() / 1000), zone)}{" "}
-                    {ZONE_ABBR[zone]} ·{" "}
-                    {q.quote.source}
-                  </span>
-                </>
-              ) : q.status === "error" ? (
-                <span className={styles.note}>{q.error}</span>
-              ) : (
-                <span className={`${styles.note} pulse`}>loading…</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
       <div className={styles.grid}>
-        <Panel
-          title="Chart"
-          actions={
-            <span className={styles.chartControls}>
-              <span className={styles.segmented}>
-                {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
-                  <Button
-                    key={s}
-                    small
-                    variant={s === chartSymbol ? "primary" : "ghost"}
-                    onClick={() => setChartSymbol(s)}
-                  >
-                    {s}
-                  </Button>
-                ))}
-              </span>
-              <span className={styles.segmented}>
-                {TIMEFRAMES.map((t) => (
-                  <Button
-                    key={t.id}
-                    small
-                    variant={t.id === tf ? "primary" : "ghost"}
-                    onClick={() => setTf(t.id)}
-                  >
-                    {t.label}
-                  </Button>
-                ))}
-              </span>
-            </span>
-          }
-        >
-          {chartBars.length ? (
-            <CandleChart bars={chartBars} height={380} />
-          ) : (
-            <span
-              className={
-                data.history[chartSymbol].status === "error"
-                  ? styles.note
-                  : `${styles.note} pulse`
-              }
-            >
-              {data.history[chartSymbol].status === "error"
-                ? `Feed error: ${data.history[chartSymbol].error}`
-                : "Loading 60-day history…"}
-            </span>
-          )}
-        </Panel>
+        <div className={styles.mainCol}>
+          {/* ── Hero: the symbol you are looking at ── */}
+          <section className={styles.hero} aria-label={`${chartSymbol} price`}>
+            <div className={styles.heroHead}>
+              <div className={styles.heroName}>
+                <b className={styles.heroSym}>{chartSymbol}</b>
+                <span className={styles.heroSub}>
+                  {SHORT_NAME[chartSymbol]}
+                  {heroQuote && (
+                    <>
+                      {" · data "}
+                      {clockIn(
+                        Math.floor(new Date(heroQuote.dataTimestamp).getTime() / 1000),
+                        zone
+                      )}{" "}
+                      {ZONE_ABBR[zone]}
+                    </>
+                  )}
+                </span>
+              </div>
+              <div className={styles.heroPrice}>
+                <b className={`${styles.heroPx} num`}>
+                  {heroQuote
+                    ? heroQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                    : "—"}
+                </b>
+                <span
+                  className={`${styles.heroChg} num ${heroUp ? styles.good : styles.bad}`}
+                >
+                  {heroQuote
+                    ? `${money(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
+                    : heroState.status === "error"
+                      ? "feed offline"
+                      : "loading…"}
+                </span>
+              </div>
+            </div>
 
-        <div className={styles.sideCol}>
-          <Panel title="Zones near price" hint="from the engine's zone table · nearest first">
+            {chartBars.length ? (
+              chartStyle === "line" ? (
+                <PriceArea
+                  bars={chartBars}
+                  previousClose={heroQuote?.previousClose ?? null}
+                  up={heroUp}
+                  label={`${chartSymbol} price over the loaded window, with the previous close marked`}
+                />
+              ) : (
+                <div className={styles.heroCandles}>
+                  <CandleChart
+                    bars={chartBars}
+                    height={300}
+                    lines={
+                      heroQuote
+                        ? [
+                            {
+                              price: heroQuote.previousClose,
+                              color: "#5aa7ff",
+                              title: "prev close",
+                              dashed: true,
+                            },
+                          ]
+                        : []
+                    }
+                  />
+                </div>
+              )
+            ) : (
+              <span
+                className={
+                  data.history[chartSymbol].status === "error"
+                    ? styles.note
+                    : `${styles.note} pulse`
+                }
+              >
+                {data.history[chartSymbol].status === "error"
+                  ? `Feed error: ${data.history[chartSymbol].error}`
+                  : "Loading 60-day history…"}
+              </span>
+            )}
+
+            <div className={styles.tfRow} role="group" aria-label="Timeframe">
+              {TIMEFRAMES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={t.id === tf ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
+                  aria-pressed={t.id === tf}
+                  onClick={() => setTf(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.heroFoot}>
+              <span className={styles.styleToggle} role="group" aria-label="Chart style">
+                {(["line", "candles"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={s === chartStyle ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
+                    aria-pressed={s === chartStyle}
+                    onClick={() => setChartStyle(s)}
+                  >
+                    {s === "line" ? "Line" : "Candles"}
+                  </button>
+                ))}
+              </span>
+              <Badge tone={heroState.status === "error" ? "red" : "amber"}>
+                {heroState.status === "error" ? "FEED OFFLINE" : "DELAYED"}
+              </Badge>
+            </div>
+          </section>
+
+          {/* ── Zones near price ── */}
+          <section className={styles.card} aria-label="Zones near price">
+            <h2 className={styles.cardTitle}>Zones near price</h2>
             <div className={styles.zoneList}>
               {nearZones.length ? (
                 nearZones.map(({ z, dist, inside, above }) => (
-                  <div
-                    key={z.id}
-                    className={`${styles.zoneRow} ${inside ? styles.zoneAt : ""}`}
-                  >
+                  <div key={z.id} className={`${styles.zoneRow} ${inside ? styles.zoneAt : ""}`}>
                     <span
                       className={`${styles.zoneTag} ${
                         inside ? styles.warn : z.zone_type === "demand" ? styles.good : styles.bad
@@ -288,13 +370,44 @@ export default function MarketsClient() {
                   </div>
                 ))
               ) : (
-                <span className={styles.note}>
-                  No zones within reach of the delayed price yet.
-                </span>
+                <span className={styles.note}>No zones within reach of the delayed price yet.</span>
               )}
             </div>
-          </Panel>
+          </section>
 
+          {/* ── The other contract, one tap away ── */}
+          <button
+            type="button"
+            className={`${styles.otherRow} press`}
+            onClick={() => setChartSymbol(otherSymbol)}
+            aria-label={`Show ${otherSymbol} in the chart`}
+          >
+            <span className={styles.otherName}>
+              <b>{otherSymbol}</b>
+              <span className={styles.otherSub}>{SHORT_NAME[otherSymbol]}</span>
+            </span>
+            <MiniSpark
+              closes={(otherQuote?.bars ?? []).slice(-120).map((b) => b.close)}
+              up={otherUp}
+            />
+            <span className={styles.otherVals}>
+              <b className="num">
+                {otherQuote
+                  ? otherQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : "—"}
+              </b>
+              <span className={`num ${otherUp ? styles.good : styles.bad}`}>
+                {otherPct === null
+                  ? "—"
+                  : `${otherUp ? "+" : "−"}${Math.abs(otherPct).toFixed(2)}%`}
+              </span>
+            </span>
+          </button>
+
+          <span className={styles.delayedNote}>Delayed 10–15 min · display only</span>
+        </div>
+
+        <div className={styles.sideCol}>
           <Panel title="Signal readout" hint={data.replayCutoff ? "at replay cutoff" : "latest bar"}>
             <div style={{ marginBottom: "var(--space-3)" }}>
               <SelectField
