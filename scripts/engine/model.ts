@@ -37,7 +37,8 @@ export async function loadLatestModel(supabase: SupabaseClient): Promise<LoadedM
 
 /* Nightly: train on all clean-fill closed rows, evaluate walk-forward, persist
    a model_registry row, and transition status with an audit trail.
-     observe → active   when train_n ≥ 300 AND OOS Brier < baseline AND !frozen
+     observe → active   when train_n ≥ 150 AND OOS Brier < baseline on TWO
+                        consecutive evaluations AND !frozen
      active  → demoted   when OOS Brier no longer beats baseline (safety, even frozen)
      demoted stays demoted (keeps scoring, never vetoes) */
 export async function retrainModel(
@@ -172,11 +173,21 @@ export function nextModelStatus(
       };
     return { status: "demoted", flip: null, skipped: false };
   }
-  // observe
-  if (current.train_n >= GRADUATE_MIN_TRAIN && currentBeat && !frozen)
+  // observe → active. Graduation needs the sample bar AND a REPEATED
+  // out-of-sample win (item 2.9): the sample requirement came down from 300 to
+  // 150 so the gate is reachable at ~0.7 signals/day, and in exchange the
+  // evidence must hold on two consecutive nightly evaluations. One lucky fold
+  // can no longer hand over veto authority.
+  if (current.train_n >= GRADUATE_MIN_TRAIN && currentBeat && prevBeat && !frozen)
     return {
       status: "active",
-      flip: { action: "veto_enabled", reason: `train_n ${current.train_n} ≥ ${GRADUATE_MIN_TRAIN}, OOS Brier ${current.oos_brier} < baseline ${current.baseline_brier}` },
+      flip: {
+        action: "veto_enabled",
+        reason:
+          `train_n ${current.train_n} ≥ ${GRADUATE_MIN_TRAIN}, OOS Brier ${current.oos_brier} < ` +
+          `baseline ${current.baseline_brier} for a 2nd straight evaluation ` +
+          `(previous ${prev.oos_brier} < ${prev.baseline_brier})`,
+      },
       skipped: false,
     };
   return { status: "observe", flip: null, skipped: false };

@@ -71,10 +71,11 @@ to trade — and it is paper only.
 A small model studies every signal the bot has seen and learns which setups are **least**
 likely to win. It can only ever do one thing: quietly skip the weakest 1-in-10 signals — it
 can never invent or enlarge a trade. It must **earn the right** to act: until it has at least
-300 clean examples *and* beats a simple baseline on unseen data, it only shadow-votes
-(marking what it *would* have skipped, with the Saturday digest reporting how those would
-have done). If it graduates and later slips, it demotes itself. Its status, accuracy trend
-and calibration are on the **What the bot knows** page. Paper only.
+150 clean examples *and* beats a simple baseline on unseen data *two nights running*, it only
+shadow-votes (marking what it *would* have skipped, with the Saturday digest reporting how
+those would have done). The count it has and the count it needs are printed together
+everywhere it appears. If it graduates and later slips, it demotes itself. Its status,
+accuracy trend and calibration are on the **What the bot knows** page. Paper only.
 
 ### The bot proposes its own upgrades
 
@@ -198,6 +199,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-07-24. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-25. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

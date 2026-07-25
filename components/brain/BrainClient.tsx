@@ -9,6 +9,7 @@ import { getSupabase, type LearnedStatsRow, type ModelRegistryRow } from "@/lib/
 import { Badge, DataTable, Kpi, Panel } from "@/components/ui";
 import { money } from "@/lib/format";
 import { fmtPf } from "@/lib/stats";
+import { GRADUATE_MIN_TRAIN, graduationProgress } from "@/scripts/engine/winprob";
 import styles from "./brain.module.css";
 
 interface Cell {
@@ -341,9 +342,10 @@ export default function BrainClient() {
         <p className={styles.note}>
           A simple model learns, from signals it has already seen, which setups are least likely to
           win. It has to earn the right to act: it only starts vetoing (the bottom 10% of predicted
-          odds) once it has ≥300 clean-fill examples <b>and</b> its out-of-sample accuracy beats a
-          dumb baseline. Lower &ldquo;Brier&rdquo; is better; it must stay below the baseline to keep
-          its authority, and it demotes itself if it slips. Until then it only shadow-votes.
+          odds) once it has ≥{GRADUATE_MIN_TRAIN} clean-fill examples <b>and</b> its out-of-sample
+          accuracy beats a dumb baseline <b>two nights running</b>. Lower &ldquo;Brier&rdquo; is
+          better; it must stay below the baseline to keep its authority, and it demotes itself if it
+          slips. Until then it only shadow-votes.
         </p>
         {(() => {
           const latest = models && models[0];
@@ -356,7 +358,7 @@ export default function BrainClient() {
               <div className={styles.asOf}>
                 <Badge tone={tone}>{latest.status.toUpperCase()}</Badge>
                 <span className={styles.dim}>
-                  &nbsp;{latest.train_n ?? 0} clean-fill examples · out-of-sample Brier{" "}
+                  &nbsp;clean-fill examples {graduationProgress(latest.train_n)} · out-of-sample Brier{" "}
                   <b className={beats ? styles.good : styles.bad}>{latest.oos_brier ?? "—"}</b> vs baseline{" "}
                   {latest.baseline_brier ?? "—"} {latest.oos_brier === null ? "(collecting)" : beats ? "(beating baseline)" : "(not beating baseline)"}
                 </span>

@@ -18,6 +18,7 @@ import { sendTelegram } from "./notify";
 import { fetchAllRows } from "./paginate";
 import { activeOnly, exDoubtful, pausedPractice, stats } from "./digest-stats";
 import { promotionReport, type ShadowLike } from "./promotion";
+import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -343,7 +344,7 @@ async function main() {
       const net = vc.reduce((a, s) => a + (s.pnl_usd ?? 0), 0);
       const ghost = m.status !== "active";
       modelLine =
-        `Win-prob model: <b>${m.status}</b> (${m.train_n ?? 0} clean examples, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}). ` +
+        `Win-prob model: <b>${m.status}</b> (clean examples ${graduationProgress(m.train_n)}, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}). ` +
         (vetoed.length === 0
           ? `${ghost ? "Would have vetoed" : "Vetoed"} 0 signals this week.`
           : `${ghost ? "Would have vetoed" : "Vetoed"} ${vetoed.length} this week; those closed ${w}-${l} for ${money(net)}` +
@@ -481,7 +482,7 @@ async function main() {
     ``,
     `## Win-probability model`,
     `${modelLine.replace(/<\/?b>/g, "**")}`,
-    `The model can only ever veto the worst signals (bottom decile) and never create a trade; it acts only once it has ≥300 clean-fill examples and beats the base-rate baseline out-of-sample, and demotes itself if it slips.`,
+    `The model can only ever veto the worst signals (bottom decile) and never create a trade; it acts only once it has ≥${GRADUATE_MIN_TRAIN} clean-fill examples AND beats the base-rate baseline out-of-sample on two consecutive nightly evaluations, and demotes itself if it slips.`,
     ``,
     `## What I learned this week`,
     `Changes in the nightly knowledge tables (condition ledger) vs the snapshot ~7 days ago. Only cells with ≥10 closed signals whose profit factor moved >0.2 or win rate moved >10pts are reported.`,

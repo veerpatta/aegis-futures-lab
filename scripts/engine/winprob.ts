@@ -2,9 +2,10 @@
    descent, no ML deps) that predicts each signal's win probability from
    features already stored on the row. It can only ever VETO the worst signals
    (bottom decile of predicted probability) — it can never create or upsize a
-   trade — and it earns that authority only after ≥300 clean-fill samples AND
-   an out-of-sample Brier score that beats the base-rate baseline. Until then
-   it audits in observe mode exactly like the shadow strategies.
+   trade — and it earns that authority only after ≥150 clean-fill samples AND
+   an out-of-sample Brier score that beats the base-rate baseline on TWO
+   CONSECUTIVE nightly evaluations. Until then it audits in observe mode
+   exactly like the shadow strategies.
 
    Everything here is deterministic (zero-initialised weights, fixed schedule)
    so a re-run reproduces the same model. Paper only, delayed data. */
@@ -13,7 +14,25 @@ import { nyMeta } from "@/lib/time/ny";
 import { tradingDaysBetween } from "@/lib/time/trading-days";
 
 export const MODEL_NAME = "winprob-logit-v1";
-export const GRADUATE_MIN_TRAIN = 300; // clean-fill closed samples before active
+/* Clean-fill closed samples before the model may go active.
+
+   Lowered 300 → 150 on 2026-07-25 (item 2.9). At the observed ~0.7 signals/day
+   the 300 bar sat roughly fourteen months out, which made the whole Ring-1b
+   lifecycle unreachable in practice. The sample size is traded for evidence
+   STABILITY, not given away: graduation now additionally requires beating the
+   baseline Brier on two consecutive nightly evaluations (model.ts
+   nextModelStatus), so a single lucky fold can no longer hand over veto
+   authority. At this scale that is the better trade — a one-off OOS win on 300
+   samples is weaker evidence than a repeated one on 150. */
+export const GRADUATE_MIN_TRAIN = 150;
+/* The graduation gate as a printable current-vs-required count. Standing rule:
+   every gate, threshold and sample requirement shows its progress wherever it
+   is surfaced, so a stalled lifecycle can never look like a healthy one.
+   Used by the digest, /brain and the Guide so all three agree. */
+export function graduationProgress(trainN: number | null | undefined): string {
+  return `${trainN ?? 0} of ${GRADUATE_MIN_TRAIN} needed`;
+}
+
 export const EMBARGO_DAYS = 5; // TRADING-day gap between train end and test start
 export const WF_FOLDS = 5; // walk-forward test folds
 

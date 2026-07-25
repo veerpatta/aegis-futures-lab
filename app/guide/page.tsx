@@ -212,13 +212,14 @@ export default function GuidePage() {
           skip the weakest 1-in-10 signals. It can never invent a trade or make one bigger.
         </p>
         <p>
-          It has to <b>earn the right</b> to act. Until it has at least 300 clean examples <i>and</i>{" "}
-          its predictions beat a simple baseline on data it has never seen, it only shadow-votes —
-          it marks which signals it <i>would</i> have skipped, and the Saturday digest reports how
-          those would have done, so you can watch it audition just like the shadow strategies. If it
-          graduates and later starts slipping, it demotes itself back to watching. You can see its
-          status, accuracy trend and calibration on the <b>What the bot knows</b> page, and it is
-          paper only, like everything here.
+          It has to <b>earn the right</b> to act. Until it has at least 150 clean examples <i>and</i>{" "}
+          its predictions beat a simple baseline on data it has never seen <i>two nights running</i>,
+          it only shadow-votes — it marks which signals it <i>would</i> have skipped, and the
+          Saturday digest reports how those would have done, so you can watch it audition just like
+          the shadow strategies. The count it has so far, and the count it needs, are printed
+          together everywhere it appears. If it graduates and later starts slipping, it demotes
+          itself back to watching. You can see its status, accuracy trend and calibration on the{" "}
+          <b>What the bot knows</b> page, and it is paper only, like everything here.
         </p>
       </section>
 
@@ -347,7 +348,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-24. A printable version of this guide lives in the project
+        Matches the app as of 2026-07-25. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nextModelStatus, selectVetoes, type EvalSnapshot } from "../scripts/engine/model";
+import { GRADUATE_MIN_TRAIN, graduationProgress } from "../scripts/engine/winprob";
 
 /* Finding 7: the veto flags at most ceil(0.1 * n) of the scored rows — the
    strictly lowest at/below the trailing-decile threshold — and fails OPEN when
@@ -82,10 +83,43 @@ describe("nextModelStatus", () => {
     expect(nextModelStatus(demoted, m(0.2, 0.3), false).status).toBe("demoted");
   });
 
-  it("graduates observe → active by the normal rule", () => {
-    const observe: EvalSnapshot = { status: "observe", oos_brier: null, baseline_brier: null };
-    expect(nextModelStatus(observe, m(0.2, 0.3, 300), false).status).toBe("active");
-    expect(nextModelStatus(observe, m(0.2, 0.3, 299), false).status).toBe("observe"); // too few
-    expect(nextModelStatus(observe, m(0.2, 0.3, 300), true).status).toBe("observe"); // frozen
+  /* Item 2.9: the graduation bar is 150 samples (down from 300, which sat ~14
+     months out at ~0.7 signals/day) AND the out-of-sample win must repeat on
+     two consecutive evaluations. Sample size traded for evidence stability. */
+  describe("graduation (item 2.9)", () => {
+    const observeBeat: EvalSnapshot = { status: "observe", oos_brier: 0.24, baseline_brier: 0.31 };
+    const observeFresh: EvalSnapshot = { status: "observe", oos_brier: null, baseline_brier: null };
+    const observeRegressed: EvalSnapshot = { status: "observe", oos_brier: 0.35, baseline_brier: 0.3 };
+
+    it("graduates at the 150 bar when the baseline beat repeats", () => {
+      const d = nextModelStatus(observeBeat, m(0.2, 0.3, GRADUATE_MIN_TRAIN), false);
+      expect(d.status).toBe("active");
+      expect(d.flip?.action).toBe("veto_enabled");
+      expect(d.flip?.reason).toContain("2nd straight evaluation");
+    });
+
+    it("does NOT graduate on a single beat, however good", () => {
+      // Previous night had no measurable OOS — one lucky fold is not evidence.
+      expect(nextModelStatus(observeFresh, m(0.01, 0.5, 5000), false).status).toBe("observe");
+      // Previous night regressed — the streak is broken.
+      expect(nextModelStatus(observeRegressed, m(0.2, 0.3, 5000), false).status).toBe("observe");
+    });
+
+    it("still refuses below the sample bar and while frozen", () => {
+      expect(nextModelStatus(observeBeat, m(0.2, 0.3, GRADUATE_MIN_TRAIN - 1), false).status).toBe("observe");
+      expect(nextModelStatus(observeBeat, m(0.2, 0.3, GRADUATE_MIN_TRAIN), true).status).toBe("observe");
+    });
+
+    it("the bar is reachable: 150, not 300", () => {
+      expect(GRADUATE_MIN_TRAIN).toBe(150);
+    });
+  });
+});
+
+describe("graduationProgress", () => {
+  it("prints current vs required so the gate is never invisible", () => {
+    expect(graduationProgress(93)).toBe(`93 of ${GRADUATE_MIN_TRAIN} needed`);
+    expect(graduationProgress(null)).toBe(`0 of ${GRADUATE_MIN_TRAIN} needed`);
+    expect(graduationProgress(undefined)).toBe(`0 of ${GRADUATE_MIN_TRAIN} needed`);
   });
 });
