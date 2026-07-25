@@ -77,7 +77,12 @@ export function evaluate(
     strategyId: stream.strategyId,
     params,
     series: Object.fromEntries(stream.symbols.map((s) => [s, bySymbol[s]])),
-    execution: { ...EXECUTION, fillModel: stream.fillModel },
+    execution: {
+        ...EXECUTION,
+        fillModel: stream.fillModel,
+        // Per-symbol risk cap (item 2.3); absent ⇒ the shared EXECUTION value.
+        maxRisk: stream.maxRisk ?? EXECUTION.maxRisk,
+      },
     locks: stream.locks,
     startingCapital: STARTING_CAPITAL,
     sessionExitMinute: SESSION_EXIT_MINUTE,

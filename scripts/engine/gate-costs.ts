@@ -85,7 +85,12 @@ export async function computeGateCosts(supabase: SupabaseClient, nowSec: number)
       strategyId: stream.strategyId,
       params: stream.params,
       series,
-      execution: { ...EXECUTION, fillModel: stream.fillModel },
+      execution: {
+        ...EXECUTION,
+        fillModel: stream.fillModel,
+        // Per-symbol risk cap (item 2.3); absent ⇒ the shared EXECUTION value.
+        maxRisk: stream.maxRisk ?? EXECUTION.maxRisk,
+      },
       locks: stream.locks,
       startingCapital: STARTING_CAPITAL,
       sessionExitMinute: SESSION_EXIT_MINUTE,
