@@ -333,3 +333,34 @@
 .good { color: var(--green); font-variant-numeric: tabular-nums; }
 .bad { color: var(--red); font-variant-numeric: tabular-nums; }
 .warn { color: var(--amber); font-variant-numeric: tabular-nums; }
+
+/* ── Signal context strip (item 2.8) ── */
+.ctx {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.ctxLine {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.ctxKey {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 9.5px;
+  color: var(--text-faint);
+  padding-top: 1px;
+}
+
+.ctxCollecting {
+  font-style: italic;
+  opacity: 0.85;
+}

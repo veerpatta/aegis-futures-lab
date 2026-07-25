@@ -66,6 +66,22 @@ practice out of the headline numbers and reports it on its own line. Every bench
 is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
 to trade — and it is paper only.
 
+### What each idea tells you at a glance
+
+Every idea on Home and on Signals carries four lines under it, so you do not have to hold the
+context in your head:
+
+- **Setup** — what triggered it, in the strategy's own terms.
+- **Invalidated** — the price that proves the idea wrong, and how far away it is. This is the
+  stop: if price gets there, the reason for the trade is gone.
+- **Odds** — the model's win probability for this idea, plus the zone score where there is one.
+  If the model has not scored it, it says so rather than showing a number.
+- **History** — how *this kind of setup* has actually done: the same tier in the same kind of
+  market, and the same tier at the same level of market fear. **Every one of these comes with
+  the number of trades behind it**, and when there are fewer than 10 it says "still collecting"
+  and shows no rate at all. A 100% win rate on 3 trades is not information, and the app will
+  not present it as if it were.
+
 ### When nothing happens: "Why no signal today?"
 
 A quiet day raises exactly one question — is the bot broken, or just being patient? The

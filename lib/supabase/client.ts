@@ -54,6 +54,12 @@ export interface SignalRow {
      Excluded from every headline number, from alerts and from model training,
      on the same footing as `suppressed`; shown in its own drawer. */
   stale_data?: boolean;
+  /* Ring 1b: the model's predicted win probability, and whether this row fell
+     in its bottom decile. The veto only takes effect while the model is ACTIVE;
+     in observe/demoted it is a ghost flag the digest grades. Surfaced on the
+     signal cards (item 2.8). Optional — absent on rows written before Ring 1b. */
+  win_prob?: number | null;
+  model_veto?: boolean;
 }
 
 /* bot_policy: append-only audit of automatic policy actions (breaker pauses/

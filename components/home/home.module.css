@@ -1004,3 +1004,8 @@
   color: var(--text-dim);
   margin: 14px 0 6px;
 }
+
+/* Signal context strip inside a Home idea row (item 2.8) */
+.rowCtx {
+  grid-column: 1 / -1;
+}

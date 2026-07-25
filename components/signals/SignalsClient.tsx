@@ -17,6 +17,7 @@ import {
 } from "@/lib/supabase/client";
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { STALE_BAR_AGE_MIN, STALE_LABEL } from "@/lib/signals/freshness";
+import SignalContext, { useConditionLedger } from "./SignalContext";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -381,6 +382,11 @@ export default function SignalsClient() {
     [ready]
   );
 
+  /* Item 2.8 — the nightly condition ledger, fetched once for every card on the
+     page. Null until it loads (or if it has never been built), and every card
+     says so rather than showing a number without its sample count. */
+  const ledger = useConditionLedger();
+
   return (
     <>
       <h1 className="pageTitle">Signals</h1>
@@ -645,7 +651,7 @@ export default function SignalsClient() {
               </span>
             </div>
             <DataTable
-              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Regime", "Setup"]}
+              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Regime", "Setup & context"]}
               rows={day.rows.map((s) => [
                 <span key="t" className="num">{fmtTime(s.signal_ts, zone)}</span>,
                 <Badge key="b" tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge>,
@@ -664,9 +670,12 @@ export default function SignalsClient() {
                   <span key="p" className={s.pnl_usd >= 0 ? styles.good : styles.bad}>{money(s.pnl_usd)}</span>
                 ),
                 regimeBadge(s.regime),
-                <span key="r" className={styles.dim}>{s.reason ?? "—"}</span>,
+                /* Item 2.8 — setup, what invalidates it, the matching
+                   condition-ledger cell (always with its n) and the model's
+                   win probability, without a click. */
+                <SignalContext key="ctx" signal={s} ledger={ledger} />,
               ])}
-              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10, 11] }}
+              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10] }}
             />
           </div>
         ))}

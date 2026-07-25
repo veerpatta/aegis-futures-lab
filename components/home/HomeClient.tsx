@@ -33,6 +33,7 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import ZoneToggle from "@/components/nav/ZoneToggle";
 import LiveVsTuning from "./LiveVsTuning";
 import WhyNoSignal from "./WhyNoSignal";
+import SignalContext, { useConditionLedger } from "@/components/signals/SignalContext";
 import { money } from "@/lib/format";
 import { fmtPf, profitFactor } from "@/lib/stats";
 import styles from "./home.module.css";
@@ -250,6 +251,9 @@ export default function HomeClient() {
     () => (ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
     [ready]
   );
+  /* Item 2.8 — the nightly condition ledger, fetched once for every card. */
+  const ledger = useConditionLedger();
+
   const pausedStreams = useMemo(() => {
     if (!ready) return [];
     const latest = new Map<string, BotPolicyRow>();
@@ -667,6 +671,12 @@ export default function HomeClient() {
                         </span>
                       )}
                     </span>
+                    {/* Item 2.8 — setup, what invalidates it, the matching
+                        condition-ledger cell (always with its n) and the
+                        model's win probability, without a click. */}
+                    <div className={styles.rowCtx}>
+                      <SignalContext signal={s} ledger={ledger} />
+                    </div>
                   </div>
                 );
               })

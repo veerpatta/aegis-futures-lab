@@ -218,6 +218,36 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>What each idea tells you at a glance</h2>
+        <p>
+          Every idea on Home and on Signals now carries four lines under it, so you do not have to
+          hold the context in your head:
+        </p>
+        <dl className={styles.dl}>
+          <dt>Setup</dt>
+          <dd>What triggered it, in the strategy&apos;s own terms.</dd>
+          <dt>Invalidated</dt>
+          <dd>
+            The price that proves the idea wrong, and how far away it is. This is the stop — if price
+            gets there, the reason for the trade is gone.
+          </dd>
+          <dt>Odds</dt>
+          <dd>
+            The model&apos;s win probability for this idea, plus the zone score where there is one. If
+            the model has not scored it, it says so rather than showing a number.
+          </dd>
+          <dt>History</dt>
+          <dd>
+            How <i>this kind of setup</i> has actually done — the same tier in the same kind of
+            market, and the same tier at the same level of market fear. <b>Every one of these comes
+            with the number of trades behind it</b>, and when there are fewer than 10 it says
+            &ldquo;still collecting&rdquo; and shows no rate at all. A 100% win rate on 3 trades is
+            not information, and the app will not present it as if it were.
+          </dd>
+        </dl>
+      </section>
+
+      <section className={styles.card}>
         <h2>When nothing happens: &ldquo;Why no signal today?&rdquo;</h2>
         <p>
           A quiet day raises exactly one question — is the bot broken, or just being patient? The{" "}
