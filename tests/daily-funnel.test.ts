@@ -96,7 +96,7 @@ describe("summarizeDailyFunnel", () => {
 
   it("surfaces a stalled feed, because that is a different answer entirely", () => {
     const s = summarizeDailyFunnel(payload({ staleData: true, worstBarAgeMin: 104 }));
-    expect(s.sentence).toContain("price feed stalled");
+    expect(s.sentence).toContain("the price feed is behind");
     expect(s.sentence).toContain("104 min old");
   });
 
@@ -114,5 +114,37 @@ describe("summarizeDailyFunnel", () => {
 
   it("uses the existing versioned stat table, so it needs no migration", () => {
     expect(DAILY_FUNNEL_STAT_KEY).toBe("daily_funnel");
+  });
+});
+
+/* Follow-up to the per-row staleness fix: the panel must not claim rows were
+   excluded just because the feed is behind. On a weekend recompute the feed IS
+   behind and nothing is flagged, and saying otherwise would be a lie the user
+   could check against the scores. */
+describe("stale feed vs stale rows are different facts", () => {
+  it("says the feed is behind but nothing was affected when no row was flagged", () => {
+    const s = summarizeDailyFunnel(
+      payload({ staleData: true, worstBarAgeMin: 655, staleRowsFlagged: 0 })
+    );
+    expect(s.sentence).toContain("the price feed is behind (freshest bar 655 min old)");
+    expect(s.sentence).toContain("no idea was close enough to the gap to be affected");
+    expect(s.sentence).not.toContain("left out of the scores");
+  });
+
+  it("names the count when rows really were flagged", () => {
+    const one = summarizeDailyFunnel(
+      payload({ staleData: true, worstBarAgeMin: 104, staleRowsFlagged: 1 })
+    );
+    expect(one.sentence).toContain("1 idea is flagged and left out of the scores");
+    const many = summarizeDailyFunnel(
+      payload({ staleData: true, worstBarAgeMin: 104, staleRowsFlagged: 3 })
+    );
+    expect(many.sentence).toContain("3 ideas are flagged and left out of the scores");
+  });
+
+  it("falls back to the plain feed note on payloads written before the fix", () => {
+    const s = summarizeDailyFunnel(payload({ staleData: true, worstBarAgeMin: 104 }));
+    expect(s.sentence).toContain("the price feed is behind");
+    expect(s.sentence).not.toContain("flagged");
   });
 });

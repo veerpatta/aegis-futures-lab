@@ -551,7 +551,9 @@ async function main() {
   // re-run on the same NY date overwrites the same row. Best effort: this is
   // presentation bookkeeping and must never fail a signal run.
   try {
-    if (staleness.stale) for (const s of streamStatus) s.status = "stale-data";
+    // Only call a stream "stale price feed" when a row of its own was
+    // actually flagged — a behind feed that cost nothing is not a stream fault.
+    if (flagged > 0) for (const s of streamStatus) s.status = "stale-data";
     const funnelPayload: DailyFunnelPayload = {
       dateKey: todayKey,
       computedAt: new Date().toISOString(),
@@ -561,6 +563,7 @@ async function main() {
       streams: streamStatus,
       staleData: staleness.stale,
       worstBarAgeMin: staleness.worstAgeMin,
+      staleRowsFlagged: flagged,
     };
     const { error } = await supabase.from("learned_stats").upsert(
       {

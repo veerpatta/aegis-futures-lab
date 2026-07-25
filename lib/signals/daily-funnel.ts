@@ -28,9 +28,15 @@ export interface DailyFunnelPayload {
     status: "active" | "benched" | "stale-data";
     signalsToday: number;
   }[];
-  /** Set when the run was computed on bars past the age limit (item 2.4). */
+  /** Set when the FEED is behind — the run read bars past the age limit. This
+      says nothing about whether any row was flagged: staleness is judged per
+      row (lib/signals/freshness.ts staleAtSignal), and a weekend recompute of
+      well-observed rows reads a stale feed while flagging nothing. */
   staleData: boolean;
   worstBarAgeMin: number;
+  /** How many of this run's rows were actually flagged stale_data. Absent on
+      payloads written before the per-row fix. */
+  staleRowsFlagged?: number;
 }
 
 export const DAILY_FUNNEL_STAT_KEY = "daily_funnel";
@@ -124,10 +130,21 @@ export function summarizeDailyFunnel(payload: DailyFunnelPayload | null): Funnel
   else if (named.length) parts.push(`nothing qualified — ${named.join(", ")}`);
   else parts.push("nothing qualified, and nothing came close");
 
-  if (payload.staleData)
-    parts.push(
-      `the price feed stalled (freshest bar ${payload.worstBarAgeMin} min old), so today's ideas are flagged and left out of the scores`
-    );
+  /* Report what is actually true, which is two separate facts: the feed is
+     behind, and (separately) how many rows that cost. Claiming rows were
+     "flagged and left out" whenever the feed is behind was wrong — staleness is
+     judged per row, so a weekend recompute reads a stale feed and flags nothing. */
+  if (payload.staleData) {
+    const flagged = payload.staleRowsFlagged;
+    const age = `the price feed is behind (freshest bar ${payload.worstBarAgeMin} min old)`;
+    if (flagged === undefined) parts.push(age);
+    else if (flagged === 0)
+      parts.push(`${age}, but no idea was close enough to the gap to be affected`);
+    else
+      parts.push(
+        `${age}, so ${flagged} idea${flagged === 1 ? " is" : "s are"} flagged and left out of the scores`
+      );
+  }
   if (benched.length)
     parts.push(
       `${benched.length} stream${benched.length === 1 ? " is" : "s are"} benched by the breaker`
