@@ -27,7 +27,17 @@ import { promotionReport, type ShadowLike } from "./promotion";
 import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
 import { retrainModel } from "./model";
 import { buildModelRows } from "./train-set";
+import {
+  MAX_WORKFLOW_AGE_HOURS,
+  checkInvariants,
+  reportInvariants,
+  workflowAges,
+} from "./invariants";
+import { sendTelegram } from "./notify";
 import type { ModelRow } from "./winprob";
+
+const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
+const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -54,6 +64,7 @@ interface SignalRow {
   dedupe_key: string;
   signal_ts: string;
   stale_data: boolean | null; // item 2.4 — kept out of ledgers and training
+  target_price: number | null; // item 2.6 — the invariant check needs it
 }
 
 interface ShadowDbRow extends ShadowLike {
@@ -162,7 +173,7 @@ async function main() {
 
   const signals = await fetchAll<SignalRow>(
     "signals",
-    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data"
+    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price"
   );
   /* Item 2.4 — stale-data rows are out of every learned statistic for the same
      reason they are out of the headline numbers: they describe a market the
@@ -298,6 +309,39 @@ async function main() {
 
   const { error } = await supabase.from("learned_stats").upsert(rows, { onConflict: "stat_key,date_key" });
   if (error) throw new Error(`learned_stats upsert: ${error.message}`);
+
+  /* ── Item 2.6 — invariant check, on what we JUST wrote ───────────────────
+     Runs against this run's own payloads rather than re-reading the table, so
+     it grades the output of the job it is part of. Fails loudly (Telegram +
+     GitHub issue), never a silent console line — both prior audits found
+     structural failures that reported nothing at all. Never fatal: a broken
+     reporter must not lose the night's learning. */
+  try {
+    const latestStats = Object.fromEntries(rows.map((r) => [r.stat_key, r.payload]));
+    let ages: Record<string, number | null> = {};
+    try {
+      ages = await workflowAges(REPO, GH_TOKEN, Date.now());
+    } catch (e) {
+      console.error(`workflow age read failed (that check skipped): ${e instanceof Error ? e.message : e}`);
+    }
+    const violations = checkInvariants({
+      signals,
+      shadow: allShadow,
+      latestStats,
+      workflowAgeHours: ages,
+      maxWorkflowAgeHours: MAX_WORKFLOW_AGE_HOURS,
+    });
+    await reportInvariants(violations, {
+      repo: REPO,
+      token: GH_TOKEN,
+      nowIso: computed_at,
+      sendTelegram,
+    });
+    if (staleDropped)
+      console.log(`invariants: ${staleDropped} stale-data row(s) excluded from every stat above`);
+  } catch (e) {
+    console.error(`invariant check failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+  }
 
   console.log(
     `learn ok: ${rows.length} stats for ${date_key} · ` +
