@@ -264,6 +264,16 @@ export const zoneV5: Strategy<ZoneCtx> = {
     // stack (detection, freshness, achievement) is built from NY-session
     // bars only, so thin overnight wicks can neither create zones nor
     // consume a zone's first return. Absent/full keeps every bar (legacy).
+    //
+    // KNOWN, DELIBERATE ASYMMETRY: the life-cycle annotation is therefore
+    // computed on RTH bars while the backtest walk iterates the full ~23h
+    // series, so an overnight break or first return is invisible and
+    // alive()/freshAt() keep clearing a dead zone. Measured cost over the
+    // 60-day archive: 12 of tier A's 14 trades entered a zone the full series
+    // had already broken (scripts/diag/PHASE1-FINDINGS.md §2). Aligning the
+    // two bases was tested both ways and takes tier A to ZERO trades, so it
+    // is NOT a safe fix on its own — it needs the entry side re-tuned against
+    // a stable zone stack first. Do not "fix" this in isolation.
     const rthOnly = params.structure === "rth";
     for (const s of symbols) {
       const bars = rthOnly ? series[s].filter((b) => inNySession(b.time)) : series[s];

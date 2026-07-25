@@ -14,6 +14,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
+import { alignArchiveSlice } from "@/lib/data/window";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
@@ -141,7 +142,9 @@ async function archiveTrailingBars(symbol: FeedSymbol, nowSec: number): Promise<
       });
     if (!data || data.length < ARCHIVE_CHUNK) break;
   }
-  return out;
+  // Same whole-session trim the funnel uses: this is the Yahoo-down fallback,
+  // so a truncated leading day here would reach LIVE signals (lib/data/window.ts).
+  return alignArchiveSlice(out);
 }
 
 async function loadBars(

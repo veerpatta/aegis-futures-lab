@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
+import { alignArchiveSlice } from "@/lib/data/window";
 import { FUNNEL_LABELS, DIAGNOSTIC_REASONS } from "@/components/lab/funnel";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 
@@ -48,7 +49,11 @@ async function trailingBars(supabase: SupabaseClient, symbol: FeedSymbol, fromSe
       });
     if (!data || data.length < PAGE) break;
   }
-  return out;
+  // Trim a leading half-session: an instant slice mid-session leaves a
+  // truncated first daily bar that mis-scales zone detection across the whole
+  // window (lib/data/window.ts). Two nightly runs 13h apart disagreed by ~80%
+  // on this funnel before the trim.
+  return alignArchiveSlice(out);
 }
 
 export interface GateCost {

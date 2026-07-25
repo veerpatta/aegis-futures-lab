@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
 import { nyMeta } from "@/lib/time/ny";
 import { executeRun } from "@/lib/backtest/run";
+import { alignArchiveSlice } from "@/lib/data/window";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fetchYahooBars } from "./data";
@@ -51,7 +52,9 @@ async function archiveAllBars(symbol: FeedSymbol): Promise<Bar[]> {
       });
     if (!data || data.length < PAGE) break;
   }
-  return out;
+  // The archive's own oldest bar is mid-session, so the tuning numbers were
+  // exposed to the same truncated-first-day defect (lib/data/window.ts).
+  return alignArchiveSlice(out);
 }
 
 async function loadSeries(symbol: FeedSymbol): Promise<Bar[]> {
