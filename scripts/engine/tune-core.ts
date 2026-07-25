@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
+import { alignArchiveSlice } from "@/lib/data/window";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
@@ -47,7 +48,16 @@ async function archiveAllBars(supabase: SupabaseClient, symbol: FeedSymbol): Pro
   return out;
 }
 
-/** Bar archive unioned with the current Yahoo window (Yahoo wins on overlap). */
+/* Bar archive unioned with the current Yahoo window (Yahoo wins on overlap).
+
+   Whole-session trimmed, like every other archive reader. This was MISSING
+   here: the P1 round wired alignArchiveSlice into gate-costs.ts, report.ts and
+   run-live.ts but tune-core.ts has its own archive read, so both the monthly
+   tune (tune.ts) and the weekly challenger (challenger.ts) were still reading a
+   window whose leading day could be a truncated half-session — the exact defect
+   that made two nightly funnels disagree by 80%. Alignment is applied to the
+   UNION, not to the archive read alone, because the union's leading date is
+   whichever source starts earlier. */
 export async function loadSeries(supabase: SupabaseClient, symbol: FeedSymbol): Promise<Bar[]> {
   const [archive, yahoo] = await Promise.all([
     archiveAllBars(supabase, symbol).catch(() => [] as Bar[]),
@@ -55,7 +65,7 @@ export async function loadSeries(supabase: SupabaseClient, symbol: FeedSymbol): 
   ]);
   const byTime = new Map(archive.map((b) => [b.time, b]));
   for (const b of yahoo) byTime.set(b.time, b);
-  const bars = [...byTime.values()].sort((a, b) => a.time - b.time);
+  const bars = alignArchiveSlice([...byTime.values()].sort((a, b) => a.time - b.time));
   if (!bars.length) throw new Error(`No bars for ${symbol} from archive or Yahoo`);
   return bars;
 }
