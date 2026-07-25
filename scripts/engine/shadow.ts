@@ -86,7 +86,7 @@ function fromTrade(strategy: string, t: Trade): ShadowRow {
     regime: null,
     fill_confidence: null,
     vix_bucket: null,
-    stale_data: false, // set from the run-level verdict by the caller
+    stale_data: false, // set per row by the caller (lib/signals/freshness.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -115,7 +115,7 @@ function fromOpen(strategy: string, p: OpenPosition): ShadowRow {
     regime: null,
     fill_confidence: null,
     vix_bucket: null,
-    stale_data: false, // set from the run-level verdict by the caller
+    stale_data: false, // set per row by the caller (lib/signals/freshness.ts)
     updated_at: new Date().toISOString(),
   };
 }
@@ -136,8 +136,10 @@ export async function runShadows(args: {
   timeBudgetMs: number;
   /** vix_bucket tag for an entry time (context.ts) — same rule as real signals. */
   vixBucketFor?: (entrySec: number) => string | null;
-  /** Run-level bar-age verdict (item 2.4) — flags every row this run writes. */
-  staleData?: boolean;
+  /** Per-ROW bar-age gate (item 2.4) — a row is stale when too little bar
+      history exists after its entry for the engine to have observed it. Per row,
+      not per run: a weekend recompute of Friday's trades is clean. */
+  staleAt?: (symbol: string, signalSec: number) => boolean;
 }): Promise<ShadowResult> {
   const { supabase, bySymbol, nowSec, cutoff, exitMinuteByDay, timeBudgetMs } = args;
   const started = Date.now();
@@ -179,7 +181,9 @@ export async function runShadows(args: {
         const stamp = (row: ShadowRow, entrySec: number, exitSec: number | null) => {
           row.regime = computeRegime(bySymbol[symbol] ?? [], entrySec);
           row.vix_bucket = args.vixBucketFor ? args.vixBucketFor(entrySec) : null;
-          row.stale_data = args.staleData === true;
+          row.stale_data = args.staleAt
+            ? args.staleAt(symbol, Math.floor(new Date(row.signal_ts).getTime() / 1000))
+            : false;
           row.fill_confidence = auditFill({
             fillModel: "nextOpen",
             direction: row.direction,

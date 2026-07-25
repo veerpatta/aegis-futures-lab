@@ -70,6 +70,48 @@ export function assessStaleness(
   };
 }
 
+/* Per-ROW staleness, which is the flag that actually goes on a signal.
+   ────────────────────────────────────────────────────────────────────
+   The run-level verdict above is right for the heartbeat and the Home panel —
+   "the feed is behind right now" — but it is WRONG as a row flag, and shipping
+   it as one was a real bug caught by the first live run: every engine pass is a
+   full recompute of the trailing 7 days, so a Saturday run (bars 652 minutes
+   old, because the market shut on Friday) flagged all nine of Friday's rows.
+   Repeated, that drains every headline stat to zero.
+
+   What actually makes a row untrustworthy is being at the BLIND EDGE of the
+   data: not enough bars after its entry for the engine to have seen what
+   happened. That is also exactly what corrupts `fill_confidence`, which walks
+   the bars after entry to judge whether a resting order could have filled — the
+   concrete harm the brief names.
+
+   So: a row is stale iff fewer than `thresholdMin` of bar history exist after
+   its entry. A weekend recompute of Friday's trades has hours of history after
+   each one and is clean. A signal produced during a live 104-minute stall sits
+   right at the edge of the visible data and is flagged. Both correct, and
+   neither depends on the wall clock.
+
+   Self-correcting by construction: the recompute rewrites `stale_data` from
+   scratch every pass, so a row flagged during a stall is un-flagged once the
+   bars arrive and its fill audit becomes judgeable again. */
+export function staleAtSignal(
+  signalSec: number,
+  lastBarSec: number | null,
+  thresholdMin: number = STALE_BAR_AGE_MIN
+): boolean {
+  if (lastBarSec === null) return false; // no bars for the symbol — not this gate's call
+  return lastBarSec - signalSec < thresholdMin * 60;
+}
+
+/** Newest bar time per symbol, for staleAtSignal. */
+export function lastBarBySymbol(
+  bySymbol: Record<string, { time: number }[]>
+): Record<string, number | null> {
+  return Object.fromEntries(
+    Object.entries(bySymbol).map(([s, bars]) => [s, bars.length ? bars[bars.length - 1].time : null])
+  );
+}
+
 /** Label the paused/excluded drawer shows for a stale row. */
 export const STALE_LABEL = "STALE DATA";
 

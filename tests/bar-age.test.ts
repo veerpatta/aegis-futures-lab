@@ -3,6 +3,8 @@ import {
   STALE_BAR_AGE_MIN,
   assessStaleness,
   barAgeMinutes,
+  lastBarBySymbol,
+  staleAtSignal,
   staleReason,
 } from "@/lib/signals/freshness";
 import { activeOnly, staleExcluded, stats } from "../scripts/engine/digest-stats";
@@ -114,5 +116,48 @@ describe("stale rows get the `suppressed` treatment", () => {
     const built = buildModelRows(real, shadow);
     expect(built).toHaveLength(1);
     expect(built[0].tier).toBeNull(); // the shadow row, not the dropped real one
+  });
+});
+
+/* The bug the first live run caught: flagging by RUN staleness instead of per
+   row. Every engine pass recomputes the trailing 7 days, so a Saturday run (bars
+   652 minutes old, market shut Friday) flagged all nine of Friday's rows —
+   which, repeated, drains every headline stat to zero. */
+describe("staleAtSignal — per row, not per run", () => {
+  const FRI_CLOSE = Math.floor(Date.UTC(2026, 6, 24, 20, 55, 0) / 1000);
+
+  it("does NOT flag a weekend recompute of well-observed Friday rows", () => {
+    // Friday 19:20 UTC entry, bars run to Friday 20:55 → 95 min of history after.
+    expect(staleAtSignal(FRI_CLOSE - 95 * 60, FRI_CLOSE)).toBe(false);
+    // Even hours later on Saturday, the answer is the same — no wall clock.
+    expect(staleAtSignal(FRI_CLOSE - 6 * 3600, FRI_CLOSE)).toBe(false);
+  });
+
+  it("DOES flag a row at the blind edge of the data", () => {
+    // The stall case: the newest bar is the entry bar, so nothing after it was
+    // seen and its fill audit cannot be judged.
+    expect(staleAtSignal(FRI_CLOSE, FRI_CLOSE)).toBe(true);
+    expect(staleAtSignal(FRI_CLOSE - 25 * 60, FRI_CLOSE)).toBe(true);
+  });
+
+  it("treats the threshold as inclusive-fresh, matching the run-level gate", () => {
+    expect(staleAtSignal(FRI_CLOSE - 30 * 60, FRI_CLOSE, 30)).toBe(false);
+    expect(staleAtSignal(FRI_CLOSE - 29 * 60, FRI_CLOSE, 30)).toBe(true);
+  });
+
+  it("stays out of it when a symbol has no bars at all", () => {
+    expect(staleAtSignal(FRI_CLOSE, null)).toBe(false);
+  });
+
+  it("reads the newest bar per symbol", () => {
+    const last = lastBarBySymbol({ MES: [{ time: 10 }, { time: 40 }], MNQ: [], MISSING: [] });
+    expect(last.MES).toBe(40);
+    expect(last.MNQ).toBeNull();
+  });
+
+  it("self-corrects: the same row is clean once the bars catch up", () => {
+    const entry = FRI_CLOSE;
+    expect(staleAtSignal(entry, entry)).toBe(true); // during the stall
+    expect(staleAtSignal(entry, entry + 60 * 60)).toBe(false); // an hour of bars later
   });
 });

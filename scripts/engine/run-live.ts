@@ -16,7 +16,7 @@ import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { statusFromExit } from "@/lib/signals/status";
-import { assessStaleness } from "@/lib/signals/freshness";
+import { assessStaleness, lastBarBySymbol, staleAtSignal } from "@/lib/signals/freshness";
 import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
@@ -415,14 +415,24 @@ async function main() {
   // them would hide the outage — but they are excluded from headline stats,
   // Telegram and the model's training set, exactly like `suppressed`.
   const staleness = assessStaleness(bySymbol, nowSec);
-  if (staleness.stale) {
-    for (const row of signals) row.stale_data = true;
-    warnings.push(staleness.note as string);
-    console.log(
-      `stale data: worst bar age ${staleness.worstAgeMin}m > ${staleness.thresholdMin}m — ` +
-        `${signals.length} row(s) flagged stale_data`
-    );
+  // Flag PER ROW, not per run. A run can be stale (the feed is behind right now)
+  // while most of its rows are perfectly well observed — every pass recomputes
+  // the trailing 7 days, so a weekend run would otherwise flag Friday's rows and
+  // drain the headline stats. What taints a row is sitting at the blind edge of
+  // the data, which is also what makes its fill audit unjudgeable.
+  const lastBars = lastBarBySymbol(bySymbol);
+  let flagged = 0;
+  for (const row of signals) {
+    const signalSec = Math.floor(new Date(row.signal_ts).getTime() / 1000);
+    row.stale_data = staleAtSignal(signalSec, lastBars[row.symbol] ?? null);
+    if (row.stale_data) flagged++;
   }
+  if (staleness.stale) warnings.push(staleness.note as string);
+  if (flagged || staleness.stale)
+    console.log(
+      `stale data: worst bar age ${staleness.worstAgeMin}m (limit ${staleness.thresholdMin}m) — ` +
+        `${flagged} of ${signals.length} row(s) flagged stale_data`
+    );
 
   // 1b) Circuit breakers (Ring 1a). Read each stream's closed history + policy
   // state, decide pause/resume, record flips (bot_policy + Telegram), and stamp
@@ -578,7 +588,8 @@ async function main() {
       exitMinuteByDay,
       timeBudgetMs: 60_000,
       vixBucketFor: bucketFor,
-      staleData: staleness.stale, // same gate as real signals (item 2.4)
+      // Same per-row gate the live signals get (item 2.4).
+      staleAt: (symbol, signalSec) => staleAtSignal(signalSec, lastBars[symbol] ?? null),
     });
     console.log(
       `shadow: ${shadow.upserted} rows from ${shadow.streamsRun} streams` +
