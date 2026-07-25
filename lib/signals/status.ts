@@ -53,3 +53,32 @@ export const TARGETLESS_NOTE = "no target defined — win rate not meaningful";
 export function targetlessStream(rows: { target_price: number | null }[]): boolean {
   return rows.length > 0 && rows.every((r) => r.target_price === null);
 }
+
+/* The label and colour a status wears on screen. One definition, shared by
+   Home's recent list, the Signals blotter and the detail sheet, so the three
+   surfaces can never label the same row differently. */
+export type StatusTone = "good" | "bad" | "info" | "warn" | "dim";
+
+export interface StatusLook {
+  label: string;
+  tone: StatusTone;
+}
+
+export function statusLook(status: string): StatusLook {
+  switch (status) {
+    case "hit_target":
+      return { label: "TARGET HIT", tone: "good" };
+    case "hit_stop":
+      return { label: "STOPPED", tone: "bad" };
+    case "triggered":
+      return { label: "OPEN", tone: "info" };
+    case "pending":
+      return { label: "WAITING", tone: "warn" };
+    case "closed_win":
+      return { label: "CLOSED UP", tone: "good" };
+    case "expired":
+      return { label: "FLAT CLOSE", tone: "dim" };
+    default:
+      return { label: status.toUpperCase(), tone: "dim" };
+  }
+}

@@ -1,3 +1,42 @@
+/* ── Session strip ────────────────────────────────────────────────────────
+   Which session is running and how much of it is left, above the quotes. */
+
+.sessionStrip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 11px 14px;
+  margin-bottom: var(--space-4);
+}
+
+.sessionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.sessionLive {
+  animation: livePulse 2.2s ease-out infinite;
+}
+
+.sessionText {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  min-width: 0;
+}
+
+.sessionLeft {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
 .quotes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -9,10 +48,10 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(165deg, var(--bg-elevated), #0a0f1a 65%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-hero);
+  padding: 18px;
 }
 
 .quoteHead {
@@ -138,6 +177,61 @@
 .eventBody span {
   color: var(--text-faint);
   font-size: 11px;
+}
+
+/* ── Zones near price ─────────────────────────────────────────────────────
+   The same reading Home's rail gives, sized for the Markets side column. */
+
+.zoneList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoneRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  padding: 11px 12px;
+}
+
+.zoneAt {
+  background: rgba(245, 180, 82, 0.07);
+  border-color: rgba(245, 180, 82, 0.3);
+}
+
+.zoneTag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.zoneBody {
+  flex: 1;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.zoneTf {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--red);
+}
+.warn {
+  color: var(--amber);
+}
+.dim {
+  color: var(--text-faint);
 }
 
 .note {

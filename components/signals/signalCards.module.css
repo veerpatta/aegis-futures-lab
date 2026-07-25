@@ -1,0 +1,257 @@
+/* Segmented card view at the top of Signals — see SignalCards.tsx. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: var(--space-5);
+}
+
+.segment {
+  display: flex;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.seg {
+  flex: 1;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.segOn {
+  background: var(--border);
+  color: var(--text);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card,
+.zoneCard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 15px;
+  color: inherit;
+  font-family: inherit;
+}
+
+.card {
+  cursor: pointer;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardTopLeft {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.side {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  border-radius: 7px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.sideBuy {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid var(--green-line);
+}
+
+.sideSell {
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid var(--red-line);
+}
+
+.sym {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.kind {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.dist {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.cardBody {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 13px;
+}
+
+/* Confidence ring — the model's win probability. */
+
+.ring {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+}
+
+.ring svg {
+  width: 52px;
+  height: 52px;
+  transform: rotate(-90deg);
+}
+
+.ringText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.level {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.level b {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.cellLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.zoneRange {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.zoneRange b {
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid #141d2c;
+  flex-wrap: wrap;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  min-width: 0;
+}
+
+.open {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.empty {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--bg-raised);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: 18px 16px;
+  margin: 0;
+  text-align: center;
+}
+
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--red);
+}
+.warn {
+  color: var(--amber);
+}
+.info {
+  color: var(--blue);
+}
+.dim {
+  color: var(--text-faint);
+}
+
+@media (min-width: 769px) {
+  .list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+  .segment {
+    align-self: flex-start;
+    min-width: 380px;
+  }
+}

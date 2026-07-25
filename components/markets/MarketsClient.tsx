@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
+import { getSupabase, type ZoneRow } from "@/lib/supabase/client";
 import { CONTRACT_LABELS, type FeedSymbol } from "@/lib/market/contracts";
+import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
 import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
 import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
@@ -35,6 +37,25 @@ export default function MarketsClient() {
   const [chartSymbol, setChartSymbol] = useState<FeedSymbol>("MES");
   const [tf, setTf] = useState(5);
   const [readoutStrategy, setReadoutStrategy] = useState("zone-v5");
+  const [zones, setZones] = useState<ZoneRow[]>([]);
+  /* null until mounted — the session countdown must not render on the server. */
+  const [tick, setTick] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTick(Math.floor(Date.now() / 1000));
+    const id = setInterval(() => setTick(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    getSupabase()
+      .from("zones")
+      .select("*")
+      .limit(120)
+      .then(({ data: rows, error }) => {
+        if (!error) setZones((rows ?? []) as ZoneRow[]);
+      });
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -95,6 +116,27 @@ export default function MarketsClient() {
     }
   }, [data.history, readoutStrategy, data.replayCutoff]);
 
+  /* Zones nearest the delayed price, for the "near price" card. */
+  const nearZones = useMemo(() => {
+    const priced = zones.map((z) => {
+      const q = quotes[z.symbol as FeedSymbol];
+      const price = q?.status === "ready" ? q.quote.price : null;
+      if (price === null) return { z, dist: null as number | null, inside: false, above: false };
+      if (price >= z.price_low && price <= z.price_high)
+        return { z, dist: 0, inside: true, above: false };
+      const above = z.price_low > price;
+      const edge = above ? z.price_low : z.price_high;
+      return { z, dist: (Math.abs(edge - price) / price) * 100, inside: false, above };
+    });
+    return priced
+      .filter((r) => r.dist !== null)
+      .sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0))
+      .slice(0, 4);
+  }, [zones, quotes]);
+
+  const phase = marketPhase(tick ?? 0);
+  const remaining = tick === null ? null : sessionRemainingSec(tick);
+
   const nowSec = Date.now() / 1000;
   const upcoming = data.events
     .map((e) => ({ ...e, sec: new Date(e.time).getTime() / 1000 }))
@@ -108,6 +150,22 @@ export default function MarketsClient() {
       <p className="pageSub">
         Free delayed research feed — display only, never execution-grade.
       </p>
+
+      {/* ── Session strip: which session, and how long is left in it ── */}
+      <div className={styles.sessionStrip}>
+        <i
+          className={`${styles.sessionDot} ${styles[phase.tone]} ${
+            phase.live ? styles.sessionLive : ""
+          }`}
+          aria-hidden
+        />
+        <span className={styles.sessionText}>
+          {tick === null ? "Reading the session clock…" : `${phase.label} · ${phase.detail}`}
+        </span>
+        {remaining !== null && (
+          <b className={`${styles.sessionLeft} num`}>{fmtCountdown(remaining)} left</b>
+        )}
+      </div>
 
       <div className={styles.quotes}>
         {(["MES", "MNQ"] as FeedSymbol[]).map((symbol) => {
@@ -200,6 +258,43 @@ export default function MarketsClient() {
         </Panel>
 
         <div className={styles.sideCol}>
+          <Panel title="Zones near price" hint="from the engine's zone table · nearest first">
+            <div className={styles.zoneList}>
+              {nearZones.length ? (
+                nearZones.map(({ z, dist, inside, above }) => (
+                  <div
+                    key={z.id}
+                    className={`${styles.zoneRow} ${inside ? styles.zoneAt : ""}`}
+                  >
+                    <span
+                      className={`${styles.zoneTag} ${
+                        inside ? styles.warn : z.zone_type === "demand" ? styles.good : styles.bad
+                      }`}
+                    >
+                      {inside
+                        ? "AT ZONE"
+                        : `${(dist ?? 0).toFixed(1)}% ${above ? "ABOVE" : "BELOW"}`}
+                    </span>
+                    <span className={styles.zoneBody}>
+                      <b>{z.symbol}</b> {z.zone_type === "demand" ? "buy" : "sell"} area{" "}
+                      <span className="num">
+                        {z.price_low.toFixed(0)}–{z.price_high.toFixed(0)}
+                      </span>
+                    </span>
+                    <span className={styles.zoneTf}>
+                      {z.timeframe}
+                      {z.fresh ? " · fresh" : ""}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <span className={styles.note}>
+                  No zones within reach of the delayed price yet.
+                </span>
+              )}
+            </div>
+          </Panel>
+
           <Panel title="Signal readout" hint={data.replayCutoff ? "at replay cutoff" : "latest bar"}>
             <div style={{ marginBottom: "var(--space-3)" }}>
               <SelectField

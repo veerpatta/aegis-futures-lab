@@ -120,6 +120,16 @@ export function nextRunSec(nowSec: number): number {
   return t;
 }
 
+/* Seconds left in today's entry window, or null outside it. Drives the "N left"
+   readout on the Markets session strip. Uses the same flatten minute the phase
+   label does, so an early-close holiday counts down to the real close. */
+export function sessionRemainingSec(nowSec: number): number | null {
+  if (!inEntryWindow(nowSec)) return null;
+  const m = nyMeta(nowSec);
+  const flatten = flattenMinuteNy(m.dateKey, NORMAL_EXIT_MIN);
+  return Math.max(0, (flatten - m.minutes) * 60 - (nowSec % 60));
+}
+
 export function fmtCountdown(sec: number): string {
   if (sec >= 48 * 3600) return `${Math.round(sec / 86400)}d`;
   if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;

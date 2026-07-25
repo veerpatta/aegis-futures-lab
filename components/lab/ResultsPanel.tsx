@@ -78,6 +78,29 @@ export default function ResultsPanel({
 
   return (
     <>
+      {/* The three numbers worth a glance before reading anything else. */}
+      <section className={styles.runHero} aria-label="Backtest summary">
+        <span className={styles.runHeroKicker}>Backtest · {windowLabel}</span>
+        <div className={styles.runHeroFigures}>
+          <div className={styles.runHeroFig}>
+            <b className={`${styles.runHeroBig} num ${m.net > 0 ? styles.good : m.net < 0 ? styles.bad : ""}`}>
+              {money(m.net)}
+            </b>
+            <span className={styles.runHeroLabel}>Net</span>
+          </div>
+          <div className={styles.runHeroFig}>
+            <b className={`${styles.runHeroBig} num`}>{m.trades ? pct(m.winRate) : "—"}</b>
+            <span className={styles.runHeroLabel}>Win rate</span>
+          </div>
+          <div className={styles.runHeroFig}>
+            <b className={`${styles.runHeroBig} num`}>
+              {result.sessions ? (m.trades / result.sessions).toFixed(1) : "—"}
+            </b>
+            <span className={styles.runHeroLabel}>Per day</span>
+          </div>
+        </div>
+      </section>
+
       <Panel title="Results" hint={windowLabel}>
         {zeroTrades && (
           <p className={styles.note} style={{ marginTop: 0 }}>

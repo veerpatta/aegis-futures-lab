@@ -21,6 +21,7 @@ import { ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/ui";
 import BlotterCalendar, { type BlotterDay } from "./BlotterCalendar";
+import BotVsYou from "./BotVsYou";
 import DayTimeline from "./DayTimeline";
 import JournalPanel from "./JournalPanel";
 import styles from "./replay.module.css";
@@ -224,6 +225,31 @@ export default function ReplayClient() {
     return { from, to, summary: summarize(rows) };
   }, [journal, run, matchByDay]);
 
+  /* The two trade sets behind "Bot vs you", narrowed to the days you actually
+     journaled so the comparison is like for like. */
+  const vsWindow = useMemo(() => {
+    if (!journalSummary || !run) return null;
+    const { from, to } = journalSummary;
+    return {
+      from,
+      to,
+      engine: run.result.trades.filter((t) => {
+        const d = nyDateKey(t.entryTime);
+        return d >= from && d <= to;
+      }),
+      user: journal.trades.filter((t) => {
+        const d = nyDateKey(t.entryTime);
+        return d >= from && d <= to;
+      }),
+    };
+  }, [journalSummary, run, journal.trades]);
+
+  /* Total across every day the blotter is showing — the heatmap's headline. */
+  const blotterNet = useMemo(
+    () => blotterDays.reduce((a, d) => a + d.enginePnl, 0),
+    [blotterDays]
+  );
+
   const loading = !run && !error && !feedError;
 
   return (
@@ -262,8 +288,22 @@ export default function ReplayClient() {
           <Panel
             title="Blotter"
             hint="engine trades per day · amber underline = your journal · click a day"
+            actions={
+              <span className={`${styles.blotterNet} num ${blotterNet >= 0 ? styles.good : styles.bad}`}>
+                {money(blotterNet)}
+              </span>
+            }
           >
             <BlotterCalendar days={blotterDays} selected={selectedDay} onSelect={selectDay} />
+            <div className={styles.calLegend} aria-hidden>
+              <span>Loss</span>
+              <i style={{ background: "rgba(255,107,122,0.55)" }} />
+              <i style={{ background: "rgba(255,107,122,0.2)" }} />
+              <i style={{ background: "#141d2c" }} />
+              <i style={{ background: "rgba(45,212,160,0.25)" }} />
+              <i style={{ background: "rgba(45,212,160,0.6)" }} />
+              <span>Win</span>
+            </div>
             {run.result.trades.length === 0 && (
               <p className={styles.note} style={{ marginTop: "var(--space-3)" }}>
                 The engine took no trades in this whole window with the current settings — a real
@@ -273,6 +313,15 @@ export default function ReplayClient() {
               </p>
             )}
           </Panel>
+
+          {vsWindow && (
+            <BotVsYou
+              engineTrades={vsWindow.engine}
+              userTrades={vsWindow.user}
+              from={vsWindow.from}
+              to={vsWindow.to}
+            />
+          )}
 
           <Panel title={`Day: ${selectedDay}`} hint="engine vs you">
             <div className={styles.kpiRow}>

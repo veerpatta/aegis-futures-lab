@@ -159,7 +159,8 @@
   line-height: 1.5;
 }
 
-/* Mobile gets MobileTopBar + MobileTabBar instead (components/nav/MobileNav.tsx). */
+/* Mobile gets AppHeader (components/nav/AppHeader.tsx) + MobileTabBar
+   (components/nav/MobileNav.tsx) instead. */
 @media (max-width: 768px) {
   .sidebar {
     display: none;

@@ -1,69 +1,59 @@
-/* Home dashboard.
-   Layout: desktop is a two-column grid (main + 340px rail); at ≤1100px both
-   wrappers become `display: contents` so every card is a direct flex child of
-   .grid and can be reordered for the phone reading order:
-   open idea → three weeks → markets → recent ideas → zones → bot status. */
+/* Home — the native app pass.
+
+   Phone: one column, cards at 20–26px radius, everything tappable presses in.
+   Desktop (>768px): the same cards in the two-column shell the earlier desktop
+   comp established — main column plus a 340px rail. The app header carries the
+   brand and the global controls (clock, privacy, alerts) on both breakpoints,
+   so nothing in here repeats them.
+
+   This file is also the stylesheet for LiveVsTuning and WhyNoSignal, which are
+   Home-only cards that import from it — see the last two sections. */
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 14px;
+  padding-bottom: var(--space-5);
 }
 
-/* ── Header ──────────────────────────────────────────────────────────── */
+/* ── Tap to refresh ──────────────────────────────────────────────────────── */
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.phoneBrand,
-.phoneZone {
-  display: none;
-}
-
-.phoneBrand {
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.brandMark {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--green), #128a68);
-  color: #04110c;
-  font-size: 16px;
-  font-weight: 700;
+.refreshChip {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--text-faint);
+  cursor: pointer;
 }
 
-.brandText {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.refreshChip:disabled {
+  cursor: default;
 }
 
-.brandText strong {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.1;
+.refreshRing {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #2c3a52;
+  border-top-color: var(--green);
+  flex: 0 0 auto;
 }
 
-.brandSub {
-  font-size: 11px;
-  color: var(--text-dim);
+.refreshRing[data-spinning] {
+  animation: spin 0.8s linear infinite;
 }
+
+/* ── Desktop greeting + session pills ────────────────────────────────────── */
 
 .deskGreeting {
-  min-width: 0;
+  display: none;
 }
 
 .h1 {
@@ -83,7 +73,7 @@
 .pills {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -94,9 +84,21 @@
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 7px 14px;
+  padding: 7px 13px;
   font-size: 12px;
   font-weight: 600;
+  min-width: 0;
+}
+
+.pillMain {
+  white-space: nowrap;
+}
+
+.pillDetail {
+  color: var(--text-dim);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -109,11 +111,6 @@
   margin-left: 2px;
 }
 
-.pillDetail {
-  font-weight: 400;
-  color: var(--text-dim);
-}
-
 .dot {
   width: 7px;
   height: 7px;
@@ -123,24 +120,32 @@
 }
 
 .dotLive {
-  animation: livePulse 2.4s ease-out infinite;
+  animation: livePulse 2.2s ease-out infinite;
 }
 
-@keyframes livePulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(45, 212, 160, 0.5);
-    opacity: 1;
-  }
-  70% {
-    box-shadow: 0 0 0 7px transparent;
-    opacity: 0.75;
-  }
+.dotSm {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.dotPulse {
+  animation: livePulse 2.2s ease-out infinite;
+}
+
+.dotGood {
+  color: var(--green);
+}
+
+.dotWarn {
+  color: var(--amber);
 }
 
 .paperBadge {
   align-self: flex-start;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--amber);
@@ -152,23 +157,768 @@
 
 .errorBar {
   background: var(--red-soft);
-  border: 1px solid rgba(255, 107, 122, 0.35);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  color: var(--red);
+  border: 1px solid var(--red-line);
+  border-radius: var(--radius-tile);
+  padding: 10px 14px;
   font-size: 12.5px;
+  color: var(--red);
 }
 
-/* ── Today strip ─────────────────────────────────────────────────────── */
+/* ── Shell grid ──────────────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.mainCol,
+.rail2 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+.card,
+.status {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+}
+
+.listCard {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 4px 16px 14px;
+}
+
+.cardHead,
+.listHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.listHead {
+  padding: 12px 0 8px;
+}
+
+.cardHead {
+  margin-bottom: 10px;
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cardHint {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  flex: 1;
+}
+
+.cardLink {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.note {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  padding-top: 10px;
+}
+
+.emptyNote {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+
+/* ── P&L hero ────────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  background: linear-gradient(165deg, #131c2c, #0a0f1a 60%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-hero);
+  padding: 18px 18px 16px;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -40% -30% auto auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(45, 212, 160, 0.16), transparent 68%);
+  pointer-events: none;
+}
+
+.heroTop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.heroKicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.segment {
+  display: flex;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  flex: 0 0 auto;
+}
+
+.seg {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.segOn {
+  background: var(--green);
+  color: #04110c;
+}
+
+.heroFigure {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.heroAmount {
+  font-family: var(--font-mono);
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.heroDelta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 3px 8px;
+  margin-bottom: 4px;
+  font-family: var(--font-mono);
+}
+
+.deltaGood {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.deltaBad {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.heroSub {
+  position: relative;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+.heroSpark {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 58px;
+  margin-top: 10px;
+}
+
+.heroSparkEmpty {
+  position: relative;
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 14px;
+}
+
+/* ── Live trade ──────────────────────────────────────────────────────────── */
+
+.live {
+  background: var(--bg-lifted);
+  border: 1px solid var(--border-live);
+  border-radius: var(--radius-hero);
+  padding: 16px;
+  box-shadow:
+    0 0 0 1px rgba(90, 167, 255, 0.06),
+    0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.liveHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.liveTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.sideBuy,
+.sideSell {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  border-radius: 8px;
+  padding: 4px 9px;
+}
+
+.sideBuy {
+  background: var(--green);
+  color: #04110c;
+}
+
+.sideSell {
+  background: var(--red);
+  color: #2b0509;
+}
+
+.liveSymbol {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.liveName {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.liveState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.liveFigures {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+.liveFig {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.liveFigEnd {
+  align-items: flex-end;
+}
+
+.liveBig {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.liveLast {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  transition: color 0.3s;
+}
+
+/* Risk rail — where price sits between stop and target. */
+
+.rail {
+  margin-top: 14px;
+}
+
+.railTrack {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 107, 122, 0.55),
+    rgba(91, 106, 131, 0.35) 32%,
+    rgba(45, 212, 160, 0.6)
+  );
+}
+
+.railEntry {
+  position: absolute;
+  top: -4px;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--text-dim);
+}
+
+.railPrice {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 3px solid var(--green);
+  box-shadow:
+    0 0 0 4px rgba(45, 212, 160, 0.16),
+    0 4px 12px rgba(0, 0, 0, 0.6);
+  transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.railLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.railWord {
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+}
+
+.railNote {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+.liveFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #141d2c;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.liveActions {
+  display: flex;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.btnPrimary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: var(--green);
+  color: #04110c;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btnIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-btn);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  flex: 0 0 auto;
+}
+
+/* Empty state — the comp's happy path is not the common one. */
+
+.liveEmpty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-raised);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-hero);
+  padding: 18px 16px;
+  flex-wrap: wrap;
+}
+
+.liveEmptyMark {
+  font-size: 22px;
+  color: var(--text-faint);
+}
+
+.liveEmptyTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.liveEmptyBody {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 4px 0 0;
+  line-height: 1.5;
+  max-width: 60ch;
+}
+
+.liveEmptyLink {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--green);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ── Watchlist ───────────────────────────────────────────────────────────── */
+
+.watchRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #141d2c;
+}
+
+.watchName {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 64px;
+  flex: 0 0 auto;
+}
+
+.watchName b {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.watchSub {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.quoteSpark {
+  flex: 1;
+  height: 28px;
+  min-width: 40px;
+}
+
+.watchVals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.watchVals b {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.watchVals span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Heartbeat + streak ──────────────────────────────────────────────────── */
+
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.duoCell {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.duoBig {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.duoUnit {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+
+.beats {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+}
+
+.beats i {
+  flex: 1;
+  border-radius: 2px;
+  min-height: 4px;
+}
+
+.beatOk {
+  background: var(--green);
+}
+
+.beatBad {
+  background: var(--red);
+}
+
+.beatSkip {
+  background: var(--text-faint);
+}
+
+.beatGood {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.beatWarn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.beatNote {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ── Recent ideas ────────────────────────────────────────────────────────── */
+
+.recentItem {
+  border-top: 1px solid #141d2c;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rowMark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.markUp {
+  background: var(--green-soft);
+  border: 1px solid var(--green-line);
+  color: var(--green);
+}
+
+.markDown {
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
+  color: var(--red);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rowSub {
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowEnd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.rowEnd b {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.rowCtx {
+  padding: 0 0 12px 48px;
+}
+
+/* ── Three-week performance ──────────────────────────────────────────────── */
+
+.perfStats {
+  display: flex;
+  gap: 22px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bigValue {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.tierSplit {
+  margin-left: auto;
+  text-align: right;
+}
+
+.tierLine {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.bars {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.barAxis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  margin-top: 6px;
+}
+
+/* ── Today strip ─────────────────────────────────────────────────────────── */
 
 .todayStrip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: var(--space-4);
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .todayCell {
@@ -180,7 +930,7 @@
 
 .todayCell + .todayCell {
   border-left: 1px solid var(--border);
-  padding-left: var(--space-3);
+  padding-left: 12px;
 }
 
 .cellLabel {
@@ -194,12 +944,12 @@
 .cellValueRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 8px;
 }
 
 .cellValue {
   font-family: var(--font-mono);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1;
 }
@@ -225,424 +975,19 @@
 }
 
 .paceOff {
-  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  box-shadow: inset 0 0 0 1.5px #2c3c5e;
 }
 
-/* ── Grid ────────────────────────────────────────────────────────────── */
-
-.grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: var(--space-5);
-  align-items: start;
-}
-
-.mainCol,
-.rail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
-}
-
-.card {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: var(--space-5);
-}
-
-.cardHead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.cardTitle {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.cardHint {
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
-
-.cardLink {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--green);
-  white-space: nowrap;
-}
-
-.cardLink:hover {
-  text-decoration: underline;
-}
-
-.note {
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-
-.emptyNote {
-  font-size: 12.5px;
-  color: var(--text-dim);
-  margin: var(--space-2) 0;
-}
-
-/* ── Hero: the open idea ─────────────────────────────────────────────── */
-
-.hero {
-  background: linear-gradient(160deg, rgba(45, 212, 160, 0.13), var(--bg-raised) 55%);
-  border-color: rgba(45, 212, 160, 0.45);
-}
-
-.heroHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.heroTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.sideBuy,
-.sideSell {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  border-radius: 8px;
-  padding: 4px 12px;
-}
-
-.sideBuy {
-  background: var(--green);
-  color: #04110c;
-}
-
-.sideSell {
-  background: var(--red);
-  color: #2a0409;
-}
-
-.heroSymbol {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.heroName {
-  font-size: 11.5px;
-  color: var(--text-dim);
-}
-
-.heroState {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.heroStats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.heroStats .stat {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: var(--space-3) var(--space-4);
-}
-
-.statLabel {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-.statValue {
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.heroFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-size: 11.5px;
-  color: var(--text-dim);
-}
-
-.heroFoot .num {
-  color: var(--text);
-  font-family: var(--font-mono);
-}
-
-/* Empty state — the mockup's happy path is not the common one. */
-.heroEmpty {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  border-style: dashed;
-}
-
-.heroEmptyMark {
-  font-size: 22px;
-  color: var(--text-faint);
-}
-
-.heroEmptyTitle {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.heroEmptyBody {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  color: var(--text-dim);
-  max-width: 60ch;
-}
-
-.heroEmptyLink {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--green);
-  white-space: nowrap;
-}
-
-/* ── Three-week performance ──────────────────────────────────────────── */
-
-.perfStats {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-6);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
-}
-
-.bigValue {
-  font-family: var(--font-mono);
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.tierSplit {
-  margin-left: auto;
-  text-align: right;
-}
-
-.tierLine {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.bars {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.barAxis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-
-/* ── Recent ideas ────────────────────────────────────────────────────── */
-
-.recent {
-  padding-top: var(--space-3);
-  padding-bottom: var(--space-3);
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 13px 0;
-  border-top: 1px solid var(--border);
-}
-
-.rowMark {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
-.markUp {
-  color: var(--green);
-  background: var(--green-soft);
-  border: 1px solid rgba(45, 212, 160, 0.35);
-}
-
-.markDown {
-  color: var(--red);
-  background: var(--red-soft);
-  border: 1px solid rgba(255, 107, 122, 0.35);
-}
-
-.rowText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.rowTitle {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.rowSub {
-  font-size: 11.5px;
-  color: var(--text-dim);
-}
-
-.rowEnd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: 0 0 auto;
-}
-
-.rowEnd b {
-  font-size: 14.5px;
-  white-space: nowrap;
-}
-
-.tag {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  border-radius: var(--radius-sm);
-  padding: 3px 9px;
-  border: 1px solid currentColor;
-  white-space: nowrap;
-}
-
-/* ── Markets rail ────────────────────────────────────────────────────── */
-
-.markets,
-.zones,
-.status {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: 18px 20px;
-}
-
-.markets .cardTitle,
-.zones .cardTitle,
-.status .cardTitle {
-  font-size: 15px;
-}
-
-.quoteList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.quote {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.quote + .quote {
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-3);
-}
-
-.quoteName {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.quoteName b {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.quoteSub {
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-
-.quoteSpark {
-  width: 90px;
-  height: 24px;
-  flex: 0 0 auto;
-}
-
-.quoteVals {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-family: var(--font-mono);
-}
-
-.quoteVals b {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.quoteVals span {
-  font-size: 11px;
-}
-
-/* ── Zones ───────────────────────────────────────────────────────────── */
+/* ── Zones + status ──────────────────────────────────────────────────────── */
 
 .zoneRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  gap: 10px;
+  border: 1px solid #16203a;
+  border-radius: var(--radius-tile);
   padding: 10px 12px;
+  margin-top: 10px;
 }
 
 .zoneAt {
@@ -651,85 +996,42 @@
 }
 
 .zoneDist {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   white-space: nowrap;
 }
 
 .zoneText {
   flex: 1;
-  min-width: 0;
   font-size: 12.5px;
+  min-width: 0;
 }
 
 .zoneMeta {
   font-size: 10.5px;
-  color: var(--text-dim);
+  color: var(--text-faint);
   white-space: nowrap;
 }
-
-/* ── Bot status ──────────────────────────────────────────────────────── */
 
 .statusLine {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
   font-size: 12.5px;
   color: var(--text-dim);
+  margin-top: 10px;
 }
 
-.dotSm {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: 0 0 auto;
-}
-
-.dotGood {
-  color: var(--green);
-}
-
-.dotWarn {
-  color: var(--amber);
-}
-
-.runDots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.runOk,
-.runBad {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.runOk {
-  background: var(--green);
-}
-
-.runBad {
-  background: var(--red);
-}
-
-.runDots .note {
-  margin-left: 4px;
-}
-
-/* ── Guide pointer ───────────────────────────────────────────────────── */
+/* ── Guide pointer ───────────────────────────────────────────────────────── */
 
 .guidePointer {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 12px;
   background: var(--blue-soft);
   border: 1px solid rgba(90, 167, 255, 0.3);
-  border-radius: 16px;
+  border-radius: var(--radius-tile);
   padding: 14px 16px;
 }
 
@@ -764,7 +1066,7 @@
   font-weight: 700;
 }
 
-/* ── Tones ───────────────────────────────────────────────────────────── */
+/* ── Tones ───────────────────────────────────────────────────────────────── */
 
 .good {
   color: var(--green);
@@ -772,224 +1074,134 @@
 .bad {
   color: var(--red);
 }
-.warn {
-  color: var(--amber);
-}
 .info {
   color: var(--blue);
 }
+.warn {
+  color: var(--amber);
+}
 .dim {
-  color: var(--text-dim);
+  color: var(--text-faint);
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────── */
-
-/* Desktop keeps the today numbers in the header pills. */
-@media (min-width: 1101px) {
-  .todayStrip,
-  .paperBadge {
-    display: none;
-  }
+.pill.good {
+  color: var(--green);
+}
+.pill.warn {
+  color: var(--amber);
+}
+.pill.dim {
+  color: var(--text-faint);
 }
 
-/* Below the shell boundary the sidebar is gone and Home suppresses the global
-   top bar, so the page header carries the brand and the ET/IST switch itself. */
-@media (max-width: 768px) {
-  .phoneBrand {
-    display: flex;
-  }
-  .phoneZone {
-    display: inline-flex;
+/* ── Breakpoints ─────────────────────────────────────────────────────────── */
+
+.deskOnly,
+.deskInline {
+  display: none;
+}
+
+@media (min-width: 769px) {
+  .page {
+    gap: 18px;
   }
   .deskGreeting {
-    display: none;
+    display: block;
   }
-}
-
-@media (max-width: 1100px) {
-  .deskOnly,
-  .deskInline {
-    display: none;
+  .refreshChip {
+    align-self: flex-start;
+    order: -1;
   }
-  .header {
-    flex-wrap: nowrap;
-    align-items: flex-start;
-  }
-  .pillDetail {
-    display: none;
-  }
-
-  /* Flatten both columns into one reading order. */
   .grid {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 20px;
   }
   .mainCol,
-  .rail {
-    display: contents;
+  .rail2 {
+    gap: 20px;
+  }
+  .deskOnly {
+    display: block;
+  }
+  .deskInline {
+    display: inline;
+  }
+  .card,
+  .status,
+  .listCard {
+    border-radius: 20px;
+  }
+  .card,
+  .status {
+    padding: 18px 20px;
+  }
+  .listCard {
+    padding: 6px 22px 16px;
   }
   .hero,
-  .heroEmpty {
-    order: 1;
+  .live,
+  .liveEmpty {
+    padding: 22px 24px;
   }
-  .perf {
-    order: 2;
-  }
-  .markets {
-    order: 3;
-  }
-  .recent {
-    order: 4;
-  }
-  .zones {
-    order: 5;
-  }
-  .status {
-    order: 6;
-  }
-
-  .card {
-    border-radius: 18px;
-    padding: var(--space-4);
-  }
-  .recent {
-    padding-top: 6px;
-    padding-bottom: 6px;
-  }
-  .heroStats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .heroStats .stat {
-    border-radius: 12px;
-    padding: 10px 12px;
-  }
-  .statValue {
-    font-size: 16px;
-  }
-  .heroSymbol {
-    font-size: 17px;
-  }
-  .perfStats {
-    gap: var(--space-4);
-  }
-  .bigValue {
-    font-size: 22px;
+  .heroAmount {
+    font-size: 44px;
   }
   .cardTitle {
-    font-size: 14px;
+    font-size: 15px;
   }
-
-  /* Quotes become two side-by-side cards. */
-  .quoteList {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-  }
-  .quote {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 6px var(--space-2);
-    background: var(--bg-inset);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
-  }
-  .quote + .quote {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-  .quoteSpark {
-    grid-column: 1 / -1;
-    width: 100%;
-    height: 28px;
-  }
-  .quoteVals {
-    align-items: flex-end;
-  }
-
-  .row {
-    padding: 11px 0;
-    gap: var(--space-3);
-  }
-  .rowMark {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-  }
-  .rowTitle {
-    font-size: 13.5px;
-  }
-  .rowSub {
-    font-size: 11px;
-  }
-  .rowEnd {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-  }
-  .rowEnd b {
-    font-size: 13.5px;
-  }
-  .tag {
-    border: none;
-    padding: 0;
-    font-size: 10px;
-  }
-
-  .heroEmpty {
-    flex-wrap: wrap;
-  }
-  .heroEmptyLink {
-    margin-left: 0;
+  .bigValue {
+    font-size: 30px;
   }
 }
 
-@media (max-width: 480px) {
-  .todayStrip {
-    padding: var(--space-3);
-    gap: var(--space-2);
+/* Two-column grids collapse before the cards get uncomfortably narrow. */
+@media (max-width: 380px) {
+  .todayStrip,
+  .duo {
+    grid-template-columns: 1fr;
   }
   .todayCell + .todayCell {
-    padding-left: var(--space-2);
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
   }
-  .cellValue {
-    font-size: 20px;
-  }
-  .heroFoot {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+  .heroAmount {
+    font-size: 32px;
   }
 }
 
-/* ── Live vs tuning window ─────────────────────────────────────────── */
+/* ── Live vs tuning window (LiveVsTuning.tsx) ────────────────────────────── */
 
 .gapRow {
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border);
 }
+
 .gapRow:last-of-type {
   border-bottom: none;
 }
+
 .gapHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
+
 .gapLabel {
   font-weight: 600;
   font-size: 13px;
 }
+
 .gapMeta {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-dim);
 }
 
-/* ── "Why no signal today?" panel (item 2.7) ── */
+/* ── "Why no signal today?" panel (WhyNoSignal.tsx, item 2.7) ────────────── */
+
 .whySentence {
   font-size: 13.5px;
   line-height: 1.5;
@@ -1003,9 +1215,4 @@
   text-transform: uppercase;
   color: var(--text-dim);
   margin: 14px 0 6px;
-}
-
-/* Signal context strip inside a Home idea row (item 2.8) */
-.rowCtx {
-  grid-column: 1 / -1;
 }

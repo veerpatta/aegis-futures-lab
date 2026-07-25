@@ -1,0 +1,191 @@
+/* Glass app header — see AppHeader.tsx. Sticky on both breakpoints so the
+   privacy and alert controls stay reachable while a long page scrolls. */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--appbar-h);
+  padding: 8px max(var(--space-4), env(safe-area-inset-right)) 10px
+    max(var(--space-4), env(safe-area-inset-left));
+  background: rgba(5, 8, 15, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(27, 37, 54, 0.8);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-icon);
+  background: linear-gradient(140deg, var(--green), #0f7f60);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #04110c;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(45, 212, 160, 0.28);
+  flex: 0 0 auto;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.iconBtn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-icon);
+  background: var(--bg-lifted);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+
+.iconBtn[aria-pressed="true"] {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+
+.dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 1.5px solid var(--bg-lifted);
+}
+
+/* The zone switch is a second-order control — it keeps its own styling but
+   sits in the same cluster. Hidden on desktop, where the sidebar footer
+   carries the labelled version. */
+.zone {
+  flex: 0 0 auto;
+}
+
+/* ── Alerts sheet ── */
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.sheetTitle {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sheetEmpty {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin: 10px 0 0;
+}
+
+.alertList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.alertDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex: 0 0 auto;
+}
+.warn {
+  background: var(--amber);
+}
+.bad {
+  background: var(--red);
+}
+.info {
+  background: var(--blue);
+}
+
+.sheetNote {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin: 16px 0 0;
+}
+
+/* Desktop: the sidebar owns the brand, so drop the mark and let the screen
+   name sit as a quiet strip above the page. */
+@media (min-width: 769px) {
+  .bar {
+    padding: 6px var(--space-6) 8px;
+    min-height: 48px;
+  }
+  .mark,
+  .zone {
+    display: none;
+  }
+  .title {
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+}

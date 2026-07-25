@@ -5,12 +5,16 @@
    480px  — inner-grid collapse (dense 2-col field grids, funnel rows)
    @media (pointer: coarse) — touch sizing layer, orthogonal to widths */
 :root {
-  /* surfaces */
-  --bg: #070b12;
+  /* surfaces — native app pass */
+  --bg: #05080f;
+  --bg-canvas: #090c13;
   --bg-raised: #0b111d;
-  --bg-inset: #04070d;
-  --border: #1a2436;
-  --border-strong: #263349;
+  --bg-lifted: #0d1420;
+  --bg-elevated: #101a29;
+  --bg-inset: #080d16;
+  --border: #1b2536;
+  --border-strong: #1f2b3f;
+  --border-live: #23405c;
 
   /* text */
   --text: #e8eef8;
@@ -39,9 +43,21 @@
   --amber-soft: rgba(245, 180, 82, 0.12);
   --blue-soft: rgba(90, 167, 255, 0.12);
 
-  /* shape & rhythm */
+  /* soft washes for the tinted chips the native pass uses */
+  --green-line: rgba(45, 212, 160, 0.35);
+  --red-line: rgba(255, 107, 122, 0.35);
+  --amber-line: rgba(245, 180, 82, 0.4);
+  --blue-line: rgba(90, 167, 255, 0.32);
+
+  /* shape & rhythm — the native pass rounds much harder than the 2026-07 comps:
+     hero sections 26px, cards 22px, tiles 14px, icon buttons 12px. */
   --radius-sm: 6px;
   --radius-md: 10px;
+  --radius-tile: 14px;
+  --radius-btn: 15px;
+  --radius-card: 22px;
+  --radius-hero: 26px;
+  --radius-icon: 12px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -49,17 +65,21 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  /* Archivo is the native pass's body face. It replaced Inter once every page
+     had been through the redesign — the old comment here explained that body
+     copy stayed on Inter to leave un-redesigned pages alone, and that reason
+     expired when Markets/Journal/Lab were converted. */
+  --font-sans: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
-  /* Display face for brand, page titles and card headings (Home + nav so far).
-     Body copy stays on --font-sans so pages not yet redesigned are untouched. */
-  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
+  /* Display face for brand, screen titles and card headings. */
+  --font-display: "Space Grotesk", "Archivo", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas,
     monospace;
 
   --sidebar-w: 220px;
-  --tabbar-h: 56px;
+  --tabbar-h: 64px;
+  --appbar-h: 56px;
 }
 
 * {
@@ -110,6 +130,72 @@ a {
 
 .pulse {
   animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* ── Native-pass motion ──────────────────────────────────────────────────
+   livePulse  — the expanding halo on a LIVE dot
+   spin       — the refresh chip's ring while a fetch is in flight
+   riseIn     — screens fade up 10px when you switch tabs
+   Every one of these is disabled under prefers-reduced-motion below. */
+@keyframes livePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 160, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.riseIn {
+  animation: riseIn 0.28s ease both;
+}
+
+/* The design's `style-active` — everything tappable shrinks while pressed.
+   Applied via class so buttons, links and rows all share one press feel. */
+.press {
+  transition: transform 0.12s;
+}
+.press:active {
+  transform: scale(0.97);
+}
+.pressSm:active {
+  transform: scale(0.99);
+}
+.pressLg:active {
+  transform: scale(0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .press:active,
+  .pressSm:active,
+  .pressLg:active {
+    transform: none;
+  }
 }
 
 /* ── App shell ───────────────────────────────────────────────────────── */

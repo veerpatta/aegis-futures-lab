@@ -18,6 +18,8 @@ import {
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { STALE_BAR_AGE_MIN, STALE_LABEL } from "@/lib/signals/freshness";
 import SignalContext, { useConditionLedger } from "./SignalContext";
+import SignalCards, { type Segment } from "./SignalCards";
+import SignalSheet from "./SignalSheet";
 import { fetchMarket } from "@/lib/data/fetch";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -164,6 +166,8 @@ export default function SignalsClient() {
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [showIntro, setShowIntro] = useState(false);
+  const [segment, setSegment] = useState<Segment>("live");
+  const [sheet, setSheet] = useState<SignalRow | null>(null);
   const { zone } = useZone();
 
   useEffect(() => {
@@ -350,6 +354,26 @@ export default function SignalsClient() {
     });
   }, [ready, prices]);
 
+  /* The three readings behind the segmented card view at the top of the page.
+     All three come off the same active set the blotter uses — suppressed and
+     stale-data rows keep to their own drawers further down. */
+  const activeSignals = useMemo(
+    () => (ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
+    [ready]
+  );
+  const liveRows = useMemo(
+    () => activeSignals.filter((s) => s.status === "triggered" || s.status === "pending"),
+    [activeSignals]
+  );
+  const historyRows = useMemo(
+    () => activeSignals.filter((s) => s.pnl_usd !== null).slice(0, 12),
+    [activeSignals]
+  );
+  const nearZones = useMemo(
+    () => rankedZones.filter((r) => r.dist !== null).slice(0, 8),
+    [rankedZones]
+  );
+
   /* Streams the breaker has benched: current state = each stream's latest
      bot_policy row being a pause. Recovery hint = PF over the most recent
      suppressed closed signals (the engine does the authoritative calc). */
@@ -462,6 +486,17 @@ export default function SignalsClient() {
           </div>
         )}
       </section>
+
+      {/* ── At a glance: live · zones · history ── */}
+      <SignalCards
+        segment={segment}
+        onSegment={setSegment}
+        liveRows={liveRows}
+        historyRows={historyRows}
+        zoneRows={nearZones}
+        loading={state.status === "loading"}
+        onOpen={setSheet}
+      />
 
       {state.status === "error" && (
         <Panel title="Connection">
@@ -766,6 +801,8 @@ export default function SignalsClient() {
           </div>
         )}
       </Panel>
+
+      <SignalSheet signal={sheet} ledger={ledger} onClose={() => setSheet(null)} />
     </>
   );
 }

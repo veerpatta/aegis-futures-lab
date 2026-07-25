@@ -1,56 +1,4 @@
-/* Both bars are mobile-only (≤768px); desktop uses the Sidebar. */
-
-.topBar {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 44px;
-  padding: var(--space-2) max(var(--space-4), env(safe-area-inset-right))
-    var(--space-2) max(var(--space-4), env(safe-area-inset-left));
-  background: var(--bg-inset);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 14px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-.brand strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.brandMark {
-  color: var(--green);
-  font-size: 16px;
-}
-
-.topBarEnd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-}
-
-/* Compliance badge (mirrors Sidebar's .lock — CSS Modules can't compose
-   across files, so the declarations are duplicated deliberately). */
-.lock {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--amber);
-  background: var(--amber-soft);
-  border: 1px solid rgba(245, 180, 82, 0.35);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  white-space: nowrap;
-}
+/* Phone tab bar — mobile only (≤768px); desktop uses the Sidebar. */
 
 .tabBar {
   display: none;
@@ -59,10 +7,23 @@
   z-index: 50;
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(4, 7, 13, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(6, 10, 17, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border);
+}
+
+/* The accent rail that slides between tabs. One fifth of the bar wide, so the
+   translate is a plain multiple of its own width. */
+.indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20%;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--green);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tab {
@@ -70,27 +31,24 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   color: var(--text-faint);
-  border-top: 2px solid transparent;
-  transition: color 120ms;
+  transition:
+    color 0.2s,
+    transform 0.12s;
 }
 
 .tabActive {
   color: var(--green);
-  border-top-color: var(--green);
 }
 
 .tabLabel {
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 @media (max-width: 768px) {
-  .topBar {
-    display: flex;
-  }
   .tabBar {
     display: grid;
     grid-auto-flow: column;

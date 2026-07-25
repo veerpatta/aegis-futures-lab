@@ -142,6 +142,42 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 
 You never need the workshop pages to follow the signals.
 
+### Finding your way around the screen
+
+Every page has the same bar across the top: the diamond mark and the page name on the left,
+and three controls on the right.
+
+| Control | What it does |
+|---|---|
+| **ET / IST** | Which clock every time on screen is shown in. See section 6. |
+| **The eye — private mode** | Turns every money figure into dots, so you can check the app on a train without showing your P&L to the next seat. Prices, times, win rates and status labels stay, because those are what make the screen readable. Remembered on that device. Backtest results in the Strategy Lab are *not* hidden — they are hypothetical numbers from a simulation, not your money. |
+| **The bell — what needs attention** | A red dot appears when there is something real to report: the bot has not checked in recently, the last check failed, the price feed is running late, a stream has been benched, or a news pause is coming. Tap for the list. No dot means there is nothing to say. |
+
+On Home, the line under the bar tells you when the bot last checked and lets you tap to check
+again. The big number below it is your P&L, and the **Today / Week / 3 wks** switch changes the
+window it covers — the small badge beside it is the profit factor for that same window, and the
+line underneath is the running total after each closed idea.
+
+When an idea is open, the coloured track shows where price is sitting between your stop (left,
+red) and your target (right, green), with a tick for the entry. It is the one thing worth a
+glance mid-trade. Underneath it, the twelve small bars are the bot's last twelve scheduled
+checks — taller means the check took longer, green means it finished cleanly — and the green
+streak counts how many trading days in a row have finished up.
+
+**Tapping any idea** — on Home, on Signals, or from a day in the Journal — slides up a card with
+its entry, stop, target and a plain-English "why the bot took it". Tap outside the card, or press
+Escape, to go back without losing your place on the page. On Signals, the **Live / Zones /
+History** switch at the top shows what is working now, which zones price is walking into, and what
+has already closed; the ring on each card is the model's win probability, and it reads "—" when
+the model has not scored that idea.
+
+In the Journal, the coloured grid is three weeks of daily P&L — pattern first, numbers second —
+and **Bot vs you** compares the engine against your own logged trades over the days you actually
+journaled. Your side is gross of costs and the engine's already has commission and slippage taken
+out, so a close race is really a win for the bot. In the Strategy Lab, the front panel holds only
+the settings that genuinely change behaviour, in plain words, with everything else in
+**Advanced**.
+
 ## 6. ET or IST — your choice
 
 Every time in the app can be shown on the New York exchange clock (**ET**) or on your own

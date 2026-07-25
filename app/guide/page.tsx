@@ -197,6 +197,64 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>Finding your way around the screen</h2>
+        <p>
+          Every page has the same bar across the top: the diamond mark and the page name on the
+          left, and three controls on the right.
+        </p>
+        <dl className={styles.dl}>
+          <dt>ET / IST</dt>
+          <dd>Which clock every time on screen is shown in. See below.</dd>
+          <dt>The eye — private mode</dt>
+          <dd>
+            Tap it and every money figure turns into dots, so you can check the app on a train
+            without showing your P&amp;L to the next seat. Prices, times, win rates and status
+            labels all stay, because those are what make the screen readable. The setting is
+            remembered on that device. Backtest results in the Strategy Lab are not hidden — they
+            are hypothetical numbers from a simulation, not your money.
+          </dd>
+          <dt>The bell — what needs attention</dt>
+          <dd>
+            A red dot appears when there is something real to report: the bot has not checked in
+            recently, the last check failed, the price feed is running late, a stream has been
+            benched, or a news pause is coming. Tap it for the list. No dot means there is nothing
+            to say.
+          </dd>
+        </dl>
+        <p>
+          On Home, the line under the bar tells you when the bot last checked and lets you tap to
+          check again. The big number below it is your P&amp;L, and the <b>Today / Week / 3 wks</b>{" "}
+          switch changes the window it covers — the small badge beside it is the profit factor for
+          that same window, and the line underneath is the running total after each closed idea.
+        </p>
+        <p>
+          When an idea is open, the coloured track shows where price is sitting between your stop
+          (left, red) and your target (right, green), with a tick for the entry. It is the one
+          thing worth a glance mid-trade. Underneath it, the twelve small bars are the bot&apos;s
+          last twelve scheduled checks — taller means the check took longer, green means it
+          finished cleanly — and the green streak counts how many trading days in a row have
+          finished up.
+        </p>
+        <p>
+          <b>Tapping any idea</b> — on Home, on Signals, or from a day in the Journal — slides up a
+          card with its entry, stop, target and a plain-English &ldquo;why the bot took it&rdquo;.
+          Tap outside the card, or press Escape, to go back without losing your place on the page.
+          On Signals, the <b>Live / Zones / History</b> switch at the top shows what is working now,
+          which zones price is walking into, and what has already closed; the ring on each card is
+          the model&apos;s win probability, and it reads &ldquo;—&rdquo; when the model has not
+          scored that idea.
+        </p>
+        <p className={styles.note}>
+          In the Journal, the coloured grid is three weeks of daily P&amp;L — pattern first, numbers
+          second — and <b>Bot vs you</b> compares the engine against your own logged trades over the
+          days you actually journaled. Your side is gross of costs and the engine&apos;s already has
+          commission and slippage taken out, so a close race is really a win for the bot. In the
+          Strategy Lab, the front panel now holds only the settings that genuinely change
+          behaviour, in plain words, with everything else in <b>Advanced</b>.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>When the bot benches a strategy</h2>
         <p>
           The bot watches how each stream is actually doing. When a stream&apos;s recent results

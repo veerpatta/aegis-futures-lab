@@ -1,0 +1,189 @@
+/* Body of the idea detail sheet — see SignalSheet.tsx. */
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.headLeft {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.sideBuy,
+.sideSell {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  border-radius: 8px;
+  padding: 4px 9px;
+}
+.sideBuy {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid var(--green-line);
+}
+.sideSell {
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid var(--red-line);
+}
+
+.sym {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.state {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.tile {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tileLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.tileValue {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pnlRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 11px 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.why {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.whyTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.bullet i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  margin-top: 6px;
+  flex: 0 0 auto;
+}
+
+/* A cell below the sample-count minimum, or a fill caveat — dimmer dot so the
+   eye reads it as a caveat rather than a reason. */
+.collecting {
+  color: var(--text-faint);
+}
+.collecting i {
+  background: var(--amber);
+}
+
+.actions {
+  display: flex;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.primary,
+.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: var(--radius-btn);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary {
+  flex: 1;
+  background: var(--green);
+  color: #04110c;
+}
+
+.secondary {
+  padding: 0 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--red);
+}
+.info {
+  color: var(--blue);
+}
+.warn {
+  color: var(--amber);
+}
+.dim {
+  color: var(--text-faint);
+}
