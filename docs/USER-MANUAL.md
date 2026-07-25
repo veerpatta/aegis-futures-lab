@@ -178,6 +178,12 @@ nothing. After that: green **tracking** = reality matches the promise; amber **l
 earning less than promised but still above water; red **underwater** = the stream is
 losing money over a meaningful sample.
 
+Some streams say **this stream clusters**. That matters: their trades do not arrive at a
+steady rate, they come in bursts, so the "per day" figure is a long-run average and not a
+pace to expect. **Zone setups** is one of these — measured over eleven weeks it traded on
+only 3 days in 51, and most of those trades were on a single day. Whole quiet weeks from
+that stream are normal and are *not* a shortfall.
+
 A red stream means **stop trusting that stream** — the market may have changed since the
 settings were tuned. It never means "trade harder to catch up". The muted line under each
 stream repeats the numbers excluding doubtful fills, the stricter honest version.

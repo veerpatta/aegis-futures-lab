@@ -352,6 +352,13 @@ export default function GuidePage() {
           <b>lagging</b> means it is earning less than promised but still above water, and red{" "}
           <b>underwater</b> means the stream is losing money over a meaningful sample.
         </p>
+        <p>
+          Some streams say <b>this stream clusters</b>. That matters: their trades do not arrive at
+          a steady rate, they come in bursts, so the &ldquo;per day&rdquo; figure is a long-run
+          average and not a pace to expect. <b>Zone setups</b> is one of these — measured over
+          eleven weeks it traded on only 3 days in 51, and most of those trades were on a single
+          day. Whole quiet weeks from that stream are normal and are <i>not</i> a shortfall.
+        </p>
         <p className={styles.note}>
           A red stream means <b>stop trusting that stream</b> — the market may have changed since
           the settings were tuned. It never means &ldquo;trade harder to catch up&rdquo;. The

@@ -6,17 +6,35 @@
    weak-zone filter). ~0.3-0.4 trades/day, clustered on the days price
    reaches Daily/4H structure. PF ≈ 1.35 on the tuning window.
 
-   ⚠ THE TIER-A BAND ABOVE DOES NOT REPRODUCE — do not treat it as an
-   expectation. It was measured through `report.ts --archive`, which sliced the
-   bar archive at an arbitrary instant and so was exposed to the truncated
-   first-daily-bar defect fixed in lib/data/window.ts. Re-measured on a
-   day-aligned 60-day archive, tier A produces 14 trades on ONE session out of
-   50 (2026-07-09) at PF 0.86, net -$192 — i.e. ~1 clustered day in 50, not
-   0.3-0.4 trades/day, and not profitable on this sample. Full evidence in
-   scripts/diag/PHASE1-FINDINGS.md. Re-tuning tier A is deliberately NOT part
-   of this round; TUNING_BASELINE below still carries the old band so the
-   dashboard's "live vs tuning window" panel keeps comparing against what was
-   promised, which is now a known-stale promise.
+   ⚠ THE TIER-A FIGURE ABOVE IS THE ORIGINAL PROMISE, KEPT FOR HISTORY. It was
+   measured through `report.ts --archive`, which sliced the bar archive at an
+   arbitrary instant and so was exposed to the truncated first-daily-bar defect
+   fixed in lib/data/window.ts. TUNING_BASELINE below now carries the
+   RE-MEASURED band (2026-07-25, day-aligned full archive) together with its
+   provenance; that is the number to compare against.
+
+   What the re-measurement showed, over 51 aligned sessions:
+     16 trades · 0.314/day mean · PF 1.27 · net +$357 · win rate 43.8%
+   which lands close to the original 0.3-0.4/day at PF ~1.35 — but for a reason
+   the original band hid. Tier A traded on 3 of 51 sessions (5.9%), and 14 of
+   the 16 trades were on 2026-07-09 alone, a day that LOST $192. The P&L comes
+   from two isolated single-trade winners (2026-05-20 +$243, 2026-06-09 +$305).
+   So the LEVEL roughly reproduces while the SHAPE does not: this is not a
+   0.3/day pace, it is a cluster, and TuningBaseline.clustered now says so on
+   the dashboard.
+
+   Robustness is what the alignment fix bought. Across eleven one-day window
+   shifts tier A now moves 14-18 trades with invalidFill pinned at 4; before
+   alignment the same shifts swung it 2-14 with invalidFill 4-61.
+
+   Full evidence: scripts/diag/PHASE1-FINDINGS.md, and
+   `npx tsx scripts/diag/tier-a-baseline.ts` reproduces the numbers above.
+
+   Entry logic is deliberately UNCHANGED. A parameter grid over three trading
+   days is a fit to 2026-07-09, not a retune — which is why `challengerFor`
+   refuses tier A outright and tune.ts's header calls it a curve-fitting
+   machine. Any future tier-A parameter change goes through the challenger's
+   out-of-sample gate, not by hand.
 
    Tier B — daily flow: RSI mean-reversion (25/75 bands, London+NY session,
    1.5×ATR stop, 1.5R target) run independently per symbol with tight daily
@@ -58,12 +76,65 @@ export interface TuningBaseline {
   symbol: "MES" | "MNQ" | null; // null = every symbol the tier trades
   pfBand: [number, number];
   tradesPerDay: [number, number];
+  /* Where this band came from, so it can never go stale invisibly again. The
+     old tier-A band survived for weeks after the measurement behind it stopped
+     reproducing, and nothing in the code said where it came from. */
+  provenance: string;
+  /* True when the stream's trades CLUSTER rather than arrive at a rate. The
+     tradesPerDay band is then a long-run average, not a pace to expect on any
+     given day, and the dashboard must say so — otherwise a quiet week reads as
+     a shortfall against a promise that was never made. */
+  clustered?: boolean;
 }
 
 export const TUNING_BASELINE: TuningBaseline[] = [
-  { key: "A", label: "Zone setups · MES+MNQ", tier: "A", symbol: null, pfBand: [1.3, 1.4], tradesPerDay: [0.3, 0.4] },
-  { key: "B:MES", label: "Daily flow · MES", tier: "B", symbol: "MES", pfBand: [1.2, 1.3], tradesPerDay: [0.8, 1.2] },
-  { key: "B:MNQ", label: "Daily flow · MNQ", tier: "B", symbol: "MNQ", pfBand: [1.2, 1.3], tradesPerDay: [0.8, 1.2] },
+  {
+    key: "A",
+    label: "Zone setups · MES+MNQ",
+    tier: "A",
+    symbol: null,
+    /* Re-measured 2026-07-25 on the DAY-ALIGNED full archive (51 sessions,
+       2026-05-12 → 2026-07-24, scripts/diag/tier-a-baseline.ts): 16 trades,
+       0.314/day mean, PF 1.27, net +$357, win rate 43.8%.
+
+       The band is deliberately WIDER than that measurement and its floor is
+       1.05, not 1.27. Sixteen trades on three sessions cannot support a tight
+       band, and a floor at break-even would let a stream that makes no money
+       print TRACKING. Setting the floor just above 1.0 means break-even shows
+       as LAGGING, which is the honest reading. */
+    pfBand: [1.05, 1.3],
+    tradesPerDay: [0.2, 0.4],
+    clustered: true,
+    provenance:
+      "measured 2026-07-25 on the day-aligned full archive (51 sessions): 16 trades, PF 1.27, " +
+      "net +$357 — but on only 3 of 51 sessions, 14 of them on 2026-07-09 alone. Band widened " +
+      "from the point estimate because 16 trades on 3 days cannot support a tight one. " +
+      "Reproduce: npx tsx scripts/diag/tier-a-baseline.ts",
+  },
+  {
+    key: "B:MES",
+    label: "Daily flow · MES",
+    tier: "B",
+    symbol: "MES",
+    pfBand: [1.2, 1.3],
+    tradesPerDay: [0.8, 1.2],
+    provenance:
+      "tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned archive at 62 trades, " +
+      "PF 1.41, net +$1,643 (1.22/day) — inside/above the band, so unchanged. rsi-reversion " +
+      "builds no multi-day frame, so it was never exposed to the archive-alignment defect.",
+  },
+  {
+    key: "B:MNQ",
+    label: "Daily flow · MNQ",
+    tier: "B",
+    symbol: "MNQ",
+    pfBand: [1.2, 1.3],
+    tradesPerDay: [0.8, 1.2],
+    provenance:
+      "tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned archive at 56 trades, " +
+      "PF 1.25, net +$877 (1.10/day) — inside the band, so unchanged. Same no-multi-day-frame " +
+      "exemption from the alignment defect as MES.",
+  },
 ];
 
 export interface TierStream {

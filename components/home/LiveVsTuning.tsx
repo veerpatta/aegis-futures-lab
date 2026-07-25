@@ -27,6 +27,9 @@ interface StreamState {
   label: string;
   pfBand: [number, number];
   tradesPerDay: [number, number];
+  /* Trades arrive in clusters, not at a rate — the per-day band is a long-run
+     average and the panel must not let a quiet week read as a shortfall. */
+  clustered: boolean;
   total: number;
   closed: number;
   pf: number | null;
@@ -77,6 +80,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
         label: b.label,
         pfBand: b.pfBand,
         tradesPerDay: b.tradesPerDay,
+        clustered: b.clustered === true,
         total: rows.length,
         closed: closed.length,
         pf,
@@ -119,6 +123,12 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
           <div className={`${styles.gapMeta} ${styles.dim}`}>
             excluding doubtful fills: PF {fmtPf(s.exPf)} · net {money(s.exNet)}
           </div>
+          {s.clustered && (
+            <div className={`${styles.gapMeta} ${styles.dim}`}>
+              this stream <b>clusters</b> — the per-day figure is a long-run average, not a pace to
+              expect. Whole quiet weeks are normal and are not a shortfall.
+            </div>
+          )}
         </div>
       ))}
       <span className={styles.note}>
