@@ -6,6 +6,18 @@
    weak-zone filter). ~0.3-0.4 trades/day, clustered on the days price
    reaches Daily/4H structure. PF ≈ 1.35 on the tuning window.
 
+   ⚠ THE TIER-A BAND ABOVE DOES NOT REPRODUCE — do not treat it as an
+   expectation. It was measured through `report.ts --archive`, which sliced the
+   bar archive at an arbitrary instant and so was exposed to the truncated
+   first-daily-bar defect fixed in lib/data/window.ts. Re-measured on a
+   day-aligned 60-day archive, tier A produces 14 trades on ONE session out of
+   50 (2026-07-09) at PF 0.86, net -$192 — i.e. ~1 clustered day in 50, not
+   0.3-0.4 trades/day, and not profitable on this sample. Full evidence in
+   scripts/diag/PHASE1-FINDINGS.md. Re-tuning tier A is deliberately NOT part
+   of this round; TUNING_BASELINE below still carries the old band so the
+   dashboard's "live vs tuning window" panel keeps comparing against what was
+   promised, which is now a known-stale promise.
+
    Tier B — daily flow: RSI mean-reversion (25/75 bands, London+NY session,
    1.5×ATR stop, 1.5R target) run independently per symbol with tight daily
    discipline locks (max 2 trades, stop after 2 losses or -$250). ~2/day
