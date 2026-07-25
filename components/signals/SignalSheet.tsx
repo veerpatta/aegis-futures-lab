@@ -23,7 +23,6 @@ import { statusLook } from "@/lib/signals/status";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { fmtStamp } from "@/lib/time/session";
-import { ZONE_ABBR } from "@/lib/time/zones";
 import { money } from "@/lib/format";
 import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
 import styles from "./signalSheet.module.css";
@@ -69,8 +68,9 @@ export default function SignalSheet({
             <SheetClose onClose={onClose} />
           </div>
 
+          {/* fmtStamp already carries the zone abbreviation — do not append it. */}
           <div className={styles.meta}>
-            {fmtStamp(s.signal_ts, zone)} {ZONE_ABBR[zone]} · {tierName(s.tier)} (Tier {s.tier})
+            {fmtStamp(s.signal_ts, zone)} · {tierName(s.tier)} (Tier {s.tier})
             {s.rr !== null && ` · ${s.rr.toFixed(1)} : 1 reward`}
           </div>
 

@@ -496,11 +496,15 @@ export default function HomeClient() {
   const entryPct = railPct(live?.entry_price ?? null);
   const pricePct = railPct(livePrice);
 
+  /* "Updated", not "last check": this is when the APP last re-read the tables.
+     The bot's own last check is a different moment and is reported by its own
+     name in the Bot status card below — the two used to both read "last check"
+     and mean different things. */
   const refreshLabel = health.refreshing
-    ? "Checking the market…"
+    ? "Checking for new ideas…"
     : health.loadedAt === null
       ? "Loading…"
-      : `Last check ${ago(new Date(health.loadedAt).toISOString())} · tap to refresh`;
+      : `Updated ${ago(new Date(health.loadedAt).toISOString())} · tap to refresh`;
 
   return (
     <div className={`${styles.page} riseIn`}>

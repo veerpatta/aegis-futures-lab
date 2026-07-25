@@ -79,16 +79,28 @@ export function splitParams(strategy: Strategy<unknown>): {
   return { key: numeric, advanced: strategy.params.filter((p) => !keySet.has(p.key)) };
 }
 
-/* Named starting points, expressed as multipliers on the strategy's own
-   defaults rather than hardcoded numbers — so they keep working if a default
-   moves, and they can never claim a value outside a parameter's declared
-   range. "Balanced" is always exactly the shipped defaults. */
+/* Named starting points, expressed as a signed nudge along each parameter's own
+   declared range rather than a multiplier or a hardcoded number.
+
+   A multiplier was the obvious first choice and it is wrong here: zone-v5's
+   `minScore`, `breakevenR` and `trailR` all default to 0, and any multiple of
+   zero is zero — so a "stricter" preset silently moved nothing on exactly the
+   knob that decides strictness. A nudge of +0.35 instead means "35% of the way
+   from the default toward the maximum", which behaves sensibly whatever the
+   default is.
+
+   A nudge can still be a no-op when the default already sits on the bound it
+   is being pushed toward (loosening `minScore` below 0 is not possible). That
+   is honest — there is no looser setting — and the preset simply leaves it. */
 export interface LabPreset {
   id: string;
   label: string;
   hint: string;
-  /** Per-key multiplier applied to the default, clamped to [min, max]. */
-  scale: Record<string, number>;
+  /**
+   * Per-key nudge in [-1, 1]. Positive interpolates default → max, negative
+   * interpolates default → min. Keys absent from the map are left alone.
+   */
+  nudge: Record<string, number>;
 }
 
 export const LAB_PRESETS: LabPreset[] = [
@@ -96,24 +108,30 @@ export const LAB_PRESETS: LabPreset[] = [
     id: "balanced",
     label: "Balanced",
     hint: "The shipped defaults, unchanged.",
-    scale: {},
+    nudge: {},
   },
   {
     id: "fewer",
     label: "Fewer, bigger",
     hint: "Demands a stronger setup and aims for a larger winner. Expect fewer trades.",
-    scale: { minScore: 1.5, targetNet: 1.35 },
+    nudge: { minScore: 0.35, targetNet: 0.26, breakevenR: 0.4 },
   },
   {
     id: "more",
     label: "More trades",
     hint: "Accepts weaker setups and takes profit sooner. Expect more trades and more noise.",
-    scale: { minScore: 0.5, targetNet: 0.75 },
+    nudge: { minScore: -0.35, targetNet: -0.32 },
   },
 ];
 
-/* Applying a preset never invents a value: an unlisted key keeps whatever the
-   user already has, and a scaled key is clamped into its declared range. */
+/* A preset is a complete starting point, so every numeric parameter is measured
+   from its default — not from whatever the reader happened to have. Nudging
+   only the listed keys and leaving the rest alone looked tidier but meant
+   Fewer → More handed back a hybrid of the two, which is not a starting point
+   and is not what the pill's name promises.
+
+   Non-numeric parameters are never touched, and every result is snapped to the
+   parameter's own step and clamped into its declared range. */
 export function applyPreset(
   strategy: Strategy<unknown>,
   current: Record<string, number | string | boolean>,
@@ -122,16 +140,15 @@ export function applyPreset(
   const out = { ...current };
   for (const def of strategy.params) {
     if (def.type !== "number") continue;
-    const factor = preset.scale[def.key];
-    if (factor === undefined) {
-      if (preset.id === "balanced") out[def.key] = def.default;
+    const n = preset.nudge[def.key];
+    if (n === undefined) {
+      out[def.key] = def.default;
       continue;
     }
-    const min = def.min ?? 0;
-    const max = def.max ?? Number.MAX_SAFE_INTEGER;
-    const raw = Number(def.default) * factor;
+    const bound = n >= 0 ? def.max : def.min;
+    const raw = def.default + (bound - def.default) * Math.abs(n);
     const stepped = def.step ? Math.round(raw / def.step) * def.step : raw;
-    out[def.key] = Math.min(max, Math.max(min, Number(stepped.toFixed(6))));
+    out[def.key] = Math.min(def.max, Math.max(def.min, Number(stepped.toFixed(6))));
   }
   return out;
 }
