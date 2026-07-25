@@ -35,13 +35,34 @@ create index if not exists shadow_signals_stale_data_idx
   on public.shadow_signals (signal_ts desc)
   where stale_data;
 
--- ── Items 2.1, 2.2, 2.5, 2.6, 2.7, 2.8, 2.9 — no schema change ───────────
+-- ── Item 2.2 — allow the `closed_win` status ─────────────────────────────
+-- Both tables carry a CHECK constraint enumerating the allowed statuses. The
+-- 2.2 fix introduces `closed_win` (a profitable exit that never touched the
+-- bracket, previously mislabelled `expired`), so the enumeration has to grow
+-- before the engine can write one.
+--
+-- This was caught the honest way: the first engine run after deploying 2.2
+-- failed with `signals_status_check`, wrote an error heartbeat, and changed
+-- nothing — the upsert is atomic, so no partial batch landed. An earlier draft
+-- of this file asserted "a new value in an existing free-text status column,
+-- not a new constraint", which was simply wrong. Corrected here rather than
+-- quietly patched, because the wrong claim is the more instructive artifact.
+--
+-- Widen-only: every previously valid status stays valid, so this is safe to
+-- apply before or after the code deploy.
+alter table public.signals drop constraint if exists signals_status_check;
+alter table public.signals add constraint signals_status_check
+  check (status = any (array['pending','triggered','hit_target','hit_stop','closed_win','expired','cancelled']));
+
+alter table public.shadow_signals drop constraint if exists shadow_signals_status_check;
+alter table public.shadow_signals add constraint shadow_signals_status_check
+  check (status = any (array['pending','triggered','hit_target','hit_stop','closed_win','expired','cancelled']));
+
+-- ── Items 2.1, 2.5, 2.6, 2.7, 2.8, 2.9 — no schema change ────────────────
 -- Recorded here so the round's migration file is a complete answer to "what
 -- did the database need for this round?":
 --   2.1 zones.score and signals.score BOTH already existed; the score was
 --       being computed and dropped in application code, not missing a column.
---   2.2 `closed_win` is a new value in an existing free-text status column,
---       not a new type or constraint.
 --   2.5 the silence watchdog reads engine_runs/signals and writes GitHub
 --       issues + Telegram; no table of its own.
 --   2.6 the nightly invariant check reads learned_stats/signals/engine_runs

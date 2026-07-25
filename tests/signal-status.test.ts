@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CLOSED_STATUSES,
@@ -100,6 +102,40 @@ describe("targetlessStream + the scoreboard guard (2.2b)", () => {
     const r = promotionReport(legacy);
     expect(r.targetless).toBe(false);
     expect(r.winRate).toBe(0);
+  });
+});
+
+/* Regression guard for the mistake this round actually made: `closed_win` was
+   introduced in code while both tables still had a CHECK constraint enumerating
+   the old statuses, so the first engine run after the deploy failed on
+   signals_status_check. Any future status must be added to the migration's
+   enumeration in the SAME change that starts writing it. */
+describe("every status the code can write is allowed by the schema", () => {
+  const MIGRATION = readFileSync(
+    join(process.cwd(), "supabase", "migrations", "20260725090000_winrate_round.sql"),
+    "utf8"
+  );
+
+  it("the migration enumerates every value statusFromExit can produce", () => {
+    const produced = new Set<string>();
+    for (const reason of ["target", "stop", "signal", "session", "windowEnd"])
+      for (const pnl of [100, 0, -100]) produced.add(statusFromExit(reason, pnl));
+    expect(produced.size).toBeGreaterThanOrEqual(4);
+    for (const status of produced) {
+      expect(MIGRATION, `status '${status}' missing from the status CHECK constraint`).toContain(
+        `'${status}'`
+      );
+    }
+  });
+
+  it("widens both tables, not just signals", () => {
+    expect(MIGRATION).toContain("signals_status_check");
+    expect(MIGRATION).toContain("shadow_signals_status_check");
+  });
+
+  it("keeps every pre-existing status valid — the change is widen-only", () => {
+    for (const legacy of ["pending", "triggered", "hit_target", "hit_stop", "expired", "cancelled"])
+      expect(MIGRATION).toContain(`'${legacy}'`);
   });
 });
 
