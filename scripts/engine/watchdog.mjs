@@ -1,7 +1,25 @@
-/* Engine watchdog — dead-cron detector. Runs on its own GitHub Actions
-   schedule (.github/workflows/watchdog.yml, twice hourly at :17/:47 —
+/* Engine watchdog — dead-cron AND silence detector. Runs on its own GitHub
+   Actions schedule (.github/workflows/watchdog.yml, twice hourly at :17/:47 —
    offset from the engine's every-15-min cadence) with PLAIN node: no npm
    install, no TypeScript.
+
+   Two independent checks, each with its own issue label and lifecycle so one
+   can never mask the other:
+
+     `watchdog`          the cron is dead — no heartbeat for 45 min inside the
+                         run window, or the two newest runs both errored.
+     `watchdog-silence`  the cron is FINE but a configured stream has produced
+                         zero signals for 10 consecutive trading days (item
+                         2.5). Tier A ran silent from go-live without a single
+                         alert, because "healthy engine" and "engine producing
+                         anything" were never the same question. Holidays and
+                         weekends are excluded via the same CME table the app
+                         uses.
+
+   The stream list comes from lib/engine/expected-streams.json rather than from
+   the database on purpose: a stream that has produced NOTHING has no rows, so
+   any DB-derived list is blind to exactly the failure being hunted.
+   tests/silence.test.ts pins that file to tiers.ts.
 
    Reads the latest heartbeats via Supabase REST with the publishable key
    (public SELECT is allowed by design — values mirror lib/supabase/config.ts).
@@ -26,6 +44,7 @@ const STALE_MINUTES = Number(process.env.WATCHDOG_STALE_MINUTES || 45);
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 const LABEL = "watchdog";
+const SILENCE_LABEL = "watchdog-silence";
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
@@ -34,10 +53,100 @@ function nyDateKey(date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(date);
 }
 
+const repoFile = (...parts) =>
+  join(dirname(fileURLToPath(import.meta.url)), "..", "..", ...parts);
+
 function loadClosedHolidays() {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const raw = JSON.parse(readFileSync(join(here, "..", "..", "lib", "market", "cme-holidays.json"), "utf8"));
+  const raw = JSON.parse(readFileSync(repoFile("lib", "market", "cme-holidays.json"), "utf8"));
   return new Set(raw.holidays.filter((h) => h.kind === "closed").map((h) => h.date));
+}
+
+/* The configured streams + the silence threshold. Kept in JSON so this plain-
+   node script and tiers.ts can share one source of truth (tests/silence.test.ts
+   asserts they agree). */
+function loadExpectedStreams() {
+  const raw = JSON.parse(readFileSync(repoFile("lib", "engine", "expected-streams.json"), "utf8"));
+  return {
+    streams: raw.streams,
+    silenceTradingDays: Number(process.env.WATCHDOG_SILENCE_DAYS || raw.silenceTradingDays || 10),
+  };
+}
+
+/* Stream key for a signals row — mirrors streamKeyForRow in
+   lib/engine/streams.ts. Tier A is one stream over both symbols; tier B is
+   keyed by strategy label AND symbol. Duplicated (not imported) because this
+   script must run on plain node with no build step. */
+function streamKeyForRow(row) {
+  if (row.tier === "A") return "A";
+  const label = String(row.dedupe_key ?? "").split(":")[1] ?? "";
+  return `B:${label}:${row.symbol}`;
+}
+
+/* NY trading days strictly after `from` up to and including `to` — weekends and
+   full CME holidays excluded. Mirrors tradingDaysBetween in
+   lib/time/trading-days.ts. */
+function tradingDaysBetween(from, to, closedHolidays) {
+  if (!(to > from)) return 0;
+  const toKey = nyDateKey(to);
+  const cursor = new Date(Date.UTC(
+    Number(nyDateKey(from).slice(0, 4)),
+    Number(nyDateKey(from).slice(5, 7)) - 1,
+    Number(nyDateKey(from).slice(8, 10))
+  ));
+  let count = 0;
+  for (let i = 0; i < 400; i++) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const key = cursor.toISOString().slice(0, 10);
+    const wd = cursor.getUTCDay();
+    if (wd !== 0 && wd !== 6 && !closedHolidays.has(key)) count++;
+    if (key >= toKey) break;
+  }
+  return count;
+}
+
+async function supabaseGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  return res.json();
+}
+
+/* Which configured streams have gone quiet for `silenceTradingDays` or more
+   consecutive trading days. A stream that has NEVER produced a signal is timed
+   from the engine's FIRST run, not from epoch — otherwise a freshly deployed
+   stream would alert on day one. Pure, so it is unit-tested directly. */
+export function findSilentStreams({
+  expected,
+  rows,
+  engineFirstRunMs,
+  nowMs,
+  silenceTradingDays,
+  closedHolidays,
+}) {
+  const newest = new Map();
+  for (const row of rows) {
+    const key = streamKeyForRow(row);
+    const ms = Date.parse(row.signal_ts);
+    if (!Number.isFinite(ms)) continue;
+    if (!newest.has(key) || ms > newest.get(key)) newest.set(key, ms);
+  }
+  const out = [];
+  for (const stream of expected) {
+    const lastMs = newest.get(stream) ?? null;
+    // No signal ever ⇒ measure from when the engine started running at all.
+    const sinceMs = lastMs ?? engineFirstRunMs;
+    if (sinceMs === null) continue; // engine has never run — the cron check owns that
+    const days = tradingDaysBetween(new Date(sinceMs), new Date(nowMs), closedHolidays);
+    if (days >= silenceTradingDays)
+      out.push({
+        stream,
+        days,
+        lastSignal: lastMs === null ? null : new Date(lastMs).toISOString(),
+        everProduced: lastMs !== null,
+      });
+  }
+  return out;
 }
 
 function shouldBeRunning(now, closedHolidays) {
@@ -95,10 +204,120 @@ async function gh(method, path, body) {
   return res.status === 204 ? null : res.json().catch(() => null);
 }
 
-const openWatchdogIssue = async () => {
-  const issues = await gh("GET", `/repos/${REPO}/issues?labels=${LABEL}&state=open&per_page=5`);
+const openIssueFor = async (label) => {
+  const issues = await gh("GET", `/repos/${REPO}/issues?labels=${label}&state=open&per_page=5`);
   return Array.isArray(issues) && issues.length ? issues[0] : null;
 };
+const openWatchdogIssue = () => openIssueFor(LABEL);
+
+/* One open issue per label: comment if it exists, otherwise open it. Returns
+   true when the alert was delivered to GitHub. */
+async function raiseIssue(label, color, title, body, stillText) {
+  try {
+    const existing = await openIssueFor(label);
+    if (existing) {
+      await gh("POST", `/repos/${REPO}/issues/${existing.number}/comments`, { body: stillText });
+      console.log(`commented on ${label} issue #${existing.number}`);
+    } else {
+      await gh("POST", `/repos/${REPO}/labels`, { name: label, color }); // 422 = exists, fine
+      const issue = await gh("POST", `/repos/${REPO}/issues`, { title, body, labels: [label] });
+      console.log(`opened ${label} issue #${issue?.number}`);
+    }
+    return true;
+  } catch (e) {
+    console.error(`${label} issue alert failed: ${e?.message ?? e}`);
+    return false;
+  }
+}
+
+/* Self-close, same lifecycle the dead-cron check has always used. */
+async function resolveIssue(label, comment) {
+  try {
+    const issue = await openIssueFor(label);
+    if (!issue) return;
+    await gh("POST", `/repos/${REPO}/issues/${issue.number}/comments`, { body: comment });
+    await gh("PATCH", `/repos/${REPO}/issues/${issue.number}`, { state: "closed" });
+    console.log(`closed ${label} issue #${issue.number}`);
+  } catch (e) {
+    console.error(`${label} issue cleanup failed (non-fatal): ${e?.message ?? e}`);
+  }
+}
+
+/* ── Silence check (item 2.5) ─────────────────────────────────────────────
+   Independent of the cron check: runs whether or not the engine looks healthy,
+   because a perfectly healthy cron producing nothing is the failure we missed.
+   Never throws — a read failure skips the check for this pass. */
+async function checkSilence(now, closedHolidays) {
+  const { streams, silenceTradingDays } = loadExpectedStreams();
+  let rows = [];
+  let firstRun = null;
+  try {
+    // Most recent 1000 signals is far more than 10 trading days of any stream.
+    rows = await supabaseGet(
+      "signals?select=dedupe_key,tier,symbol,signal_ts&order=signal_ts.desc&limit=1000"
+    );
+    const runs = await supabaseGet("engine_runs?select=ran_at&order=ran_at.asc&limit=1");
+    firstRun = Array.isArray(runs) && runs.length ? Date.parse(runs[0].ran_at) : null;
+  } catch (e) {
+    console.log(`silence check skipped (${e?.message ?? e})`);
+    return null;
+  }
+
+  const silent = findSilentStreams({
+    expected: streams,
+    rows,
+    engineFirstRunMs: firstRun,
+    nowMs: now.getTime(),
+    silenceTradingDays,
+    closedHolidays,
+  });
+
+  console.log(
+    `silence: ${silent.length} of ${streams.length} configured stream(s) quiet ` +
+      `for ≥${silenceTradingDays} trading days` +
+      (silent.length ? ` → ${silent.map((s) => `${s.stream} (${s.days}d)`).join(", ")}` : "")
+  );
+
+  if (!silent.length) {
+    await resolveIssue(
+      SILENCE_LABEL,
+      `Recovered at ${now.toISOString()} — every configured stream has produced a signal inside the last ${silenceTradingDays} trading days.`
+    );
+    return { silent, telegramOk: true, issueOk: true };
+  }
+
+  const lines = silent.map(
+    (s) =>
+      `- \`${s.stream}\`: ${s.days} trading days silent (threshold ${silenceTradingDays}) — ` +
+      (s.everProduced ? `last signal ${s.lastSignal}` : `has NEVER produced a signal`)
+  );
+  const telegramOk = await sendTelegram(
+    `🔇 <b>Stream silence</b>: ${silent.length} configured stream(s) have produced nothing for ` +
+      `≥${silenceTradingDays} trading days.\n` +
+      silent
+        .map(
+          (s) =>
+            `${s.stream}: ${s.days}d${s.everProduced ? `, last ${String(s.lastSignal).slice(0, 16)}` : ", never"}`
+        )
+        .join("\n") +
+      `\nThe cron may be perfectly healthy — this is about output, not uptime. Paper only.`
+  );
+  const issueOk = await raiseIssue(
+    SILENCE_LABEL,
+    "fbca04",
+    `Watchdog: ${silent.length} stream(s) silent for ≥${silenceTradingDays} trading days`,
+    `A configured stream can be silent while the engine is entirely healthy — that is how tier A ` +
+      `ran quiet from go-live with no alert. Weekends and full CME holidays are excluded.\n\n` +
+      lines.join("\n") +
+      `\n\n- Detected: ${now.toISOString()}\n- Threshold: ${silenceTradingDays} consecutive trading days\n` +
+      `- Configured streams: ${streams.map((s) => `\`${s}\``).join(", ")}\n\n` +
+      `This issue closes itself on the next signal from every stream. A genuinely rare stream may ` +
+      `need its threshold raised rather than its logic changed — check ` +
+      `scripts/diag/PHASE1-FINDINGS.md before assuming a defect.`,
+    `Still silent at ${now.toISOString()}:\n${lines.join("\n")}`
+  );
+  return { silent, telegramOk, issueOk };
+}
 
 /* ── Main ────────────────────────────────────────────────────────────── */
 
@@ -116,7 +335,9 @@ async function main() {
     runs = await res.json();
   } catch (e) {
     // Supabase briefly unreachable — do not alert on a read failure alone.
-    console.log(`heartbeat unreadable (${e?.message ?? e}) — skipping this pass`);
+    // The silence check does its own reads and reports its own failure.
+    console.log(`heartbeat unreadable (${e?.message ?? e}) — skipping the cron check`);
+    await checkSilence(now, closedHolidays);
     return 0;
   }
 
@@ -135,19 +356,14 @@ async function main() {
   if (!unhealthy) {
     // Self-heal: close any open watchdog issue once the engine is back.
     if (latest)
-      try {
-        const issue = await openWatchdogIssue();
-        if (issue) {
-          await gh("POST", `/repos/${REPO}/issues/${issue.number}/comments`, {
-            body: `Recovered at ${now.toISOString()} — latest run ${latest.ran_at} (${latest.status}).`,
-          });
-          await gh("PATCH", `/repos/${REPO}/issues/${issue.number}`, { state: "closed" });
-          console.log(`closed watchdog issue #${issue.number}`);
-        }
-      } catch (e) {
-        console.error(`issue cleanup failed (non-fatal): ${e?.message ?? e}`);
-      }
+      await resolveIssue(
+        LABEL,
+        `Recovered at ${now.toISOString()} — latest run ${latest.ran_at} (${latest.status}).`
+      );
     console.log("engine healthy");
+    // A healthy cron says nothing about OUTPUT — that is the whole point of 2.5.
+    const silence = await checkSilence(now, closedHolidays);
+    if (silence && silence.silent.length && !silence.telegramOk && !silence.issueOk) return 1;
     return 0;
   }
 
@@ -161,31 +377,19 @@ async function main() {
     `Check https://github.com/${REPO}/actions/workflows/signal-engine.yml`;
 
   const telegramOk = await sendTelegram(text);
+  const issueOk = await raiseIssue(
+    LABEL,
+    "d93f0b",
+    `Watchdog: engine stale since ${since}`,
+    `The signal engine should be running but is not.\n\n` +
+      `- Reason: ${reason}\n- Detected: ${now.toISOString()}\n- Latest heartbeat: ${since}\n\n` +
+      `This issue closes itself when the watchdog sees a healthy run again.`,
+    `Still unhealthy at ${now.toISOString()} — ${reason}.`
+  );
 
-  let issueOk = false;
-  try {
-    const existing = await openWatchdogIssue();
-    if (existing) {
-      await gh("POST", `/repos/${REPO}/issues/${existing.number}/comments`, {
-        body: `Still unhealthy at ${now.toISOString()} — ${reason}.`,
-      });
-      console.log(`commented on watchdog issue #${existing.number}`);
-    } else {
-      await gh("POST", `/repos/${REPO}/labels`, { name: LABEL, color: "d93f0b" }); // 422 = exists, fine
-      const issue = await gh("POST", `/repos/${REPO}/issues`, {
-        title: `Watchdog: engine stale since ${since}`,
-        body:
-          `The signal engine should be running but is not.\n\n` +
-          `- Reason: ${reason}\n- Detected: ${now.toISOString()}\n- Latest heartbeat: ${since}\n\n` +
-          `This issue closes itself when the watchdog sees a healthy run again.`,
-        labels: [LABEL],
-      });
-      console.log(`opened watchdog issue #${issue?.number}`);
-    }
-    issueOk = true;
-  } catch (e) {
-    console.error(`issue alert failed: ${e?.message ?? e}`);
-  }
+  // Silence is checked even when the cron is dead: separate label, separate
+  // lifecycle, so a dead cron cannot hide a silent stream or vice versa.
+  await checkSilence(now, closedHolidays);
 
   // Exit non-zero ONLY when the alert was needed and every path failed —
   // that red X is itself the last-resort alert.

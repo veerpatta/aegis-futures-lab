@@ -1,0 +1,5 @@
+{
+  "note": "The stream keys the engine is CONFIGURED to produce, as streamKeyFor() builds them. The silence watchdog (scripts/engine/watchdog.mjs) needs this list in plain Node — it cannot import tiers.ts — and it must include streams that have produced NOTHING, which is exactly the tier-A failure mode it exists to catch (a stream with no rows is invisible to any DB-derived list). tests/silence.test.ts asserts this file matches tierStreams() exactly, so it cannot drift silently.",
+  "silenceTradingDays": 10,
+  "streams": ["A", "B:rsi-reversion:MES", "B:rsi-reversion:MNQ"]
+}
