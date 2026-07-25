@@ -32,6 +32,7 @@ import { dayKeyLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import ZoneToggle from "@/components/nav/ZoneToggle";
 import LiveVsTuning from "./LiveVsTuning";
+import WhyNoSignal from "./WhyNoSignal";
 import { money } from "@/lib/format";
 import { fmtPf, profitFactor } from "@/lib/stats";
 import styles from "./home.module.css";
@@ -752,6 +753,10 @@ export default function HomeClient() {
               ))
             )}
           </section>
+
+          {/* Item 2.7 — answers "is it broken or just patient?" without a
+              support conversation, from the engine's own per-day funnel. */}
+          <WhyNoSignal dateKey={nyMeta(Math.floor(Date.now() / 1000)).dateKey} />
 
           <LiveVsTuning signals={signals} />
 

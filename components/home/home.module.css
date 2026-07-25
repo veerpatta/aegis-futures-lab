@@ -988,3 +988,19 @@
   font-size: 12px;
   color: var(--text-dim);
 }
+
+/* ── "Why no signal today?" panel (item 2.7) ── */
+.whySentence {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+
+.whySubhead {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 14px 0 6px;
+}

@@ -66,6 +66,18 @@ practice out of the headline numbers and reports it on its own line. Every bench
 is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
 to trade — and it is paper only.
 
+### When nothing happens: "Why no signal today?"
+
+A quiet day raises exactly one question — is the bot broken, or just being patient? The
+**Why no signal today?** box on Home answers it in a sentence, using the bot's own count of
+what it looked at: how many five-minute candles it checked, how many zones price actually
+reached, how many setups qualified, and what stopped the rest.
+
+A big number of candles checked with nothing qualified is the **normal, healthy** state —
+this strategy is built to wait for price to come to it. The box also tells you when something
+else is going on: a strategy benched by the breaker, or a stalled price feed. If it cannot
+tell you why, it says so rather than guessing.
+
 ### The model that learns to skip weak signals
 
 A small model studies every signal the bot has seen and learns which setups are **least**
@@ -103,7 +115,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 
 | Page | What it's for |
 |---|---|
-| **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, and whether the bot is healthy. |
+| **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
 | **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |

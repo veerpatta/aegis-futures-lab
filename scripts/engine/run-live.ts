@@ -17,6 +17,8 @@ import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { statusFromExit } from "@/lib/signals/status";
 import { assessStaleness } from "@/lib/signals/freshness";
+import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
+import { streamKeyFor } from "@/lib/engine/streams";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
@@ -325,6 +327,10 @@ async function main() {
   const signalRows = new Map<string, SignalRow>();
   let tierA = 0;
   let tierB = 0;
+  // Item 2.7 — today's skip funnel, summed across streams, for the Home panel.
+  const todayKey = nyMeta(nowSec).dateKey;
+  const todayFunnel: Record<string, number> = {};
+  const streamStatus: DailyFunnelPayload["streams"] = [];
   for (const stream of tierStreams()) {
     const res = executeRun({
       strategyId: stream.strategyId,
@@ -385,6 +391,18 @@ async function main() {
     const n = res.trades.filter((t) => t.entryTime >= cutoff).length + (res.openPosition ? 1 : 0);
     if (stream.tier === "A") tierA += n;
     else tierB += n;
+    // Item 2.7 — today's funnel and this stream's own count for the Home panel.
+    for (const [reason, count] of Object.entries(res.skipReasonsByDay[todayKey] ?? {}))
+      todayFunnel[reason] = (todayFunnel[reason] ?? 0) + count;
+    streamStatus.push({
+      key: streamKeyFor(stream.tier, stream.label, stream.symbols.join("+")),
+      label: `${stream.label} ${stream.symbols.join("+")}`,
+      tier: stream.tier,
+      status: "active", // refined below once the breakers have run
+      signalsToday:
+        res.trades.filter((t) => nyMeta(t.entryTime).dateKey === todayKey).length +
+        (res.openPosition && nyMeta(res.openPosition.openedAt).dateKey === todayKey ? 1 : 0),
+    });
     console.log(
       `${stream.tier} ${stream.label} ${stream.symbols.join("+")}: ${n} signals in last ${LOOKBACK_DAYS}d`
     );
@@ -416,6 +434,10 @@ async function main() {
   try {
     const { intervalsByStream, pausedStreams, notes } = await applyBreakers(supabase, nowSec);
     breakerNotes = notes;
+    // Item 2.7 — a benched stream is quiet on purpose; the panel must say which.
+    const paused = new Set(pausedStreams);
+    for (const s of streamStatus)
+      if (paused.has(s.key)) s.status = "benched";
     // Per-row suppression at ENTRY TIME: a row is suppressed iff its stream was
     // paused at the row's signal_ts (derived from the pause-interval history).
     // A pause/resume therefore never rewrites already-decided history, and the
@@ -513,6 +535,36 @@ async function main() {
   }
   phaseT("zones", phaseStart);
   phaseStart = Date.now();
+
+  // 2a) Today's funnel for the Home "why no signal today?" panel (item 2.7).
+  // Written to the existing versioned learned_stats table — no migration, and a
+  // re-run on the same NY date overwrites the same row. Best effort: this is
+  // presentation bookkeeping and must never fail a signal run.
+  try {
+    if (staleness.stale) for (const s of streamStatus) s.status = "stale-data";
+    const funnelPayload: DailyFunnelPayload = {
+      dateKey: todayKey,
+      computedAt: new Date().toISOString(),
+      bars: { MES: mes.filter((b) => nyMeta(b.time).dateKey === todayKey).length,
+              MNQ: mnq.filter((b) => nyMeta(b.time).dateKey === todayKey).length },
+      funnel: todayFunnel,
+      streams: streamStatus,
+      staleData: staleness.stale,
+      worstBarAgeMin: staleness.worstAgeMin,
+    };
+    const { error } = await supabase.from("learned_stats").upsert(
+      {
+        stat_key: DAILY_FUNNEL_STAT_KEY,
+        date_key: todayKey,
+        computed_at: funnelPayload.computedAt,
+        payload: funnelPayload,
+      },
+      { onConflict: "stat_key,date_key" }
+    );
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    warnings.push(`daily_funnel write failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+  }
 
   // 2b) Shadow auditions — observation only. Quarantined: separate table,
   // no Telegram, and NOTHING here may fail the run; a 60s budget caps what

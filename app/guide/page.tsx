@@ -154,7 +154,8 @@ export default function GuidePage() {
           <dt>Home</dt>
           <dd>
             The screen the app opens on. Today at a glance: the live idea, today&apos;s score, the
-            last three weeks, the two markets, the nearest zones, and whether the bot is healthy.
+            last three weeks, the two markets, the nearest zones, <b>why there was no signal
+            today</b>, and whether the bot is healthy.
           </dd>
           <dt>Signals</dt>
           <dd>Every idea, grouped by day, with the full zone watchlist and engine detail.</dd>
@@ -213,6 +214,22 @@ export default function GuidePage() {
           its own line. Every bench and every return is recorded and sent to Telegram, so nothing
           happens silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
           like everything here, it is paper only.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>When nothing happens: &ldquo;Why no signal today?&rdquo;</h2>
+        <p>
+          A quiet day raises exactly one question — is the bot broken, or just being patient? The{" "}
+          <b>Why no signal today?</b> box on Home answers it in a sentence, using the bot&apos;s own
+          count of what it looked at: how many five-minute candles it checked, how many zones price
+          actually reached, how many setups qualified, and what stopped the rest.
+        </p>
+        <p>
+          A big number of candles checked with nothing qualified is the <b>normal, healthy</b>{" "}
+          state — this strategy is built to wait for price to come to it. The box also tells you when
+          something else is going on: a strategy benched by the breaker, or a stalled price feed. If
+          it cannot tell you why, it says so rather than guessing.
         </p>
       </section>
 
