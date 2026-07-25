@@ -576,6 +576,44 @@ function pdfScore(
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+/* Score a zone as if it were entered right now at its own proximal.
+
+   This calls the SAME pdfScore with the SAME four inputs evaluate() feeds it
+   for a signal's score, deriving side/entry/stop from planFromZone and the
+   profit margin from the nearest opposing zone in the same stack. So
+   zones.score and signals.score mean the same thing and
+   learned_stats.score_calibration can legitimately correlate one against the
+   other — which was the whole point of persisting it.
+
+   Odds-enhancer scoring only (`scoring: "pdf"`, which is what the live tier-A
+   stream runs). Returns null for a zone that is not yet visible at `time`.
+   Read-only: nothing here mutates the zone or the stack, and evaluate() is
+   untouched, so the golden parity oracle is unaffected. */
+export function scoreZoneAt(
+  stack: Stack,
+  zone: Zone,
+  symbol: string,
+  time: number,
+  config?: Partial<V5Config>
+): number | null {
+  if (zone.formedAt > time) return null;
+  const cfg = { ...DEFAULT_CONFIG, ...(config || {}) };
+  const achieved = zone.achievedAt !== null && zone.achievedAt <= time;
+  const nyCaution = !achieved && nyMeta(time).minutes >= 570; // §3.3
+  const plan = planFromZone(zone, symbol, cfg);
+  const opposing = nearestOpposing(stack, plan.side, plan.entry, time);
+  const marginRatio =
+    opposing && plan.stopPoints > 0
+      ? Math.abs(opposing.proximal - plan.entry) / plan.stopPoints
+      : null;
+  return pdfScore(zone, {
+    trend: trendAt(stack.frames["60"], time, 3600),
+    marginRatio,
+    nyCaution,
+    achieved,
+  });
+}
+
 /* Risk-adaptive plan (§2.2 step 4 + §6): whole contracts from structural
    stop distance, $160 absolute risk, $162.50 net dollar target. */
 export function planFromZone(zone: Zone, symbol: string, config?: Partial<V5Config>): Plan {

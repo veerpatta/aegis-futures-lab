@@ -11,7 +11,13 @@
 
 import type { Bar } from "@/lib/types";
 import { inNySession } from "@/lib/time/ny";
-import { buildStack, TF_LABEL, type Timeframe, type Zone } from "@/lib/strategies/zone-v5/engine";
+import {
+  buildStack,
+  scoreZoneAt,
+  TF_LABEL,
+  type Timeframe,
+  type Zone,
+} from "@/lib/strategies/zone-v5/engine";
 
 export const ZONE_TFS: Timeframe[] = ["D", "240", "60", "15"];
 export const MAX_ZONES_PER_FRAME = 12;
@@ -23,6 +29,11 @@ export interface ZoneUpsertRow {
   zone_type: "demand" | "supply";
   price_high: number;
   price_low: number;
+  /* Odds-enhancer score for this zone, as if entered now at its own proximal
+     (scoreZoneAt) — the same number and the same scale signals.score carries,
+     so score_calibration can correlate zone quality against outcomes. Was
+     computed inside the strategy and thrown away here until 2026-07-25. */
+  score: number | null;
   status: "fresh" | "tested";
   fresh: boolean;
   achieved: boolean;
@@ -72,6 +83,7 @@ export function zoneRows(symbol: string, bars: Bar[], nowSec: number): ZoneUpser
         zone_type: z.type,
         price_high: z.high,
         price_low: z.low,
+        score: scoreZoneAt(stack, z, symbol, nowSec),
         status: fresh ? "fresh" : "tested",
         fresh,
         achieved: z.achievedAt !== null && z.achievedAt <= nowSec,

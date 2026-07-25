@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Bar } from "@/lib/types";
-import { buildStack } from "@/lib/strategies/zone-v5/engine";
+import { buildStack, scoreZoneAt, type Timeframe } from "@/lib/strategies/zone-v5/engine";
 import { dedupeZoneRows, zoneRows, type ZoneUpsertRow } from "../scripts/engine/zone-rows";
 
 /* The zones table enforces a natural-key unique constraint on
@@ -55,6 +55,7 @@ describe("dedupeZoneRows", () => {
     zone_type: "demand",
     price_high: 101,
     price_low: 95,
+    score: 80,
     status: "fresh",
     fresh: true,
     achieved: false,
@@ -112,5 +113,38 @@ describe("zoneRows", () => {
       .map((z) => z.formedAt)
       .sort((a, b) => a - b);
     expect(twins[0].dedupe_key).toBe(`MES:15M:demand:${formed[formed.length - 1]}`);
+  });
+
+  /* Item 2.1 — the odds-enhancer score used to be computed inside the strategy
+     and dropped at the persistence boundary, leaving every zones row null and
+     learned_stats.score_calibration permanently empty. */
+  it("round-trips a non-null score on every visible zone row", () => {
+    const rows = zoneRows("MES", bars, nowSec);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.score).not.toBeNull();
+      expect(r.score).toBeGreaterThanOrEqual(0);
+      expect(r.score).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("scores a zone the same way a signal on that zone would be scored", () => {
+    const rows = zoneRows("MES", bars, nowSec);
+    const stack = buildStack(bars);
+    const tfKey: Record<string, Timeframe> = { Daily: "D", "4H": "240", "1H": "60", "15M": "15" };
+    let checked = 0;
+    for (const r of rows) {
+      // dedupe_key ends in the zone's formedAt, which is what distinguishes two
+      // formations at an identical price level (the twin-zone case above).
+      const formedAt = Number(r.dedupe_key.split(":").pop());
+      const zone = (stack.zones[tfKey[r.timeframe]] || []).find(
+        (z) => z.formedAt === formedAt && z.type === r.zone_type && z.high === r.price_high
+      );
+      expect(zone).toBeDefined();
+      // Same function evaluate() feeds for signals.score — not a re-derivation.
+      expect(r.score).toBe(scoreZoneAt(stack, zone!, "MES", nowSec));
+      checked++;
+    }
+    expect(checked).toBe(rows.length);
   });
 });
