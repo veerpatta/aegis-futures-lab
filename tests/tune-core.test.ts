@@ -73,11 +73,22 @@ describe("tailGateOk", () => {
     expect(tailGateOk(600, 400)).toBe(false);
   });
 
-  it("blocks the measured MNQ challenger (p95 991 vs incumbent 793)", () => {
-    // The real autopilot #1 result: it clears the 1.25× tolerance and is still
-    // rejected, because both sides sit far above the ceiling and it is worse.
+  it("rejects a candidate that clears the tolerance but worsens an above-ceiling tail", () => {
+    // Hypothetical, not measured: 793 is only the LOWER BOUND the tolerance leg
+    // implies for an incumbent that let a 991 candidate through. It is the shape
+    // the ceiling exists to stop — inside 1.25×, above the ceiling, and worse.
     expect(991).toBeLessThanOrEqual(793 * MC_P95_TOLERANCE);
     expect(tailGateOk(991, 793)).toBe(false);
+  });
+
+  it("lets the measured MNQ challenger through: it ratchets tail risk DOWN", () => {
+    // Measured 2026-07-26 on the live archive: incumbent p95 1726.7 (58% of the
+    // 3,000 book), candidate os20/ob75/t1.5R 990.5 (33%). Both sit above the 600
+    // ceiling, so the candidate had to STRICTLY improve — and it nearly halves it.
+    expect(tailGateOk(990.5, 1726.7)).toBe(true);
+    // What the ceiling buys is the NEXT step: before it, a successor could climb
+    // to 990.5 × 1.25 = 1238. Now anything above the ceiling must beat 990.5.
+    expect(tailGateOk(1238, 990.5)).toBe(false);
   });
 });
 

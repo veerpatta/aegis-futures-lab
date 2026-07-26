@@ -68,8 +68,14 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # 25 turns was measured to be too few once the agent actually had a
+          # shell: run 30192122440 did real work (26 turns, zero permission
+          # denials) and died on error_max_turns before it could write or commit.
+          # 60 matches the hypothesis job. This roughly doubles the worst-case
+          # spend per nightly run, which the header's "keep it short" note is
+          # about — the frequency, twice a day, is unchanged.
           claude_args: |
-            --max-turns 25
+            --max-turns 60
             --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
           prompt: |
             You are the Aegis research analyst. Paper futures bot, MES/MNQ, delayed
