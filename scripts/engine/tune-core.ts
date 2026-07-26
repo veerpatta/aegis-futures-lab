@@ -2,8 +2,9 @@
    prints the human report) and the weekly challenger (challenger.ts, which
    turns surviving candidates into PRs). No top-level side effects, so importing
    it never runs a job. The honesty rules live here: search only on the train
-   window, validate on a held-out month on BOTH PF and net, and reject on a
-   Monte-Carlo p95 drawdown that is >25% worse than the incumbent's. */
+   window, validate on a held-out month on BOTH PF and net, and reject on the
+   Monte-Carlo tail gate: a p95 drawdown >25% worse than the incumbent's, or —
+   once above MC_P95_ABS_CEILING — one that fails to strictly improve on it. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
@@ -21,6 +22,33 @@ export const MIN_OOS_TRADES = 8;
 export const MIN_TRAIN_TRADES = 20;
 export const MC_RESAMPLES = 1000;
 export const MC_P95_TOLERANCE = 1.25; // candidate p95 DD may be at most 25% worse
+
+/* Absolute tail ceiling. MC_P95_TOLERANCE is purely RELATIVE, so a candidate can
+   pass while carrying a 33% p95 drawdown simply because the incumbent does too —
+   which is how a chain of comparisons drifts into tail risk nobody approved, 25%
+   at a time. Above this ceiling a candidate may only RATCHET DOWN: it must strictly
+   improve on the incumbent's p95, not merely fail to worsen it. A flat ceiling
+   alone would freeze tuning forever while we sit above it, which would be a silent
+   lockout — the exact failure mode this repo keeps finding. */
+export const MC_P95_ABS_CEILING = 0.2 * STARTING_CAPITAL; // 600 on a 3,000 book
+
+/* The tail gate, exported so it is unit-testable on its own (like pfRank). Both
+   legs must hold: within the relative tolerance AND either under the absolute
+   ceiling or a strict improvement on the incumbent. */
+export function tailGateOk(candP95: number, incP95: number): boolean {
+  return candP95 <= incP95 * MC_P95_TOLERANCE && (candP95 <= MC_P95_ABS_CEILING || candP95 < incP95);
+}
+
+/* Rejection text. Says which half failed by printing both numbers and the
+   ceiling — the old message asserted ">25% worse", which is now sometimes untrue
+   because the ceiling leg can fail on its own. Single-sourced so it cannot drift
+   back to that claim. */
+export function tailGateReason(label: string, candP95: number, incP95: number): string {
+  return (
+    `candidate ${label} beats OOS but fails the tail gate — p95 DD ${candP95.toFixed(0)} ` +
+    `vs incumbent ${incP95.toFixed(0)} (ceiling ${MC_P95_ABS_CEILING.toFixed(0)}; above it a candidate must strictly improve)`
+  );
+}
 
 const PAGE = 1000;
 
@@ -197,12 +225,12 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
 
   // A no-loss (perfect) OOS month has null PF — rank it as best, not worst.
   const oosBeats = pfRank(candOos) > pfRank(incOos) && candOos.net > incOos.net;
-  const mcOk = candMc.p95 <= incMc.p95 * MC_P95_TOLERANCE;
+  const mcOk = tailGateOk(candMc.p95, incMc.p95);
 
   if (!oosBeats)
     return none(`best candidate ${best.label} fails the held-out month (overfits)`, base);
   if (!mcOk)
-    return none(`candidate ${best.label} beats OOS but its p95 drawdown is >25% worse — rejected on tail risk`, base);
+    return none(tailGateReason(best.label, candMc.p95, incMc.p95), base);
 
   return {
     verdict: "challenger",
