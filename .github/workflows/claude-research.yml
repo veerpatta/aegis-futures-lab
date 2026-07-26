@@ -68,7 +68,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          claude_args: "--max-turns 25"
+          claude_args: |
+            --max-turns 25
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
           prompt: |
             You are the Aegis research analyst. Paper futures bot, MES/MNQ, delayed
             data, no real money. Write for a trader who knows markets, not software.
@@ -118,6 +120,35 @@ jobs:
             Never weaken a test or cast to any to make a check pass. Commit with a
             message naming what you learned, and push to main.
 
+            THE ENTRY IS MANDATORY. You MUST append a dated entry to
+            docs/research-log.md on EVERY run, headed with the UTC date (the
+            `date -u +%F` form, e.g. 2026-07-26), and commit and push it — even
+            when the honest content is a single line saying "no new information
+            today". That is a valid entry and a frequent one; what is not
+            acceptable is writing nothing, because a run that writes nothing is
+            indistinguishable from a run that was broken, and this job has
+            already failed that way once. The step after this one reads the log
+            and FAILS the job when today's UTC date is missing from it, so a
+            silent no-op is now a red run rather than a green lie. The only case
+            where you may commit nothing is the one named above — `npx tsc
+            --noEmit` or `npm test` failing — and then you must say so in the
+            issue you open.
+
+      - name: Verify the log got an entry for today
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          today=$(date -u +%F)
+          body=$(gh api "repos/$GH_REPO/contents/docs/research-log.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || true)
+          if printf '%s' "$body" | grep -q "$today"; then
+            echo "research log has an entry for $today"
+            exit 0
+          fi
+          echo "::error::no research-log entry for $today — the run was green but produced nothing. Check the agent's allowed tools."
+          exit 1
+
   hypothesis:
     if: github.event.schedule == '0 7 * * 0' || inputs.mode == 'hypothesis'
     runs-on: ubuntu-latest
@@ -137,7 +168,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          claude_args: "--max-turns 60"
+          claude_args: |
+            --max-turns 60
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
           prompt: |
             You are the Aegis research desk. Once a week you do the thing nobody has
             time for: turn vague suspicion into a measured answer.
