@@ -1,0 +1,159 @@
+# Aegis Autopilot — closes the loop between the bot's own research and production.
+#
+# The repo already searches, validates and PROPOSES (weekly-challenger.yml):
+# candidate params are searched on the train window only, must beat the incumbent
+# on a held-out month on BOTH profit factor and net, must not worsen the
+# Monte-Carlo p95 drawdown by more than 25%, and must survive TWO CONSECUTIVE
+# WEEKS before a PR is opened. What was missing was the last step: a human had
+# to merge, so proven results sat in open PRs doing nothing.
+#
+# This workflow runs that research every day and merges the bot's own PR when —
+# and only when — its `bot-ci` commit status is green (tsc + the full parity and
+# test suite, run inside the proposing workflow). It then re-checks main and
+# reverts itself if main went red.
+#
+# The statistical gates are UNCHANGED. This does not make the bot learn faster;
+# it removes the human from the path between a proven result and production.
+# The pace of change is still bounded by evidence: the two-week confirmation
+# rule means params can change at most weekly no matter how often this runs,
+# which is the honest ceiling at ~20 live signals.
+#
+# Kill switch: repo variable AUTOPILOT_MERGE = "off" stops all merging (research
+# still runs and still proposes). BOT_POLICY_FREEZE still governs the engine's
+# own reflexes. Paper only, delayed data — nothing here touches real money.
+
+name: autopilot
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+    inputs:
+      merge:
+        description: "Merge green bot PRs (off = research only)"
+        required: false
+        default: "on"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: autopilot
+  cancel-in-progress: false
+
+jobs:
+  autopilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Research: the same honest search the weekly challenger runs, but daily.
+      - name: Research — search, validate out-of-sample, propose
+        run: npx tsx scripts/engine/challenger.ts
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      # Merge: only non-draft bot/* PRs whose bot-ci commit status is success.
+      # challenger.ts converts a PR to a draft when its own CI run is red, so a
+      # draft is a proposal that already failed and must never be merged.
+      - name: Merge the bot's proven proposals
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MERGE_MODE: ${{ inputs.merge || 'on' }}
+          KILL: ${{ vars.AUTOPILOT_MERGE }}
+        run: |
+          set -uo pipefail
+          merged=""
+          if [ "${KILL:-}" = "off" ] || [ "${MERGE_MODE:-on}" = "off" ]; then
+            echo "merging disabled (AUTOPILOT_MERGE=${KILL:-unset}, input=${MERGE_MODE:-unset})"
+            echo "merged=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          prs=$(gh pr list --repo "$GH_REPO" --state open --json number,headRefName,isDraft,headRefOid \
+            --jq '.[] | select(.isDraft == false) | select(.headRefName|startswith("bot/")) | [.number,.headRefName,.headRefOid] | @tsv')
+          if [ -z "$prs" ]; then
+            echo "no mergeable bot PRs — the normal outcome on a day when nothing survived the gate"
+            echo "merged=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          while IFS=$'\t' read -r num ref sha; do
+            [ -z "${num:-}" ] && continue
+            state=$(gh api "repos/$GH_REPO/commits/$sha/status" \
+              --jq '[.statuses[] | select(.context=="bot-ci")] | last | .state // "missing"')
+            if [ "$state" != "success" ]; then
+              echo "PR #$num ($ref): bot-ci=$state — left alone"
+              continue
+            fi
+            echo "PR #$num ($ref): bot-ci green — merging"
+            if gh pr merge "$num" --repo "$GH_REPO" --squash --delete-branch; then
+              merged="$merged #$num"
+            else
+              echo "PR #$num merge failed (branch protection or conflict) — left open"
+            fi
+          done <<< "$prs"
+          echo "merged=$merged" >> "$GITHUB_OUTPUT"
+
+      # Verify main, and undo our own merge if it broke it. The branch's own
+      # bot-ci was green, so a red main here means a conflict with something
+      # merged since — exactly the case a human reviewer would have caught.
+      - name: Re-check main and self-revert on red
+        if: steps.merge.outputs.merged != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MERGED: ${{ steps.merge.outputs.merged }}
+        run: |
+          set -uo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          npm ci
+          if npx tsc --noEmit && npm test; then
+            echo "main is green after merging$MERGED"
+            exit 0
+          fi
+          sha=$(git rev-parse HEAD)
+          echo "main RED after merge — reverting $sha"
+          git config user.name "aegis-autopilot"
+          git config user.email "actions@github.com"
+          git revert --no-edit -m 1 "$sha" || git revert --no-edit "$sha"
+          git push origin main
+          gh issue create --repo "$GH_REPO" \
+            --title "Autopilot reverted its own merge" \
+            --body "Merged$MERGED, main went red, reverted $sha. The branch's own bot-ci was green, so this is a conflict with main rather than a bad proposal." || true
+          exit 1
+
+      - name: Telegram summary
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MERGED: ${{ steps.merge.outputs.merged }}
+        run: |
+          set -uo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "no telegram credentials — skipping"
+            exit 0
+          fi
+          if [ -n "${MERGED:-}" ]; then
+            msg="Autopilot merged${MERGED} — the bot's own research is now live in paper trading."
+          else
+            msg="Autopilot ran: no proposal survived the out-of-sample gate. Nothing changed."
+          fi
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" -d text="$msg" >/dev/null || true
