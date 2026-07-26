@@ -1,0 +1,189 @@
+# Self-heal — fires the moment another workflow FAILS, diagnoses it, and fixes what
+# is safely fixable. This is the "check them all and fix them" layer, and it lives
+# in the repo because nothing outside the repo can push to it.
+#
+# WHY workflow_run RATHER THAN A SCHEDULE: a cron check has to guess when runs
+# finish, and GitHub delays scheduled workflows by 15-60 minutes on public repos —
+# the 06:15 nightly landed at 07:04 on 2026-07-26. `workflow_run: completed` fires
+# on the actual finish, so nothing is guessed.
+#
+# WHICH FAILURES: only the ones where failing means something structural. Notably
+# NOT `signal-engine` — it fails transiently when Yahoo hiccups, the watchdog
+# already covers a dead engine, and self-healing every feed blip would burn the
+# Max-plan turn budget for nothing.
+#
+# THE LESSON THIS ENCODES: on 2026-07-26 a scheduled run failed on `--max-turns 25`
+# against commit e132ca4 while main had ALREADY been fixed to 60 in dec5a1c three
+# minutes earlier. A naive healer would have "fixed" an already-fixed bug, or worse,
+# changed something in response to a stale failure. So step one is always: does this
+# failure still reproduce on current HEAD?
+#
+# Paper only, delayed data. Nothing here touches real money.
+
+name: self-heal
+
+on:
+  workflow_run:
+    workflows:
+      - autopilot
+      - claude-research
+      - nightly-learn
+      - weekly-digest
+      - weekly-challenger
+      - monthly-tune
+      - ci
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: self-heal
+  cancel-in-progress: false
+
+jobs:
+  heal:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Rate limit before spending anything. A healer that can be triggered by its
+      # own side effects must have a hard daily ceiling, or one bad night eats the
+      # whole subscription allowance.
+      - name: Budget guard
+        id: budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          today=$(date -u +%F)
+          n=$(gh run list --repo "$GH_REPO" --workflow self-heal.yml --limit 40 \
+                --json createdAt --jq "[.[] | select(.createdAt | startswith(\"$today\"))] | length" 2>/dev/null || echo 0)
+          echo "self-heal runs today: $n"
+          if [ "${n:-0}" -ge 4 ]; then
+            echo "ceiling reached — not healing again today"
+            gh issue create --repo "$GH_REPO" \
+              --title "self-heal hit its daily ceiling ($today)" \
+              --body "Four self-heal runs today. Something is failing repeatedly and the healer is not fixing it. This needs a human." || true
+            echo "go=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "go=yes" >> "$GITHUB_OUTPUT"
+
+      # Is the failure stale? A scheduled run executes the commit that was HEAD when
+      # it was QUEUED, so a failure can describe code that is already fixed.
+      - name: Staleness check
+        id: stale
+        if: steps.budget.outputs.go == 'yes'
+        run: |
+          set -uo pipefail
+          failed_sha="${{ github.event.workflow_run.head_sha }}"
+          head_sha=$(git rev-parse HEAD)
+          echo "failed run sha: ${failed_sha:-n/a}"
+          echo "current HEAD:   $head_sha"
+          if [ -n "${failed_sha:-}" ] && [ "$failed_sha" != "$head_sha" ]; then
+            echo "stale=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.budget.outputs.go == 'yes'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.budget.outputs.go == 'yes'
+
+      - uses: anthropics/claude-code-action@v1
+        if: steps.budget.outputs.go == 'yes'
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
+          prompt: |
+            A workflow in this repository just FAILED. Diagnose it, fix it if the fix
+            is safe, and say plainly when it is not. You have a shell, the repo, and
+            `gh`. Aegis is a paper futures bot — delayed data, no real money.
+
+            THE FAILED RUN
+            - workflow: ${{ github.event.workflow_run.name }}
+            - run id:   ${{ github.event.workflow_run.id }}
+            - commit:   ${{ github.event.workflow_run.head_sha }}
+            - stale:    ${{ steps.stale.outputs.stale }}   (yes = the failed run used a commit that is NOT current HEAD)
+
+            Read the logs first: `gh run view ${{ github.event.workflow_run.id }} --log-failed`.
+
+            STEP 1 — IS THIS FAILURE STILL REAL? If `stale` is yes, the failing code
+            may already be fixed on HEAD: a scheduled run executes whatever was HEAD
+            when it was QUEUED, and GitHub delays schedules 15-60 minutes on public
+            repos. This has already happened once — a run failed on `--max-turns 25`
+            three minutes after main was fixed to 60. So before changing anything,
+            check whether the specific cause still exists in the current checkout. If
+            it does not, change NOTHING: comment on the failed run (or open no issue
+            at all if it is obviously stale), report "already fixed on HEAD by
+            <sha>", and stop. A healer that fixes already-fixed bugs is worse than
+            one that does nothing.
+
+            STEP 2 — CLASSIFY. Decide which of these it is and say so explicitly:
+            - TRANSIENT: a network blip, a Yahoo feed hiccup, a runner flake, an npm
+              registry timeout, PostgREST schema-cache lag right after a migration.
+              Do not "fix" these. Report and stop. Re-running is the only correct
+              response, and even that is usually unnecessary.
+            - CONFIG: a workflow file problem — a missing tool permission, too few
+              turns, a wrong secret name, a bad cron, a shell bug in a `run:` block,
+              a step that fails on an empty variable. THIS is your main job. Fix it.
+            - CODE: a genuine defect in a script the workflow calls — a crash, a null
+              deref, an unhandled empty result, a schema mismatch. Fix it if the fix
+              is mechanical and provable.
+            - DATA/SCHEMA: the database disagrees with the code, e.g. a CHECK
+              constraint rejecting a new value. A migration may be needed. Write the
+              migration file, and open an ISSUE rather than assuming it is applied —
+              nothing here applies migrations automatically.
+            - EXPECTED: the workflow failed on purpose. `claude-research` now fails
+              deliberately when no research-log entry was written. `autopilot` fails
+              deliberately after reverting its own bad merge. Do not defeat a
+              deliberate failure — report what it was telling you.
+
+            STEP 3 — FIX, WITH LIMITS.
+            You MAY commit directly to main: `.github/workflows/**` (except this
+            file), and any script or library fix that CANNOT change which signals the
+            engine produces.
+            You MUST open a PR instead, never commit, for anything that can change
+            trading behaviour: `scripts/engine/tiers.ts`, `scripts/engine/run-live.ts`,
+            `gate-costs.ts`, `winprob.ts`, `promotion.ts`, `breakers.ts`, `shadow.ts`,
+            `tune-core.ts`, `challenger-logic.ts`, `lib/strategies/**`,
+            `lib/signals/**`, `lib/indicators/**`, `lib/backtest/**`,
+            `lib/data/window.ts`, `lib/engine/streams.ts`.
+            You MUST NEVER touch: `tests/legacy/**`, `tests/*-parity.test.ts`, or
+            `.github/workflows/self-heal.yml`. An agent that can edit its own leash
+            has no leash — if you believe this workflow itself is the problem, open an
+            issue and stop.
+
+            Before any commit: `npx tsc --noEmit` and `npm test` must both pass. If
+            they do not, commit nothing. NEVER delete, skip or weaken a test, and
+            never cast to `any` or add `@ts-expect-error` to clear a check — doing
+            that to make a workflow green is a worse bug than the one you started
+            with. Keep the change minimal: fix the cause, not the surrounding code.
+
+            STEP 4 — REPORT, ALWAYS. Open ONE issue titled with the workflow name and
+            the classification (for example "self-heal: claude-research — CONFIG,
+            fixed"), containing: the failing log excerpt, your classification, what
+            you changed and why or why you changed nothing, and the commit or PR
+            link. If you fixed a config problem, say what will prove it — usually the
+            next scheduled run. Do NOT re-dispatch the failed workflow yourself; a
+            healer that retriggers work can loop, and the next scheduled run is
+            evidence enough.
