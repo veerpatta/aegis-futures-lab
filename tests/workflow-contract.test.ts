@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -24,5 +24,16 @@ describe("automated learning workflow contracts", () => {
     expect(research).not.toMatch(/^\s+schedule:/m);
     expect(autopilot).toContain('cron: "30 4 * * 0"');
     expect(ci).toContain('cron: "15 5 * * 0"');
+  });
+
+  it("uses Node 24-compatible official actions in every workflow", () => {
+    const directory = resolve(process.cwd(), ".github", "workflows");
+    const combined = readdirSync(directory)
+      .filter((name) => name.endsWith(".yml"))
+      .map((name) => readFileSync(resolve(directory, name), "utf8"))
+      .join("\n");
+
+    expect(combined).not.toContain("actions/checkout@v4");
+    expect(combined).not.toContain("actions/setup-node@v4");
   });
 });
