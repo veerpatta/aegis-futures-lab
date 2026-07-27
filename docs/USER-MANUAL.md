@@ -248,7 +248,7 @@ operator with a free Telegram bot; nothing to configure in the app.)
 | Fresh / Tested | Fresh = price hasn't come back to the zone yet (strongest). Tested = touched once already. |
 | Paper trading | Practice trades with imaginary money. All trades in this app are paper trades. |
 | Flat by 15:25 ET | The strategy closes everything before the New York session ends (00:55 IST in summer, 01:55 in winter). No overnight risk, ever. |
-| Engine (the "bot") | The automated checker that re-reads the market every 15 minutes during London and New York hours. If Home or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
+| Engine (the "bot") | The automated checker that re-reads the market every 15 minutes for the whole futures week — Sunday evening reopen through Friday's close — so zones keep refreshing overnight, even though new ideas are only ever taken between 02:00 and 15:25 ET. If Home or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
 | Win rate | Share of closed trades that made money. |
 | Delayed data | Prices arrive 10–15 minutes late. Fine for studying, useless for live execution. |
 | ET / IST | The two clocks the app can show. ET is New York exchange time — the clock the strategy is written in. |
@@ -266,8 +266,8 @@ operator with a free Telegram bot; nothing to configure in the app.)
   simply catch up on the next pass — treat the current ones as extra-delayed. Outside
   trading hours the note never appears: there is nothing to be late for.
 - **"Bot asleep" on Home / "ASLEEP" on Signals** — no check is scheduled right now. The
-  bot checks every 15 minutes during London and New York hours on weekdays, and rests
-  the remaining time, so from Friday evening to Monday morning it is asleep by design.
+  bot checks every 15 minutes for as long as the futures market is open, and rests only
+  when it is shut, so it is asleep from Friday evening until the Sunday evening reopen.
   The card shows when the next check is due. "Last check 1d 17h ago" alongside "asleep"
   is the schedule working, not a fault — nothing was missed.
 - **"Bot idle" on Home / "Engine idle / stale" on Signals** — different, and worth a
