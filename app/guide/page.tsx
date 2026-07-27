@@ -469,19 +469,23 @@ export default function GuidePage() {
           <dt>Engine</dt>
           <dd>
             The automated checker (the &ldquo;bot&rdquo;) that re-reads the market every 15
-            minutes during London and New York hours and posts what it finds. If Home or Signals
-            says the bot is idle or a run failed, the feed is paused — not the market. An amber
-            &ldquo;data delayed more than usual&rdquo; note means the bot is running but the
-            prices it last saw are older than the usual 10–15 minutes — ideas catch up on the
-            next pass. On CME holidays the app simply shows &ldquo;Market closed&rdquo; with the
-            holiday&apos;s name — the bot rests on purpose — and on half days (like the day
-            after Thanksgiving) everything closes and flattens early.
+            minutes during London and New York hours and posts what it finds. Outside those
+            hours — overnight, and from Friday evening to Monday morning — it is not scheduled
+            to check at all, and Home says so: <b>&ldquo;bot asleep&rdquo;</b>, with the time of
+            the next check. That is the bot resting on schedule, not a fault, however long ago
+            the last check was. <b>&ldquo;Bot idle&rdquo;</b> is the different one: a check was
+            due and has not arrived. An amber &ldquo;data delayed more than usual&rdquo; note
+            means the bot is running <i>during trading hours</i> but the prices it last saw are
+            older than the usual 10–15 minutes — ideas catch up on the next pass. On CME
+            holidays the app simply shows &ldquo;Market closed&rdquo; with the holiday&apos;s
+            name — the bot rests on purpose — and on half days (like the day after Thanksgiving)
+            everything closes and flattens early.
           </dd>
         </dl>
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-25. A printable version of this guide lives in the project
+        Matches the app as of 2026-07-27. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

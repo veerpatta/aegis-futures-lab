@@ -261,13 +261,19 @@ operator with a free Telegram bot; nothing to configure in the app.)
   stops early — the session bar says "early close" and simulated positions are flat
   before the earlier bell.
 - **"Data delayed more than usual"** — an amber note on Home (Bot status) and on the
-  Signals heartbeat. The bot is running, but the prices it last saw are older than the
-  usual 10–15 minutes (a slow feed or a missed check during market hours). Ideas simply
-  catch up on the next pass — treat the current ones as extra-delayed.
-- **"Bot idle" on Home / "Engine idle / stale" on Signals** — the scheduled checker
-  missed its slot (it runs on a free scheduler that is sometimes 5–15 minutes late). It
-  catches up on the next pass; nothing is lost, because every pass recomputes the full
-  picture.
+  Signals heartbeat. The bot is running **during trading hours**, but the prices it last
+  saw are older than the usual 10–15 minutes (a slow feed or a missed check). Ideas
+  simply catch up on the next pass — treat the current ones as extra-delayed. Outside
+  trading hours the note never appears: there is nothing to be late for.
+- **"Bot asleep" on Home / "ASLEEP" on Signals** — no check is scheduled right now. The
+  bot checks every 15 minutes during London and New York hours on weekdays, and rests
+  the remaining time, so from Friday evening to Monday morning it is asleep by design.
+  The card shows when the next check is due. "Last check 1d 17h ago" alongside "asleep"
+  is the schedule working, not a fault — nothing was missed.
+- **"Bot idle" on Home / "Engine idle / stale" on Signals** — different, and worth a
+  glance: a check WAS due and has not arrived (it runs on a free scheduler that is
+  sometimes 5–15 minutes late). It catches up on the next pass; nothing is lost, because
+  every pass recomputes the full picture.
 - **"Nothing open right now" on Home** — normal. Most of the day there is no live idea;
   the card tells you when the bot checks next.
 - **No signals today** — quiet days happen, especially for Tier A. The pace dots simply
@@ -277,6 +283,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-07-25. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-27. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*
