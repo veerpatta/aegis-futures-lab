@@ -28,10 +28,10 @@ import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
 import { retrainModel } from "./model";
 import { buildModelRows } from "./train-set";
 import {
-  MAX_WORKFLOW_AGE_HOURS,
   checkInvariants,
   reportInvariants,
   workflowAges,
+  type WorkflowAge,
 } from "./invariants";
 import { sendTelegram } from "./notify";
 import type { ModelRow } from "./winprob";
@@ -331,7 +331,7 @@ async function main() {
      reporter must not lose the night's learning. */
   try {
     const latestStats = Object.fromEntries(rows.map((r) => [r.stat_key, r.payload]));
-    let ages: Record<string, number | null> = {};
+    let ages: Record<string, WorkflowAge> = {};
     try {
       ages = await workflowAges(REPO, GH_TOKEN, Date.now());
     } catch (e) {
@@ -342,7 +342,6 @@ async function main() {
       shadow: allShadow,
       latestStats,
       workflowAgeHours: ages,
-      maxWorkflowAgeHours: MAX_WORKFLOW_AGE_HOURS,
     });
     await reportInvariants(violations, {
       repo: REPO,

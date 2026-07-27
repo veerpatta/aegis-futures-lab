@@ -16,6 +16,15 @@ on:
     - cron: "30 5 * * 2-6"
   workflow_dispatch:
 
+# The invariant check (scripts/engine/invariants.ts) reads the Actions API to
+# spot a cron GitHub silently disabled, and raises/clears the
+# `watchdog-invariant` issue. Actions does not inject GITHUB_TOKEN into a step's
+# environment on its own, so without both of these the whole check early-returned
+# and reported nothing — the exact silent structural failure it exists to catch.
+permissions:
+  contents: read
+  issues: write
+
 concurrency:
   group: nightly-learn
   cancel-in-progress: false
@@ -34,6 +43,7 @@ jobs:
       - run: npx tsx scripts/engine/learn.ts
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
           # Ring 1b: freeze gates model graduation; Telegram carries graduate/demote notices.
           BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

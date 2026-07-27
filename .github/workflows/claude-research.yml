@@ -174,8 +174,15 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # 60 was measured to be too few once this job actually got heavy: run
+          # 30193490067 (2026-07-26) did the whole job — 3 diagnostics, tsc, npm
+          # test, commit 79f2ab0, issue #7 — and still died on error_max_turns at
+          # 61 turns, one over cap, after the useful work was already pushed. The
+          # self-heal agent diagnosed it (issue #8) and could not apply the fix:
+          # its GITHUB_TOKEN has no `workflows` scope. 100 gives headroom without
+          # changing what this job is allowed to do.
           claude_args: |
-            --max-turns 60
+            --max-turns 100
             --allowedTools "Bash,Read,Write,Edit,Grep,Glob"
           prompt: |
             You are the Aegis research desk. Once a week you do the thing nobody has

@@ -39,6 +39,10 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  # This job runs challenger.ts, which sets the `bot-ci` commit status the
+  # merge step below then reads. Without the scope the POST 403'd silently and
+  # every PR this job created read back as bot-ci=missing.
+  statuses: write
 
 concurrency:
   group: autopilot

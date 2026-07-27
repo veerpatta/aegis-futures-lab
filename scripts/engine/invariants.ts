@@ -35,10 +35,18 @@ export interface InvariantInput {
   }[];
   /** stat_key → the payload written for the most recent date_key. */
   latestStats: Record<string, unknown>;
-  /** Scheduled workflow name → hours since it last ran (null = never seen). */
-  workflowAgeHours: Record<string, number | null>;
-  /** Hours a scheduled workflow may go without running before it is a fault. */
-  maxWorkflowAgeHours: number;
+  /* Scheduled workflow name → how long since it last ran and how long it is
+     ALLOWED to be quiet. The limit is per workflow because the crons differ by
+     two orders of magnitude: a flat 48h would call weekly-digest (168h by
+     design) stale on nearly every nightly run. */
+  workflowAgeHours: Record<string, WorkflowAge>;
+}
+
+export interface WorkflowAge {
+  /** Hours since the last run; null = no run ever recorded. */
+  ageHours: number | null;
+  /** Hours this cron may go quiet before it counts as a fault. */
+  maxAgeHours: number;
 }
 
 export interface Violation {
@@ -65,7 +73,7 @@ const isEmptyPayload = (payload: unknown): boolean => {
 
 export function checkInvariants(input: InvariantInput): Violation[] {
   const out: Violation[] = [];
-  const { signals, shadow, latestStats, workflowAgeHours, maxWorkflowAgeHours } = input;
+  const { signals, shadow, latestStats, workflowAgeHours } = input;
 
   /* 1) A stream whose rows are 100% null-target must not be presented with a
         win rate. promotionReport enforces this now (item 2.2b); this asserts
@@ -122,21 +130,21 @@ export function checkInvariants(input: InvariantInput): Violation[] {
   }
   void closedShadow;
 
-  /* 3) A scheduled workflow that has not run in over maxWorkflowAgeHours.
-        A cron GitHub silently disabled for inactivity looks exactly like a
-        quiet week. */
-  for (const [name, age] of Object.entries(workflowAgeHours)) {
-    if (age === null)
+  /* 3) A scheduled workflow that has gone quiet for longer than its own
+        cadence allows. A cron GitHub silently disabled for inactivity looks
+        exactly like a quiet week. */
+  for (const [name, { ageHours, maxAgeHours }] of Object.entries(workflowAgeHours)) {
+    if (ageHours === null)
       out.push({
         code: "workflow_never_ran",
         detail: `scheduled workflow ${name} has no recorded run at all.`,
       });
-    else if (age > maxWorkflowAgeHours)
+    else if (ageHours > maxAgeHours)
       out.push({
         code: "workflow_stale",
         detail:
-          `scheduled workflow ${name} last ran ${Math.round(age)}h ago, over the ` +
-          `${maxWorkflowAgeHours}h limit.`,
+          `scheduled workflow ${name} last ran ${Math.round(ageHours)}h ago, over its ` +
+          `${maxAgeHours}h limit.`,
       });
   }
 
@@ -149,7 +157,6 @@ export function checkInvariants(input: InvariantInput): Violation[] {
    whole point of 2.6 is that a silent structural failure is the bug. */
 
 export const INVARIANT_LABEL = "watchdog-invariant";
-export const MAX_WORKFLOW_AGE_HOURS = 48;
 
 /* Hours since each scheduled workflow last ran, from the GitHub Actions API.
    Returns null for a workflow with no runs. A token-less environment gets an
@@ -159,7 +166,7 @@ export async function workflowAges(
   repo: string,
   token: string,
   nowMs: number
-): Promise<Record<string, number | null>> {
+): Promise<Record<string, WorkflowAge>> {
   if (!token) return {};
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -173,11 +180,12 @@ export async function workflowAges(
   const body = (await listed.json()) as {
     workflows?: { id: number; name: string; path: string; state: string }[];
   };
-  const out: Record<string, number | null> = {};
+  const out: Record<string, WorkflowAge> = {};
   for (const wf of body.workflows ?? []) {
     // Only cron-scheduled workflows have an expectation of firing on their own.
     if (wf.state !== "active") continue;
-    if (!SCHEDULED_WORKFLOWS.some((p) => wf.path.endsWith(p))) continue;
+    const expected = SCHEDULED_WORKFLOWS.find((s) => wf.path.endsWith(s.file));
+    if (!expected) continue;
     const runs = await fetch(
       `https://api.github.com/repos/${repo}/actions/workflows/${wf.id}/runs?per_page=1`,
       { headers }
@@ -185,19 +193,45 @@ export async function workflowAges(
     if (!runs.ok) continue;
     const rbody = (await runs.json()) as { workflow_runs?: { created_at: string }[] };
     const latest = rbody.workflow_runs?.[0];
-    out[wf.name] = latest ? (nowMs - Date.parse(latest.created_at)) / 3_600_000 : null;
+    out[wf.name] = {
+      ageHours: latest ? (nowMs - Date.parse(latest.created_at)) / 3_600_000 : null,
+      maxAgeHours: expected.maxAgeHours,
+    };
   }
   return out;
 }
 
-/* The crons that must keep firing. signal-engine is deliberately excluded —
-   the dead-cron watchdog already owns it at 45-minute resolution, and
-   duplicating it here would double-alert. */
-export const SCHEDULED_WORKFLOWS = [
-  "nightly-learn.yml",
-  "weekly-digest.yml",
-  "weekly-challenger.yml",
-  "watchdog.yml",
+/* The crons that must keep firing, each with the longest silence its own
+   schedule can legitimately produce plus margin — GitHub delays public-repo
+   crons by 15-60 minutes and skips slots under load.
+
+   A single flat limit (it was 48h) was wrong in both directions: it called
+   weekly-digest stale on nearly every nightly run, and it would have let a
+   dead daily cron sit unnoticed for two days.
+
+   signal-engine is deliberately excluded — the dead-cron watchdog owns it at
+   45-minute resolution and duplicating it here would double-alert. self-heal
+   is excluded because it is `workflow_run`-triggered, not scheduled: never
+   firing is its healthy state. */
+export interface ScheduledWorkflow {
+  file: string;
+  /** Longest legitimate gap in hours, including margin. */
+  maxAgeHours: number;
+  /** The cron, so the number above can be re-derived rather than trusted. */
+  cadence: string;
+}
+
+export const SCHEDULED_WORKFLOWS: ScheduledWorkflow[] = [
+  // Tue-Sat 05:30 → longest gap is Sat→Tue, 72h.
+  { file: "nightly-learn.yml", maxAgeHours: 84, cadence: "30 5 * * 2-6" },
+  // :17/:47 within Mon-Fri 06-21 → longest gap is Fri 21:47→Mon 06:17, ~56h.
+  { file: "watchdog.yml", maxAgeHours: 72, cadence: "17,47 6-21 * * 1-5" },
+  { file: "autopilot.yml", maxAgeHours: 36, cadence: "30 4 * * *" },
+  { file: "claude-research.yml", maxAgeHours: 36, cadence: "15 6 * * * + 0 7 * * 0" },
+  { file: "weekly-digest.yml", maxAgeHours: 192, cadence: "30 3 * * 6" },
+  { file: "weekly-challenger.yml", maxAgeHours: 192, cadence: "0 4 * * 0" },
+  // Day-of-month ORs with day-of-week, so it fires at least every Saturday.
+  { file: "monthly-tune.yml", maxAgeHours: 192, cadence: "0 6 1-7 * 6" },
 ];
 
 /* Raise or clear the invariant issue and send Telegram. Never throws — a

@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # challenger.ts posts the `bot-ci` commit status that autopilot's merge gate
+  # reads. Unlisted scopes are `none` when a permissions block is present, so
+  # without this the POST 403'd, was swallowed, and autopilot read bot-ci as
+  # "missing" — it could only merge the next day, after ci.yml's bot-branches
+  # job (the only workflow that had the scope) stamped the commit.
+  statuses: write
 
 concurrency:
   group: weekly-challenger

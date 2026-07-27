@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_WORKFLOW_AGE_HOURS,
   SCHEDULED_WORKFLOWS,
   checkInvariants,
   formatInvariantReport,
@@ -17,7 +16,6 @@ const base: InvariantInput = {
   shadow: [],
   latestStats: {},
   workflowAgeHours: {},
-  maxWorkflowAgeHours: MAX_WORKFLOW_AGE_HOURS,
 };
 
 const sig = (over: Partial<InvariantInput["signals"][number]> = {}) => ({
@@ -148,29 +146,86 @@ describe("the ema-cross bug", () => {
 });
 
 describe("dead scheduled workflows", () => {
-  it("fires past the 48-hour limit and names the count", () => {
+  const files = SCHEDULED_WORKFLOWS.map((w) => w.file);
+  const limit = (file: string) =>
+    SCHEDULED_WORKFLOWS.find((w) => w.file === file)!.maxAgeHours;
+
+  it("fires past a workflow's own limit and names the numbers", () => {
     const v = checkInvariants({
       ...base,
-      workflowAgeHours: { "Nightly learn": 12, "Weekly digest": 73 },
+      workflowAgeHours: {
+        "Nightly learn": { ageHours: 12, maxAgeHours: 84 },
+        "Weekly digest": { ageHours: 300, maxAgeHours: 192 },
+      },
     });
     expect(v.map((x) => x.code)).toEqual(["workflow_stale"]);
-    expect(v[0].detail).toContain("73h");
-    expect(v[0].detail).toContain("48h");
+    expect(v[0].detail).toContain("300h");
+    expect(v[0].detail).toContain("192h");
   });
 
   it("fires for a workflow that has never run", () => {
-    const v = checkInvariants({ ...base, workflowAgeHours: { Watchdog: null } });
+    const v = checkInvariants({
+      ...base,
+      workflowAgeHours: { Watchdog: { ageHours: null, maxAgeHours: 72 } },
+    });
     expect(v.map((x) => x.code)).toEqual(["workflow_never_ran"]);
   });
 
   it("stays quiet inside the limit", () => {
-    expect(checkInvariants({ ...base, workflowAgeHours: { "Nightly learn": 47.9 } })).toEqual([]);
+    expect(
+      checkInvariants({
+        ...base,
+        workflowAgeHours: { "Nightly learn": { ageHours: 83.9, maxAgeHours: 84 } },
+      })
+    ).toEqual([]);
   });
 
-  it("watches the crons, and leaves signal-engine to the dead-cron watchdog", () => {
-    expect(SCHEDULED_WORKFLOWS).toContain("nightly-learn.yml");
-    expect(SCHEDULED_WORKFLOWS).toContain("weekly-digest.yml");
-    expect(SCHEDULED_WORKFLOWS).not.toContain("signal-engine.yml");
+  /* The limit used to be a flat 48h for every cron. That is shorter than the
+     cadence of three of the seven watched workflows, so the moment
+     nightly-learn was given a GITHUB_TOKEN it would have raised a
+     workflow_stale violation plus a Telegram on nearly every run. */
+  it("gives every workflow a limit longer than its own cadence", () => {
+    const longestGapHours: Record<string, number> = {
+      "nightly-learn.yml": 72, // Tue-Sat 05:30 -> Sat to Tue
+      "watchdog.yml": 56.5, // Fri 21:47 -> Mon 06:17
+      "autopilot.yml": 24,
+      "claude-research.yml": 24,
+      "weekly-digest.yml": 168,
+      "weekly-challenger.yml": 168,
+      "monthly-tune.yml": 168, // day-of-month ORs day-of-week: at least weekly
+    };
+    for (const w of SCHEDULED_WORKFLOWS) {
+      expect(longestGapHours[w.file], `no cadence recorded for ${w.file}`).toBeDefined();
+      expect(w.maxAgeHours, `${w.file} limit is under its own cadence`).toBeGreaterThan(
+        longestGapHours[w.file]
+      );
+    }
+  });
+
+  it("a weekly cron at 100h is not stale", () => {
+    expect(
+      checkInvariants({
+        ...base,
+        workflowAgeHours: {
+          "Weekly challenger": {
+            ageHours: 100,
+            maxAgeHours: limit("weekly-challenger.yml"),
+          },
+        },
+      })
+    ).toEqual([]);
+  });
+
+  it("watches the crons, and leaves signal-engine and self-heal out", () => {
+    expect(files).toContain("nightly-learn.yml");
+    expect(files).toContain("weekly-digest.yml");
+    expect(files).toContain("autopilot.yml");
+    expect(files).toContain("claude-research.yml");
+    expect(files).toContain("monthly-tune.yml");
+    // Owned by the 45-minute dead-cron watchdog; duplicating it double-alerts.
+    expect(files).not.toContain("signal-engine.yml");
+    // workflow_run-triggered: never firing is its healthy state.
+    expect(files).not.toContain("self-heal.yml");
   });
 });
 
