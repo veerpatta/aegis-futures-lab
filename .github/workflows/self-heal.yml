@@ -35,23 +35,32 @@ on:
     types: [completed]
   workflow_dispatch:
 
-# `workflows: write` is what lets this agent fix a workflow's own config. Without
-# it, ANY push touching .github/workflows/** is rejected outright by GitHub —
-# which is how issue #8 ended up as "fix identified, NOT applied": the healer had
-# correctly diagnosed a --max-turns cap one turn too low and could not apply the
-# one-line change, on main or on a branch.
+# THE HEALER CANNOT EDIT WORKFLOW FILES, AND NO permissions: KEY CAN CHANGE THAT.
 #
-# The scope is broader than that need, so the leash below it is no longer prose
-# alone. `self-heal.yml`, the golden parity tests and `tests/legacy/**` are
-# reverted by the "Enforce the leash" step AFTER the agent runs and BEFORE
-# anything can be relied on — an agent that can edit its own leash has no leash,
-# and a rule enforced only by a prompt is a request, not a boundary.
+# Issue #8 ended as "fix identified, NOT applied": the healer correctly diagnosed
+# a --max-turns cap one turn too low and could not push the one-line change,
+# on main or on a branch, because GitHub rejects any push touching
+# .github/workflows/** without the `workflow` scope. It suggested granting that
+# scope here. That was tried on 2026-07-27 and is NOT possible: `workflows` is
+# not one of the GITHUB_TOKEN permission scopes (the list is actions,
+# artifact-metadata, attestations, checks, code-quality, contents, deployments,
+# id-token, issues, models, discussions, packages, pages, pull-requests,
+# security-events, statuses, vulnerability-alerts). Adding it made GitHub reject
+# this entire file — self-heal could not run at all until it was removed.
+#
+# The only ways to lift the boundary are a personal access token with the
+# `workflow` scope, or a GitHub App installation token, stored as a secret. Both
+# are user-level credentials well beyond what a healer needs, so the boundary
+# stays: when the fix is in a workflow file, the healer files it for a human.
+#
+# The "Enforce the leash" step at the bottom stays regardless. It is what makes
+# the prompt's "never touch these paths" a boundary rather than a request, and it
+# is a precondition for ever revisiting the paragraph above.
 permissions:
   contents: write
   issues: write
   pull-requests: write
   actions: read
-  workflows: write
 
 concurrency:
   group: self-heal
@@ -178,9 +187,12 @@ jobs:
               deliberate failure — report what it was telling you.
 
             STEP 3 — FIX, WITH LIMITS.
-            You MAY commit directly to main: `.github/workflows/**` (except this
-            file), and any script or library fix that CANNOT change which signals the
-            engine produces.
+            You CANNOT commit to `.github/workflows/**` at all — GITHUB_TOKEN has no
+            `workflow` scope and GitHub rejects the push outright. This is a platform
+            limit, not something to route around: when the fix is in a workflow file,
+            write the exact diff into your issue and stop.
+            You MAY commit directly to main any script or library fix that CANNOT
+            change which signals the engine produces.
             You MUST open a PR instead, never commit, for anything that can change
             trading behaviour: `scripts/engine/tiers.ts`, `scripts/engine/run-live.ts`,
             `gate-costs.ts`, `winprob.ts`, `promotion.ts`, `breakers.ts`, `shadow.ts`,
@@ -212,11 +224,11 @@ jobs:
       # The leash, enforced rather than requested.
       #
       # The prompt above forbids touching this file, the golden parity tests and
-      # tests/legacy. Until now that was the only thing stopping it, which was
-      # tolerable while the token could not push to .github/workflows at all.
-      # Granting `workflows: write` removed that accident of configuration, so
-      # the rule needs a mechanism: whatever the agent did, these paths are put
-      # back to the pre-heal commit and the attempt is raised as an issue.
+      # tests/legacy. Until now the only thing stopping it was the prompt itself,
+      # plus the accident that GITHUB_TOKEN cannot push to .github/workflows —
+      # an accident of platform configuration is not a boundary, and it does not
+      # cover the parity tests at all. So: whatever the agent did, these paths
+      # are put back to the pre-heal commit and the attempt is raised as an issue.
       #
       # Runs on always() because an agent that pushed and THEN failed is exactly
       # the case worth catching.
