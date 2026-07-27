@@ -27,6 +27,7 @@ import {
   dataDelayed,
   fmtCountdown,
   fmtStamp,
+  engineScheduled,
   fmtTime,
   marketPhase,
   nextRunSec,
@@ -233,8 +234,12 @@ export default function SignalsClient() {
 
   const ready = state.status === "ready" ? state : null;
   const lastRun = ready?.runs[0] ?? null;
+  /* Same split as BotHealthProvider: outside the cron's own window nothing was
+     scheduled, so silence is sleep, not staleness. */
+  const engineAsleep = !engineScheduled(nowSec);
   const engineStale =
-    !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
+    !engineAsleep &&
+    (!lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000);
 
   const phase = marketPhase(nowSec);
   const delayed = dataDelayed(ready?.runs ?? [], nowSec);
@@ -451,8 +456,21 @@ export default function SignalsClient() {
             <div className={styles.heroDetail}>
               next engine pass ·{" "}
               {lastRun ? (
-                <span className={lastRun.status === "ok" ? (engineStale ? styles.warn : styles.good) : styles.bad}>
-                  last {lastRun.status === "ok" ? "ok" : "failed"} {ago(lastRun.ran_at)}
+                <span
+                  className={
+                    lastRun.status !== "ok"
+                      ? styles.bad
+                      : engineStale
+                        ? styles.warn
+                        : engineAsleep
+                          ? undefined
+                          : styles.good
+                  }
+                >
+                  {/* "last run", not "last ok": this is runs[0] whatever its
+                      status, and the old label claimed otherwise. */}
+                  last {lastRun.status === "ok" ? "run" : "failed"} {ago(lastRun.ran_at)}
+                  {engineAsleep && lastRun.status === "ok" ? " · asleep" : ""}
                 </span>
               ) : (
                 "no runs yet"
@@ -759,8 +777,24 @@ export default function SignalsClient() {
         hint={`GitHub Actions · every 15 min · ${etWindowLabel("02:00", "15:25")} entry window`}
         actions={
           lastRun ? (
-            <Badge tone={lastRun.status === "ok" ? (engineStale ? "amber" : "green") : "red"}>
-              {lastRun.status === "ok" ? (engineStale ? "IDLE / STALE" : "RUNNING") : "ERROR"}
+            <Badge
+              tone={
+                lastRun.status !== "ok"
+                  ? "red"
+                  : engineStale
+                    ? "amber"
+                    : engineAsleep
+                      ? "default"
+                      : "green"
+              }
+            >
+              {lastRun.status !== "ok"
+                ? "ERROR"
+                : engineStale
+                  ? "IDLE / STALE"
+                  : engineAsleep
+                    ? "ASLEEP"
+                    : "RUNNING"}
             </Badge>
           ) : undefined
         }

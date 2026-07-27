@@ -504,7 +504,9 @@ export default function HomeClient() {
     ? "Checking for new ideas…"
     : health.loadedAt === null
       ? "Loading…"
-      : `Updated ${ago(new Date(health.loadedAt).toISOString())} · tap to refresh`;
+      : health.loadFailed
+        ? `Could not reach the feed · showing ${ago(new Date(health.loadedAt).toISOString())} · tap to retry`
+        : `Updated ${ago(new Date(health.loadedAt).toISOString())} · tap to refresh`;
 
   return (
     <div className={`${styles.page} riseIn`}>
@@ -1019,8 +1021,18 @@ export default function HomeClient() {
                 <b className={`${styles.cellValue} num`}>
                   {nextRun === null ? "—" : fmtTime(new Date(nextRun * 1000).toISOString(), zone)}
                 </b>
-                <span className={`${styles.cellSub} ${health.stale ? styles.warn : styles.good}`}>
-                  {health.loading ? "checking…" : health.stale ? "bot idle" : "bot healthy ✓"}
+                <span
+                  className={`${styles.cellSub} ${
+                    health.stale ? styles.warn : health.asleep ? "" : styles.good
+                  }`}
+                >
+                  {health.loading
+                    ? "checking…"
+                    : health.asleep
+                      ? "bot asleep"
+                      : health.stale
+                        ? "bot idle"
+                        : "bot healthy ✓"}
                 </span>
               </div>
             </div>
@@ -1075,14 +1087,22 @@ export default function HomeClient() {
           <section className={styles.card} aria-label="Bot status">
             <h2 className={styles.cardTitle}>Bot status</h2>
             <div className={styles.statusLine}>
-              <i className={`${styles.dotSm} ${health.stale ? styles.dotWarn : styles.dotGood}`} />
+              <i
+                className={`${styles.dotSm} ${
+                  health.stale ? styles.dotWarn : health.asleep ? styles.dotSkip : styles.dotGood
+                }`}
+              />
               {health.lastRun
                 ? `Last check ${ago(health.lastRun.ran_at)} · ${
-                    health.lastRun.status === "ok"
-                      ? health.stale
-                        ? "waiting on the next pass"
-                        : "all good"
-                      : "run failed"
+                    health.lastRun.status !== "ok"
+                      ? "run failed"
+                      : health.asleep
+                        ? nextRun === null
+                          ? "asleep until the next session"
+                          : `asleep until ${fmtTime(new Date(nextRun * 1000).toISOString(), zone)} ${ZONE_ABBR[zone]}`
+                        : health.stale
+                          ? "waiting on the next pass"
+                          : "all good"
                   }`
                 : health.loading
                   ? "Checking…"

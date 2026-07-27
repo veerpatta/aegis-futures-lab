@@ -143,6 +143,12 @@
   color: var(--amber);
 }
 
+/* Asleep is neither good nor a warning — the bot is off the clock on purpose,
+   so the dot goes quiet rather than green or amber. */
+.dotSkip {
+  color: var(--text-faint);
+}
+
 .paperBadge {
   align-self: flex-start;
   font-size: 10px;

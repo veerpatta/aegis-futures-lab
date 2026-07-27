@@ -24,7 +24,7 @@ import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holid
 import { nyMeta } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
-import { inEntryWindow } from "@/lib/time/session";
+import { STALE_MARKER, inEntryWindow } from "@/lib/time/session";
 import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
 import { loadContextRows, updateContextDaily, vixBucketFor, type ContextRow } from "./context";
 import { auditFill, type FillConfidence } from "./fill-audit";
@@ -606,9 +606,12 @@ async function main() {
   phaseT("shadow", phaseStart);
   phaseStart = Date.now();
 
-  // 3) Heartbeat, with per-symbol data freshness. "(stale)" is a marker the
-  // dashboard looks for (lib/time/session.ts dataDelayed) — newest bar more
-  // than 30 min old inside the 02:00–15:25 ET entry window.
+  // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact
+  // token the dashboard looks for (lib/time/session.ts dataDelayed) — newest
+  // bar more than 30 min old inside the 02:00–15:25 ET entry window. Shared as
+  // a constant, not a copied literal: the dashboard used to match the bare
+  // word "stale", which the un-gated verdict note below also contains, so
+  // every weekend heartbeat tripped the "data delayed" banner.
   const mesAge = staleness.ageBySymbol.MES ?? 0;
   const mnqAge = staleness.ageBySymbol.MNQ ?? 0;
   // The dashboard's dataDelayed marker keeps its in-session-only meaning; the
@@ -627,7 +630,7 @@ async function main() {
       `bars MES ${mes.length} / MNQ ${mnq.length}, last ${iso(
         Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time)
       )}`,
-      `age MES ${mesAge}m / MNQ ${mnqAge}m${stale ? " (stale)" : ""}`,
+      `age MES ${mesAge}m / MNQ ${mnqAge}m${stale ? ` ${STALE_MARKER}` : ""}`,
       ...warnings,
     ].join("; "),
   });

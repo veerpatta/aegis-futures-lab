@@ -27,7 +27,7 @@ import {
   type EngineRunRow,
 } from "@/lib/supabase/client";
 import { streamLabel } from "@/lib/engine/streams";
-import { dataDelayed, fmtStamp } from "@/lib/time/session";
+import { dataDelayed, engineScheduled, fmtStamp } from "@/lib/time/session";
 import { useData } from "./DataProvider";
 import { useZone } from "./ZoneProvider";
 
@@ -46,6 +46,9 @@ interface BotHealthValue {
   runs: EngineRunRow[];
   policy: BotPolicyRow[];
   lastRun: EngineRunRow | null;
+  /** No run scheduled right now — weekend or outside the cron's UTC hours. */
+  asleep: boolean;
+  /** A scheduled run is overdue. Never true while `asleep`. */
   stale: boolean;
   delayed: boolean;
   alerts: BotAlert[];
@@ -53,6 +56,8 @@ interface BotHealthValue {
   refreshing: boolean;
   /** Epoch ms of the last successful load — the refresh chip's timestamp. */
   loadedAt: number | null;
+  /** The last poll came back with an error; the snapshot on screen is older. */
+  loadFailed: boolean;
   refresh: () => void;
   revision: number;
 }
@@ -65,6 +70,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [revision, setRevision] = useState(0);
   const inFlight = useRef(false);
   const { events } = useData();
@@ -90,9 +96,17 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (!runsRes.error) setRuns((runsRes.data ?? []) as EngineRunRow[]);
       if (!policyRes.error) setPolicy((policyRes.data ?? []) as BotPolicyRow[]);
-      setLoadedAt(Date.now());
+      /* supabase-js reports PostgREST failures on `res.error` rather than
+         throwing, so this `catch` never sees them. Bumping `loadedAt`
+         regardless made the chip say "Updated just now" over a snapshot that
+         had not moved, and tap-to-refresh looked like it worked while changing
+         nothing. Only stamp the load when both queries actually came back. */
+      const failed = Boolean(runsRes.error || policyRes.error);
+      setLoadFailed(failed);
+      if (!failed) setLoadedAt(Date.now());
     } catch {
       /* leave the previous snapshot on screen — a failed poll is not news */
+      setLoadFailed(true);
     } finally {
       inFlight.current = false;
       setLoading(false);
@@ -114,8 +128,14 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
   }, [load]);
 
   const lastRun = runs[0] ?? null;
-  const stale =
+  /* Asleep is not stale. The engine's cron only fires 06:00-21:59 UTC Mon-Fri,
+     so a Friday-evening-to-Monday-morning silence is the schedule working, not
+     a missed check. Reporting it as "has not checked in recently" was the
+     single loudest false alarm on the dashboard. */
+  const asleep = !engineScheduled(Math.floor(Date.now() / 1000));
+  const overdue =
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
+  const stale = !asleep && overdue;
   const delayed = dataDelayed(runs, Math.floor(Date.now() / 1000));
 
   /* Everything the bell is allowed to claim, derived from real rows only. */
@@ -167,16 +187,32 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       runs,
       policy,
       lastRun,
+      asleep,
       stale,
       delayed,
       alerts,
       loading,
       refreshing,
       loadedAt,
+      loadFailed,
       refresh,
       revision,
     }),
-    [runs, policy, lastRun, stale, delayed, alerts, loading, refreshing, loadedAt, refresh, revision]
+    [
+      runs,
+      policy,
+      lastRun,
+      asleep,
+      stale,
+      delayed,
+      alerts,
+      loading,
+      refreshing,
+      loadedAt,
+      loadFailed,
+      refresh,
+      revision,
+    ]
   );
 
   return <BotHealthContext.Provider value={value}>{children}</BotHealthContext.Provider>;

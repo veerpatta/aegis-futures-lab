@@ -149,13 +149,28 @@ export function findSilentStreams({
   return out;
 }
 
-function shouldBeRunning(now, closedHolidays) {
+/* The engine's cron window — every 15 min, 06:00-21:45 UTC, Mon-Fri — as a
+   pure predicate.
+
+   DUPLICATED from engineScheduled() in lib/time/session.ts on purpose: this
+   script runs on bare `node` with no `npm ci`, so it cannot import a TS module.
+   tests/session-schedule.test.ts pins the two definitions equal across a full
+   week, which is the only thing keeping the copy honest. */
+export function inCronWindow(now) {
   const dow = now.getUTCDay();
   const hour = now.getUTCHours();
   if (dow < 1 || dow > 5) return false;
-  if (hour < 6 || hour >= 22) return false; // engine cron: */15 6-21 UTC
-  if (closedHolidays.has(nyDateKey(now))) return false;
-  return true;
+  return hour >= 6 && hour < 22;
+}
+
+/* Whether a MISSING heartbeat is worth alerting about. Narrower than
+   inCronWindow: CME full holidays are excluded because the day has no session
+   to miss. (The engine itself still runs on holidays — GitHub's cron knows
+   nothing about the CME calendar — and writes a green "holiday" heartbeat, so
+   the dashboard deliberately does NOT apply this holiday carve-out.) */
+function shouldBeRunning(now, closedHolidays) {
+  if (!inCronWindow(now)) return false;
+  return !closedHolidays.has(nyDateKey(now));
 }
 
 async function sendTelegram(text) {

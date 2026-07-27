@@ -87,36 +87,79 @@ export function inEntryWindow(nowSec: number): boolean {
 }
 
 /* Amber "data delayed more than usual" state, shared by the Home bot-status
-   card and the Signals heartbeat: the latest engine run flagged stale bars
-   (run-live.ts appends "(stale)" to its message when the newest bar is
-   >30 min old inside the entry window), or the last successful run is older
-   than 40 minutes during the entry window (cron is every 15 min plus up to
-   15 min of GitHub delay — 40 means two missed slots). */
+   card and the Signals heartbeat.
+
+   "Delayed" means one thing only: the feed is lagging WHILE WE ARE TRADING.
+   Outside the 02:00-15:25 ET entry window there is nothing to be late for, so
+   the whole predicate is gated on `inEntryWindow` before anything else.
+
+   That gate used to sit BELOW a `message.includes("stale")` short-circuit, and
+   the short-circuit won every weekend: run-live.ts appends the bar-age gate's
+   verdict note to the heartbeat, and that note opens with the words "stale
+   data: ...". A Saturday run legitimately reports bars 660 minutes old, so the
+   substring matched and Home read "Data delayed more than usual" from Friday's
+   close to Sunday's open, every week. Two changes, because either alone would
+   leave the class of bug alive: the window guard runs FIRST, and the marker we
+   look for is the explicit "(stale)" suffix run-live.ts writes on purpose
+   (`STALE_MARKER`), not any prose containing the word.
+
+   Inside the window: the engine's own marker wins, otherwise the last
+   successful run being older than 40 minutes counts as delayed (cron is every
+   15 min plus up to 15 min of GitHub delay — 40 means two missed slots). */
 export interface RunLike {
   ran_at: string;
   status: string;
   message: string | null;
 }
 
+/** The deliberate marker run-live.ts appends to an in-window stale heartbeat. */
+export const STALE_MARKER = "(stale)";
+
 export function dataDelayed(runs: RunLike[], nowSec: number): boolean {
-  const last = runs[0];
-  if (last?.message?.includes("stale")) return true;
   if (!inEntryWindow(nowSec)) return false;
   if (!runs.length) return false;
+  if (runs[0]?.message?.includes(STALE_MARKER)) return true;
   const lastOk = runs.find((r) => r.status === "ok");
   if (!lastOk) return true; // only failed runs during the entry window
   return nowSec * 1000 - new Date(lastOk.ran_at).getTime() > 40 * 60_000;
 }
 
-/* Next engine pass: cron every 15 min, 06:00-21:59 UTC, Mon-Fri. */
+/* ── The engine's own schedule ────────────────────────────────────────────
+   Distinct from `inEntryWindow`, and the two must never be conflated:
+
+     inEntryWindow    02:00-15:25 ET, holiday-aware — "are we trading?"
+     engineScheduled  06:00-21:59 UTC Mon-Fri       — "should a run have happened?"
+
+   Health verdicts want the second. Before this existed, the 40-minute
+   heartbeat check had no concept of the schedule at all, so it went amber ~40
+   minutes after the last Friday run and stayed amber for the whole weekend
+   while the bell claimed "the bot has not checked in recently" — which was
+   false, because nothing was scheduled to check in.
+
+   Deliberately NOT holiday-aware, unlike watchdog.mjs's shouldBeRunning():
+   GitHub's cron knows nothing about the CME calendar, so the engine really
+   does run every 15 minutes on a CME holiday and writes a green heartbeat
+   (run-live.ts records the holiday and skips the recompute). Excluding
+   holidays here would print "asleep" while the bot is demonstrably awake.
+
+   scripts/engine/watchdog.mjs carries a duplicate of this window because it
+   runs on bare `node` with no `npm ci` and cannot import from lib/.
+   tests/session-schedule.test.ts pins the two definitions equal. */
+export const ENGINE_CRON_START_HOUR_UTC = 6;
+export const ENGINE_CRON_END_HOUR_UTC = 22; // exclusive; last slot is 21:45
+
+export function engineScheduled(nowSec: number): boolean {
+  const d = new Date(nowSec * 1000);
+  const dow = d.getUTCDay();
+  if (dow < 1 || dow > 5) return false;
+  const h = d.getUTCHours();
+  return h >= ENGINE_CRON_START_HOUR_UTC && h < ENGINE_CRON_END_HOUR_UTC;
+}
+
+/* Next engine pass: cron every 15 min, inside engineScheduled's window. */
 export function nextRunSec(nowSec: number): number {
   let t = Math.ceil((nowSec + 1) / 900) * 900;
-  for (let i = 0; i < 4 * 24 * 8; i++, t += 900) {
-    const d = new Date(t * 1000);
-    const dow = d.getUTCDay();
-    const h = d.getUTCHours();
-    if (dow >= 1 && dow <= 5 && h >= 6 && h < 22) return t;
-  }
+  for (let i = 0; i < 4 * 24 * 8; i++, t += 900) if (engineScheduled(t)) return t;
   return t;
 }
 
@@ -170,11 +213,15 @@ export function fmtStamp(isoOrNull: string | null, zone: DisplayZone): string {
   return `${dayIn(sec, zone)}, ${clockIn(sec, zone)} ${ZONE_ABBR[zone]}`;
 }
 
-/** Relative age of an ISO timestamp: "just now", "12 min ago", "3h 4m ago". */
+/** Relative age of an ISO timestamp: "just now", "12 min ago", "3h 4m ago",
+    "1d 17h ago". The day tier matters: a Friday-to-Monday gap is a normal
+    weekend, and printing it as "41h 38m ago" makes a scheduled quiet spell
+    read like an outage. */
 export function ago(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
   const h = Math.floor(mins / 60);
-  return `${h}h ${mins % 60}m ago`;
+  if (h < 24) return `${h}h ${mins % 60}m ago`;
+  return `${Math.floor(h / 24)}d ${h % 24}h ago`;
 }

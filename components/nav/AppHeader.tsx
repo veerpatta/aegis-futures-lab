@@ -35,7 +35,7 @@ function screenTitle(pathname: string): string {
 export default function AppHeader() {
   const pathname = usePathname();
   const { privacy, toggle } = usePrivacy();
-  const { alerts } = useBotHealth();
+  const { alerts, asleep } = useBotHealth();
   const { zone } = useZone();
   const [bellOpen, setBellOpen] = useState(false);
   /* null on the server and on first paint; the date lands after mount so the
@@ -118,7 +118,9 @@ export default function AppHeader() {
         </div>
         {alerts.length === 0 ? (
           <p className={styles.sheetEmpty}>
-            Nothing to report — the bot is checking in on time and no stream is paused.
+            {asleep
+              ? "Nothing to report — the bot is off the clock until the next session, and no stream is paused."
+              : "Nothing to report — the bot is checking in on time and no stream is paused."}
           </p>
         ) : (
           <ul className={styles.alertList}>
