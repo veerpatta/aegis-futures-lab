@@ -187,7 +187,7 @@ describe("dead scheduled workflows", () => {
   it("gives every workflow a limit longer than its own cadence", () => {
     const longestGapHours: Record<string, number> = {
       "nightly-learn.yml": 72, // Tue-Sat 05:30 -> Sat to Tue
-      "watchdog.yml": 56.5, // Fri 21:47 -> Mon 06:17
+      "watchdog.yml": 46, // Fri 23:47 UTC -> Sun 22:17 UTC (Globex-week window)
       "autopilot.yml": 24,
       "claude-research.yml": 24,
       "weekly-digest.yml": 168,

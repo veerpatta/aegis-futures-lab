@@ -25,7 +25,7 @@ import {
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { nyMeta } from "@/lib/time/ny";
+import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import {
   ago,
   dayLabelLong,
@@ -1080,7 +1080,9 @@ export default function HomeClient() {
 
           {/* Item 2.7 — answers "is it broken or just patient?" without a
               support conversation, from the engine's own per-day funnel. */}
-          <WhyNoSignal dateKey={nyMeta(Math.floor(Date.now() / 1000)).dateKey} />
+          {/* Trading day, matching the key run-live.ts writes the funnel under:
+              after 18:00 ET the session on screen is the next weekday's. */}
+          <WhyNoSignal dateKey={tradingDayKey(Math.floor(Date.now() / 1000))} />
 
           <LiveVsTuning signals={signals} />
 

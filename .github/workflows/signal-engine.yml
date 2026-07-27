@@ -2,8 +2,31 @@
 # delayed Yahoo data and mirrors them into Supabase for the dashboard.
 #
 # Cron is UTC and GitHub delays cron jobs by 5-15 min — fine for a paper
-# log, never rely on it for live execution. 06:00-21:45 UTC Mon-Fri covers
-# the London+NY entry window (02:00-15:25 ET) in both DST regimes.
+# log, never rely on it for live execution.
+#
+# COVERAGE: the whole Globex week, not just the entry window. Two crons,
+# because cron cannot follow DST:
+#
+#   */15 * * * 1-5      every hour Mon-Fri UTC
+#   */15 22-23 * * 0    the Sunday reopen — Globex opens 18:00 ET, which is
+#                       22:00 UTC in EDT and 23:00 UTC in EST
+#
+# Saturday is empty: the market is shut for all of Saturday UTC in either
+# regime. Friday evening UTC is over-covered by an hour or two after the
+# 21:00/22:00 close; those passes just write an ordinary heartbeat.
+#
+# WHY THIS IS SAFE TO WIDEN. Entries are gated to 02:00-15:25 ET INSIDE the
+# strategies (lib/strategies/rsi-reversion.ts, lib/strategies/zone-v5/index.ts),
+# so an overnight pass physically cannot mint an out-of-window trade — verified
+# against the live table: all 20 rows in `signals` sit between 02:25 and 15:20
+# ET. Every pass is already a full recompute of the trailing 7 days from bars
+# that already include the overnight session, so running more often adds no new
+# bar ranges — only fresher zones, which is what the app has always claimed
+# happens overnight.
+#
+# WHAT IT REQUIRED. "Now" is a TRADING day, not a calendar day: after 18:00 ET
+# the session belongs to the next weekday. run-live.ts keys its daily funnel on
+# lib/time/ny.ts `tradingDayKey` for exactly that reason.
 #
 # Writes need the service-role key: public write policies were dropped
 # (supabase/migrations/20260723100000_lock_down_public_writes.sql), so the
@@ -14,7 +37,8 @@ name: signal-engine
 
 on:
   schedule:
-    - cron: "*/15 6-21 * * 1-5"
+    - cron: "*/15 * * * 1-5"
+    - cron: "*/15 22-23 * * 0"
   workflow_dispatch:
 
 concurrency:

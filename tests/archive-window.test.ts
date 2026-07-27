@@ -72,6 +72,36 @@ describe("dropPartialLeadingSession", () => {
     expect(out.length).toBe(144);
     expect(uniqueTimes(out)).toBe(144);
   });
+
+  /* The property the widened Globex cron leans on. The engine now runs at every
+     hour, so `nowSec - Nd` lands in the overnight as often as it lands
+     mid-session, and the funnel/tuning numbers must not depend on which. What
+     matters is only that every RTH session left in the slice is WHOLE — that is
+     what zone-v5's rolling range mean is seeded from (structureHours defaults to
+     "rth", so overnight bars never form a daily bar).
+
+     Note the precondition is not new: overnight bars are already in the archive
+     regardless of run time, because Yahoo returns the full Globex session
+     whenever it is asked. */
+  it("leaves only whole RTH sessions, wherever the slice starts", () => {
+    const overnightAndSessions = (leadFromMin: number) => [
+      ...day("2026-06-24", leadFromMin, 1440), // lead-in, then into the evening
+      ...day("2026-06-25", 0, 1440), // a full 24h Globex day
+      ...day("2026-06-26", 0, RTH_CLOSE),
+    ];
+    for (const startMin of [180, 600, 790, 1140, 1320]) {
+      const out = dropPartialLeadingSession(overnightAndSessions(startMin));
+      const rthPerDay = new Map<string, number>();
+      for (const dateKey of ["2026-06-24", "2026-06-25", "2026-06-26"]) {
+        const open = nyTimeToUnix(dateKey, RTH_OPEN);
+        const close = nyTimeToUnix(dateKey, RTH_CLOSE);
+        const n = out.filter((b) => b.time >= open && b.time < close).length;
+        if (n > 0) rthPerDay.set(dateKey, n);
+      }
+      for (const [dateKey, n] of rthPerDay)
+        expect(n, `${dateKey} is a partial session for a slice starting ${startMin}m`).toBe(72);
+    }
+  });
 });
 
 describe("alignArchiveSlice", () => {

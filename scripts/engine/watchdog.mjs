@@ -154,8 +154,13 @@ export function findSilentStreams({
   return out;
 }
 
-/* The engine's cron window — every 15 min, 06:00-21:45 UTC, Mon-Fri — as a
-   pure predicate.
+/* The engine's cron window as a pure predicate — the whole Globex week: every
+   15 minutes at every hour Mon-Fri UTC, plus every 15 minutes at hours 22-23
+   on Sunday, which is the Globex reopen.
+
+   The Sunday block spans both DST regimes (Globex reopens 18:00 ET = 22:00 UTC
+   in EDT, 23:00 UTC in EST), and Saturday is empty because the market is shut
+   for all of Saturday UTC either way.
 
    DUPLICATED from engineScheduled() in lib/time/session.ts on purpose: this
    script runs on bare `node` with no `npm ci`, so it cannot import a TS module.
@@ -163,9 +168,8 @@ export function findSilentStreams({
    week, which is the only thing keeping the copy honest. */
 export function inCronWindow(now) {
   const dow = now.getUTCDay();
-  const hour = now.getUTCHours();
-  if (dow < 1 || dow > 5) return false;
-  return hour >= 6 && hour < 22;
+  if (dow >= 1 && dow <= 5) return true;
+  return dow === 0 && now.getUTCHours() >= 22;
 }
 
 /* Whether a MISSING heartbeat is worth alerting about. Narrower than
@@ -178,21 +182,26 @@ function shouldBeRunning(now, closedHolidays) {
   return !closedHolidays.has(nyDateKey(now));
 }
 
-/* Minutes since the cron window opened at 06:00 UTC today, or null outside it.
+/* Are we inside the first `STARTUP_GRACE_MINUTES` of the cron window?
 
    GitHub delays scheduled runs on public repos by 15-60 minutes (self-heal.yml
-   records a real 49-minute case). This watchdog fires at :17, so on a morning
-   where the 06:00 engine slot is merely late the newest heartbeat is still
-   yesterday's 21:45 and the staleness test trips — Telegram plus an issue,
-   closed again by the 06:47 pass. Daily churn on a delay that is normal.
+   records a real 49-minute case). The watchdog fires at :17, so on the first
+   pass after a gap the engine's slot may merely be late while the newest
+   heartbeat is still from before the gap — the staleness test trips, Telegram
+   fires, an issue opens, and the :47 pass closes it again. Churn on a delay
+   that is normal.
 
-   Inside this grace period a MISSING heartbeat is not alerted. Two consecutive
-   errored runs still are: that is evidence of a failure, not of a late start. */
+   Expressed as "was the window shut `grace` minutes ago?" rather than as an
+   offset from a fixed hour, so it stays correct now that the window is the
+   whole Globex week and its only gap is Friday night to Sunday 22:00 UTC.
+
+   Inside the grace a MISSING heartbeat is not alerted. Two consecutive errored
+   runs still are: that is evidence of a failure, not of a late start. */
 const STARTUP_GRACE_MINUTES = Number(process.env.WATCHDOG_STARTUP_GRACE_MINUTES || 75);
 
-function minutesSinceWindowOpen(now) {
-  if (!inCronWindow(now)) return null;
-  return (now.getUTCHours() - 6) * 60 + now.getUTCMinutes();
+function withinStartupGrace(now) {
+  if (!inCronWindow(now)) return false;
+  return !inCronWindow(new Date(now.getTime() - STARTUP_GRACE_MINUTES * 60_000));
 }
 
 async function sendTelegram(text) {
@@ -397,8 +406,7 @@ async function main() {
 
   const latest = runs[0] ?? null;
   const ageMin = latest ? (now.getTime() - new Date(latest.ran_at).getTime()) / 60000 : Infinity;
-  const sinceOpen = minutesSinceWindowOpen(now);
-  const warmingUp = sinceOpen !== null && sinceOpen < STARTUP_GRACE_MINUTES;
+  const warmingUp = withinStartupGrace(now);
   const stale = ageMin > STALE_MINUTES && !warmingUp;
   const doubleError = runs.length >= 2 && runs[0].status === "error" && runs[1].status === "error";
   const active = shouldBeRunning(now, closedHolidays);
@@ -407,9 +415,7 @@ async function main() {
   console.log(
     `watchdog: active=${active} ageMin=${ageMin === Infinity ? "∞" : ageMin.toFixed(1)} ` +
       `stale=${stale} doubleError=${doubleError} (threshold ${STALE_MINUTES}m)` +
-      (warmingUp
-        ? ` — ${sinceOpen}m into the window, inside the ${STARTUP_GRACE_MINUTES}m startup grace`
-        : "")
+      (warmingUp ? ` — inside the ${STARTUP_GRACE_MINUTES}m startup grace after the weekend gap` : "")
   );
 
   if (!unhealthy) {

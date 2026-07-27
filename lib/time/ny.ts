@@ -66,6 +66,50 @@ export function nyDateKey(time: number): string {
   return nyMeta(time).dateKey;
 }
 
+/* GLOBEX REOPEN — the boundary between one trading day and the next.
+   Futures roll at 18:00 ET, not at midnight: bars printed on Sunday evening
+   belong to Monday's session, and Monday 20:00 ET belongs to Tuesday. */
+export const GLOBEX_REOPEN_MIN = 18 * 60;
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/* The NY date one weekday after `dateKey`. Plain UTC date arithmetic on a bare
+   calendar date, so it is unaffected by DST. */
+function nextWeekdayKey(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  let cursor = Date.UTC(y, m - 1, d);
+  for (let i = 0; i < 5; i++) {
+    cursor += 86400_000;
+    const nxt = new Date(cursor);
+    const wd = nxt.getUTCDay();
+    if (wd !== 0 && wd !== 6)
+      return `${nxt.getUTCFullYear()}-${pad(nxt.getUTCMonth() + 1)}-${pad(nxt.getUTCDate())}`;
+  }
+  const nxt = new Date(cursor);
+  return `${nxt.getUTCFullYear()}-${pad(nxt.getUTCMonth() + 1)}-${pad(nxt.getUTCDate())}`;
+}
+
+/* The TRADING day a moment belongs to, as opposed to its calendar NY date.
+
+   Identical to `nyDateKey` for every moment before 18:00 ET, which is every
+   moment an entry can be taken (the strategies gate entries to 02:00-15:25 ET)
+   — so this is a no-op on signal timestamps and cannot move an existing row.
+   It matters for "now": once the engine runs during the Globex evening, a run
+   at 20:00 ET Sunday is working on MONDAY's session, and keying its daily
+   funnel to the calendar Sunday would file a zeroed row under a day that never
+   traded and hide Friday's real one.
+
+   Weekends roll to the next weekday; CME holidays deliberately do not, because
+   the holiday check reads this key to decide whether to skip. */
+export function tradingDayKey(time: number): string {
+  const m = nyMeta(time);
+  const weekend = m.weekday === "Sat" || m.weekday === "Sun";
+  // A weekday before the 18:00 ET roll is its own trading day. Everything else
+  // — the Globex evening, and all weekend — belongs to the next weekday.
+  if (!weekend && m.minutes < GLOBEX_REOPEN_MIN) return m.dateKey;
+  return nextWeekdayKey(m.dateKey);
+}
+
 /* 'HH:MM' in New York — for timeline/journal views that must render ET
    regardless of the browser's local timezone. */
 export function nyClock(time: number): string {

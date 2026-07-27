@@ -1,14 +1,19 @@
-# Weekly digest: Saturday 03:30 UTC (= 09:00 IST) — a trailing-7-day report
+# Weekly digest: Saturday 06:30 UTC (= 12:00 IST) — a trailing-7-day report
 # of the paper signals, engine health, archive growth and data integrity.
 # Delivered to Telegram (compact) and as a GitHub issue labeled `digest`
 # (the previous week's issue is closed automatically). A zero-signal week
 # still reports — silence must be distinguishable from breakage.
+#
+# MOVED from 03:30 UTC. nightly-learn runs 05:30 UTC Saturday, so the digest
+# used to run TWO HOURS BEFORE the ledger it reads was refreshed: weeklyLessons()
+# always read Friday's run, whose date_key is Thursday, so "What I learned this
+# week" was structurally one session behind, every week. 06:30 puts it after.
 
 name: weekly-digest
 
 on:
   schedule:
-    - cron: "30 3 * * 6"
+    - cron: "30 6 * * 6"
   workflow_dispatch:
 
 permissions:

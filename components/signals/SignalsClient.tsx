@@ -774,7 +774,7 @@ export default function SignalsClient() {
       {/* ── Engine detail ── */}
       <Panel
         title="Engine"
-        hint={`GitHub Actions · every 15 min · ${etWindowLabel("02:00", "15:25")} entry window`}
+        hint={`GitHub Actions · every 15 min, whole Globex week · ${etWindowLabel("02:00", "15:25")} entry window`}
         actions={
           lastRun ? (
             <Badge

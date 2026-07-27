@@ -1,6 +1,8 @@
 # Dead-cron detector for the signal engine. Twice hourly at :17/:47 —
 # offset from the engine's */15 cadence so it always sees the freshest
-# heartbeat. Plain node, no npm install: scripts/engine/watchdog.mjs reads
+# heartbeat. Mirrors signal-engine.yml's window exactly (the whole Globex
+# week, Sunday reopen included): a watchdog narrower than the thing it
+# watches would leave the new hours with no dead-cron coverage at all. Plain node, no npm install: scripts/engine/watchdog.mjs reads
 # the public engine_runs heartbeat, checks the cron window + CME holiday
 # table, and alerts via Telegram + a self-healing `watchdog` GitHub issue.
 # The script exits 0 on its own flakiness — only a totally failed alert
@@ -10,7 +12,8 @@ name: watchdog
 
 on:
   schedule:
-    - cron: "17,47 6-21 * * 1-5"
+    - cron: "17,47 * * * 1-5"
+    - cron: "17,47 22-23 * * 0"
   workflow_dispatch:
     inputs:
       stale_minutes:

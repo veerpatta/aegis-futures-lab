@@ -68,16 +68,17 @@ export function marketPhase(nowSec: number): Phase {
       live: false,
       tone: "dim",
     };
-  /* Globex is open, but the engine's cron is not: it runs 06:00-21:45 UTC
-     Mon-Fri, i.e. 02:00-17:45 ET. This label used to promise "Zones keep
-     updating" from 18:00 ET onward, which was simply false — nothing runs
-     between 17:45 ET and 02:00 ET, so the zones on screen are the ones the
-     last afternoon pass computed. */
+  /* Globex is open and, since the cron was widened to the full Globex week,
+     the engine really is recomputing zones through the evening. It briefly was
+     not: the old 06:00-21:45 UTC window left 17:45-02:00 ET uncovered while
+     this label still promised "zones keep updating". Entries stay gated to
+     02:00-15:25 ET inside the strategies, so the overnight passes refresh
+     structure without ever taking a trade. */
   return {
     label: "Overnight session",
-    detail: `Market open, bot asleep — zones and entries resume ${etTimeLabel("02:00")}`,
-    live: false,
-    tone: "dim",
+    detail: `Zones keep updating — entries resume ${etTimeLabel("02:00")}`,
+    live: true,
+    tone: "warn",
   };
 }
 
@@ -133,13 +134,23 @@ export function dataDelayed(runs: RunLike[], nowSec: number): boolean {
    Distinct from `inEntryWindow`, and the two must never be conflated:
 
      inEntryWindow    02:00-15:25 ET, holiday-aware — "are we trading?"
-     engineScheduled  06:00-21:59 UTC Mon-Fri       — "should a run have happened?"
+     engineScheduled  the whole Globex week          — "should a run have happened?"
 
    Health verdicts want the second. Before this existed, the 40-minute
    heartbeat check had no concept of the schedule at all, so it went amber ~40
    minutes after the last Friday run and stayed amber for the whole weekend
    while the bell claimed "the bot has not checked in recently" — which was
    false, because nothing was scheduled to check in.
+
+   THE WINDOW mirrors .github/workflows/signal-engine.yml, which is two crons:
+   every 15 minutes at every hour Mon-Fri UTC, plus every 15 minutes at hours
+   22-23 on Sunday — the Globex reopen.
+
+   Cron cannot follow DST, so the Sunday block spans both regimes: Globex
+   reopens 18:00 ET, which is 22:00 UTC in EDT and 23:00 UTC in EST. Saturday
+   is empty because the market is shut for all of Saturday UTC either way, and
+   Friday evening UTC is over-covered by a couple of hours after the 21:00/22:00
+   close — those passes just write an ordinary heartbeat.
 
    Deliberately NOT holiday-aware, unlike watchdog.mjs's shouldBeRunning():
    GitHub's cron knows nothing about the CME calendar, so the engine really
@@ -150,15 +161,13 @@ export function dataDelayed(runs: RunLike[], nowSec: number): boolean {
    scripts/engine/watchdog.mjs carries a duplicate of this window because it
    runs on bare `node` with no `npm ci` and cannot import from lib/.
    tests/session-schedule.test.ts pins the two definitions equal. */
-export const ENGINE_CRON_START_HOUR_UTC = 6;
-export const ENGINE_CRON_END_HOUR_UTC = 22; // exclusive; last slot is 21:45
+export const GLOBEX_SUNDAY_OPEN_HOUR_UTC = 22;
 
 export function engineScheduled(nowSec: number): boolean {
   const d = new Date(nowSec * 1000);
   const dow = d.getUTCDay();
-  if (dow < 1 || dow > 5) return false;
-  const h = d.getUTCHours();
-  return h >= ENGINE_CRON_START_HOUR_UTC && h < ENGINE_CRON_END_HOUR_UTC;
+  if (dow >= 1 && dow <= 5) return true;
+  return dow === 0 && d.getUTCHours() >= GLOBEX_SUNDAY_OPEN_HOUR_UTC;
 }
 
 /* Next engine pass: cron every 15 min, inside engineScheduled's window. */

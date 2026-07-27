@@ -21,7 +21,7 @@ import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/da
 import { streamKeyFor } from "@/lib/engine/streams";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
-import { nyMeta } from "@/lib/time/ny";
+import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { STALE_MARKER, inEntryWindow } from "@/lib/time/session";
@@ -251,7 +251,12 @@ async function main() {
 
   // CME full holiday: no NY day session. Record a green heartbeat (the cron
   // did run — watchdog and run-dots stay calm) and skip the recompute.
-  const todayHoliday = holidayFor(nyMeta(nowSec).dateKey);
+  // The TRADING day, not the calendar one: the engine now runs through the
+  // Globex evening, and a 20:00 ET pass is working on the NEXT session. On the
+  // evening before a full holiday that session is the holiday's, so it is
+  // correctly skipped; on the holiday's own evening the market has reopened for
+  // the day after and the engine correctly runs.
+  const todayHoliday = holidayFor(tradingDayKey(nowSec));
   if (todayHoliday?.kind === "closed") {
     const message = `holiday: ${todayHoliday.name} — market closed, run skipped`;
     const { error } = await supabase.from("engine_runs").insert({
@@ -328,7 +333,12 @@ async function main() {
   let tierA = 0;
   let tierB = 0;
   // Item 2.7 — today's skip funnel, summed across streams, for the Home panel.
-  const todayKey = nyMeta(nowSec).dateKey;
+  /* The trading day this pass belongs to. Was nyMeta(nowSec).dateKey, which
+     was fine while the cron stopped at 17:45 ET but files a zeroed funnel row
+     under a calendar Sunday once the engine runs through the Globex evening —
+     and Home's "why no signal today?" reads the newest date_key, so that empty
+     Sunday would hide Friday's real one. */
+  const todayKey = tradingDayKey(nowSec);
   const todayFunnel: Record<string, number> = {};
   const streamStatus: DailyFunnelPayload["streams"] = [];
   for (const stream of tierStreams()) {
@@ -400,8 +410,8 @@ async function main() {
       tier: stream.tier,
       status: "active", // refined below once the breakers have run
       signalsToday:
-        res.trades.filter((t) => nyMeta(t.entryTime).dateKey === todayKey).length +
-        (res.openPosition && nyMeta(res.openPosition.openedAt).dateKey === todayKey ? 1 : 0),
+        res.trades.filter((t) => tradingDayKey(t.entryTime) === todayKey).length +
+        (res.openPosition && tradingDayKey(res.openPosition.openedAt) === todayKey ? 1 : 0),
     });
     console.log(
       `${stream.tier} ${stream.label} ${stream.symbols.join("+")}: ${n} signals in last ${LOOKBACK_DAYS}d`
@@ -557,8 +567,10 @@ async function main() {
     const funnelPayload: DailyFunnelPayload = {
       dateKey: todayKey,
       computedAt: new Date().toISOString(),
-      bars: { MES: mes.filter((b) => nyMeta(b.time).dateKey === todayKey).length,
-              MNQ: mnq.filter((b) => nyMeta(b.time).dateKey === todayKey).length },
+      // Bars are attributed to the session they belong to, so the Sunday-evening
+      // bars of Monday's session count toward Monday rather than vanishing.
+      bars: { MES: mes.filter((b) => tradingDayKey(b.time) === todayKey).length,
+              MNQ: mnq.filter((b) => tradingDayKey(b.time) === todayKey).length },
       funnel: todayFunnel,
       streams: streamStatus,
       staleData: staleness.stale,
