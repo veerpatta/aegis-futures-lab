@@ -25,20 +25,18 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
 import type { FeedSymbol } from "@/lib/market/contracts";
-import type { ParamValues } from "@/lib/strategies/types";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf, profitFactor as profitFactorOf } from "@/lib/stats";
 import { resampleDrawdowns } from "./montecarlo";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
 import {
+  challengerFor,
   evaluate,
   loadSeries,
-  rsiCandidates,
+  MC_P95_ABS_CEILING,
   MC_RESAMPLES,
-  MC_P95_TOLERANCE,
   MIN_OOS_TRADES,
-  MIN_TRAIN_TRADES,
   OOS_DAYS,
   type EvalResult,
 } from "./tune-core";
@@ -74,16 +72,38 @@ async function main() {
     ``,
   ];
 
+  /* The verdict comes from challengerFor() in tune-core — the SAME gate the
+     weekly challenger and autopilot use. This file used to carry its own copy
+     of the search and the comparison, and the copy had drifted into three
+     disagreements with the real gate:
+
+       1. `(candOos.pf ?? -1)` — the bug tune-core names and pfRank() fixes. A
+          loss-free held-out month has a null PF, which is the BEST possible
+          result, not the worst; scored as -1 it was rejected outright, and an
+          incumbent with one was beaten by anything.
+       2. No MC_P95_ABS_CEILING — the tail gate was purely relative, so a
+          candidate could pass while carrying a drawdown nobody approved simply
+          because the incumbent carried one too.
+       3. `incOos.trades` was never gated. With an incumbent that produced zero
+          held-out trades (pf null → -1, net 0), any candidate with positive net
+          printed "survives OOS and Monte Carlo — worth a human look" against
+          nothing at all.
+
+     Nothing here decides anything: monthly-tune.yml only opens an issue for a
+     human, and tiers.ts is still only ever edited by a human commit. */
   for (const stream of streams) {
     const name = `Tier ${stream.tier} · ${stream.label} ${stream.symbols.join("+")}`;
-    const incTrain = evaluate(stream, stream.params, bySymbol, { toTime: oosStart });
-    const incOos = evaluate(stream, stream.params, bySymbol, { fromTime: oosStart });
-    const incFull = evaluate(stream, stream.params, bySymbol, {});
-    const incMc = resampleDrawdowns(incFull.pnls, MC_RESAMPLES);
-
     md.push(`## ${name}`, ``);
 
-    if (stream.strategyId !== "rsi-reversion") {
+    const v = challengerFor(stream, bySymbol);
+    const d = v.detail;
+
+    if (!d) {
+      // Non-RSI stream: no grid, so challengerFor did not evaluate anything.
+      const incTrain = evaluate(stream, stream.params, bySymbol, { toTime: oosStart });
+      const incOos = evaluate(stream, stream.params, bySymbol, { fromTime: oosStart });
+      const incFull = evaluate(stream, stream.params, bySymbol, {});
+      const incMc = resampleDrawdowns(incFull.pnls, MC_RESAMPLES);
       md.push(`| Set | Trades | Net | PF |`, `|---|---:|---:|---:|`);
       md.push(line(`incumbent — train`, incTrain));
       md.push(line(`incumbent — **OOS**`, incOos));
@@ -97,69 +117,38 @@ async function main() {
       continue;
     }
 
-    // Search ONLY on the train window.
-    let best: { label: string; params: ParamValues; train: EvalResult } | null = null;
-    for (const c of rsiCandidates()) {
-      const train = evaluate(stream, c.params, bySymbol, { toTime: oosStart });
-      if (train.trades < MIN_TRAIN_TRADES || train.net <= 0) continue;
-      if (
-        !best ||
-        (train.pf ?? Infinity) > (best.train.pf ?? Infinity) ||
-        ((train.pf ?? null) === (best.train.pf ?? null) && train.net > best.train.net)
-      )
-        best = { ...c, train };
-    }
-
-    const incumbentLabel = `os${stream.params.oversold}/ob${stream.params.overbought}/t${stream.params.targetR}R`;
-    if (!best || best.label === incumbentLabel) {
-      md.push(`| Set | Trades | Net | PF |`, `|---|---:|---:|---:|`);
-      md.push(line(`incumbent — train`, incTrain));
-      md.push(line(`incumbent — **OOS**`, incOos));
-      md.push(
-        ``,
-        `Incumbent Monte Carlo (full window): median max-DD ${money(incMc.median)}, p95 ${money(incMc.p95)}.`,
-        ``,
-        `_Candidate search: no in-sample candidate beat the incumbent — **keep incumbent**._`,
-        ``
-      );
-      continue;
-    }
-
-    const candOos = evaluate(stream, best.params, bySymbol, { fromTime: oosStart });
-    const candFull = evaluate(stream, best.params, bySymbol, {});
-    const candMc = resampleDrawdowns(candFull.pnls, MC_RESAMPLES);
     md.push(`| Set | Trades | Net | PF |`, `|---|---:|---:|---:|`);
-    md.push(line(`incumbent — train`, incTrain));
-    md.push(line(`incumbent — **OOS**`, incOos));
-    md.push(line(`candidate ${best.label} — train`, best.train));
-    md.push(line(`candidate ${best.label} — **OOS**`, candOos));
-    md.push(
-      ``,
-      `Monte Carlo (full window, ${MC_RESAMPLES}× resample): incumbent median max-DD ${money(incMc.median)} / p95 ${money(incMc.p95)} · candidate median ${money(candMc.median)} / p95 ${money(candMc.p95)}.`,
-      ``
-    );
+    md.push(line(`incumbent — train`, d.incTrain));
+    md.push(line(`incumbent — **OOS**`, d.incOos));
+    if (d.candTrain && d.candOos) {
+      md.push(line(`candidate ${d.candLabel} — train`, d.candTrain));
+      md.push(line(`candidate ${d.candLabel} — **OOS**`, d.candOos));
+    }
 
-    const oosBeats =
-      candOos.trades >= MIN_OOS_TRADES &&
-      (candOos.pf ?? -1) > (incOos.pf ?? -1) &&
-      candOos.net > incOos.net;
-    const mcOk = candMc.p95 <= incMc.p95 * MC_P95_TOLERANCE;
-
-    if (!oosBeats)
+    if (d.candMc)
       md.push(
-        `**Verdict: best in-sample candidate fails the held-out month — it overfits; keep incumbent.** (needs ≥${MIN_OOS_TRADES} OOS trades and better OOS PF *and* net)`,
-        ``
-      );
-    else if (!mcOk)
-      md.push(
-        `**Verdict: candidate beats OOS but its p95 drawdown is >25% worse (${money(candMc.p95)} vs ${money(incMc.p95)}) — rejected on tail risk; keep incumbent.**`,
+        ``,
+        `Monte Carlo (full window, ${MC_RESAMPLES}× resample): incumbent median max-DD ${money(d.incMc.median)} / p95 ${money(d.incMc.p95)} · candidate median ${money(d.candMc.median)} / p95 ${money(d.candMc.p95)}. Absolute p95 ceiling ${money(MC_P95_ABS_CEILING)}; above it a candidate must strictly improve on the incumbent.`,
         ``
       );
     else
       md.push(
-        `**Verdict: candidate \`${best.label}\` survives OOS and Monte Carlo — worth a human look.** Edit scripts/engine/tiers.ts by hand if adopting.`,
+        ``,
+        `Incumbent Monte Carlo (full window): median max-DD ${money(d.incMc.median)}, p95 ${money(d.incMc.p95)}.`,
         ``
       );
+
+    if (v.verdict === "challenger")
+      md.push(
+        `**Verdict: candidate \`${v.label}\` ${v.reason} — worth a human look.** Edit scripts/engine/tiers.ts by hand if adopting.`,
+        ``
+      );
+    else if (v.verdict === "insufficient-oos")
+      md.push(
+        `**Verdict: inconclusive — ${v.reason}.** Not a pass and not a fail; keep incumbent and re-judge when the held-out month has ≥${MIN_OOS_TRADES} trades on BOTH sides.`,
+        ``
+      );
+    else md.push(`**Verdict: keep incumbent — ${v.reason}.**`, ``);
   }
 
   // VIX-bucket split over live signals — judged only at ≥10 per bucket.

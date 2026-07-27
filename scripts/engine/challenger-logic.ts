@@ -19,3 +19,17 @@ export function confirmsTwoWeeks(thisParams: unknown, lastWeekRows: WeekRow[]): 
   const prev = lastWeekRows.find((r) => r.verdict === "challenger");
   return !!prev && canonicalParams(prev.params) === canonicalParams(thisParams);
 }
+
+export function replaceDeclaration(src: string, decl: string, value: string): string {
+  // `export const NAME<anything up to the => = <value>;` on one logical line.
+  const re = new RegExp(`(export const ${decl}[^=]*=\\s*)([\\s\\S]*?);\\n`, "m");
+  const m = re.exec(src);
+  if (!m)
+    throw new Error(
+      `${decl} declaration not found in scripts/engine/tiers.ts — the file was restructured; a human has to place this value`
+    );
+  const current = m[2].trim();
+  if (current !== "{}" && current !== "[]")
+    console.log(`    ${decl} currently holds ${current.slice(0, 120)} — replacing it`);
+  return src.slice(0, m.index) + m[1] + value + ";\n" + src.slice(m.index + m[0].length);
+}

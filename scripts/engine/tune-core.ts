@@ -163,6 +163,24 @@ export interface ChallengerVerdict {
   incumbentOosPf: number | null;
   incumbentOosNet: number | null;
   reason: string;
+  /* Every evaluation the gate already ran, so a caller that wants to SHOW its
+     working — the monthly issue prints a train/OOS table per stream — does not
+     have to re-derive it. tune.ts used to keep its own copy of the whole search
+     and gate; that copy drifted (it kept the `?? -1` PF bug, had no absolute
+     tail ceiling, and never gated the incumbent's OOS trade count), so the
+     human-facing report and the automated challenger could disagree. */
+  detail: ChallengerDetail | null;
+}
+
+export interface ChallengerDetail {
+  oosStart: number;
+  incTrain: EvalResult;
+  incOos: EvalResult;
+  incMc: { median: number; p95: number };
+  candLabel: string | null;
+  candTrain: EvalResult | null;
+  candOos: EvalResult | null;
+  candMc: { median: number; p95: number } | null;
 }
 
 /* The full OOS + Monte-Carlo gate for one RSI stream. Returns the surviving
@@ -179,6 +197,7 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
     incumbentOosPf: null,
     incumbentOosNet: null,
     reason,
+    detail: null,
     ...extra,
   });
   if (stream.strategyId !== "rsi-reversion")
@@ -187,9 +206,23 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
   const lastBar = Math.max(...stream.symbols.map((s) => bySymbol[s][bySymbol[s].length - 1].time));
   const oosStart = lastBar - OOS_DAYS * 86400;
 
+  const incTrain = evaluate(stream, stream.params, bySymbol, { toTime: oosStart });
   const incOos = evaluate(stream, stream.params, bySymbol, { fromTime: oosStart });
   const incFull = evaluate(stream, stream.params, bySymbol, {});
   const incMc = resampleDrawdowns(incFull.pnls, MC_RESAMPLES);
+  const baseDetail = (
+    over: Partial<ChallengerDetail> = {}
+  ): ChallengerDetail => ({
+    oosStart,
+    incTrain,
+    incOos,
+    incMc: { median: incMc.median, p95: incMc.p95 },
+    candLabel: null,
+    candTrain: null,
+    candOos: null,
+    candMc: null,
+    ...over,
+  });
 
   let best: { label: string; params: ParamValues; train: EvalResult } | null = null;
   for (const c of rsiCandidates()) {
@@ -205,17 +238,24 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
 
   const base = { incumbentOosPf: incOos.pf, incumbentOosNet: incOos.net };
   if (!best || best.label === incumbentLabel(stream))
-    return none("no in-sample candidate beat the incumbent", base);
+    return none("no in-sample candidate beat the incumbent", { ...base, detail: baseDetail() });
 
   const candOos = evaluate(stream, best.params, bySymbol, { fromTime: oosStart });
   const candFull = evaluate(stream, best.params, bySymbol, {});
   const candMc = resampleDrawdowns(candFull.pnls, MC_RESAMPLES);
+  const detail = baseDetail({
+    candLabel: best.label,
+    candTrain: best.train,
+    candOos,
+    candMc: { median: candMc.median, p95: candMc.p95 },
+  });
+  const withDetail = { ...base, detail };
 
   // Both sides need a real held-out month before any comparison — otherwise the
   // week is inconclusive, not a pass or a fail.
   if (incOos.trades < MIN_OOS_TRADES || candOos.trades < MIN_OOS_TRADES)
     return {
-      ...none(`insufficient held-out trades (incumbent ${incOos.trades}, candidate ${candOos.trades}; need ≥${MIN_OOS_TRADES} each)`, base),
+      ...none(`insufficient held-out trades (incumbent ${incOos.trades}, candidate ${candOos.trades}; need ≥${MIN_OOS_TRADES} each)`, withDetail),
       verdict: "insufficient-oos",
       label: best.label,
       params: best.params,
@@ -228,9 +268,8 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
   const mcOk = tailGateOk(candMc.p95, incMc.p95);
 
   if (!oosBeats)
-    return none(`best candidate ${best.label} fails the held-out month (overfits)`, base);
-  if (!mcOk)
-    return none(tailGateReason(best.label, candMc.p95, incMc.p95), base);
+    return none(`best candidate ${best.label} fails the held-out month (overfits)`, withDetail);
+  if (!mcOk) return none(tailGateReason(best.label, candMc.p95, incMc.p95), withDetail);
 
   return {
     verdict: "challenger",
@@ -242,6 +281,7 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
     incumbentOosPf: incOos.pf,
     incumbentOosNet: incOos.net,
     reason: `survives OOS (PF ${candOos.pf?.toFixed(2)} vs ${incOos.pf?.toFixed(2)}, net ${candOos.net.toFixed(0)} vs ${incOos.net.toFixed(0)}) and Monte Carlo`,
+    detail,
   };
 }
 

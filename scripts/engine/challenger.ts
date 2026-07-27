@@ -25,7 +25,8 @@ import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
 import { challengerFor, loadSeries, streamTuneKey, type ChallengerVerdict } from "./tune-core";
 import { fetchAllRows } from "./paginate";
-import { canonicalParams, confirmsTwoWeeks } from "./challenger-logic";
+import { canonicalParams, confirmsTwoWeeks, replaceDeclaration } from "./challenger-logic";
+import { sendTelegram } from "./notify";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -64,8 +65,22 @@ interface HistoryRow {
 }
 
 async function recordHistory(row: HistoryRow) {
-  // One row per (week_key, stream) — a rerun replaces the week's verdict in
-  // place, so the 2-week confirmation can't trust a retracted verdict (F10).
+  /* One row per (week_key, stream) — a rerun replaces the week's verdict in
+     place, so the 2-week confirmation can't trust a retracted verdict (F10).
+
+     With one exception, added because autopilot runs this script DAILY: a week
+     already marked "proposed" is never downgraded. Without the guard, the day
+     after a PR was opened the next run overwrote "proposed" back to
+     "challenger", destroying the only record the 4-week cooldown and the
+     shadow path read — and openBotPrExists stops braking as soon as autopilot
+     squash-merges with --delete-branch. */
+  if (row.verdict !== "proposed") {
+    const existing = await priorRows(row.stream, [row.week_key]);
+    if (existing.some((r) => r.verdict === "proposed")) {
+      console.log(`    ${row.stream} ${row.week_key} already recorded as proposed — not downgrading`);
+      return;
+    }
+  }
   const { error } = await supabase.from("challenger_history").upsert(row, { onConflict: "week_key,stream" });
   if (error) throw new Error(`challenger_history upsert: ${error.message}`);
 }
@@ -127,6 +142,10 @@ function runBotCi(branch: string): boolean {
   return pass;
 }
 
+/* Branches whose PR could not be opened. Non-empty ⇒ the run failed, however
+   healthy the rest of it looked. */
+const prFailures: string[] = [];
+
 function openPr(args: { branch: string; edit: () => void; title: string; body: string; commitMsg: string }): boolean {
   try {
     execSync(`git checkout -b ${args.branch}`, { stdio: "pipe" });
@@ -141,31 +160,58 @@ function openPr(args: { branch: string; edit: () => void; title: string; body: s
     console.log(`opened PR on ${args.branch} (bot CI ${ciPass ? "green" : "RED — draft"})`);
     return true;
   } catch (e) {
-    console.error(`PR open failed for ${args.branch}: ${e instanceof Error ? e.message : e}`);
+    /* Recorded, not just logged. A swallowed failure here used to be reported
+       upstream as "no challenger survives yet — nothing to propose", which is
+       the opposite of what happened: a challenger DID survive and we failed to
+       ship it. main() now counts these, alerts, and exits non-zero. */
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`PR open FAILED for ${args.branch}: ${msg}`);
+    prFailures.push(`${args.branch}: ${msg.slice(0, 200)}`);
     return false;
+  } finally {
+    /* Always get back to a clean main, whatever happened. `edit()` writes
+       tiers.ts before the commit, so a failure between the two leaves the tree
+       dirty and a plain `git checkout main` then throws — which used to abort
+       the remaining streams outright at one call site and silently abandon the
+       whole shadow-promotion scan at the other. */
+    try {
+      execSync(`git checkout -f main`, { stdio: "pipe" });
+      execSync(`git clean -fd -- ${TIERS_PATH}`, { stdio: "pipe" });
+    } catch (e) {
+      console.error(`could not return to main: ${e instanceof Error ? e.message : e}`);
+    }
   }
 }
 
 const TIERS_PATH = "scripts/engine/tiers.ts";
 
-/* Edit tiers.ts's bot-editable blocks. Only the empty-default form is edited
-   automatically; a non-empty block means a prior proposal is unmerged, so we
-   bail and let the human handle it. */
+/* Edit tiers.ts's bot-editable blocks.
+
+   These used to require the literal EMPTY declaration — `... = {};` and
+   `... = [];` — and throw otherwise. That is a time bomb: the moment a bot PR
+   merges, the block holds the adopted value, the marker no longer matches, and
+   every future proposal throws. `openPr` swallowed the throw, so the run
+   printed "no challenger survives yet — nothing to propose" and exited 0.
+   Ring 2 would have died silently the first time it succeeded.
+
+   Now the DECLARATION is matched whatever its current value, and replacing a
+   non-empty one is allowed and reported. What is still refused is a file whose
+   declaration cannot be found at all: that means a human restructured tiers.ts
+   and the bot must not guess where the value goes.
+
+   Exported for tests/challenger-edit.test.ts, which pins both against the real
+   tiers.ts and against an already-adopted copy of it. */
 function editOverrides(key: string, params: Record<string, unknown>): void {
   const src = readFileSync(TIERS_PATH, "utf8");
-  const marker = "export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = {};";
-  if (!src.includes(marker)) throw new Error("CHALLENGER_OVERRIDES not in default empty state — manual edit needed");
   writeFileSync(
     TIERS_PATH,
-    src.replace(marker, `export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = ${JSON.stringify({ [key]: params })};`)
+    replaceDeclaration(src, "CHALLENGER_OVERRIDES", JSON.stringify({ [key]: params }))
   );
 }
 function editPromotion(label: string, strategyId: string, symbols: string[]): void {
   const src = readFileSync(TIERS_PATH, "utf8");
-  const marker = 'export const PROMOTED_SHADOWS: { label: string; strategyId: string; symbols: ("MES" | "MNQ")[] }[] = [];';
-  if (!src.includes(marker)) throw new Error("PROMOTED_SHADOWS not in default empty state — manual edit needed");
   const entry = `[{ label: ${JSON.stringify(label)}, strategyId: ${JSON.stringify(strategyId)}, symbols: ${JSON.stringify(symbols)} }]`;
-  writeFileSync(TIERS_PATH, src.replace(marker, marker.replace("[];", `${entry};`)));
+  writeFileSync(TIERS_PATH, replaceDeclaration(src, "PROMOTED_SHADOWS", entry));
 }
 
 const REVIEW_LINE = (kind: string) =>
@@ -212,8 +258,11 @@ async function main() {
       console.log(`    not confirmed yet — needs the same set two weeks running.`);
       continue;
     }
-    // Cooldown: not proposed in the last COOLDOWN_WEEKS weeks.
-    const cooldownWeeks = Array.from({ length: COOLDOWN_WEEKS }, (_, i) => weeksAgo(nowSec, i + 1));
+    /* Cooldown: not proposed in the last COOLDOWN_WEEKS weeks, INCLUDING this
+       one. `i + 1` covered weeks 1..4 ago and left week 0 out, so a set
+       proposed on Monday could be proposed again on Thursday — and autopilot
+       runs this daily. */
+    const cooldownWeeks = Array.from({ length: COOLDOWN_WEEKS + 1 }, (_, i) => weeksAgo(nowSec, i));
     const proposedRecently = (await priorRows(key, cooldownWeeks)).some(
       (r) => r.verdict === "proposed" && canonicalParams(r.params) === canonicalParams(v.params)
     );
@@ -258,7 +307,7 @@ async function main() {
         await recordHistory({ week_key: weekKey, stream: key, params: v.params, oos_pf: v.oosPf, oos_net: v.oosNet, mc_p95_dd: v.mcP95Dd, verdict: "proposed" });
         proposals++;
       }
-      execSync(`git checkout main`, { stdio: "pipe" }); // back to main for the next stream
+      // openPr's `finally` already returned the tree to a clean main.
     } else {
       console.log(`    WOULD open a PR (no token in this environment).`);
     }
@@ -328,11 +377,29 @@ async function main() {
           await recordHistory({ week_key: weekKey, stream, params: { strategyId: strategy, symbols: [symbol] }, oos_pf: report.pf, oos_net: Math.round(report.net), mc_p95_dd: null, verdict: "proposed" });
           proposals++;
         }
-        execSync(`git checkout main`, { stdio: "pipe" });
       } else console.log(`  ${stream}: WOULD open a promotion PR (no token).`);
     }
   } catch (e) {
     console.error(`shadow promotion scan failed: ${e instanceof Error ? e.message : e}`);
+  }
+
+  /* "No challenger survives yet" is the healthy null result — but only when
+     nothing tried to ship. A survivor we failed to open a PR for is a FAILURE,
+     and reporting it as the null result is what let Ring 2 look alive while it
+     was dead. Alert and exit non-zero. */
+  if (prFailures.length) {
+    const text =
+      `⚠️ <b>Challenger</b>: ${prFailures.length} proposal(s) survived the gate but could not be opened as PRs.\n` +
+      prFailures.join("\n") +
+      `\nRing 2 is not proposing. Paper only.`;
+    console.error(`challenger: ${prFailures.length} PR(s) failed to open — ${prFailures.join(" | ")}`);
+    try {
+      await sendTelegram(text);
+    } catch (e) {
+      console.error(`telegram failed: ${e instanceof Error ? e.message : e}`);
+    }
+    process.exitCode = 1;
+    return;
   }
 
   console.log(proposals ? `opened ${proposals} PR(s).` : `no challenger survives yet — nothing to propose.`);
