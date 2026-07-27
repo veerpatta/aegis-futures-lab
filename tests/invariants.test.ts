@@ -188,8 +188,7 @@ describe("dead scheduled workflows", () => {
     const longestGapHours: Record<string, number> = {
       "nightly-learn.yml": 72, // Tue-Sat 05:30 -> Sat to Tue
       "watchdog.yml": 46, // Fri 23:47 UTC -> Sun 22:17 UTC (Globex-week window)
-      "autopilot.yml": 24,
-      "claude-research.yml": 24,
+      "autopilot.yml": 168,
       "weekly-digest.yml": 168,
       "weekly-challenger.yml": 168,
       "monthly-tune.yml": 168, // day-of-month ORs day-of-week: at least weekly
@@ -220,7 +219,7 @@ describe("dead scheduled workflows", () => {
     expect(files).toContain("nightly-learn.yml");
     expect(files).toContain("weekly-digest.yml");
     expect(files).toContain("autopilot.yml");
-    expect(files).toContain("claude-research.yml");
+    expect(files).not.toContain("claude-research.yml"); // manual-only
     expect(files).toContain("monthly-tune.yml");
     // Owned by the 45-minute dead-cron watchdog; duplicating it double-alerts.
     expect(files).not.toContain("signal-engine.yml");

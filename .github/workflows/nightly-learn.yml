@@ -42,6 +42,7 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/engine/learn.ts
         env:
+          LEARNING_CADENCE: daily
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           # Ring 1b: freeze gates model graduation; Telegram carries graduate/demote notices.

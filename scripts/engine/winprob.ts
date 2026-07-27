@@ -14,6 +14,7 @@ import { nyMeta } from "@/lib/time/ny";
 import { tradingDaysBetween } from "@/lib/time/trading-days";
 
 export const MODEL_NAME = "winprob-logit-v1";
+export const FEATURE_VERSION = "winprob-features-v1";
 /* Clean-fill closed samples before the model may go active.
 
    Lowered 300 → 150 on 2026-07-25 (item 2.9). At the observed ~0.7 signals/day

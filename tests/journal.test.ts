@@ -111,11 +111,26 @@ describe("journal CSV", () => {
   });
 
   it("round-trips its own export", () => {
-    const src = [mkJournal({ entryTime: 1751812500, exitTime: 1751814000, notes: "note, with comma" })];
+    const src = [
+      mkJournal({
+        entryTime: 1751812500,
+        exitTime: 1751814000,
+        notes: 'note, with "quote"\nand line',
+      }),
+    ];
     const back = parseJournalCsv(journalTradesToCsv(src));
     expect(back.length).toBe(1);
     expect(back[0].entryPrice).toBe(src[0].entryPrice);
     expect(back[0].qty).toBe(src[0].qty);
+    expect(back[0].notes).toBe(src[0].notes);
+  });
+
+  it("parses quoted cells with commas and escaped quotes", () => {
+    const csv = [
+      "entry_time,exit_time,symbol,side,qty,entry,exit,notes",
+      '1751812500,1751814000,MES,LONG,1,5000,5005,"opened on pullback, ""A+"" setup"',
+    ].join("\n");
+    expect(parseJournalCsv(csv)[0].notes).toBe('opened on pullback, "A+" setup');
   });
 });
 

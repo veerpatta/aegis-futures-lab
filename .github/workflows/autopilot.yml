@@ -7,7 +7,7 @@
 # WEEKS before a PR is opened. What was missing was the last step: a human had
 # to merge, so proven results sat in open PRs doing nothing.
 #
-# This workflow runs that research every day and merges the bot's own PR when —
+# This workflow runs after the weekly challenger and merges the bot's own PR when —
 # and only when — its `bot-ci` commit status is green (tsc + the full parity and
 # test suite, run inside the proposing workflow). It then re-checks main and
 # reverts itself if main went red.
@@ -26,7 +26,7 @@ name: autopilot
 
 on:
   schedule:
-    - cron: "30 4 * * *"
+    - cron: "30 4 * * 0"
   workflow_dispatch:
     inputs:
       merge:
@@ -61,15 +61,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-
-      # Research: the same honest search the weekly challenger runs, but daily.
-      - name: Research — search, validate out-of-sample, propose
-        run: npx tsx scripts/engine/challenger.ts
-        env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
-          GITHUB_TOKEN: ${{ github.token }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       # Merge: only non-draft bot/* PRs whose bot-ci commit status is success.
       # challenger.ts converts a PR to a draft when its own CI run is red, so a

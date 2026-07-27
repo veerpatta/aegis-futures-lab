@@ -1,4 +1,4 @@
--- Fill-realism audit (2026-07-24).
+-- Fill-realism audit (applied 2026-07-24 04:10:52 UTC).
 --
 -- Engine signals assume a resting limit order at the zone proximal fills
 -- when price touches it — optimistic on delayed 5m bars (no queue priority,

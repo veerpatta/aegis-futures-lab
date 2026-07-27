@@ -1,4 +1,4 @@
--- 5-minute bar archive (2026-07-23).
+-- 5-minute bar archive (applied 2026-07-23 14:30:53 UTC).
 --
 -- Yahoo caps 5m history at a sliding 60-day window, so anything older was
 -- lost forever and every backtest/tune was capped at 60d. The engine now

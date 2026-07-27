@@ -23,10 +23,17 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { nyMeta } from "@/lib/time/ny";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
-import { challengerFor, loadSeries, streamTuneKey, type ChallengerVerdict } from "./tune-core";
+import {
+  challengerFor,
+  evaluate,
+  loadSeries,
+  streamTuneKey,
+  type ChallengerVerdict,
+} from "./tune-core";
 import { fetchAllRows } from "./paginate";
-import { canonicalParams, confirmsTwoWeeks, replaceDeclaration } from "./challenger-logic";
+import { canonicalParams, confirmsFreshWeek, replaceDeclaration } from "./challenger-logic";
 import { sendTelegram } from "./notify";
+import { recordPromotionDecision } from "./learning-audit";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -62,6 +69,8 @@ interface HistoryRow {
   oos_net: number | null;
   mc_p95_dd: number | null;
   verdict: string;
+  data_cutoff?: string | null;
+  oos_trades?: number | null;
 }
 
 async function recordHistory(row: HistoryRow) {
@@ -88,7 +97,7 @@ async function recordHistory(row: HistoryRow) {
 async function priorRows(stream: string, weekKeys: string[]): Promise<HistoryRow[]> {
   const { data, error } = await supabase
     .from("challenger_history")
-    .select("week_key, stream, params, oos_pf, oos_net, mc_p95_dd, verdict")
+    .select("week_key, stream, params, oos_pf, oos_net, mc_p95_dd, verdict, data_cutoff, oos_trades")
     .eq("stream", stream)
     .in("week_key", weekKeys);
   if (error) throw new Error(`challenger_history read: ${error.message}`);
@@ -222,6 +231,13 @@ async function main() {
   const weekKey = isoWeek(nowSec);
   const lastWeek = weeksAgo(nowSec, 1);
   const canPr = Boolean(GH_TOKEN && process.env.GITHUB_ACTIONS);
+  const { data: latestWeekly } = await supabase
+    .from("learning_runs")
+    .select("id")
+    .eq("cadence", "weekly")
+    .order("started_at", { ascending: false })
+    .limit(1);
+  const weeklyRunId = latestWeekly?.[0]?.id ? Number(latestWeekly[0].id) : null;
   console.log(`challenger week ${weekKey} (prior ${lastWeek}) · ${canPr ? "PR-capable" : "analysis only (no token)"}`);
 
   const streams = tierStreams();
@@ -249,13 +265,41 @@ async function main() {
       oos_net: v.oosNet,
       mc_p95_dd: v.mcP95Dd,
       verdict: v.verdict,
+      data_cutoff: v.dataCutoff,
+      oos_trades: v.oosTrades,
+    });
+    await recordPromotionDecision(supabase, {
+      candidateKey: key,
+      learningRunId: weeklyRunId,
+      decision: v.verdict === "challenger" ? "canary" : "rejected",
+      reasonCodes: [v.verdict],
+      evidence: {
+        label: v.label,
+        params: v.params,
+        oosPf: v.oosPf,
+        oosNet: v.oosNet,
+        oosTrades: v.oosTrades,
+        mcP95Dd: v.mcP95Dd,
+        dataCutoff: v.dataCutoff,
+        reason: v.reason,
+      },
+      codeSha: process.env.GITHUB_SHA || null,
     });
     console.log(`  ${key}: ${v.verdict}${v.label ? ` (${v.label})` : ""} — ${v.reason}`);
     if (v.verdict !== "challenger" || !v.params) continue;
 
-    // Confirmed only if last week's single row is a challenger with the SAME set.
-    if (!confirmsTwoWeeks(v.params, await priorRows(key, [lastWeek]))) {
-      console.log(`    not confirmed yet — needs the same set two weeks running.`);
+    const previousRows = await priorRows(key, [lastWeek]);
+    const previousCutoff = previousRows.find((row) => row.verdict === "challenger")?.data_cutoff;
+    const freshTrades = previousCutoff
+      ? evaluate(stream, v.params, bySymbol, {
+          fromTime: Math.floor(Date.parse(previousCutoff) / 1000) + 1,
+        }).trades
+      : 0;
+    if (!confirmsFreshWeek(v.params, v.dataCutoff, freshTrades, previousRows)) {
+      console.log(
+        `    not confirmed yet — needs the same set plus a newly closed out-of-sample trade ` +
+          `(fresh closed: ${freshTrades}).`
+      );
       continue;
     }
     /* Cooldown: not proposed in the last COOLDOWN_WEEKS weeks, INCLUDING this
@@ -282,7 +326,7 @@ async function main() {
     const body = [
       `**The bot is proposing a parameter change to ${key}.** Paper only, delayed data.`,
       ``,
-      `Survived the held-out month + Monte-Carlo gate **two weeks running** (${lastWeek}, ${weekKey}).`,
+      `Survived the held-out month + Monte-Carlo gate in ${lastWeek} and ${weekKey}, with **${freshTrades} newly closed trade${freshTrades === 1 ? "" : "s"}** after the prior cutoff.`,
       ``,
       `| Metric | Incumbent (OOS) | Challenger \`${v.label}\` (OOS) |`,
       `|---|---:|---:|`,
@@ -316,10 +360,10 @@ async function main() {
   // ── Shadow promotions ──
   try {
     // Full history — the promotion checklist needs every closed shadow signal.
-    const rows = await fetchAllRows<ShadowLike & { strategy: string; symbol: string }>(
+    const rows = await fetchAllRows<ShadowLike & { strategy: string; symbol: string; signal_ts: string }>(
       supabase,
       "shadow_signals",
-      "strategy, symbol, status, pnl_usd, regime, fill_confidence"
+      "strategy, symbol, status, pnl_usd, regime, fill_confidence, signal_ts"
     );
     const keys = [...new Set(rows.map((r) => `${r.strategy}|${r.symbol}`))].sort();
     for (const k of keys) {
@@ -327,6 +371,11 @@ async function main() {
       const report = promotionReport(rows.filter((r) => r.strategy === strategy && r.symbol === symbol));
       const stream = `shadow:${strategy}:${symbol}`;
       const verdict = report.promotable ? "challenger" : "none";
+      const streamRows = rows.filter((r) => r.strategy === strategy && r.symbol === symbol);
+      const dataCutoff = streamRows
+        .map((row) => row.signal_ts)
+        .sort()
+        .at(-1) ?? null;
       await recordHistory({
         week_key: weekKey,
         stream,
@@ -335,11 +384,36 @@ async function main() {
         oos_net: Math.round(report.net),
         mc_p95_dd: null,
         verdict,
+        data_cutoff: dataCutoff,
+        oos_trades: report.closed,
+      });
+      await recordPromotionDecision(supabase, {
+        candidateKey: stream,
+        learningRunId: weeklyRunId,
+        decision: report.promotable ? "canary" : "observing",
+        reasonCodes: report.checklist.filter((item) => !item.pass).map((item) => item.label),
+        evidence: {
+          closed: report.closed,
+          pf: report.pf,
+          net: report.net,
+          regimesPositive: report.regimesPositive,
+          regimesWithData: report.regimesWithData,
+          dataCutoff,
+        },
+        codeSha: process.env.GITHUB_SHA || null,
       });
       if (!report.promotable) continue;
       const prev = (await priorRows(stream, [lastWeek])).find((r) => r.verdict === "challenger");
-      if (!prev) {
-        console.log(`  ${stream}: promotable — needs two weeks running.`);
+      const freshClosed = prev?.data_cutoff
+        ? streamRows.filter(
+            (row) => row.pnl_usd !== null && Date.parse(row.signal_ts) > Date.parse(prev.data_cutoff!)
+          ).length
+        : 0;
+      if (!prev || freshClosed < 1) {
+        console.log(
+          `  ${stream}: promotable — needs a second weekly pass with fresh closed evidence ` +
+            `(fresh closed: ${freshClosed}).`
+        );
         continue;
       }
       const cooldownWeeks = Array.from({ length: COOLDOWN_WEEKS }, (_, i) => weeksAgo(nowSec, i + 1));
@@ -355,7 +429,7 @@ async function main() {
       const body = [
         `**The bot is proposing to promote a shadow strategy to a live tier-B2 stream: ${strategy} / ${symbol}.** Paper only.`,
         ``,
-        `Passed the promotion checklist **two weeks running** (${lastWeek}, ${weekKey}): ≥60 closed, PF ≥ 1.2 (costs in), positive in ≥2 regimes.`,
+        `Passed the promotion checklist in ${lastWeek} and ${weekKey}, including **${freshClosed} newly closed trade${freshClosed === 1 ? "" : "s"}** after the prior cutoff: ≥60 closed, PF ≥ 1.2 (costs in), positive in ≥2 regimes.`,
         ``,
         `| Closed | PF | Net | Regimes positive |`,
         `|---:|---:|---:|---:|`,

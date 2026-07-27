@@ -10,6 +10,7 @@ export const canonicalParams = (p: unknown): string =>
 export interface WeekRow {
   verdict: string;
   params: unknown;
+  data_cutoff?: string | null;
 }
 
 /* A challenger is confirmed only if last week's SINGLE row for the stream is a
@@ -18,6 +19,21 @@ export interface WeekRow {
 export function confirmsTwoWeeks(thisParams: unknown, lastWeekRows: WeekRow[]): boolean {
   const prev = lastWeekRows.find((r) => r.verdict === "challenger");
   return !!prev && canonicalParams(prev.params) === canonicalParams(thisParams);
+}
+
+/* Re-running mostly the same rolling month one week later is not fresh
+   confirmation. The candidate must have seen at least one newly closed trade
+   after last week's data cutoff. */
+export function confirmsFreshWeek(
+  thisParams: unknown,
+  currentDataCutoff: string | null,
+  freshClosedTrades: number,
+  lastWeekRows: WeekRow[]
+): boolean {
+  const prev = lastWeekRows.find((row) => row.verdict === "challenger");
+  if (!prev || canonicalParams(prev.params) !== canonicalParams(thisParams)) return false;
+  if (!prev.data_cutoff || !currentDataCutoff || freshClosedTrades < 1) return false;
+  return Date.parse(currentDataCutoff) > Date.parse(prev.data_cutoff);
 }
 
 export function replaceDeclaration(src: string, decl: string, value: string): string {

@@ -5,7 +5,13 @@
    of it changes what the bot does. Paper only, delayed data. */
 
 import { useEffect, useMemo, useState } from "react";
-import { getSupabase, type LearnedStatsRow, type ModelRegistryRow } from "@/lib/supabase/client";
+import {
+  getSupabase,
+  type LearnedStatsRow,
+  type LearningRunRow,
+  type ModelRegistryRow,
+  type PromotionDecisionRow,
+} from "@/lib/supabase/client";
 import { Badge, DataTable, Kpi, Panel } from "@/components/ui";
 import { money } from "@/lib/format";
 import { fmtPf } from "@/lib/stats";
@@ -102,6 +108,8 @@ function cellNode(c: Cell | undefined, key: string) {
 export default function BrainClient() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [models, setModels] = useState<ModelRegistryRow[] | null>(null);
+  const [learningRuns, setLearningRuns] = useState<LearningRunRow[]>([]);
+  const [decisions, setDecisions] = useState<PromotionDecisionRow[]>([]);
 
   useEffect(() => {
     // Win-probability model history — best effort; absent before it trains.
@@ -111,6 +119,28 @@ export default function BrainClient() {
       .order("trained_at", { ascending: false })
       .limit(14)
       .then(({ data, error }) => setModels(error ? [] : ((data ?? []) as ModelRegistryRow[])));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const supabase = getSupabase();
+    void Promise.all([
+      supabase.from("learning_runs").select("*").order("started_at", { ascending: false }).limit(14),
+      supabase
+        .from("promotion_decisions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]).then(([runs, promotions]) => {
+      if (!active) return;
+      setLearningRuns(runs.error ? [] : ((runs.data ?? []) as LearningRunRow[]));
+      setDecisions(
+        promotions.error ? [] : ((promotions.data ?? []) as PromotionDecisionRow[])
+      );
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -195,6 +225,27 @@ export default function BrainClient() {
   const gate = latest.get("gate_costs")?.payload as GateCosts | undefined;
   const fill = latest.get("fill_reality")?.payload as FillReality | undefined;
   const shadow = latest.get("shadow_scoreboard")?.payload as ShadowScoreboard | undefined;
+  const latestRun = learningRuns[0];
+  const latestDaily = learningRuns.find((run) => run.cadence === "daily");
+  const latestWeekly = learningRuns.find((run) => run.cadence === "weekly");
+  const latestDecision = decisions[0];
+  const deployedModel = models?.find((model) => model.deployed);
+  const trustState =
+    latestRun?.status === "error" || latestRun?.status === "blocked"
+      ? "BLOCKED"
+      : deployedModel
+        ? "ACTIVE"
+        : latestDecision?.decision === "canary"
+          ? "CANARY"
+          : "OBSERVING";
+  const trustTone =
+    trustState === "ACTIVE"
+      ? "green"
+      : trustState === "BLOCKED"
+        ? "red"
+        : trustState === "CANARY"
+          ? "amber"
+          : "blue";
 
   const ledgerPanel = (title: string, hint: string, explain: string, cells: Record<string, Cell> | undefined, order?: string[]) => {
     const keys = cells ? (order ? order.filter((k) => k in cells) : Object.keys(cells)) : [];
@@ -224,6 +275,72 @@ export default function BrainClient() {
           — the bot will not judge them until the sample is real.
         </span>
       </div>
+
+      <Panel
+        title="Trust Center"
+        hint="what learned, what may change, and what is currently allowed"
+      >
+        <div className={styles.trustHead}>
+          <Badge tone={trustTone}>{trustState}</Badge>
+          <span className={styles.dim}>
+            Daily runs collect evidence. Only the weekly gate may deploy a paper-veto model or
+            promote a paper strategy. Broker execution remains unavailable.
+          </span>
+        </div>
+        <div className={styles.trustGrid}>
+          <div className={styles.trustCard}>
+            <span className={styles.trustLabel}>Latest learning run</span>
+            <b className={styles.trustValue}>
+              {latestRun ? `${latestRun.cadence} · ${latestRun.status}` : "Collecting"}
+            </b>
+            <span className={styles.trustSub}>
+              {latestRun
+                ? `${latestRun.started_at.slice(0, 16).replace("T", " ")} UTC`
+                : "No append-only run record yet"}
+            </span>
+          </div>
+          <div className={styles.trustCard}>
+            <span className={styles.trustLabel}>Daily evidence</span>
+            <b className={styles.trustValue}>{latestDaily?.status ?? "Pending"}</b>
+            <span className={styles.trustSub}>
+              {latestDaily?.message ?? "Statistics and candidate model only"}
+            </span>
+          </div>
+          <div className={styles.trustCard}>
+            <span className={styles.trustLabel}>Weekly authority</span>
+            <b className={styles.trustValue}>{latestWeekly?.status ?? "Pending"}</b>
+            <span className={styles.trustSub}>
+              {latestWeekly?.gate_results?.modelDeploymentAllowed
+                ? "Deployment gate evaluated"
+                : "No weekly deployment decision recorded yet"}
+            </span>
+          </div>
+          <div className={styles.trustCard}>
+            <span className={styles.trustLabel}>Deployed model</span>
+            <b className={styles.trustValue}>
+              {deployedModel ? `${deployedModel.model} · active` : "None"}
+            </b>
+            <span className={styles.trustSub}>
+              {deployedModel
+                ? `n=${deployedModel.train_n ?? 0} · data through ${deployedModel.data_cutoff?.slice(0, 10) ?? "unknown"}`
+                : "Candidates may score, but cannot veto"}
+            </span>
+          </div>
+        </div>
+        {latestDecision && (
+          <div className={styles.decision}>
+            <span>
+              <b>Latest strategy decision:</b> {latestDecision.candidate_key} ·{" "}
+              {latestDecision.decision}
+            </span>
+            <span className={styles.dim}>
+              {latestDecision.reason_codes.length
+                ? latestDecision.reason_codes.join(" · ")
+                : "all recorded gates passed"}
+            </span>
+          </div>
+        )}
+      </Panel>
 
       {/* ── Score calibration ── */}
       <Panel title="Does the zone score predict anything?" hint="closed signals, sorted by score into ten equal groups">
@@ -364,12 +481,12 @@ export default function BrainClient() {
           const latest = models && models[0];
           if (models === null) return <p className={styles.note}>Loading…</p>;
           if (!latest) return <p className={styles.collecting}>Collecting — the model has not trained yet.</p>;
-          const tone = latest.status === "active" ? "green" : latest.status === "demoted" ? "red" : "amber";
+          const tone = latest.deployed ? "green" : latest.status === "demoted" ? "red" : "amber";
           const beats = latest.oos_brier !== null && latest.baseline_brier !== null && latest.oos_brier < latest.baseline_brier;
           return (
             <>
               <div className={styles.asOf}>
-                <Badge tone={tone}>{latest.status.toUpperCase()}</Badge>
+                <Badge tone={tone}>{latest.deployed ? "DEPLOYED" : "CANDIDATE"}</Badge>
                 <span className={styles.dim}>
                   &nbsp;clean-fill examples {graduationProgress(latest.train_n)} · out-of-sample Brier{" "}
                   <b className={beats ? styles.good : styles.bad}>{latest.oos_brier ?? "—"}</b> vs baseline{" "}
@@ -380,10 +497,10 @@ export default function BrainClient() {
                 <>
                   <h3 className={styles.subhead}>Brier trend (recent trainings, lower is better)</h3>
                   <DataTable
-                    columns={["Trained", "Status", "Examples", "OOS Brier", "Baseline"]}
+                    columns={["Trained", "Role", "Examples", "OOS Brier", "Baseline"]}
                     rows={models.map((m) => [
                       m.trained_at.slice(0, 10),
-                      m.status,
+                      m.deployed ? "deployed" : m.status,
                       String(m.train_n ?? "—"),
                       <span key="b" className={m.oos_brier !== null && m.baseline_brier !== null && m.oos_brier < m.baseline_brier ? styles.good : undefined}>{m.oos_brier ?? "—"}</span>,
                       String(m.baseline_brier ?? "—"),

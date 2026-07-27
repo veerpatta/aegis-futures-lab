@@ -112,7 +112,12 @@ describe("targetlessStream + the scoreboard guard (2.2b)", () => {
    enumeration in the SAME change that starts writing it. */
 describe("every status the code can write is allowed by the schema", () => {
   const MIGRATION = readFileSync(
-    join(process.cwd(), "supabase", "migrations", "20260725090000_winrate_round.sql"),
+    join(
+      process.cwd(),
+      "supabase",
+      "migrations",
+      "20260725074509_winrate_round_closed_win_status.sql"
+    ),
     "utf8"
   );
 

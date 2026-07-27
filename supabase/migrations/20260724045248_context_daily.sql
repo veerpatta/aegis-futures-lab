@@ -1,4 +1,4 @@
--- Market-context daily table + VIX bucket (Month 2).
+-- Market-context daily table + VIX bucket (applied 2026-07-24 04:52:48 UTC).
 --
 -- One row per NY trading day with the free context closes the engine can
 -- fetch at zero cost: VIX (^VIX), dollar index (DX-Y.NYB), 10y yield

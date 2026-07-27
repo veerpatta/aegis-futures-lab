@@ -5,7 +5,7 @@
 # so those get their pass/fail from (a) the proposing workflow itself
 # (weekly-challenger runs the suite inline and sets the `bot-ci` commit status)
 # and (b) the `bot-branches` job below, which re-checks every open bot/* PR
-# daily and on demand. Either way no bot PR reaches a human without a visible,
+# weekly and on demand. Either way no bot PR reaches a human without a visible,
 # machine-set status.
 
 name: ci
@@ -15,7 +15,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "15 5 * * *" # daily re-check of open bot PRs
+    - cron: "15 5 * * 0" # weekly re-check of open bot PRs
 
 permissions:
   contents: read

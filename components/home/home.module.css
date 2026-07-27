@@ -770,6 +770,40 @@
   color: var(--text-dim);
 }
 
+.learningPulse {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  padding: 12px 14px;
+}
+
+.learningPulse:hover {
+  border-color: rgba(90, 167, 255, 0.55);
+}
+
+.learningPulse > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.learningPulse b {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.learningPulseMeta {
+  color: var(--text-dim);
+  font-size: 10.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* ── Recent ideas ────────────────────────────────────────────────────────── */
 
 .recentItem {
@@ -1174,6 +1208,14 @@
   }
   .heroAmount {
     font-size: 32px;
+  }
+  .learningPulse {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .learningPulseMeta {
+    text-align: left;
   }
 }
 

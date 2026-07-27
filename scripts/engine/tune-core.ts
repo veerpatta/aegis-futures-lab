@@ -162,6 +162,8 @@ export interface ChallengerVerdict {
   mcP95Dd: number | null;
   incumbentOosPf: number | null;
   incumbentOosNet: number | null;
+  dataCutoff: string | null;
+  oosTrades: number;
   reason: string;
   /* Every evaluation the gate already ran, so a caller that wants to SHOW its
      working — the monthly issue prints a train/OOS table per stream — does not
@@ -196,6 +198,8 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
     mcP95Dd: null,
     incumbentOosPf: null,
     incumbentOosNet: null,
+    dataCutoff: null,
+    oosTrades: 0,
     reason,
     detail: null,
     ...extra,
@@ -204,6 +208,7 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
     return none("no candidate grid for this stream (too few trades to tune without curve-fitting)");
 
   const lastBar = Math.max(...stream.symbols.map((s) => bySymbol[s][bySymbol[s].length - 1].time));
+  const dataCutoff = new Date(lastBar * 1000).toISOString();
   const oosStart = lastBar - OOS_DAYS * 86400;
 
   const incTrain = evaluate(stream, stream.params, bySymbol, { toTime: oosStart });
@@ -261,6 +266,8 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
       params: best.params,
       oosPf: candOos.pf,
       oosNet: candOos.net,
+      dataCutoff,
+      oosTrades: candOos.trades,
     };
 
   // A no-loss (perfect) OOS month has null PF — rank it as best, not worst.
@@ -280,6 +287,8 @@ export function challengerFor(stream: TierStream, bySymbol: Record<string, Bar[]
     mcP95Dd: candMc.p95,
     incumbentOosPf: incOos.pf,
     incumbentOosNet: incOos.net,
+    dataCutoff,
+    oosTrades: candOos.trades,
     reason: `survives OOS (PF ${candOos.pf?.toFixed(2)} vs ${incOos.pf?.toFixed(2)}, net ${candOos.net.toFixed(0)} vs ${incOos.net.toFixed(0)}) and Monte Carlo`,
     detail,
   };

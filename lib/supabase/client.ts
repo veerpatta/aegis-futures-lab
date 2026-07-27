@@ -7,7 +7,11 @@ let client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient {
   if (!client)
     client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-      auth: { persistSession: false },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
     });
   return client;
 }
@@ -86,6 +90,12 @@ export interface ModelRegistryRow {
   baseline_brier: number | null;
   calibration: { bin: number; meanPredicted: number; actual: number; n: number }[] | null;
   status: "observe" | "active" | "demoted";
+  deployed?: boolean;
+  feature_version?: string | null;
+  code_sha?: string | null;
+  data_cutoff?: string | null;
+  dataset_hash?: string | null;
+  artifact_hash?: string | null;
 }
 
 /* learned_stats: one versioned row per stat_key per NY trading day, written
@@ -97,6 +107,33 @@ export interface LearnedStatsRow {
   stat_key: string;
   date_key: string;
   payload: unknown;
+}
+
+export interface LearningRunRow {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  cadence: "daily" | "weekly" | "monthly";
+  status: "running" | "ok" | "blocked" | "error";
+  code_sha: string | null;
+  data_cutoff: string | null;
+  feature_version: string | null;
+  dataset_hash: string | null;
+  artifact_hash: string | null;
+  metrics: Record<string, unknown>;
+  gate_results: Record<string, unknown>;
+  message: string | null;
+}
+
+export interface PromotionDecisionRow {
+  id: number;
+  created_at: string;
+  candidate_key: string;
+  learning_run_id: number | null;
+  decision: "observing" | "canary" | "active" | "rejected" | "rolled_back" | "paused";
+  reason_codes: string[];
+  evidence: Record<string, unknown>;
+  code_sha: string | null;
 }
 
 export interface ZoneRow {
