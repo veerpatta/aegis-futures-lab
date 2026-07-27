@@ -45,3 +45,18 @@ writeup: `docs/research/2026-07-26-hypotheses.md`.
   called borderline/inconclusive rather than forced to a verdict.
 - No code change proposed this week. GitHub issue opened (label `research`)
   with the full SURVIVED/REFUTED table.
+
+## 2026-07-27
+
+No new information today — nightly-learn's cron is Tue–Sat only (covers
+Mon–Fri sessions), so today (Monday) it has not run yet; learned_stats,
+model_registry and rolling PF are byte-identical to 2026-07-26's entry.
+- engine_runs (n=4, 26h): all "ok", bar age 12–13m, well under the 30m
+  weekday gate. No errors.
+- signals closed 24h: n=0 (daily_funnel confirms signalsToday=0 on all 3
+  streams) — no live signal activity today, not a fault.
+- shadow_signals closed 24h: n=1, vwap-reversion MES, hit_stop, -$155.46,
+  stale_data=true — a single audition-strategy data point, not a live
+  stream; too small and non-live to act on.
+- Rolling PF unchanged: B:MNQ pf=1.71 (n=12), B:MES pf=10.89 (n=8), both
+  well above the 0.8 floor. bot_policy still zero rows. No issue opened.
