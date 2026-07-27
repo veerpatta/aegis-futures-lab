@@ -68,11 +68,16 @@ export function marketPhase(nowSec: number): Phase {
       live: false,
       tone: "dim",
     };
+  /* Globex is open, but the engine's cron is not: it runs 06:00-21:45 UTC
+     Mon-Fri, i.e. 02:00-17:45 ET. This label used to promise "Zones keep
+     updating" from 18:00 ET onward, which was simply false — nothing runs
+     between 17:45 ET and 02:00 ET, so the zones on screen are the ones the
+     last afternoon pass computed. */
   return {
     label: "Overnight session",
-    detail: `Zones keep updating — entries resume ${etTimeLabel("02:00")}`,
-    live: true,
-    tone: "warn",
+    detail: `Market open, bot asleep — zones and entries resume ${etTimeLabel("02:00")}`,
+    live: false,
+    tone: "dim",
   };
 }
 
