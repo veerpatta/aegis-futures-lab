@@ -39,11 +39,24 @@ import type { ModelRow } from "./winprob";
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
+/* Same fail-fast guard run-live.ts has. learn.ts writes learned_stats,
+   model_registry and bot_policy, all RLS-protected, and without this the
+   failure order is actively misleading: the first write is retrainModel, which
+   is caught as non-fatal, so model_registry and bot_policy fail SILENTLY and
+   only the learned_stats upsert at the end surfaces the real cause. */
+if (process.env.GITHUB_ACTIONS && (!process.env.SUPABASE_KEY || key === SUPABASE_PUBLISHABLE_KEY)) {
+  console.error(
+    "SUPABASE_KEY is missing or is the publishable key — learned_stats writes are blocked by RLS.\n" +
+      "Add the Supabase service-role key as the SUPABASE_SERVICE_ROLE_KEY repo secret\n" +
+      "(GitHub → Settings → Secrets and variables → Actions) so the workflow can pass it."
+  );
+  process.exit(1);
+}
+
+const supabase = createClient(process.env.SUPABASE_URL || SUPABASE_URL, key, {
+  auth: { persistSession: false },
+});
 
 const PAGE = 1000;
 /* Below this a ledger/decile cell is not judged — it is "still collecting".

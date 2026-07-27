@@ -97,9 +97,14 @@ function tradingDaysBetween(from, to, closedHolidays) {
   for (let i = 0; i < 400; i++) {
     cursor.setUTCDate(cursor.getUTCDate() + 1);
     const key = cursor.toISOString().slice(0, 10);
+    // Stop BEFORE counting once the cursor has passed `to`. Counting first and
+    // breaking after meant a same-NY-day span counted tomorrow and returned 1
+    // instead of 0, so an alert body could report one day more silence than
+    // there was.
+    if (key > toKey) break;
     const wd = cursor.getUTCDay();
     if (wd !== 0 && wd !== 6 && !closedHolidays.has(key)) count++;
-    if (key >= toKey) break;
+    if (key === toKey) break;
   }
   return count;
 }
@@ -173,6 +178,23 @@ function shouldBeRunning(now, closedHolidays) {
   return !closedHolidays.has(nyDateKey(now));
 }
 
+/* Minutes since the cron window opened at 06:00 UTC today, or null outside it.
+
+   GitHub delays scheduled runs on public repos by 15-60 minutes (self-heal.yml
+   records a real 49-minute case). This watchdog fires at :17, so on a morning
+   where the 06:00 engine slot is merely late the newest heartbeat is still
+   yesterday's 21:45 and the staleness test trips — Telegram plus an issue,
+   closed again by the 06:47 pass. Daily churn on a delay that is normal.
+
+   Inside this grace period a MISSING heartbeat is not alerted. Two consecutive
+   errored runs still are: that is evidence of a failure, not of a late start. */
+const STARTUP_GRACE_MINUTES = Number(process.env.WATCHDOG_STARTUP_GRACE_MINUTES || 75);
+
+function minutesSinceWindowOpen(now) {
+  if (!inCronWindow(now)) return null;
+  return (now.getUTCHours() - 6) * 60 + now.getUTCMinutes();
+}
+
 async function sendTelegram(text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -202,7 +224,14 @@ async function sendTelegram(text) {
   return false;
 }
 
-async function gh(method, path, body) {
+/* 422 used to be swallowed for EVERY call, because creating a label that
+   already exists returns one and that is genuinely fine. The cost was that a
+   422 on the issue create — an over-long body, a validation change at GitHub's
+   end — also came back as a plain object, `raiseIssue` returned true anyway,
+   and the run exited 0. Engine dead + Telegram down + issue 422 meant a green
+   watchdog and no alert anywhere, which is the one outcome this script exists
+   to prevent. Now only the caller that expects a 422 opts into tolerating it. */
+async function gh(method, path, body, { tolerate422 = false } = {}) {
   if (!GH_TOKEN) throw new Error("GITHUB_TOKEN not set");
   const res = await fetch(`https://api.github.com${path}`, {
     method,
@@ -214,7 +243,7 @@ async function gh(method, path, body) {
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok && res.status !== 422)
+  if (!res.ok && !(tolerate422 && res.status === 422))
     throw new Error(`GitHub ${method} ${path} → ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return res.status === 204 ? null : res.json().catch(() => null);
 }
@@ -234,9 +263,12 @@ async function raiseIssue(label, color, title, body, stillText) {
       await gh("POST", `/repos/${REPO}/issues/${existing.number}/comments`, { body: stillText });
       console.log(`commented on ${label} issue #${existing.number}`);
     } else {
-      await gh("POST", `/repos/${REPO}/labels`, { name: label, color }); // 422 = exists, fine
+      await gh("POST", `/repos/${REPO}/labels`, { name: label, color }, { tolerate422: true });
       const issue = await gh("POST", `/repos/${REPO}/issues`, { title, body, labels: [label] });
-      console.log(`opened ${label} issue #${issue?.number}`);
+      // An issue with no number is not an issue. Saying "opened #undefined"
+      // and returning true is how a lost alert used to look like a delivered one.
+      if (!issue?.number) throw new Error(`issue create returned no number for ${label}`);
+      console.log(`opened ${label} issue #${issue.number}`);
     }
     return true;
   } catch (e) {
@@ -336,6 +368,10 @@ async function checkSilence(now, closedHolidays) {
 
 /* ── Main ────────────────────────────────────────────────────────────── */
 
+/** True when checkSilence needed to alert and every delivery path failed. */
+const alertLost = (silence) =>
+  Boolean(silence && silence.silent.length && !silence.telegramOk && !silence.issueOk);
+
 async function main() {
   const now = new Date();
   const closedHolidays = loadClosedHolidays();
@@ -352,20 +388,28 @@ async function main() {
     // Supabase briefly unreachable — do not alert on a read failure alone.
     // The silence check does its own reads and reports its own failure.
     console.log(`heartbeat unreadable (${e?.message ?? e}) — skipping the cron check`);
-    await checkSilence(now, closedHolidays);
-    return 0;
+    // Skipping the CRON check is deliberate; discarding the SILENCE check's
+    // delivery outcome was not. A silence alert that failed both paths still
+    // has to turn the run red.
+    const silence = await checkSilence(now, closedHolidays);
+    return alertLost(silence) ? 1 : 0;
   }
 
   const latest = runs[0] ?? null;
   const ageMin = latest ? (now.getTime() - new Date(latest.ran_at).getTime()) / 60000 : Infinity;
-  const stale = ageMin > STALE_MINUTES;
+  const sinceOpen = minutesSinceWindowOpen(now);
+  const warmingUp = sinceOpen !== null && sinceOpen < STARTUP_GRACE_MINUTES;
+  const stale = ageMin > STALE_MINUTES && !warmingUp;
   const doubleError = runs.length >= 2 && runs[0].status === "error" && runs[1].status === "error";
   const active = shouldBeRunning(now, closedHolidays);
   const unhealthy = active && (stale || doubleError);
 
   console.log(
     `watchdog: active=${active} ageMin=${ageMin === Infinity ? "∞" : ageMin.toFixed(1)} ` +
-      `stale=${stale} doubleError=${doubleError} (threshold ${STALE_MINUTES}m)`
+      `stale=${stale} doubleError=${doubleError} (threshold ${STALE_MINUTES}m)` +
+      (warmingUp
+        ? ` — ${sinceOpen}m into the window, inside the ${STARTUP_GRACE_MINUTES}m startup grace`
+        : "")
   );
 
   if (!unhealthy) {
@@ -378,8 +422,7 @@ async function main() {
     console.log("engine healthy");
     // A healthy cron says nothing about OUTPUT — that is the whole point of 2.5.
     const silence = await checkSilence(now, closedHolidays);
-    if (silence && silence.silent.length && !silence.telegramOk && !silence.issueOk) return 1;
-    return 0;
+    return alertLost(silence) ? 1 : 0;
   }
 
   const since = latest ? latest.ran_at : "unknown (no runs recorded)";
@@ -403,12 +446,15 @@ async function main() {
   );
 
   // Silence is checked even when the cron is dead: separate label, separate
-  // lifecycle, so a dead cron cannot hide a silent stream or vice versa.
-  await checkSilence(now, closedHolidays);
+  // lifecycle, so a dead cron cannot hide a silent stream or vice versa. Its
+  // delivery outcome used to be discarded here, which meant a silence alert
+  // could be lost on a run that still exited 0 because the cron alert landed.
+  const silence = await checkSilence(now, closedHolidays);
 
-  // Exit non-zero ONLY when the alert was needed and every path failed —
+  // Exit non-zero ONLY when an alert was needed and every path failed —
   // that red X is itself the last-resort alert.
-  return telegramOk || issueOk ? 0 : 1;
+  if (!telegramOk && !issueOk) return 1;
+  return alertLost(silence) ? 1 : 0;
 }
 
 // process.exitCode (not process.exit) — lets pending I/O drain and avoids a

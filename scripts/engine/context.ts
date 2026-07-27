@@ -55,17 +55,39 @@ export async function buildContextRows(range = "3mo"): Promise<ContextRow[]> {
   }));
 }
 
-/** Once per NY day: if today's row is missing, upsert the trailing ~90 days.
-    Returns the number of rows upserted, or 0 when already current. */
+/* The newest date the context sweep could possibly have: ^VIX, DX-Y.NYB and
+   ^TNX publish DAILY closes, so today's row does not exist until after today's
+   close. Asking for today's row before then can never be satisfied.
+
+   That was the bug: the guard below was `.eq("date_key", today)`, so it never
+   latched during the morning and every 15-minute engine pass re-fetched three
+   symbols × three months from Yahoo and re-upserted ~90 rows. Confirmed in the
+   data — both Saturday 2026-07-25 runs re-swept although the newest row was
+   2026-07-24. Anchor on the last COMPLETED trading day instead. */
+export function lastCompletedTradingDay(nowSec: number): string {
+  // Before the 16:00 ET cash close, today's daily bar is not final yet.
+  const m = nyMeta(nowSec);
+  let sec = m.minutes >= 16 * 60 ? nowSec : nowSec - 86400;
+  for (let i = 0; i < 10; i++) {
+    const day = nyMeta(sec);
+    if (day.weekday !== "Sat" && day.weekday !== "Sun") return day.dateKey;
+    sec -= 86400;
+  }
+  return nyMeta(sec).dateKey;
+}
+
+/** Once per NY day: if the sweep is behind the last completed trading day,
+    upsert the trailing ~90 days. Returns rows upserted, or 0 when current. */
 export async function updateContextDaily(supabase: SupabaseClient, nowSec: number): Promise<number> {
-  const today = nyMeta(nowSec).dateKey;
+  const target = lastCompletedTradingDay(nowSec);
   const { data, error } = await supabase
     .from("context_daily")
     .select("date_key")
-    .eq("date_key", today)
+    .order("date_key", { ascending: false })
     .limit(1);
   if (error) throw new Error(`context_daily read: ${error.message}`);
-  if (data?.length) return 0;
+  const newest = data?.[0]?.date_key ?? null;
+  if (newest !== null && newest >= target) return 0;
   const rows = await buildContextRows("3mo");
   const stamped = rows.map((r) => ({ ...r, updated_at: new Date().toISOString() }));
   const { error: upErr } = await supabase

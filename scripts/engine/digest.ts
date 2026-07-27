@@ -16,7 +16,14 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf } from "@/lib/stats";
 import { sendTelegram } from "./notify";
 import { fetchAllRows } from "./paginate";
-import { activeOnly, exDoubtful, pausedPractice, staleExcluded, stats } from "./digest-stats";
+import {
+  activeOnly,
+  capIssueBody,
+  exDoubtful,
+  pausedPractice,
+  staleExcluded,
+  stats,
+} from "./digest-stats";
 import { STALE_BAR_AGE_MIN } from "@/lib/signals/freshness";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
@@ -172,7 +179,15 @@ function integrityScan(bars: { time: number; high: number; low: number }[]) {
   return { gaps, dupes, zeroRange, negativeRange };
 }
 
-async function gh(method: string, path: string, body?: unknown) {
+/** Most error messages printed inline before the list is summarised. */
+const MAX_ERROR_LINES = 25;
+
+async function gh(
+  method: string,
+  path: string,
+  body?: unknown,
+  { tolerate422 = false }: { tolerate422?: boolean } = {}
+) {
   const res = await fetch(`https://api.github.com${path}`, {
     method,
     headers: {
@@ -183,7 +198,13 @@ async function gh(method: string, path: string, body?: unknown) {
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok && res.status !== 422)
+  // 422 is tolerated ONLY by the caller that expects one (creating a label
+  // that already exists). It used to be swallowed for every call, which meant
+  // a 422 on the issue create — an over-long body is the realistic trigger —
+  // returned a plain validation object, the digest logged "#undefined", and
+  // the rotation below still closed last week's issue. Green run, no digest,
+  // previous digest gone.
+  if (!res.ok && !(tolerate422 && res.status === 422))
     throw new Error(`GitHub ${method} ${path} → ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return res.json().catch(() => null);
 }
@@ -249,11 +270,23 @@ async function main() {
   if (runErr) throw new Error(`engine_runs read: ${runErr.message}`);
   const runs = runData ?? [];
   const errorRuns = runs.filter((r) => r.status === "error");
-  let worstAge = 0;
+  /* Bar age is parsed out of the heartbeat's free text. When the regex misses
+     — a format change, or a week of nothing but error-path runs, which carry
+     no age segment — `worstAge` used to stay 0 and the digest reported "worst
+     bar age 0m": a manufactured health claim in the one section built to catch
+     feed stalls. Count the misses and say so instead. */
+  let worstAge: number | null = null;
+  let ageParsed = 0;
   for (const r of runs) {
     const m = /age MES (\d+)m \/ MNQ (\d+)m/.exec(r.message ?? "");
-    if (m) worstAge = Math.max(worstAge, Number(m[1]), Number(m[2]));
+    if (!m) continue;
+    ageParsed++;
+    worstAge = Math.max(worstAge ?? 0, Number(m[1]), Number(m[2]));
   }
+  const worstAgeLine =
+    worstAge === null
+      ? `no run reported a bar age (${runs.length} run${runs.length === 1 ? "" : "s"} scanned)`
+      : `${worstAge}m` + (ageParsed < runs.length ? ` (from ${ageParsed}/${runs.length} runs)` : "");
 
   // ── Archive growth + integrity ──
   const integrity: Record<string, ReturnType<typeof integrityScan>> = {};
@@ -465,10 +498,19 @@ ${staleRows.total} signals · ${staleRows.closed} closed · net ${money(staleRow
     ``,
     `## Engine health`,
     `- Runs attempted: ${runs.length} (${errorRuns.length} error${errorRuns.length === 1 ? "" : "s"})`,
-    `- Worst bar age seen: ${worstAge}m`,
+    `- Worst bar age seen: ${worstAgeLine}`,
     watchdogOpened !== null ? `- Watchdog issues opened this week: ${watchdogOpened}` : `- Watchdog issues: n/a (no token)`,
+    // Capped: a bad week can error on every 15-minute pass, and an unbounded
+    // list of ~1,300 messages is how the body reaches GitHub's 65,536 limit.
     errorRuns.length
-      ? `- Error messages:\n${errorRuns.map((r) => `  - \`${(r.message ?? "").slice(0, 160)}\``).join("\n")}`
+      ? `- Error messages:\n` +
+        errorRuns
+          .slice(0, MAX_ERROR_LINES)
+          .map((r) => `  - \`${(r.message ?? "").slice(0, 160)}\``)
+          .join("\n") +
+        (errorRuns.length > MAX_ERROR_LINES
+          ? `\n  - _…and ${errorRuns.length - MAX_ERROR_LINES} more (see the Actions log)_`
+          : ``)
       : ``,
     ``,
     `## Shadow auditions — strategies auditioning on live data, NOT signals`,
@@ -528,19 +570,27 @@ ${staleRows.total} signals · ${staleRows.closed} closed · net ${money(staleRow
   }
   // Rotate: close last week's digest issue(s), open this week's.
   for (const name of ["digest", "data-quality"])
-    await gh("POST", `/repos/${REPO}/labels`, { name, color: name === "digest" ? "0e8a16" : "d93f0b" });
+    await gh(
+      "POST",
+      `/repos/${REPO}/labels`,
+      { name, color: name === "digest" ? "0e8a16" : "d93f0b" },
+      { tolerate422: true }
+    );
   const open = await gh("GET", `/repos/${REPO}/issues?labels=digest&state=open&per_page=10`);
   const labels = integrityBad ? ["digest", "data-quality"] : ["digest"];
   const created = await gh("POST", `/repos/${REPO}/issues`, {
     title: `Weekly digest ${weekEnding}`,
-    body: md,
+    body: capIssueBody(md),
     labels,
   });
-  console.log(`opened digest issue #${created?.number}`);
+  // Never supersede on the strength of an issue that may not exist. Closing
+  // last week's digest with "Superseded by #undefined" is worse than failing.
+  if (!created?.number) throw new Error("digest issue create returned no number — nothing rotated");
+  console.log(`opened digest issue #${created.number}`);
   if (Array.isArray(open))
     for (const issue of open) {
       await gh("POST", `/repos/${REPO}/issues/${issue.number}/comments`, {
-        body: `Superseded by #${created?.number}.`,
+        body: `Superseded by #${created.number}.`,
       });
       await gh("PATCH", `/repos/${REPO}/issues/${issue.number}`, { state: "closed" });
       console.log(`closed previous digest issue #${issue.number}`);

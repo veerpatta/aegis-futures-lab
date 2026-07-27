@@ -103,13 +103,20 @@ export async function retrainModel(
     );
 
   if (flip) {
-    await supabase.from("bot_policy").insert({
+    /* The audit row comes BEFORE the announcement, and its error is checked —
+       breakers.ts has always done this and the model path did not. Without the
+       check, an RLS rejection or a bot_policy CHECK violation still produced a
+       "🎓 model graduated to active" Telegram with no record of the change,
+       which is precisely the hole the self-training migration's "no silent
+       actions ever" note says must not exist. */
+    const { error: policyErr } = await supabase.from("bot_policy").insert({
       actor: "model",
       stream: "winprob-model",
       action: flip.action,
       reason: flip.reason,
       metrics: { train_n: artifact.train_n, oos_brier: artifact.oos_brier, baseline_brier: artifact.baseline_brier },
     });
+    if (policyErr) throw new Error(`bot_policy insert: ${policyErr.message}`);
     await sendTelegram(
       flip.action === "veto_enabled"
         ? `🎓 win-prob model graduated to active — ${flip.reason}. It may now veto the bottom-decile signals. Paper only, delayed data.`

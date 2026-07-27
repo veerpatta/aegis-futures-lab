@@ -6,6 +6,19 @@
 
 import { profitFactor } from "@/lib/stats";
 
+/* GitHub rejects an issue body over 65,536 characters with a 422 — and a 422
+   used to be swallowed, so the digest logged "opened issue #undefined" and
+   then closed LAST week's digest with "Superseded by #undefined". Green run,
+   no digest, previous digest gone. The body grows with the run count and the
+   inline error list, neither of which is bounded, so trim rather than lose it. */
+export const GITHUB_ISSUE_BODY_MAX = 65_536;
+
+export function capIssueBody(md: string, max = GITHUB_ISSUE_BODY_MAX): string {
+  if (md.length <= max) return md;
+  const note = `\n\n---\n_Truncated: the full digest was ${md.length} characters, over GitHub's ${max} limit._\n`;
+  return md.slice(0, max - note.length) + note;
+}
+
 export interface HeadlineSig {
   pnl_usd: number | null;
   fill_confidence: string | null;
