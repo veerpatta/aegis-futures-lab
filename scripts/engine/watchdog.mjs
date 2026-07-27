@@ -35,7 +35,7 @@
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://bizgcoljagsnytrnaicr.supabase.co";
 const SUPABASE_KEY =
@@ -457,13 +457,26 @@ async function main() {
   return alertLost(silence) ? 1 : 0;
 }
 
-// process.exitCode (not process.exit) — lets pending I/O drain and avoids a
-// libuv teardown assert seen on some Node builds after fetch().
-main()
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((e) => {
-    console.error(`watchdog crashed: ${e?.message ?? e}`);
-    process.exitCode = 0; // never spam red X's for watchdog-side flakiness
-  });
+/* Run only when this file IS the entry point.
+
+   Two test files import from here — tests/silence.test.ts for
+   findSilentStreams and tests/session-schedule.test.ts for inCronWindow — and
+   without this guard the import alone fired main(): live Supabase and GitHub
+   reads during `npm test`, and, worse, `process.exitCode = 1` whenever the
+   engine looked stale inside the cron window. ci.yml runs the suite on every
+   pull request, so a perfectly good PR could go red because the trading
+   engine happened to be behind. */
+const isEntryPoint =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isEntryPoint)
+  // process.exitCode (not process.exit) — lets pending I/O drain and avoids a
+  // libuv teardown assert seen on some Node builds after fetch().
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((e) => {
+      console.error(`watchdog crashed: ${e?.message ?? e}`);
+      process.exitCode = 0; // never spam red X's for watchdog-side flakiness
+    });
