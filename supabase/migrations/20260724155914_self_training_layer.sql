@@ -1,4 +1,4 @@
--- Self-training layer ("autopilot with a leash") — Phases A–D, one file.
+-- Self-training layer ("autopilot with a leash") — applied 2026-07-24 15:59:14 UTC.
 --
 -- Everything the self-training layer needs, in a single migration so it can
 -- be pasted once into the Supabase SQL editor. All tables are new or add

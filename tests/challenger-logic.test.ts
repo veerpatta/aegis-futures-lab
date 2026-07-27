@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canonicalParams, confirmsTwoWeeks } from "../scripts/engine/challenger-logic";
+import {
+  canonicalParams,
+  confirmsFreshWeek,
+  confirmsTwoWeeks,
+} from "../scripts/engine/challenger-logic";
 
 /* Finding 10: with one row per (week_key, stream), a same-week rerun replaces
    the verdict, so confirmation reads a single current verdict and can't trust a
@@ -33,5 +37,32 @@ describe("confirmsTwoWeeks", () => {
 
   it("matches regardless of param key order", () => {
     expect(confirmsTwoWeeks(params, [{ verdict: "challenger", params: { targetR: 2, overbought: 75, oversold: 20 } }])).toBe(true);
+  });
+});
+
+describe("confirmsFreshWeek", () => {
+  const previous = [
+    {
+      verdict: "challenger",
+      params,
+      data_cutoff: "2026-07-20T20:00:00.000Z",
+    },
+  ];
+
+  it("requires at least one newly closed trade beyond the prior cutoff", () => {
+    expect(confirmsFreshWeek(params, "2026-07-27T20:00:00.000Z", 1, previous)).toBe(true);
+    expect(confirmsFreshWeek(params, "2026-07-27T20:00:00.000Z", 0, previous)).toBe(false);
+  });
+
+  it("rejects a stale cutoff or a different parameter set", () => {
+    expect(confirmsFreshWeek(params, "2026-07-20T20:00:00.000Z", 4, previous)).toBe(false);
+    expect(
+      confirmsFreshWeek(
+        { ...params, oversold: 25 },
+        "2026-07-27T20:00:00.000Z",
+        4,
+        previous
+      )
+    ).toBe(false);
   });
 });

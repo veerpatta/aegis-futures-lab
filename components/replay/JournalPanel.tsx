@@ -10,7 +10,12 @@ import {
 } from "@/lib/journal";
 import { journalPnl } from "@/lib/journal";
 import { parseBrokerCsv } from "@/lib/journal/broker";
-import { fetchCloudJournal, mirrorJournalToCloud } from "@/lib/journal/cloud";
+import {
+  deleteJournalFromCloud,
+  fetchCloudJournal,
+  syncJournalToCloud,
+} from "@/lib/journal/cloud";
+import { getSupabase } from "@/lib/supabase/client";
 import { nyDateKey, nyTimeToUnix } from "@/lib/time/ny";
 import { clockIn, etWallIn, ZONE_ABBR, type DisplayZone } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -20,8 +25,8 @@ import { Badge, Button, DataTable, Panel } from "@/components/ui";
 import styles from "./replay.module.css";
 
 /* "My trades" journal: quick manual entry for the selected day (times typed
-   as ET), bulk CSV import, and per-day list. Persisted to localStorage on
-   every change; nothing leaves the browser. */
+   as ET), bulk CSV import, and per-day list. It is always persisted locally;
+   an authenticated trader can also opt into owner-isolated cloud sync. */
 
 function parseClock(raw: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(raw.trim());
@@ -66,7 +71,11 @@ export default function JournalPanel({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { zone } = useZone();
   const [error, setError] = useState<string | null>(null);
-  const [cloud, setCloud] = useState<"syncing" | "ok" | "offline">("syncing");
+  const [cloud, setCloud] = useState<"signed-out" | "syncing" | "ok" | "offline">("signed-out");
+  const [authUser, setAuthUser] = useState<{ id: string; email: string } | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const syncedUser = useRef<string | null>(null);
   const [form, setForm] = useState({
     symbol: "MES" as FeedSymbol,
     side: "LONG" as "LONG" | "SHORT",
@@ -78,19 +87,49 @@ export default function JournalPanel({
     notes: "",
   });
 
-  const commit = (trades: JournalTrade[]) => {
+  const commit = (trades: JournalTrade[], deletedId?: string) => {
     const store: JournalStore = { version: 1, trades };
     saveJournal(store);
     onChange(store);
-    mirrorJournalToCloud(trades)
+    if (!authUser) {
+      setCloud("signed-out");
+      return;
+    }
+    setCloud("syncing");
+    Promise.all([
+      syncJournalToCloud(trades),
+      deletedId ? deleteJournalFromCloud(deletedId) : Promise.resolve(),
+    ])
       .then(() => setCloud("ok"))
       .catch(() => setCloud("offline"));
   };
 
-  /* On first mount, pull any journal trades that only exist in the cloud
-     (another browser/device) and push local-only trades up. */
   useEffect(() => {
+    const supabase = getSupabase();
+    void supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      setAuthUser(user ? { id: user.id, email: user.email ?? "signed-in trader" } : null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      setAuthUser(user ? { id: user.id, email: user.email ?? "signed-in trader" } : null);
+      if (!user) {
+        syncedUser.current = null;
+        setCloud("signed-out");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  /* Pull remote-only rows once per signed-in user, merge without deleting
+     either side, then upload the union. */
+  useEffect(() => {
+    if (!authUser || syncedUser.current === authUser.id) return;
+    syncedUser.current = authUser.id;
     let alive = true;
+    setCloud("syncing");
     fetchCloudJournal()
       .then((remote) => {
         if (!alive) return;
@@ -104,7 +143,7 @@ export default function JournalPanel({
           saveJournal(store);
           onChange(store);
         }
-        return mirrorJournalToCloud(merged).then(() => {
+        return syncJournalToCloud(merged).then(() => {
           if (alive) setCloud("ok");
         });
       })
@@ -114,9 +153,32 @@ export default function JournalPanel({
     return () => {
       alive = false;
     };
-    // mount-only: the merge must not loop on every journal change
+    // Sync once per auth identity, not on every local journal change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authUser?.id]);
+
+  const sendSignInLink = async () => {
+    const email = authEmail.trim();
+    if (!email || !email.includes("@")) {
+      setAuthMessage("Enter a valid email address.");
+      return;
+    }
+    setAuthMessage("Sending a private sign-in link…");
+    const { error: authError } = await getSupabase().auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/replay`,
+      },
+    });
+    setAuthMessage(
+      authError ? authError.message : "Check your email and open the sign-in link on this device."
+    );
+  };
+
+  const signOut = async () => {
+    await getSupabase().auth.signOut();
+    setAuthMessage("Signed out. Your local journal remains on this device.");
+  };
 
   const addManual = () => {
     setError(null);
@@ -177,7 +239,7 @@ export default function JournalPanel({
     }
   };
 
-  const remove = (id: string) => commit(journal.trades.filter((t) => t.id !== id));
+  const remove = (id: string) => commit(journal.trades.filter((t) => t.id !== id), id);
 
   const dayTrades = journal.trades.filter((t) => nyDateKey(t.entryTime) === selectedDay);
 
@@ -185,7 +247,13 @@ export default function JournalPanel({
     <Panel
       title="My trades (journal)"
       hint={`${journal.trades.length} total · ${
-        cloud === "ok" ? "synced to cloud" : cloud === "syncing" ? "syncing…" : "cloud offline — saved locally"
+        cloud === "ok"
+          ? "private cloud sync on"
+          : cloud === "syncing"
+            ? "syncing…"
+            : cloud === "signed-out"
+              ? "local only — sign in to sync"
+              : "cloud offline — saved locally"
       }`}
       actions={
         <span className={styles.formActions} style={{ marginTop: 0 }}>
@@ -213,6 +281,44 @@ export default function JournalPanel({
           e.target.value = "";
         }}
       />
+      <div className={styles.syncCard}>
+        {authUser ? (
+          <>
+            <span className={styles.syncCopy}>
+              <b>Private sync is on</b>
+              <span>{authUser.email} · only this account can read these rows</span>
+            </span>
+            <Button small variant="ghost" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+          </>
+        ) : (
+          <>
+            <span className={styles.syncCopy}>
+              <b>Keep your journal private across devices</b>
+              <span>Local saving always works. Sign in by email to enable owner-only cloud sync.</span>
+            </span>
+            <label className={styles.syncEmail}>
+              <span className={styles.srOnly}>Email for private journal sync</span>
+              <input
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+              />
+            </label>
+            <Button small onClick={() => void sendSignInLink()}>
+              Send sign-in link
+            </Button>
+          </>
+        )}
+      </div>
+      {authMessage && (
+        <div className={styles.note} role="status" aria-live="polite">
+          {authMessage}
+        </div>
+      )}
       <div className={styles.formGrid}>
         <label className={styles.field}>
           Symbol

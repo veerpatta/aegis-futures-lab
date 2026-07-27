@@ -1,4 +1,4 @@
--- Lock down public writes (2026-07-23).
+-- Lock down public writes (applied 2026-07-23 14:30:36 UTC).
 --
 -- The publishable key ships in the client by design, so RLS policies are the
 -- only write gate. Until now every table allowed anonymous INSERT/UPDATE/

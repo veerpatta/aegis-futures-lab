@@ -1,4 +1,4 @@
--- Finding 10: challenger_history uniqueness must be (week_key, stream), not
+-- Applied 2026-07-24 17:03:55 UTC. Finding 10: uniqueness is (week_key, stream), not
 -- (week_key, stream, verdict). With verdict in the key, a same-week rerun that
 -- changed its mind (e.g. "challenger" → "insufficient-oos") ADDED a second row,
 -- and the 2-week confirmation could then trust a verdict the rerun retracted.

@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   # challenger.ts posts the `bot-ci` commit status that autopilot's merge gate
   # reads. Unlisted scopes are `none` when a permissions block is present, so
   # without this the POST 403'd, was swallowed, and autopilot read bot-ci as
@@ -40,6 +41,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Weekly model evaluation and deployment gate
+        run: npx tsx scripts/engine/learn.ts
+        env:
+          LEARNING_CADENCE: weekly
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - run: npx tsx scripts/engine/challenger.ts
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}

@@ -285,6 +285,34 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>How automatic learning stays safe</h2>
+        <p>
+          Every trading day the bot retrains a <b>candidate</b> from the newest completed paper
+          trades and records the data cutoff, feature version, dataset fingerprint and result.
+          Daily training can observe and measure; it cannot silently replace the model used by
+          the signal engine. Once a week, the promotion gate checks genuinely newer
+          out-of-sample trades, costs and drawdown before a candidate can move through canary to
+          active. No fresh evidence means no change.
+        </p>
+        <p className={styles.note}>
+          Open <b>Brain → Trust Center</b> to see the latest daily and weekly runs, the deployed
+          model, and the exact reason a proposal was accepted or blocked. This is still paper
+          trading: the learning loop changes research artefacts and paper-signal behaviour, never
+          places a broker order.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Your journal is private</h2>
+        <p>
+          Journal entries save on this device first. If you want the same journal on another
+          device, use <b>Private cloud sync</b> on the Journal page and sign in with your email
+          link. Supabase row-level security isolates entries by account; signing out returns the
+          journal to local-only mode. CSV export remains available as your portable backup.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>What each idea tells you at a glance</h2>
         <p>
           Every idea on Home and on Signals now carries four lines under it, so you do not have to

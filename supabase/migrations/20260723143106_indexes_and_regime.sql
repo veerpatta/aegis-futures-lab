@@ -1,4 +1,4 @@
--- DB hygiene + regime tag (2026-07-23).
+-- DB hygiene + regime tag (applied 2026-07-23 14:31:06 UTC).
 --
 -- Foreign-key columns signals.zone_id and trades.signal_id had no indexes,
 -- so the FK checks on zone deletes (every engine pass prunes zones) walked

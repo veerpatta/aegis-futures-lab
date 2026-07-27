@@ -35,9 +35,23 @@ import {
 } from "./invariants";
 import { sendTelegram } from "./notify";
 import type { ModelRow } from "./winprob";
+import {
+  dataQualityReport,
+  finishLearningRun,
+  stableHash,
+  startLearningRun,
+  type LearningCadence,
+} from "./learning-audit";
 
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
+const learningCadence: LearningCadence =
+  process.env.LEARNING_CADENCE === "weekly"
+    ? "weekly"
+    : process.env.LEARNING_CADENCE === "monthly"
+      ? "monthly"
+      : "daily";
+let currentLearningRunId: number | null = null;
 
 const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
 /* Same fail-fast guard run-live.ts has. learn.ts writes learned_stats,
@@ -183,11 +197,49 @@ async function main() {
   const nowSec = Math.floor(started / 1000);
   const date_key = learnDateKey(nowSec);
   const computed_at = new Date().toISOString();
+  currentLearningRunId = await startLearningRun(supabase, learningCadence, {
+    codeSha: process.env.GITHUB_SHA || null,
+    featureVersion: "winprob-features-v1",
+    message:
+      learningCadence === "weekly"
+        ? "Weekly evaluation may deploy a qualified paper-veto model."
+        : "Daily learning records evidence only; model deployment is unchanged.",
+  });
 
   const signals = await fetchAll<SignalRow>(
     "signals",
     "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price"
   );
+  const quality = dataQualityReport(signals);
+  const datasetHash = stableHash(
+    signals
+      .map((signal) => ({
+        dedupe_key: signal.dedupe_key,
+        signal_ts: signal.signal_ts,
+        pnl_usd: signal.pnl_usd,
+        fill_confidence: signal.fill_confidence,
+        stale_data: signal.stale_data,
+      }))
+      .sort((a, b) => a.dedupe_key.localeCompare(b.dedupe_key))
+  );
+  const dataCutoff = signals.length
+    ? [...signals].sort((a, b) => b.signal_ts.localeCompare(a.signal_ts))[0].signal_ts
+    : null;
+  const { error: metadataError } = await supabase
+    .from("learning_runs")
+    .update({ dataset_hash: datasetHash, data_cutoff: dataCutoff })
+    .eq("id", currentLearningRunId);
+  if (metadataError) throw new Error(`learning_runs metadata: ${metadataError.message}`);
+  if (!quality.healthy) {
+    await finishLearningRun(supabase, currentLearningRunId, {
+      status: "blocked",
+      metrics: { signals: signals.length },
+      gateResults: { dataQuality: quality },
+      message: `Learning blocked: ${quality.reasonCodes.join(", ")}`,
+    });
+    currentLearningRunId = null;
+    throw new Error(`learning blocked by data quality: ${quality.reasonCodes.join(", ")}`);
+  }
   /* Item 2.4 — stale-data rows are out of every learned statistic for the same
      reason they are out of the headline numbers: they describe a market the
      engine could not actually see. They stay in the table, and the invariant
@@ -303,8 +355,12 @@ async function main() {
   // Training set with real-vs-shadow dedup (finding 8) — a promoted strategy
   // that appears as both a live signal and a shadow row is counted once (real).
   const modelRows: ModelRow[] = buildModelRows(signals, allShadow);
+  let modelSummary: Awaited<ReturnType<typeof retrainModel>> | null = null;
   try {
-    const m = await retrainModel(supabase, modelRows);
+    const m = await retrainModel(supabase, modelRows, {
+      allowTransitions: learningCadence === "weekly",
+    });
+    modelSummary = m;
     console.log(
       `model: ${m.status}, train_n ${m.train_n}, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}`
     );
@@ -359,9 +415,46 @@ async function main() {
     `learn ok: ${rows.length} stats for ${date_key} · ` +
       `${closed.length} closed real / ${shadowClosed.length} closed shadow · ${((Date.now() - started) / 1000).toFixed(1)}s`
   );
+  await finishLearningRun(supabase, currentLearningRunId, {
+    status: "ok",
+    artifactHash: modelSummary
+      ? stableHash({
+          train_n: modelSummary.train_n,
+          oos_brier: modelSummary.oos_brier,
+          baseline_brier: modelSummary.baseline_brier,
+          data_cutoff: dataCutoff,
+        })
+      : null,
+    metrics: {
+      realSignals: signals.length,
+      closedReal: closed.length,
+      closedShadow: shadowClosed.length,
+      staleDropped,
+      model: modelSummary,
+    },
+    gateResults: {
+      dataQuality: quality,
+      modelDeploymentAllowed: learningCadence === "weekly",
+    },
+    message:
+      learningCadence === "weekly"
+        ? "Weekly evidence recorded; qualified model deployment evaluated."
+        : "Daily evidence recorded; no model deployment change allowed.",
+  });
+  currentLearningRunId = null;
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error(e);
-  process.exit(1);
+  if (currentLearningRunId !== null) {
+    try {
+      await finishLearningRun(supabase, currentLearningRunId, {
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    } catch (auditError) {
+      console.error(`learning run error record failed: ${auditError instanceof Error ? auditError.message : auditError}`);
+    }
+  }
+  process.exitCode = 1;
 });

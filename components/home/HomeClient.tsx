@@ -19,6 +19,7 @@ import Link from "next/link";
 import {
   getSupabase,
   type EngineRunRow,
+  type LearningRunRow,
   type SignalRow,
   type ZoneRow,
 } from "@/lib/supabase/client";
@@ -291,6 +292,7 @@ export default function HomeClient() {
   const [nowSec, setNowSec] = useState<number | null>(null);
   const [range, setRange] = useState<RangeKey>("today");
   const [sheet, setSheet] = useState<SignalRow | null>(null);
+  const [learningRun, setLearningRun] = useState<LearningRunRow | null>(null);
   const { zone } = useZone();
   const { mask } = usePrivacy();
   const health = useBotHealth();
@@ -298,12 +300,19 @@ export default function HomeClient() {
   const load = useCallback(async () => {
     try {
       const supabase = getSupabase();
-      const [signals, zones] = await Promise.all([
+      const [signals, zones, learning] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
         supabase.from("zones").select("*").limit(120),
+        supabase
+          .from("learning_runs")
+          .select("*")
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       const err = signals.error || zones.error;
       if (err) throw new Error(err.message);
+      if (!learning.error) setLearningRun((learning.data as LearningRunRow | null) ?? null);
       setState({
         status: "ready",
         signals: (signals.data ?? []) as SignalRow[],
@@ -860,6 +869,38 @@ export default function HomeClient() {
               </span>
             </div>
           </section>
+          <Link href="/brain" className={`${styles.learningPulse} pressSm`}>
+            <span>
+              <span className={styles.cellLabel}>Learning loop</span>
+              <b
+                className={
+                  learningRun?.status === "error"
+                    ? styles.bad
+                    : learningRun?.status === "blocked"
+                      ? styles.warn
+                      : learningRun?.status === "running"
+                        ? styles.info
+                        : styles.good
+                }
+              >
+                {learningRun
+                  ? learningRun.status === "running"
+                    ? "Checking new evidence"
+                    : learningRun.status === "ok"
+                      ? "Evidence gate passed"
+                      : learningRun.status === "blocked"
+                        ? "Change blocked safely"
+                        : "Learning run needs attention"
+                  : "Waiting for first audited run"}
+              </b>
+            </span>
+            <span className={styles.learningPulseMeta}>
+              {learningRun
+                ? `${learningRun.cadence} · ${ago(learningRun.finished_at ?? learningRun.started_at)}`
+                : "Daily learn · weekly promotion"}
+              <span aria-hidden> →</span>
+            </span>
+          </Link>
 
           {/* ── Recent ideas ── */}
           <section className={styles.listCard} aria-label="Recent ideas">

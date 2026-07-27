@@ -227,8 +227,7 @@ export const SCHEDULED_WORKFLOWS: ScheduledWorkflow[] = [
   // Mirrors the engine's Globex-week window → longest gap is Fri 23:47 UTC to
   // Sun 22:17 UTC, ~46h.
   { file: "watchdog.yml", maxAgeHours: 60, cadence: "17,47 * * * 1-5 + 17,47 22-23 * * 0" },
-  { file: "autopilot.yml", maxAgeHours: 36, cadence: "30 4 * * *" },
-  { file: "claude-research.yml", maxAgeHours: 36, cadence: "15 6 * * * + 0 7 * * 0" },
+  { file: "autopilot.yml", maxAgeHours: 192, cadence: "30 4 * * 0" },
   { file: "weekly-digest.yml", maxAgeHours: 192, cadence: "30 6 * * 6" },
   { file: "weekly-challenger.yml", maxAgeHours: 192, cadence: "0 4 * * 0" },
   // Day-of-month ORs with day-of-week, so it fires at least every Saturday.
@@ -326,4 +325,3 @@ export function formatInvariantReport(violations: Violation[], nowIso: string): 
     `\n\nThis issue closes itself on the next clean nightly run.`
   );
 }
-

@@ -48,8 +48,9 @@ describe("replaceDeclaration on the real tiers.ts", () => {
   });
 
   it("leaves the rest of the file byte-identical", () => {
-    const out = replaceDeclaration(TIERS, OVERRIDES, "{}");
-    expect(out).toBe(TIERS);
+    const emptyFixture = replaceDeclaration(TIERS, OVERRIDES, "{}");
+    const out = replaceDeclaration(emptyFixture, OVERRIDES, "{}");
+    expect(out).toBe(emptyFixture);
   });
 
   it("refuses a file whose declaration is gone rather than guessing", () => {

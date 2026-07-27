@@ -42,6 +42,10 @@ export function journalPnl(t: JournalTrade): { points: number; grossPnl: number 
 
 export function journalTradesToCsv(trades: JournalTrade[]): string {
   const header = ["entry_time", "exit_time", "symbol", "side", "qty", "entry", "exit", "notes"];
+  const csvCell = (value: string | number): string => {
+    const raw = String(value);
+    return /[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  };
   const rows = trades.map((t) =>
     [
       new Date(t.entryTime * 1000).toISOString(),
@@ -51,8 +55,8 @@ export function journalTradesToCsv(trades: JournalTrade[]): string {
       t.qty,
       t.entryPrice,
       t.exitPrice,
-      (t.notes ?? "").replace(/,/g, ";"),
-    ].join(",")
+      t.notes ?? "",
+    ].map(csvCell).join(",")
   );
   return [header.join(","), ...rows].join("\n");
 }
@@ -66,25 +70,63 @@ function parseTime(raw: string, row: number): number {
   return time;
 }
 
-/* Column contract: entry_time, exit_time, symbol, side, qty, entry, exit
-   (+ optional notes). A deliberate superset of tradesToCsv's header, so an
-   exported engine ledger re-imports as journal rows. Timestamps are ISO
-   strings or unix seconds; side accepts BUY/SELL aliases. Cells must not
-   contain commas (same naive split as the bar importer). */
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      if (cell.length) throw new Error(`Unexpected quote in CSV row ${rows.length + 1}`);
+      quoted = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+
+  if (quoted) throw new Error("Unclosed quoted field in CSV");
+  if (cell.length || row.length) {
+    row.push(cell.replace(/\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
+
+/* RFC 4180-compatible column contract: entry_time, exit_time, symbol, side,
+   qty, entry, exit (+ optional notes). Timestamps may be ISO strings or unix
+   seconds; side accepts BUY/SELL aliases. */
 export function parseJournalCsv(text: string, idPrefix = "csv"): JournalTrade[] {
-  const lines = text.trim().split(/\r?\n/);
-  const headerLine = lines.shift();
-  if (!headerLine) throw new Error("Empty file");
-  const headers = headerLine.split(",").map((x) => x.trim().toLowerCase());
+  const rows = parseCsvRows(text.trim());
+  const header = rows.shift();
+  if (!header) throw new Error("Empty file");
+  const headers = header.map((x) => x.trim().toLowerCase());
   const idx = (n: string) => headers.indexOf(n);
   for (const h of ["entry_time", "exit_time", "symbol", "side", "qty", "entry", "exit"])
     if (idx(h) < 0) throw new Error("Missing required column: " + h);
   const now = Math.floor(Date.now() / 1000);
-  return lines
-    .filter((line) => line.trim().length)
-    .map((line, i) => {
+  return rows
+    .filter((cells) => cells.some((value) => value.trim().length))
+    .map((c, i) => {
       const row = i + 2;
-      const c = line.split(",");
       const cell = (n: string) => (c[idx(n)] ?? "").trim();
       const symbol = cell("symbol").toUpperCase();
       if (symbol !== "MES" && symbol !== "MNQ")

@@ -1,4 +1,4 @@
--- Shadow-mode strategy auditions (Month 2).
+-- Shadow-mode strategy auditions (applied 2026-07-24 04:43:33 UTC).
 --
 -- The four coded-but-unused strategies (vwap-reversion, orb,
 -- bollinger-breakout, ema-cross) run alongside the live tiers and log their

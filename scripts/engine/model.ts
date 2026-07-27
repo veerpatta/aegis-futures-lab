@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   GRADUATE_MIN_TRAIN,
+  FEATURE_VERSION,
   MODEL_NAME,
   scoreRow,
   trainingRows,
@@ -14,6 +15,7 @@ import {
   type ModelRow,
 } from "./winprob";
 import { sendTelegram } from "./notify";
+import { stableHash } from "./learning-audit";
 
 export const VETO_PERCENTILE = 10; // bottom decile of the trailing distribution
 
@@ -27,6 +29,7 @@ export async function loadLatestModel(supabase: SupabaseClient): Promise<LoadedM
   const { data, error } = await supabase
     .from("model_registry")
     .select("coefficients, features, status")
+    .eq("deployed", true)
     .order("trained_at", { ascending: false })
     .limit(1);
   if (error) throw new Error(`model_registry read: ${error.message}`);
@@ -43,22 +46,47 @@ export async function loadLatestModel(supabase: SupabaseClient): Promise<LoadedM
      demoted stays demoted (keeps scoring, never vetoes) */
 export async function retrainModel(
   supabase: SupabaseClient,
-  rows: ModelRow[]
+  rows: ModelRow[],
+  options: { allowTransitions?: boolean } = {}
 ): Promise<{ status: string; train_n: number; oos_brier: number | null; baseline_brier: number | null }> {
   const frozen = process.env.BOT_POLICY_FREEZE === "1";
+  const allowTransitions = options.allowTransitions === true;
   const artifact: ModelArtifact | null = trainModel(rows);
 
   const { data: prev, error: prevErr } = await supabase
     .from("model_registry")
-    .select("status, oos_brier, baseline_brier")
+    .select("status, oos_brier, baseline_brier, deployed")
     .order("trained_at", { ascending: false })
-    .limit(1);
+    .limit(20);
   if (prevErr) throw new Error(`model_registry read: ${prevErr.message}`);
-  const prevRow = prev?.[0] as { status?: string; oos_brier?: number | null; baseline_brier?: number | null } | undefined;
+  const previous = (prev ?? []) as {
+    status?: string;
+    oos_brier?: number | null;
+    baseline_brier?: number | null;
+    deployed?: boolean;
+  }[];
+  const prevRow = previous[0];
+  const deployedRow = previous.find((row) => row.deployed);
   const prevSnap: EvalSnapshot = {
-    status: (prevRow?.status as EvalSnapshot["status"]) ?? "observe",
+    status: ((deployedRow ? "active" : prevRow?.status) as EvalSnapshot["status"]) ?? "observe",
     oos_brier: prevRow?.oos_brier ?? null,
     baseline_brier: prevRow?.baseline_brier ?? null,
+  };
+  const metadata = {
+    feature_version: FEATURE_VERSION,
+    code_sha: process.env.GITHUB_SHA || null,
+    data_cutoff: rows.length
+      ? [...rows].sort((a, b) => b.signal_ts.localeCompare(a.signal_ts))[0].signal_ts
+      : null,
+    dataset_hash: stableHash(
+      rows
+        .map((row) => ({
+          signal_ts: row.signal_ts,
+          pnl_usd: row.pnl_usd,
+          fill_confidence: row.fill_confidence,
+        }))
+        .sort((a, b) => a.signal_ts.localeCompare(b.signal_ts))
+    ),
   };
 
   // Too little clean data to emit a real model — record an observe placeholder
@@ -76,26 +104,64 @@ export async function retrainModel(
       baseline_brier: null,
       calibration: null,
       status: prevSnap.status,
+      deployed: false,
+      ...metadata,
     });
     if (error) throw new Error(`model_registry insert: ${error.message}`);
     return { status: prevSnap.status, train_n: trainN, oos_brier: null, baseline_brier: null };
   }
 
-  const decision = nextModelStatus(prevSnap, artifact, frozen);
+  const decision = allowTransitions
+    ? nextModelStatus(prevSnap, artifact, frozen)
+    : { status: prevSnap.status, flip: null, skipped: false };
   const status = decision.status;
   const flip = decision.flip;
-
-  const { error: insErr } = await supabase.from("model_registry").insert({
+  const artifactHash = stableHash({
     model: artifact.model,
     coefficients: artifact.coefficients,
     features: artifact.features,
     train_n: artifact.train_n,
-    oos_brier: artifact.oos_brier,
-    baseline_brier: artifact.baseline_brier,
-    calibration: artifact.calibration,
-    status,
+    data_cutoff: metadata.data_cutoff,
   });
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("model_registry")
+    .insert({
+      model: artifact.model,
+      coefficients: artifact.coefficients,
+      features: artifact.features,
+      train_n: artifact.train_n,
+      oos_brier: artifact.oos_brier,
+      baseline_brier: artifact.baseline_brier,
+      calibration: artifact.calibration,
+      status,
+      deployed: false,
+      artifact_hash: artifactHash,
+      ...metadata,
+    })
+    .select("id")
+    .single();
   if (insErr) throw new Error(`model_registry insert: ${insErr.message}`);
+
+  const beatsBaseline =
+    artifact.oos_brier !== null &&
+    artifact.baseline_brier !== null &&
+    artifact.oos_brier < artifact.baseline_brier;
+  const deployCandidate = allowTransitions && status === "active" && beatsBaseline;
+  if (allowTransitions && (deployCandidate || status === "demoted")) {
+    const { error: clearErr } = await supabase
+      .from("model_registry")
+      .update({ deployed: false })
+      .eq("deployed", true);
+    if (clearErr) throw new Error(`model_registry deployment clear: ${clearErr.message}`);
+  }
+  if (deployCandidate) {
+    const { error: deployErr } = await supabase
+      .from("model_registry")
+      .update({ deployed: true })
+      .eq("id", Number(inserted.id));
+    if (deployErr) throw new Error(`model_registry deployment: ${deployErr.message}`);
+  }
 
   if (decision.skipped)
     console.log(
