@@ -254,7 +254,7 @@ export function riskFor(symbols: ("MES" | "MNQ")[]): SymbolRisk {
    "A" for the zone stream, "B:MES"/"B:MNQ" for the RSI streams. */
 
 /** Param overrides adopted from a surviving challenger. */
-export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = {};
+export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = {"B:MNQ":{"oversold":20,"overbought":75,"targetR":1.5}};
 
 /** Shadow strategies promoted to live tier-B2 streams. */
 export const PROMOTED_SHADOWS: { label: string; strategyId: string; symbols: ("MES" | "MNQ")[] }[] = [];
