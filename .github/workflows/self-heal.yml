@@ -35,11 +35,23 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# `workflows: write` is what lets this agent fix a workflow's own config. Without
+# it, ANY push touching .github/workflows/** is rejected outright by GitHub —
+# which is how issue #8 ended up as "fix identified, NOT applied": the healer had
+# correctly diagnosed a --max-turns cap one turn too low and could not apply the
+# one-line change, on main or on a branch.
+#
+# The scope is broader than that need, so the leash below it is no longer prose
+# alone. `self-heal.yml`, the golden parity tests and `tests/legacy/**` are
+# reverted by the "Enforce the leash" step AFTER the agent runs and BEFORE
+# anything can be relied on — an agent that can edit its own leash has no leash,
+# and a rule enforced only by a prompt is a request, not a boundary.
 permissions:
   contents: write
   issues: write
   pull-requests: write
   actions: read
+  workflows: write
 
 concurrency:
   group: self-heal
@@ -103,6 +115,13 @@ jobs:
           cache: npm
       - run: npm ci
         if: steps.budget.outputs.go == 'yes'
+
+      # The commit the healer starts from. "Enforce the leash" diffs against it,
+      # so the check does not depend on anything the agent reports about itself.
+      - name: Record the pre-heal baseline
+        id: baseline
+        if: steps.budget.outputs.go == 'yes'
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - uses: anthropics/claude-code-action@v1
         if: steps.budget.outputs.go == 'yes'
@@ -171,7 +190,9 @@ jobs:
             You MUST NEVER touch: `tests/legacy/**`, `tests/*-parity.test.ts`, or
             `.github/workflows/self-heal.yml`. An agent that can edit its own leash
             has no leash — if you believe this workflow itself is the problem, open an
-            issue and stop.
+            issue and stop. This is not on trust: the "Enforce the leash" step reverts
+            any change to those paths after you finish and fails the run, so editing
+            them costs you the whole heal and gets you an issue with your name on it.
 
             Before any commit: `npx tsc --noEmit` and `npm test` must both pass. If
             they do not, commit nothing. NEVER delete, skip or weaken a test, and
@@ -187,3 +208,50 @@ jobs:
             next scheduled run. Do NOT re-dispatch the failed workflow yourself; a
             healer that retriggers work can loop, and the next scheduled run is
             evidence enough.
+
+      # The leash, enforced rather than requested.
+      #
+      # The prompt above forbids touching this file, the golden parity tests and
+      # tests/legacy. Until now that was the only thing stopping it, which was
+      # tolerable while the token could not push to .github/workflows at all.
+      # Granting `workflows: write` removed that accident of configuration, so
+      # the rule needs a mechanism: whatever the agent did, these paths are put
+      # back to the pre-heal commit and the attempt is raised as an issue.
+      #
+      # Runs on always() because an agent that pushed and THEN failed is exactly
+      # the case worth catching.
+      - name: Enforce the leash
+        if: always() && steps.budget.outputs.go == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -uo pipefail
+          [ -n "${BASE:-}" ] || { echo "no baseline recorded — nothing to compare"; exit 0; }
+          git fetch origin main --quiet
+          git checkout -B main origin/main --quiet
+          PROTECTED='.github/workflows/self-heal.yml tests/legacy :(glob)tests/*-parity.test.ts'
+          # shellcheck disable=SC2086
+          changed=$(git diff --name-only "$BASE" HEAD -- $PROTECTED 2>/dev/null || true)
+          if [ -z "$changed" ]; then
+            echo "leash intact — no protected path was touched"
+            exit 0
+          fi
+          echo "PROTECTED PATHS TOUCHED:"
+          echo "$changed"
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if git cat-file -e "$BASE:$f" 2>/dev/null; then
+              git checkout "$BASE" -- "$f"
+            else
+              rm -f "$f"
+            fi
+          done <<< "$changed"
+          git -c user.name="aegis-leash" -c user.email="leash@aegis" \
+            commit -am "Revert self-heal's edits to protected paths" --quiet
+          git push origin main
+          gh issue create --repo "$GH_REPO" \
+            --title "self-heal touched a protected path — reverted" \
+            --body "$(printf 'The healer modified paths it is forbidden to modify. The change has been reverted on main.\n\nFiles:\n```\n%s\n```\n\nBaseline: `%s`\nRun: https://github.com/%s/actions/runs/%s\n\nIf one of these genuinely needs to change, a human should make the change. If the healer keeps trying, its prompt needs fixing — not the leash.' "$changed" "$BASE" "$GH_REPO" "${GITHUB_RUN_ID}")" || true
+          exit 1
