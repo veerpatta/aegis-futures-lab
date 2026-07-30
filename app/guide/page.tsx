@@ -67,9 +67,11 @@ export default function GuidePage() {
             saves to the cloud automatically.
           </li>
           <li>
-            <b>On the weekend, keep score.</b> The Performance panel shows the win rate and
-            running profit of each tier. Give the engine a few weeks of evidence before drawing
-            conclusions — a handful of trades proves nothing, in either direction.
+            <b>On the weekend, keep score.</b> The Performance panel shows the expectancy per
+            trade, the win rate and the running profit of each tier — each with the number of
+            trades behind it. Give the engine a few weeks of evidence before drawing conclusions:
+            anything still marked &ldquo;previewed, not judged&rdquo; proves nothing, in either
+            direction.
           </li>
         </ol>
       </section>
@@ -90,6 +92,58 @@ export default function GuidePage() {
         <p className={styles.note}>
           The whole point of the labels: over time, watch <b>which tier actually makes money</b>{" "}
           in the Performance panel, and weight your attention accordingly.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>How to read a number here</h2>
+        <p>
+          Every percentage and profit factor in this app comes with two extra pieces of
+          information, and they matter more than the number itself.
+        </p>
+        <dl className={styles.dl}>
+          <dt>n = how many trades it is based on</dt>
+          <dd>
+            You will see <b>n=7</b> or <b>n=26</b> under every rate. That is the number of
+            finished trades the figure was calculated from. A win rate on seven trades and a win
+            rate on seven hundred look identical on screen unless the app tells you which is
+            which, so it always tells you.
+          </dd>
+          <dt>The range in brackets</dt>
+          <dd>
+            A win rate of <b>67%</b> sounds like an edge. On three trades, the honest range around
+            it is <b>21% to 94%</b> — which is another way of saying you have learned nothing yet.
+            That bracketed range is what the true rate could plausibly be, given how few trades
+            there are. It narrows as trades accumulate. When it is wide, ignore the headline
+            number.
+          </dd>
+          <dt>&ldquo;previewed, not judged&rdquo;</dt>
+          <dd>
+            Below <b>30 finished trades</b> a figure is greyed and carries this amber tag. It is
+            shown so you can watch it develop — not so you can act on it. Above 30 the tag
+            disappears. Nothing about a tagged number is broken; there simply is not enough of it
+            yet.
+          </dd>
+          <dt>&ldquo;nothing logged yet&rdquo;</dt>
+          <dd>
+            Zero finished trades. This is <i>not</i> a zero percent win rate and does not mean
+            anything failed — it means the stream has not traded yet. Tier A can sit here for
+            weeks, which is normal for it.
+          </dd>
+          <dt>Expectancy comes first</dt>
+          <dd>
+            Where you used to see win rate as the headline you will now see <b>expectancy per
+            trade</b> — the average profit or loss across every trade, winners and losers
+            together. It is the figure that answers &ldquo;is this making money?&rdquo;. Win rate
+            on its own cannot: winning 70% of the time while losing far more on the losers than
+            you make on the winners still empties the account. Win rate is still shown, just
+            underneath, where it belongs.
+          </dd>
+        </dl>
+        <p className={styles.note}>
+          None of this is a disclaimer. Reading a small sample as if it were a large one is the
+          most expensive mistake available to a trader with a dashboard, and the app is built to
+          make it hard.
         </p>
       </section>
 
@@ -190,8 +244,9 @@ export default function GuidePage() {
             winners, which market conditions each tier does well in, what the filters are turning
             away, whether the fills still look believable, and how the shadow strategies are doing.
             It is pure observation: nothing on this page is a trade idea and none of it changes what
-            the bot does. Anything with too few finished trades to judge reads &ldquo;collecting
-            (n=X of 10)&rdquo; — the bot will not draw a lesson from a handful of trades.
+            the bot does. Anything with too few finished trades reads &ldquo;collecting (n=X of
+            10)&rdquo;, and anything past that but still under 30 is marked &ldquo;previewed, not
+            judged&rdquo; — the bot will not draw a lesson from a handful of trades.
           </dd>
         </dl>
       </section>
@@ -335,9 +390,10 @@ export default function GuidePage() {
           <dd>
             How <i>this kind of setup</i> has actually done — the same tier in the same kind of
             market, and the same tier at the same level of market fear. <b>Every one of these comes
-            with the number of trades behind it</b>, and when there are fewer than 10 it says
-            &ldquo;still collecting&rdquo; and shows no rate at all. A 100% win rate on 3 trades is
-            not information, and the app will not present it as if it were.
+            with the number of trades behind it</b>. Below 10 trades it says &ldquo;still
+            collecting&rdquo; and shows no rate at all; between 10 and 30 it shows the numbers but
+            marks them &ldquo;previewed, not judged&rdquo;. A 100% win rate on 3 trades is not
+            information, and the app will not present it as if it were.
           </dd>
         </dl>
       </section>
@@ -515,7 +571,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-27. A printable version of this guide lives in the project
+        Matches the app as of 2026-07-30. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

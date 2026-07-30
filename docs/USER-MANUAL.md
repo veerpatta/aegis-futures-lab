@@ -37,9 +37,42 @@ stop hit, or closed flat), so you can judge the strategy on evidence instead of 
 5. **After you trade, write it down.** On the Journal page, add your own trades by hand
    or import the CSV file your broker (Topstep / Tradovate) exports. The journal saves to
    the cloud automatically.
-6. **On the weekend, keep score.** The Performance panel shows the win rate and running
-   profit of each tier. Give the engine a few weeks of evidence before drawing
-   conclusions — a handful of trades proves nothing, in either direction.
+6. **On the weekend, keep score.** The Performance panel shows the expectancy per trade,
+   the win rate and the running profit of each tier — each with the number of trades
+   behind it. Give the engine a few weeks of evidence before drawing conclusions:
+   anything still marked "previewed, not judged" proves nothing, in either direction.
+
+## 2a. How to read a number here
+
+Every percentage and profit factor in this app comes with two extra pieces of
+information, and they matter more than the number itself.
+
+- **n = how many trades it is based on.** You will see **n=7** or **n=26** under every
+  rate. That is the number of finished trades the figure was calculated from. A win rate
+  on seven trades and a win rate on seven hundred look identical on screen unless the app
+  tells you which is which, so it always tells you.
+- **The range in brackets.** A win rate of **67%** sounds like an edge. On three trades,
+  the honest range around it is **21% to 94%** — which is another way of saying you have
+  learned nothing yet. That bracketed range is what the true rate could plausibly be,
+  given how few trades there are. It narrows as trades accumulate. When it is wide,
+  ignore the headline number.
+- **"previewed, not judged".** Below **30 finished trades** a figure is greyed and carries
+  this amber tag. It is shown so you can watch it develop — not so you can act on it.
+  Above 30 the tag disappears. Nothing about a tagged number is broken; there simply is
+  not enough of it yet.
+- **"nothing logged yet".** Zero finished trades. This is *not* a zero percent win rate
+  and does not mean anything failed — it means the stream has not traded yet. Tier A can
+  sit here for weeks, which is normal for it.
+- **Expectancy comes first.** Where you used to see win rate as the headline you will now
+  see **expectancy per trade** — the average profit or loss across every trade, winners
+  and losers together. It is the figure that answers "is this making money?". Win rate on
+  its own cannot: winning 70% of the time while losing far more on the losers than you
+  make on the winners still empties the account. Win rate is still shown, just
+  underneath, where it belongs.
+
+None of this is a disclaimer. Reading a small sample as if it were a large one is the most
+expensive mistake available to a trader with a dashboard, and the app is built to make it
+hard.
 
 ## 3. Tier A and Tier B — the two kinds of ideas
 
@@ -78,9 +111,10 @@ context in your head:
   If the model has not scored it, it says so rather than showing a number.
 - **History** — how *this kind of setup* has actually done: the same tier in the same kind of
   market, and the same tier at the same level of market fear. **Every one of these comes with
-  the number of trades behind it**, and when there are fewer than 10 it says "still collecting"
-  and shows no rate at all. A 100% win rate on 3 trades is not information, and the app will
-  not present it as if it were.
+  the number of trades behind it**. Below 10 trades it says "still collecting" and shows no
+  rate at all; between 10 and 30 it shows the numbers but marks them "previewed, not judged".
+  A 100% win rate on 3 trades is not information, and the app will not present it as if it
+  were.
 
 ### When nothing happens: "Why no signal today?"
 
@@ -283,6 +317,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-07-27. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-30. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

@@ -14,7 +14,7 @@ import {
 } from "@/lib/supabase/client";
 import { Badge, DataTable, Kpi, Panel, SampleNote } from "@/components/ui";
 import { money } from "@/lib/format";
-import { fmtPf } from "@/lib/stats";
+import { MIN_JUDGED_N, PREVIEW_NOTE, fmtPf } from "@/lib/stats";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "@/scripts/engine/winprob";
 import styles from "./brain.module.css";
 
@@ -274,8 +274,9 @@ export default function BrainClient() {
           <Badge>collecting</Badge>
         )}
         <span className={styles.dim}>
-          &nbsp;Cells with fewer than {MIN_CELL} closed signals read “collecting (n=X of {MIN_CELL})”
-          — the bot will not judge them until the sample is real.
+          &nbsp;Cells with fewer than {MIN_CELL} closed signals read “collecting (n=X of {MIN_CELL})”.
+          Past that but under {MIN_JUDGED_N} they show their numbers marked “{PREVIEW_NOTE}” — the
+          bot will not draw a lesson from a handful of trades.
         </span>
       </div>
 
