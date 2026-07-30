@@ -24,6 +24,7 @@ import {
   type BandVerdict,
 } from "@/lib/stats";
 import { money } from "@/lib/format";
+import { SampleNote } from "@/components/ui";
 import styles from "./home.module.css";
 
 interface StreamState {
@@ -117,6 +118,10 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
             <b className="num">{s.perDay === null ? "—" : s.perDay.toFixed(2)}</b>/day · net{" "}
             <b className={`num ${s.net >= 0 ? styles.good : styles.bad}`}>{money(s.net)}</b>
           </div>
+          {/* The COLLECTING badge shows n only while a stream is below the
+              verdict threshold. Past it the figures would otherwise go bare,
+              so the gate is stated for every stream at every size. */}
+          <SampleNote n={s.closed} />
           <div className={`${styles.gapMeta} ${styles.dim}`}>
             excluding doubtful fills: PF {fmtPf(s.exPf)} · net {money(s.exNet)}
           </div>

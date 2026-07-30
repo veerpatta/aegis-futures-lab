@@ -36,8 +36,8 @@ import {
 import { dayKeyLabel, etWindowLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { money } from "@/lib/format";
-import { fmtPf, profitFactor } from "@/lib/stats";
-import { Badge, Button, DataTable, Kpi, Panel, Tabs } from "@/components/ui";
+import { fmtPf, profitFactor, rateReadout } from "@/lib/stats";
+import { Badge, Button, DataTable, Kpi, Panel, Rate, SampleNote, Tabs } from "@/components/ui";
 import styles from "./signals.module.css";
 
 const REFRESH_MS = 60_000;
@@ -279,7 +279,7 @@ export default function SignalsClient() {
         total: rows.length,
         closed: done.length,
         wins,
-        winRate: done.length ? (wins / done.length) * 100 : null,
+        rate: rateReadout(wins, done.length),
         net: done.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
         open: rows.filter((s) => s.status === "triggered").length,
         ex: exDoubtful(rows),
@@ -294,7 +294,7 @@ export default function SignalsClient() {
         total: rows.length,
         closed: done.length,
         wins,
-        winRate: done.length ? (wins / done.length) * 100 : null,
+        rate: rateReadout(wins, done.length),
         net: done.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
       };
     }).filter((r) => r.total > 0);
@@ -303,9 +303,10 @@ export default function SignalsClient() {
       net: acc,
       weekCount: week.length,
       weekPerDay: week.length / 5,
-      weekWinRate: weekClosed.length
-        ? (weekClosed.filter((s) => (s.pnl_usd ?? 0) > 0).length / weekClosed.length) * 100
-        : null,
+      weekRate: rateReadout(
+        weekClosed.filter((s) => (s.pnl_usd ?? 0) > 0).length,
+        weekClosed.length
+      ),
       weekNet: weekClosed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
       weekEx: exDoubtful(week),
       windowEx: exDoubtful(active),
@@ -532,10 +533,19 @@ export default function SignalsClient() {
             <Kpi label="7-day signals" value={String(perf.weekCount)} sub={`≈ ${perf.weekPerDay.toFixed(1)} / trading day`} />
             <Kpi
               label="7-day win rate"
-              value={perf.weekWinRate === null ? "—" : `${perf.weekWinRate.toFixed(0)}%`}
-              tone={perf.weekWinRate !== null && perf.weekWinRate >= 50 ? "good" : undefined}
+              value={perf.weekRate.valueLabel}
+              tone={
+                perf.weekRate.value !== null && perf.weekRate.value >= 50 ? "good" : undefined
+              }
+              n={perf.weekRate.n}
+              ci={perf.weekRate.ciLabel}
             />
-            <Kpi label="7-day net" value={money(perf.weekNet)} tone={perf.weekNet >= 0 ? "good" : "bad"} />
+            <Kpi
+              label="7-day net"
+              value={money(perf.weekNet)}
+              tone={perf.weekNet >= 0 ? "good" : "bad"}
+              n={perf.weekRate.n}
+            />
             <Kpi label="Window net" value={money(perf.net)} tone={perf.net >= 0 ? "good" : "bad"} sub={`last ${perf.curve.length} closed`} />
           </div>
           <p className={styles.dim}>
@@ -561,7 +571,10 @@ export default function SignalsClient() {
                       {s.open > 0 && <em className={styles.tierOpen}> · {s.open} open</em>}
                     </span>
                     <span>
-                      WR <b className="num">{s.winRate === null ? "—" : `${s.winRate.toFixed(0)}%`}</b>
+                      {/* The interval stays attached to the win rate. Shown
+                          under the card it would read as if it bounded the
+                          net dollars beside it, which it does not. */}
+                      WR <Rate readout={s.rate} valueClassName="num" />
                     </span>
                     <span className={s.net >= 0 ? styles.good : styles.bad}>
                       <b className="num">{money(s.net)}</b>
@@ -595,7 +608,10 @@ export default function SignalsClient() {
                       <b className="num">{r.total}</b> signals
                     </span>
                     <span>
-                      WR <b className="num">{r.winRate === null ? "—" : `${r.winRate.toFixed(0)}%`}</b>
+                      {/* Regime slices start below n=30 and stay there for
+                          months. Un-gated, "67% on n=3" reads as a finding —
+                          its interval is 21–94%, i.e. nothing is known. */}
+                      WR <Rate readout={r.rate} valueClassName="num" />
                     </span>
                     <span className={r.net >= 0 ? styles.good : styles.bad}>
                       <b className="num">{money(r.net)}</b>

@@ -308,6 +308,23 @@
   min-width: 2px;
 }
 
+/* Each side's sample size, stated separately — the two are almost never the
+   same, and a shared "n" would hide that. */
+.vsSamples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 11px;
+  margin: 2px 0 4px;
+}
+
+.vsSamples > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
 .vsNote {
   font-size: 11.5px;
   color: var(--text-dim);

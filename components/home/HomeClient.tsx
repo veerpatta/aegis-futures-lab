@@ -44,7 +44,8 @@ import WhyNoSignal from "./WhyNoSignal";
 import SignalContext, { useConditionLedger } from "@/components/signals/SignalContext";
 import SignalSheet from "@/components/signals/SignalSheet";
 import { money } from "@/lib/format";
-import { fmtPf, profitFactor } from "@/lib/stats";
+import { expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
+import { Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
 import styles from "./home.module.css";
 
@@ -430,13 +431,17 @@ export default function HomeClient() {
     const exPnls = closed
       .filter((s) => s.fill_confidence !== "doubtful")
       .map((s) => s.pnl_usd ?? 0);
+    const pnls = closed.map((s) => s.pnl_usd ?? 0);
     return {
       exNet: exPnls.reduce((a, v) => a + v, 0),
       exPf: profitFactor(exPnls),
       ideas: window.length,
       closed: closed.length,
       net: closed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
-      winRate: closed.length ? (wins / closed.length) * 100 : null,
+      /* Win rate with its n and Wilson interval, and expectancy as the
+         headline — a win rate without R context misleads (lib/stats.ts). */
+      rate: rateReadout(wins, closed.length),
+      expectancy: expectancy(pnls),
       perDay: tradingDays ? window.length / tradingDays : null,
       days: [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])),
       tierA: tierNet("A"),
@@ -621,6 +626,10 @@ export default function HomeClient() {
                 </span>
               )}
             </div>
+            {/* The headline profit factor is the number most likely to be
+                over-read, so it carries the gate even though the sub-line
+                below already spells out the counts. */}
+            {hero && hero.closed > 0 && <SampleNote n={hero.closed} />}
             <div className={styles.heroSub}>
               {hero === null
                 ? "Loading…"
@@ -994,12 +1003,24 @@ export default function HomeClient() {
                 <b className={`${styles.bigValue} num ${perf.net < 0 ? styles.bad : styles.good}`}>
                   {mask(money(perf.net))}
                 </b>
+                <SampleNote n={perf.closed} />
+              </div>
+              {/* Expectancy leads. It is the figure that answers "does this
+                  make money per trade"; win rate cannot answer it alone. */}
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>Expectancy / trade</span>
+                <b
+                  className={`${styles.bigValue} num ${
+                    perf.expectancy === null ? "" : perf.expectancy < 0 ? styles.bad : styles.good
+                  }`}
+                >
+                  {perf.expectancy === null ? "—" : mask(money(perf.expectancy))}
+                </b>
+                <SampleNote n={perf.closed} />
               </div>
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Win rate</span>
-                <b className={`${styles.bigValue} num`}>
-                  {perf.winRate === null ? "—" : `${perf.winRate.toFixed(0)}%`}
-                </b>
+                <Rate readout={perf.rate} valueClassName={`${styles.bigValue} num`} />
               </div>
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Ideas</span>

@@ -6,7 +6,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { Badge, Button, DataTable, NumberField, Panel } from "@/components/ui";
+import { Badge, Button, DataTable, NumberField, Panel, SampleNote } from "@/components/ui";
 import { dateOnly, money, ts } from "@/lib/format";
 import { fmtPf } from "@/lib/stats";
 import { promotionReport, type PromotionReport } from "@/scripts/engine/promotion";
@@ -286,7 +286,9 @@ export default function DataClient() {
                   <b>{strategy}</b> · {symbol}
                 </span>,
                 String(r.total),
-                String(r.closed),
+                /* The closed count gates its own row: PF and ex-doubtful PF
+                   beside it are both derived from this n. */
+                <SampleNote key="c" n={r.closed} />,
                 <span key="n" className="num">{money(r.net)}</span>,
                 fmtPf(r.pf),
                 `PF ${fmtPf(r.exPf)} · ${money(r.exNet)}`,

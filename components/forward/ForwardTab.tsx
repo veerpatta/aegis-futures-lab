@@ -8,6 +8,7 @@ import { strategyById } from "@/lib/strategies/registry";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { loadStored, saveStored, removeStored, KEYS } from "@/lib/data/storage";
 import { money, pct, ts } from "@/lib/format";
+import { rateReadout } from "@/lib/stats";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -199,7 +200,18 @@ export default function ForwardTab({
                 tone={m && m.net > 0 ? "good" : m && m.net < 0 ? "bad" : "dim"}
                 sub={m ? `${m.trades} closed trades` : undefined}
               />
-              <Kpi label="Win rate" value={m && m.trades ? pct(m.winRate) : "—"} />
+              <Kpi
+                label="Win rate"
+                value={m && m.trades ? pct(m.winRate) : "—"}
+                n={m?.trades ?? 0}
+                ci={m ? rateReadout(m.wins, m.trades).ciLabel : null}
+              />
+              <Kpi
+                label="Expectancy / trade"
+                value={m && m.trades ? money(m.expectancy) : "—"}
+                tone={m && m.trades ? (m.expectancy >= 0 ? "good" : "bad") : "dim"}
+                n={m?.trades ?? 0}
+              />
               <Kpi
                 label="Open position"
                 value={

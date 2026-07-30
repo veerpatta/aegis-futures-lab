@@ -9,7 +9,8 @@ import type { BacktestResult } from "@/lib/backtest/engine";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { money, pct, ratio } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
-import { Button, DataTable, Panel, SelectField } from "@/components/ui";
+import { Button, DataTable, Panel, Rate, SampleNote, SelectField } from "@/components/ui";
+import { rateReadout } from "@/lib/stats";
 import EquityChart from "@/components/chart/EquityChart";
 import ParamFields from "@/components/lab/ParamFields";
 import { DEFAULT_EXECUTION } from "@/components/lab/ExecutionPanel";
@@ -190,13 +191,27 @@ export default function CompareClient() {
     const cols = done.map((d) => d.r.result.metrics);
     const defs: {
       label: string;
-      value: (m: (typeof cols)[0]) => string;
+      value: (m: (typeof cols)[0]) => React.ReactNode;
       best: ((m: (typeof cols)[0]) => number) | null;
       dir: 1 | -1;
     }[] = [
       { label: "Net P&L", value: (m) => money(m.net), best: (m) => m.net, dir: 1 },
-      { label: "Trades", value: (m) => String(m.trades), best: null, dir: 1 },
-      { label: "Win rate", value: (m) => (m.trades ? pct(m.winRate) : "—"), best: (m) => m.winRate, dir: 1 },
+      /* The trade count carries the gate for its whole column: every rate
+         below it is derived from this n, so flagging it once here qualifies
+         them all without four "previewed" badges per variant. */
+      {
+        label: "Trades",
+        value: (m) => <SampleNote n={m.trades} />,
+        best: null,
+        dir: 1,
+      },
+      {
+        label: "Win rate",
+        value: (m) =>
+          m.trades ? <Rate readout={rateReadout(m.wins, m.trades)} /> : "—",
+        best: (m) => m.winRate,
+        dir: 1,
+      },
       {
         label: "Profit factor",
         value: (m) => (m.trades ? ratio(m.profitFactor) : "—"),

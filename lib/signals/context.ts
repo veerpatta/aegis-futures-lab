@@ -1,3 +1,5 @@
+import { MIN_JUDGED_N, PREVIEW_NOTE } from "@/lib/stats";
+
 /* Item 2.8 — the four things a trader wants from a signal card without
    clicking: what the setup is, what would invalidate it, how this KIND of setup
    has done historically, and the model's win probability.
@@ -115,13 +117,20 @@ export function historicalCells(
 }
 
 /* One line summarising a cell, WITH its sample count, or the collecting note.
-   There is deliberately no code path that returns a bare percentage. */
+   There is deliberately no code path that returns a bare percentage.
+
+   Clearing MIN_CELL_N (10) only earns a cell the right to show its numbers at
+   all; it does not make them judgeable. This line is read as justification for
+   a specific trade, so past the collecting gate it still carries the display
+   gate — a cell at n=16 said "75% win rate, profit factor 3.89" in exactly the
+   tone a cell at n=300 would. */
 export function describeCell(h: HistoricalCell): string {
   if (h.insufficient)
     return `${h.label}: still collecting — ${h.progress}, too few to judge`;
   const wr = h.cell.winRate === null ? "—" : `${h.cell.winRate}%`;
   const pf = h.cell.pf === null ? "—" : h.cell.pf.toFixed(2);
-  return `${h.label}: ${wr} win rate, profit factor ${pf} (n=${h.cell.n})`;
+  const flag = h.cell.n < MIN_JUDGED_N ? ` · ${PREVIEW_NOTE}` : "";
+  return `${h.label}: ${wr} win rate, profit factor ${pf} (n=${h.cell.n}${flag})`;
 }
 
 /* The model's read, or why there isn't one. Never invents a number. */

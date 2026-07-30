@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { PREVIEW_NOTE, sampleVerdict, type RateReadout } from "@/lib/stats";
 import styles from "./ui.module.css";
 
 export function Panel({
@@ -44,21 +45,92 @@ export function toneClass(tone: Tone): string {
           : "";
 }
 
+/* ── The sample gate on screen ────────────────────────────────────────────
+   Rule: no rate ships without its n, and below n=30 it renders greyed as
+   "previewed, not judged". These two components are the only place that
+   treatment is written, so it cannot drift between the eight surfaces that
+   show a number. lib/stats.ts decides WHETHER a sample is judgeable; these
+   decide how that reads.
+
+   `SampleNote` is deliberately additive — it appends the honesty to markup
+   that already renders the figure, which is how the dense dashboards get
+   gated without restructuring their layout. `Rate` is the fuller treatment
+   for a proportion, where the confidence interval is meaningful. */
+
+export function SampleNote({
+  n,
+  ci,
+  className,
+}: {
+  n: number;
+  /** e.g. "38–76%" — a Wilson interval, when the metric is a proportion. */
+  ci?: string | null;
+  className?: string;
+}) {
+  const verdict = sampleVerdict(n);
+  const cls = [styles.sampleNote, verdict !== "judged" ? styles.samplePreview : "", className ?? ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span className={cls}>
+      <span className={styles.sampleN}>n={Math.max(0, Math.trunc(n))}</span>
+      {ci && <span className={styles.sampleCi}>95% CI {ci}</span>}
+      {verdict === "previewed" && <span className={styles.sampleFlag}>{PREVIEW_NOTE}</span>}
+      {verdict === "empty" && <span className={styles.sampleFlag}>nothing logged yet</span>}
+    </span>
+  );
+}
+
+/** A proportion with its n and Wilson interval. Greys out below n=30. */
+export function Rate({
+  readout,
+  valueClassName,
+  showCi = true,
+}: {
+  readout: RateReadout;
+  /** The caller's own value class, so each surface keeps its typography. */
+  valueClassName?: string;
+  showCi?: boolean;
+}) {
+  const previewed = readout.verdict !== "judged";
+  const valueCls = [valueClassName ?? "", previewed ? styles.sampleDimValue : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span className={styles.rateWrap} title={previewed ? PREVIEW_NOTE : undefined}>
+      <b className={valueCls}>{readout.valueLabel}</b>
+      <SampleNote n={readout.n} ci={showCi ? readout.ciLabel : null} />
+    </span>
+  );
+}
+
 export function Kpi({
   label,
   value,
   sub,
   tone,
+  n,
+  ci,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: Tone;
+  /** When given, the value carries its sample size and greys below n=30. */
+  n?: number;
+  ci?: string | null;
 }) {
+  const previewed = n !== undefined && sampleVerdict(n) !== "judged";
   return (
     <div className={styles.kpi}>
       <span className={styles.kpiLabel}>{label}</span>
-      <span className={`${styles.kpiValue} ${toneClass(tone)}`}>{value}</span>
+      <span
+        className={`${styles.kpiValue} ${toneClass(tone)} ${previewed ? styles.sampleDimValue : ""}`}
+        title={previewed ? PREVIEW_NOTE : undefined}
+      >
+        {value}
+      </span>
+      {n !== undefined && <SampleNote n={n} ci={ci} />}
       {sub && <span className={styles.kpiSub}>{sub}</span>}
     </div>
   );
