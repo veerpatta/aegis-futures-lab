@@ -12,7 +12,11 @@
    mean anything. */
 
 import type { Trade } from "@/lib/types";
-import { journalPnl, type JournalTrade } from "@/lib/journal";
+import {
+  DEFAULT_COMMISSION_PER_CONTRACT,
+  journalPnl,
+  type JournalTrade,
+} from "@/lib/journal";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { money } from "@/lib/format";
 import { expectancy, rateReadout, type RateReadout } from "@/lib/stats";
@@ -51,7 +55,7 @@ export default function BotVsYou({
   const { mask } = usePrivacy();
 
   const botPnls = engineTrades.map((t) => t.pnl);
-  const youPnls = userTrades.map((t) => journalPnl(t).grossPnl);
+  const youPnls = userTrades.map((t) => journalPnl(t).netPnl);
 
   const bot: Side = {
     n: engineTrades.length,
@@ -174,8 +178,9 @@ export default function BotVsYou({
                 : "You and the bot hold for about the same time."}
       </p>
       <p className={styles.vsFoot}>
-        Your side is gross of costs — the engine&rsquo;s side already has commission and slippage
-        taken out, so a close race favours you on paper.
+        Both sides are net of costs, charged at the same ${DEFAULT_COMMISSION_PER_CONTRACT.toFixed(2)}{" "}
+        per contract the bot charges itself. Your side used to be shown gross, which quietly
+        favoured you on every close race.
       </p>
     </div>
   );

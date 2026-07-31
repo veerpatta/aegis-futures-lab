@@ -45,6 +45,8 @@ import SignalContext, { useConditionLedger } from "@/components/signals/SignalCo
 import SignalSheet from "@/components/signals/SignalSheet";
 import { money } from "@/lib/format";
 import { expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
+import { loadJournal } from "@/lib/journal";
+import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
 import { Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
 import styles from "./home.module.css";
@@ -449,22 +451,16 @@ export default function HomeClient() {
     };
   }, [signals]);
 
-  /* Green streak: consecutive most-recent trading days that finished up, and
-     the best such run inside the same three-week window. */
-  const streak = useMemo(() => {
-    let current = 0;
-    for (let i = perf.days.length - 1; i >= 0; i--) {
-      if (perf.days[i][1] > 0) current++;
-      else break;
-    }
-    let best = 0;
-    let run = 0;
-    for (const [, v] of perf.days) {
-      run = v > 0 ? run + 1 : 0;
-      if (run > best) best = run;
-    }
-    return { current, best };
-  }, [perf.days]);
+  /* Clean streak: consecutive most-recent JOURNALLED days with no rule break.
+     Deliberately not a P&L streak — see lib/journal/discipline.ts. Reads the
+     local journal, so it is empty until the user logs a trade, and must render
+     as "nothing logged yet" rather than a zero-day failure. */
+  const discipline = useMemo(
+    () => disciplineStreak(disciplineDays(loadJournal().trades)),
+    // Recomputed when the signal set changes, which is the app's natural tick;
+    // the journal is device-local and changes only on the Journal page.
+    [signals]
+  );
 
   const recent = useMemo(
     () => signals.filter((s) => s.id !== live?.id).slice(0, 3),
@@ -866,15 +862,30 @@ export default function HomeClient() {
               <span className={styles.cellLabel}>Bot heartbeat</span>
               <Heartbeat runs={health.runs} />
             </div>
+            {/* Rule adherence, not profit. A losing day where you followed
+                every rule keeps this alive; a winning day where you did not
+                breaks it. The old "green streak" counted P&L up-days, which
+                rewarded luck in an app whose whole thesis is process. */}
             <div className={styles.duoCell}>
-              <span className={styles.cellLabel}>Green streak</span>
+              <span className={styles.cellLabel}>Clean streak</span>
               <b className={`${styles.duoBig} num`}>
-                {streak.current} <span className={styles.duoUnit}>day{streak.current === 1 ? "" : "s"}</span>
+                {discipline.daysJudged === 0 ? (
+                  "—"
+                ) : (
+                  <>
+                    {discipline.current}{" "}
+                    <span className={styles.duoUnit}>
+                      day{discipline.current === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
               </b>
               <span className={styles.beatNote}>
-                {perf.days.length === 0
-                  ? "No closed days yet"
-                  : `Best in 3 weeks: ${streak.best}`}
+                {discipline.daysJudged === 0
+                  ? "Log a trade to start the chain"
+                  : `${discipline.adherencePct!.toFixed(0)}% of ${discipline.daysJudged} logged day${
+                      discipline.daysJudged === 1 ? "" : "s"
+                    } clean · best ${discipline.best}`}
               </span>
             </div>
           </section>
