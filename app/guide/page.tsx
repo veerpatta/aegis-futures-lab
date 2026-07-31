@@ -600,7 +600,8 @@ export default function GuidePage() {
           finished ideas it only says <b>collecting data</b> — a handful of trades proves nothing.
           After that: green <b>tracking</b> means reality matches the promise, amber{" "}
           <b>lagging</b> means it is earning less than promised but still above water, and red{" "}
-          <b>underwater</b> means the stream is losing money over a meaningful sample.
+          <b>underwater</b> means the stream is losing money over a meaningful sample. Red{" "}
+          <b>refuted</b> overrides all of them and is explained in the next section.
         </p>
         <p>
           Some streams say <b>this stream clusters</b>. That matters: their trades do not arrive at
@@ -614,6 +615,48 @@ export default function GuidePage() {
           the settings were tuned. It never means &ldquo;trade harder to catch up&rdquo;. The
           muted line under each stream repeats the numbers excluding doubtful fills, the stricter
           honest version.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>&ldquo;Refuted&rdquo; — what it means, and why every stream now says it</h2>
+        <p>
+          There is a fifth state, and as of 31 July 2026 <b>all three streams are in it</b>. You
+          should read this section before you read any other number in this app.
+        </p>
+        <p>
+          The settings were chosen on <b>sixty days</b> of a delayed, free price feed. That is what
+          the &ldquo;tuned profit factor&rdquo; figures came from. We have since loaded{" "}
+          <b>seven years of real exchange data</b> for the actual MES and MNQ contracts — about a
+          million candles — and re-run the exact same settings over it. The results:
+        </p>
+        <ul>
+          <li>
+            <b>Zone setups</b> — 1,180 trades over 1,838 days: profit factor <b>0.55</b>, down{" "}
+            <b>$57,065</b>.
+          </li>
+          <li>
+            <b>Daily flow, MES</b> — 2,641 trades: profit factor <b>0.71</b>, down <b>$68,001</b>.
+          </li>
+          <li>
+            <b>Daily flow, MNQ</b> — 2,731 trades: profit factor <b>0.87</b>, down <b>$28,773</b>.
+          </li>
+        </ul>
+        <p>
+          And it is not one bad patch. Broken down year by year, <b>all sixteen</b> stream-years —
+          both markets, every year from 2019 to 2026 — lost money. Not one profitable year.
+        </p>
+        <p>
+          Sixty days is roughly fifty trading sessions. Seven years is roughly eighteen hundred.
+          When a set of settings looks good on the small sample and loses money on the large one,
+          the honest conclusion is that the small sample was luck, not that the market has changed.
+          The tuned figures are still shown, but only as the claim that failed.
+        </p>
+        <p className={styles.note}>
+          Nothing here has ever placed an order, so nothing was lost — but this is exactly the
+          finding the app exists to surface, and it says the current settings do not have an edge.
+          The streams keep running on paper so the numbers keep updating.{" "}
+          <b>Do not trade these signals.</b>
         </p>
       </section>
 

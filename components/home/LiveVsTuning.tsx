@@ -9,11 +9,24 @@
    signals a stream only says "collecting data, N/20" — never a verdict on
    a handful of trades. After that: tracking (live PF within or above the
    band), lagging (below the band but above 1.0), underwater (PF < 1.0).
-   A red state means "stop trusting this stream", not "trade harder". */
+   A red state means "stop trusting this stream", not "trade harder".
+
+   REFUTED overrides all of those, and being slow to judge is exactly why it
+   has to. Tier A has no live closed trades, so the slow-to-judge rule printed
+   "COLLECTING 0/20" underneath a promise of PF 1.05-1.30 — while seven years
+   of real CME data had already measured that same configuration at PF 0.55
+   over 1,180 trades. Caution about small samples must not become a way of
+   never reporting the large one. A refuted stream leads with the out-of-
+   sample result and shows its old band only as the claim that failed. */
 
 import { useMemo } from "react";
 import type { SignalRow } from "@/lib/supabase/client";
-import { GO_LIVE_DATE, TUNING_BASELINE } from "@/scripts/engine/tiers";
+import {
+  GO_LIVE_DATE,
+  TUNING_BASELINE,
+  isRefuted,
+  type OutOfSample,
+} from "@/scripts/engine/tiers";
 import { isMarketHoliday } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
 import {
@@ -35,6 +48,9 @@ interface StreamState {
   /* Trades arrive in clusters, not at a rate — the per-day band is a long-run
      average and the panel must not let a quiet week read as a shortfall. */
   clustered: boolean;
+  /* The band was tested on data it was not fitted to and failed. Present ⇒ the
+     tuned band is history and must not be shown as a live expectation. */
+  refutedBy: OutOfSample | null;
   total: number;
   closed: number;
   pf: number | null;
@@ -73,12 +89,14 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
         .filter((s) => s.fill_confidence !== "doubtful")
         .map((s) => s.pnl_usd ?? 0);
       const pf = profitFactor(pnls);
+      const refuted = isRefuted(b);
       return {
         key: b.key,
         label: b.label,
         pfBand: b.pfBand,
         tradesPerDay: b.tradesPerDay,
         clustered: b.clustered === true,
+        refutedBy: refuted ? b.outOfSample ?? null : null,
         total: rows.length,
         closed: closed.length,
         pf,
@@ -86,7 +104,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
         perDay: rows.length ? rows.length / days : null,
         exPf: profitFactor(exPnls),
         exNet: exPnls.reduce((a, v) => a + v, 0),
-        verdict: bandVerdict(closed.length, pf, b.pfBand),
+        verdict: bandVerdict(closed.length, pf, b.pfBand, refuted),
       };
     });
   }, [signals]);
@@ -96,6 +114,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
     tracking: { label: "TRACKING", cls: styles.good },
     lagging: { label: "LAGGING", cls: styles.warn },
     underwater: { label: "UNDERWATER", cls: styles.bad },
+    refuted: { label: "REFUTED", cls: styles.bad },
   };
 
   return (
@@ -111,13 +130,35 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
                 : look[s.verdict].label}
             </span>
           </div>
-          <div className={styles.gapMeta}>
-            tuned PF {s.pfBand[0].toFixed(2)}–{s.pfBand[1].toFixed(2)} ·{" "}
-            {s.tradesPerDay[0]}–{s.tradesPerDay[1]}/day&ensp;→&ensp;live PF{" "}
-            <b className="num">{fmtPf(s.pf)}</b> ·{" "}
-            <b className="num">{s.perDay === null ? "—" : s.perDay.toFixed(2)}</b>/day · net{" "}
-            <b className={`num ${s.net >= 0 ? styles.good : styles.bad}`}>{money(s.net)}</b>
-          </div>
+          {/* A refuted stream must not lead with its tuned band. The band is
+              the claim that failed; showing it first, with the live figures
+              beside it, reads as "not proved yet" when the truth is the
+              opposite. So the out-of-sample result goes first and the band
+              follows, marked as the thing it disproved. */}
+          {s.refutedBy ? (
+            <>
+              <div className={styles.gapMeta}>
+                out of sample: <b className="num">{s.refutedBy.trades.toLocaleString()}</b> trades
+                over <b className="num">{s.refutedBy.sessions.toLocaleString()}</b> sessions · PF{" "}
+                <b className={`num ${styles.bad}`}>{s.refutedBy.pf.toFixed(2)}</b> · net{" "}
+                <b className={`num ${styles.bad}`}>{money(s.refutedBy.net)}</b> · avg R{" "}
+                <b className={`num ${styles.bad}`}>{s.refutedBy.avgR.toFixed(2)}</b>
+              </div>
+              <div className={styles.gapMeta}>
+                live since {GO_LIVE_DATE}: PF <b className="num">{fmtPf(s.pf)}</b> ·{" "}
+                <b className="num">{s.perDay === null ? "—" : s.perDay.toFixed(2)}</b>/day · net{" "}
+                <b className={`num ${s.net >= 0 ? styles.good : styles.bad}`}>{money(s.net)}</b>
+              </div>
+            </>
+          ) : (
+            <div className={styles.gapMeta}>
+              tuned PF {s.pfBand[0].toFixed(2)}–{s.pfBand[1].toFixed(2)} ·{" "}
+              {s.tradesPerDay[0]}–{s.tradesPerDay[1]}/day&ensp;→&ensp;live PF{" "}
+              <b className="num">{fmtPf(s.pf)}</b> ·{" "}
+              <b className="num">{s.perDay === null ? "—" : s.perDay.toFixed(2)}</b>/day · net{" "}
+              <b className={`num ${s.net >= 0 ? styles.good : styles.bad}`}>{money(s.net)}</b>
+            </div>
+          )}
           {/* The COLLECTING badge shows n only while a stream is below the
               verdict threshold. Past it the figures would otherwise go bare,
               so the gate is stated for every stream at every size. */}
@@ -125,7 +166,15 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
           <div className={`${styles.gapMeta} ${styles.dim}`}>
             excluding doubtful fills: PF {fmtPf(s.exPf)} · net {money(s.exNet)}
           </div>
-          {s.clustered && (
+          {s.refutedBy && (
+            <div className={`${styles.gapMeta} ${styles.dim}`}>
+              this stream was tested on data it was not tuned on and <b>lost money</b>. It keeps
+              running on paper so the number keeps updating, but the band it used to advertise (PF{" "}
+              {s.pfBand[0].toFixed(2)}–{s.pfBand[1].toFixed(2)}) came from a far smaller sample and
+              did not hold. Do not trade it.
+            </div>
+          )}
+          {s.clustered && !s.refutedBy && (
             <div className={`${styles.gapMeta} ${styles.dim}`}>
               this stream <b>clusters</b> — the per-day figure is a long-run average, not a pace to
               expect. Whole quiet weeks are normal and are not a shortfall.

@@ -177,14 +177,27 @@ export const rateFromPnls = (pnls: number[], digits = 0): RateReadout =>
    and the ladder live beside the display gate instead of in a component.
    Behaviour is unchanged: collecting below MIN_VERDICT_N, then tracking
    (live PF within or above the band), lagging (below the band but still
-   above 1.0), underwater (PF < 1.0). A null PF means no losses yet. */
-export type BandVerdict = "collecting" | "tracking" | "lagging" | "underwater";
+   above 1.0), underwater (PF < 1.0). A null PF means no losses yet.
+
+   REFUTED is the fifth state and it outranks every other, including
+   collecting. It exists because a band can be shown to be wrong by evidence
+   that has nothing to do with the live rows: tier A's band came from 16
+   trades on 51 sessions of delayed Yahoo data, and seven years of real CME
+   data then measured the same configuration at PF 0.55 over 1,180 trades.
+   Without this state the panel prints "COLLECTING 0/20" under a promise of
+   PF 1.05–1.30 — a stream with no live evidence reads as one that simply has
+   not proved itself yet, when in fact it has been disproved. A refuted stream
+   can never print TRACKING however the live rows come in; twenty lucky trades
+   do not overturn 1,180. */
+export type BandVerdict = "collecting" | "tracking" | "lagging" | "underwater" | "refuted";
 
 export function bandVerdict(
   closed: number,
   pf: number | null,
-  band: [number, number]
+  band: [number, number],
+  refuted = false
 ): BandVerdict {
+  if (refuted) return "refuted";
   if (closed < MIN_VERDICT_N) return "collecting";
   if (pf === null || pf >= band[0]) return "tracking";
   if (pf >= 1.0) return "lagging";

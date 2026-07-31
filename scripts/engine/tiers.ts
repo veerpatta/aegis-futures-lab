@@ -27,8 +27,20 @@
    shifts tier A now moves 14-18 trades with invalidFill pinned at 4; before
    alignment the same shifts swung it 2-14 with invalidFill 4-61.
 
+   ⛔ AND THEN SEVEN YEARS OF REAL DATA REFUTED ALL OF IT (2026-07-30). The
+   same configuration over 1,838 Databento sessions: 1,180 trades, PF 0.55,
+   net -$57,065, avg R -0.302. Both numbers above are measurements; the
+   difference is that one has 16 trades behind it and the other has 1,180.
+   TUNING_BASELINE's tier-A entry now carries `outOfSample`, the dashboard
+   prints REFUTED instead of a band, and everything in this header from the
+   original promise onward is history rather than expectation. The stream is
+   still live because it is paper-only and burying the number would be the
+   opposite of the point.
+
    Full evidence: scripts/diag/PHASE1-FINDINGS.md, and
-   `npx tsx scripts/diag/tier-a-baseline.ts` reproduces the numbers above.
+   `BAR_SOURCE=databento npx tsx scripts/diag/tier-a-baseline.ts` reproduces
+   the refutation. Without BAR_SOURCE the same script reproduces the 60-day
+   Yahoo figure that is now history.
 
    Entry logic is deliberately UNCHANGED. A parameter grid over three trading
    days is a fit to 2026-07-09, not a retune — which is why `challengerFor`
@@ -42,8 +54,43 @@
    combined, PF ≈ 1.2-1.3 on the tuning window. The locks are part of the
    edge: without them the same params grind at PF ≈ 1.1.
 
+   ⛔ TIER B IS REFUTED TOO (2026-07-31), and this is the finding that decides
+   what the whole file is. Over the same 1,838 Databento sessions:
+
+     B:MES  2,641 trades  PF 0.71  net -$68,001  avg R -0.174
+     B:MNQ  2,731 trades  PF 0.87  net -$28,773  avg R -0.072
+
+   And it is not a regime that turned. Broken down by calendar year, ALL
+   SIXTEEN stream-years — both symbols, 2019 through 2026 — print PF below
+   1.0. MES ranges 0.52-0.79 and MNQ 0.64-0.98; not one profitable year on
+   either. Excluding contract-roll seams moves MES to 0.72 and leaves MNQ at
+   0.87, so the stitching caveat the backfill commit raised is closed: it
+   explains essentially nothing.
+
+   Reproduce: BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts
+
+   ONE THING THE TIER-A WRITE-UP GOT RIGHT THAT DOES NOT CARRY OVER. That
+   commit concluded "the feeds agree", and for tier A they do. For tier B they
+   do NOT. Over the same recent 60 days, B:MES fires the same 52 trades on
+   both feeds but prints PF 1.31 / +$1,098 on Yahoo and PF 0.97 / -$104 on the
+   real contracts — three trades flip, and the sign of the result with them.
+   So the audit's "wrong data source" complaint has real force for the mean-
+   reversion streams even though it did not for the zone stream. A strategy
+   whose result inverts on a sub-tick price difference did not have much of an
+   edge to lose.
+
+   WHAT THIS FILE NOW IS. Every band in TUNING_BASELINE came from one 60-day
+   window of a delayed proxy feed, and every one of them fails on 1,838
+   sessions of the real contracts. The bands are kept, marked refuted, with
+   the evidence beside them — that is the honest record, and it is the point
+   of the app. Nothing here should be traded. Changing the parameters to
+   chase a better seven-year number would be the same curve fit at a larger
+   scale, which is exactly what tune.ts's header warns against; any change
+   goes through the challenger's out-of-sample gate.
+
    Combined on the tuning window: 2.76 signals/day, ≥1 signal on 45/49
-   trading days, all three streams net positive. */
+   trading days, all three streams net positive — which is what sixty days of
+   the wrong data looks like when it flatters you. */
 
 import type { Bar } from "@/lib/types";
 import type { DisciplineLocks } from "@/lib/backtest/engine";
@@ -69,6 +116,26 @@ export const SESSION_EXIT_MINUTE = 925; // flat by 15:25 ET
    are expectations from one 60-day sample, not guarantees. */
 export const GO_LIVE_DATE = "2026-07-19"; // NY dateKey of the first live signals
 
+/* An out-of-sample re-measurement of the SAME configuration on data the band
+   was not fitted to. When it prints a profit factor below 1.0 the band above
+   it is refuted: the stream is known not to make money, and the dashboard must
+   say so rather than wait for live rows to accumulate.
+
+   This field exists because a band alone cannot express "measured, negative".
+   pfBand's floor is required to sit above break-even (tests/tuning-baseline.
+   test.ts), and rightly so — a floor at 1.0 would let a stream that makes
+   nothing print TRACKING. A refuted stream is not a stream with a low band;
+   it is a stream whose band has been shown to be wrong. */
+export interface OutOfSample {
+  pf: number;
+  trades: number;
+  sessions: number;
+  net: number;
+  avgR: number;
+  /** Dated, quotes the measurement, and names the command that reproduces it. */
+  provenance: string;
+}
+
 export interface TuningBaseline {
   key: "A" | "B:MES" | "B:MNQ";
   label: string;
@@ -85,6 +152,15 @@ export interface TuningBaseline {
      given day, and the dashboard must say so — otherwise a quiet week reads as
      a shortfall against a promise that was never made. */
   clustered?: boolean;
+  /* Present ⇒ the band above is history. See OutOfSample. */
+  outOfSample?: OutOfSample;
+}
+
+/** A band is refuted when an out-of-sample run of the same configuration
+    failed to make money. The dashboard, the digest and the debrief all ask
+    this one question rather than each re-deriving the threshold. */
+export function isRefuted(b: TuningBaseline): boolean {
+  return b.outOfSample !== undefined && b.outOfSample.pf < 1.0;
 }
 
 export const TUNING_BASELINE: TuningBaseline[] = [
@@ -106,10 +182,37 @@ export const TUNING_BASELINE: TuningBaseline[] = [
     tradesPerDay: [0.2, 0.4],
     clustered: true,
     provenance:
-      "measured 2026-07-25 on the day-aligned full archive (51 sessions): 16 trades, PF 1.27, " +
-      "net +$357 — but on only 3 of 51 sessions, 14 of them on 2026-07-09 alone. Band widened " +
-      "from the point estimate because 16 trades on 3 days cannot support a tight one. " +
-      "Reproduce: npx tsx scripts/diag/tier-a-baseline.ts",
+      "REFUTED — see outOfSample. Originally measured 2026-07-25 on the day-aligned full " +
+      "archive (51 sessions): 16 trades, PF 1.27, net +$357 — but on only 3 of 51 sessions, " +
+      "14 of them on 2026-07-09 alone. Kept as history so the superseded claim stays visible " +
+      "beside the evidence against it. Reproduce: npx tsx scripts/diag/tier-a-baseline.ts",
+    /* The measurement the whole Databento phase existed to produce (0a9fea1).
+       Sixteen trades on three sessions of delayed proxy data said PF 1.27;
+       1,180 trades on seven years of the real contracts say PF 0.55. The
+       second number is not a different opinion about the same thing — it is
+       the same configuration on 36× the sample, and it is well past the
+       100–200 trades the audit cites as judgeable.
+
+       Two things stop this being blamed on the change of feed. The recent-60d
+       windows on Databento print PF 0.84–0.97, right beside Yahoo's 0.86 over
+       the same period, so the feeds agree about tier A. And session coverage
+       is even across all twelve months (169–211 each), so it is not seasonal.
+
+       Tier A is deliberately still LIVE. It is paper-only, it costs nothing to
+       keep simulating, and hiding the stream would also hide the number. What
+       changes is what the dashboard claims: REFUTED, not COLLECTING. */
+    outOfSample: {
+      pf: 0.55,
+      trades: 1180,
+      sessions: 1838,
+      net: -57065,
+      avgR: -0.302,
+      provenance:
+        "measured 2026-07-30 on seven years of Databento GLBX.MDP3 (real MES/MNQ contracts, " +
+        "2019-05-06 → 2026-07-29, 1,015,938 bars): 1,180 trades over 1,838 sessions, PF 0.55, " +
+        "net −$57,065, avg R −0.302, expectancy −$48.36/trade. Reproduce: " +
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-a-baseline.ts",
+    },
   },
   {
     key: "B:MES",
@@ -119,9 +222,23 @@ export const TUNING_BASELINE: TuningBaseline[] = [
     pfBand: [1.2, 1.3],
     tradesPerDay: [0.8, 1.2],
     provenance:
-      "tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned archive at 62 trades, " +
-      "PF 1.41, net +$1,643 (1.22/day) — inside/above the band, so unchanged. rsi-reversion " +
-      "builds no multi-day frame, so it was never exposed to the archive-alignment defect.",
+      "REFUTED — see outOfSample. Tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned " +
+      "archive at 62 trades, PF 1.41, net +$1,643 (1.22/day) — inside/above the band, so left " +
+      "unchanged at the time. Both of those checks were the same 60 days of delayed Yahoo data. " +
+      "Kept as history so the superseded claim stays visible beside the evidence against it.",
+    outOfSample: {
+      pf: 0.71,
+      trades: 2641,
+      sessions: 1838,
+      net: -68001,
+      avgR: -0.174,
+      provenance:
+        "measured 2026-07-31 on seven years of Databento GLBX.MDP3 (real MES contracts, " +
+        "2019-05-06 → 2026-07-29): 2,641 trades over 1,838 sessions, PF 0.71, net −$68,001, " +
+        "avg R −0.174. Every one of the eight calendar years lost money (PF 0.52–0.79). " +
+        "Excluding roll seams changes it to PF 0.72. Reproduce: " +
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts",
+    },
   },
   {
     key: "B:MNQ",
@@ -131,9 +248,23 @@ export const TUNING_BASELINE: TuningBaseline[] = [
     pfBand: [1.2, 1.3],
     tradesPerDay: [0.8, 1.2],
     provenance:
-      "tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned archive at 56 trades, " +
-      "PF 1.25, net +$877 (1.10/day) — inside the band, so unchanged. Same no-multi-day-frame " +
-      "exemption from the alignment defect as MES.",
+      "REFUTED — see outOfSample. Tuned 2026-07-19; re-checked 2026-07-25 on the day-aligned " +
+      "archive at 56 trades, PF 1.25, net +$877 (1.10/day) — inside the band, so left unchanged " +
+      "at the time. Both of those checks were the same 60 days of delayed Yahoo data. Kept as " +
+      "history so the superseded claim stays visible beside the evidence against it.",
+    outOfSample: {
+      pf: 0.87,
+      trades: 2731,
+      sessions: 1838,
+      net: -28773,
+      avgR: -0.072,
+      provenance:
+        "measured 2026-07-31 on seven years of Databento GLBX.MDP3 (real MNQ contracts, " +
+        "2019-05-06 → 2026-07-29): 2,731 trades over 1,838 sessions, PF 0.87, net −$28,773, " +
+        "avg R −0.072. Every one of the eight calendar years lost money (PF 0.64–0.98). " +
+        "Excluding roll seams leaves it at PF 0.87. Reproduce: " +
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts",
+    },
   },
 ];
 

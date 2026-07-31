@@ -322,7 +322,8 @@ with what the live ideas have actually delivered since go-live. While a stream h
 than 20 finished ideas it only says **collecting data** — a handful of trades proves
 nothing. After that: green **tracking** = reality matches the promise; amber **lagging** =
 earning less than promised but still above water; red **underwater** = the stream is
-losing money over a meaningful sample.
+losing money over a meaningful sample. Red **refuted** overrides all of them and is
+explained in 7b.
 
 Some streams say **this stream clusters**. That matters: their trades do not arrive at a
 steady rate, they come in bursts, so the "per day" figure is a long-run average and not a
@@ -334,7 +335,37 @@ A red stream means **stop trusting that stream** — the market may have changed
 settings were tuned. It never means "trade harder to catch up". The muted line under each
 stream repeats the numbers excluding doubtful fills, the stricter honest version.
 
-## 7b. Telegram alerts (optional)
+## 7b. "Refuted" — what it means, and why every stream now says it
+
+There is a fifth state, and as of 31 July 2026 **all three streams are in it**. Read this
+before you read any other number in this app.
+
+The settings were chosen on **sixty days** of a delayed, free price feed. That is where the
+"tuned profit factor" figures came from. We have since loaded **seven years of real
+exchange data** for the actual MES and MNQ contracts — about a million candles — and re-run
+the exact same settings over it:
+
+| Stream | Trades | Profit factor | Net |
+|---|---|---|---|
+| Zone setups (tier A) | 1,180 over 1,838 days | **0.55** | **−$57,065** |
+| Daily flow, MES | 2,641 | **0.71** | **−$68,001** |
+| Daily flow, MNQ | 2,731 | **0.87** | **−$28,773** |
+
+A profit factor below 1.0 means the losses were bigger than the wins.
+
+And it is not one bad patch. Broken down year by year, **all sixteen** stream-years — both
+markets, every year from 2019 to 2026 — lost money. Not one profitable year.
+
+Sixty days is roughly fifty trading sessions; seven years is roughly eighteen hundred. When
+a set of settings looks good on the small sample and loses money on the large one, the
+honest conclusion is that the small sample was luck, not that the market has changed. The
+tuned figures are still on screen, but only as the claim that failed.
+
+Nothing here has ever placed an order, so nothing was lost — but this is exactly the finding
+the app exists to surface, and it says the current settings do not have an edge. The streams
+keep running on paper so the numbers keep updating. **Do not trade these signals.**
+
+## 7c. Telegram alerts (optional)
 
 The bot can message you on Telegram the moment an idea triggers — entry, stop, target
 and reward-to-risk, with the time in both ET and IST — and again when it closes with

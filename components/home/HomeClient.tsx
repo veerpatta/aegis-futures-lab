@@ -50,6 +50,7 @@ import { loadJournal } from "@/lib/journal";
 import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
 import { Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
+import { liveOnly } from "@/lib/signals/live";
 import styles from "./home.module.css";
 
 const REFRESH_MS = 60_000;
@@ -112,8 +113,13 @@ interface RangeStats {
   curve: number[];
 }
 
+/* liveOnly FIRST, before any window filter. The engine's first pass mirrored a
+   trailing seven days, so the earliest rows describe sessions that were over
+   before the bot existed — and they happen to hold +$1,441 against −$216 for
+   everything genuinely live since. Summing both put a positive headline on a
+   bot that is down. See lib/signals/live.ts for the numbers. */
 function rangeStats(signals: SignalRow[], fromMs: number | null, dateKey: string | null): RangeStats {
-  const inRange = signals.filter((s) => {
+  const inRange = liveOnly(signals).filter((s) => {
     if (dateKey !== null)
       return nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === dateKey;
     return fromMs === null || new Date(s.signal_ts).getTime() >= fromMs;
@@ -420,7 +426,8 @@ export default function HomeClient() {
   /* Rolling three-week window — the daily bars and the tier split. */
   const perf = useMemo(() => {
     const fromMs = Date.now() - WINDOW_DAYS * 86400_000;
-    const window = signals.filter((s) => new Date(s.signal_ts).getTime() >= fromMs);
+    // Same reason as rangeStats above: backfilled rows are not performance.
+    const window = liveOnly(signals).filter((s) => new Date(s.signal_ts).getTime() >= fromMs);
     const closed = window.filter((s) => s.pnl_usd !== null);
     const wins = closed.filter((s) => (s.pnl_usd ?? 0) > 0).length;
     const byDay = new Map<string, number>();
@@ -1004,7 +1011,9 @@ export default function HomeClient() {
           <section className={styles.card} aria-label="Bot performance">
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Bot · last 3 weeks</h2>
-              <span className={styles.cardHint}>daily P&amp;L, closed ideas, costs included</span>
+              <span className={styles.cardHint}>
+                daily P&amp;L, closed ideas, costs included · live passes only
+              </span>
               <Link href="/signals" className={styles.cardLink}>
                 All signals →
               </Link>
