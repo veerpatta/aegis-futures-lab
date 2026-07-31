@@ -377,10 +377,29 @@ async function run(windowLabel: string): Promise<void> {
       .limit(1);
     if (resumeErr) throw new Error(`resume probe for ${feed}: ${resumeErr.message}`);
     const resumeFrom = resumeRow?.length ? Number(resumeRow[0].time) : null;
-    if (resumeFrom !== null)
+    if (resumeFrom !== null) {
       console.log(
         `${feed}: resuming — already have data through ${new Date(resumeFrom * 1000).toISOString()}`
       );
+      /* Resume skips any month ending at or before the newest stored bar. That
+         is correct for re-running an interrupted pull, because months are
+         fetched oldest-first — but it is WRONG if this window starts earlier
+         than data already present, which happens if a short window was run
+         first and a longer one second. Every earlier month would be skipped
+         and the gap would look like Databento had no data. Refuse rather than
+         quietly under-fetch. */
+      const windowStart = months[0].from.getTime() / 1000;
+      if (windowStart < resumeFrom) {
+        const stored = new Date(resumeFrom * 1000).toISOString().slice(0, 10);
+        throw new Error(
+          `${feed}: window starts ${w.start} but rows already exist through ${stored}.\n` +
+            `Resume skips months at or before the newest stored bar, so every month from ` +
+            `${w.start} to ${stored} would be silently skipped and read back as missing data.\n` +
+            `Either run a window that starts at or after ${stored}, or clear the namespace first:\n` +
+            `  delete from public.bars_5m where source = 'databento' and symbol = '${feed}';`
+        );
+      }
+    }
 
     for (const { from, to } of months) {
       // Skip whole months already stored. `to` rather than `from` so a month
