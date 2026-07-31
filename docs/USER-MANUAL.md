@@ -359,8 +359,10 @@ out along the way — the worst drawdown alone is $69,711 against a $3,000
 starting balance. They are the size of the leak, not a bill anyone could have
 paid.
 
-And it is not one bad patch. Broken down year by year, **all sixteen** stream-years — both
-markets, every year from 2019 to 2026 — lost money. Not one profitable year.
+And it is not one bad patch. Breaking the two daily-flow streams down year by year gives
+sixteen figures — two markets × eight years, 2019 to 2026 — and **all sixteen lost money**.
+Not one profitable year in either market. (Zone setups was not split by year; it trades on
+only about one session in six, so a single year of it is too thin to read.)
 
 Sixty days is roughly fifty trading sessions; seven years is roughly eighteen hundred. When
 a set of settings looks good on the small sample and loses money on the large one, the

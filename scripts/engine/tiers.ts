@@ -61,9 +61,11 @@
      B:MNQ  2,731 trades  PF 0.87  net -$28,773  avg R -0.072
 
    And it is not a regime that turned. Broken down by calendar year, ALL
-   SIXTEEN stream-years — both symbols, 2019 through 2026 — print PF below
-   1.0. MES ranges 0.52-0.79 and MNQ 0.64-0.98; not one profitable year on
-   either. Excluding contract-roll seams moves MES to 0.72 and leaves MNQ at
+   SIXTEEN tier-B stream-years — two symbols x eight years, 2019 through 2026 —
+   print PF below 1.0. (Tier A is not split by year; it trades on 287 of 1,838
+   sessions, so one year of it is too thin to read.) MES ranges 0.52-0.79 and
+   MNQ 0.64-0.98; not one profitable year in either market.
+   Excluding contract-roll seams moves MES to 0.72 and leaves MNQ at
    0.87, so the stitching caveat the backfill commit raised is closed: it
    explains essentially nothing. Same answer on tier A — 8 of 1,838 sessions
    carry a real discontinuity, and dropping them plus the session after moves

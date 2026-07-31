@@ -649,8 +649,10 @@ export default function GuidePage() {
           size of the leak, not a bill anyone could have paid.
         </p>
         <p>
-          And it is not one bad patch. Broken down year by year, <b>all sixteen</b> stream-years —
-          both markets, every year from 2019 to 2026 — lost money. Not one profitable year.
+          And it is not one bad patch. Broken the two daily-flow streams down year by year gives
+          sixteen figures — two markets × eight years, 2019 to 2026 — and <b>all sixteen lost
+          money</b>. Not one profitable year in either market. (Zone setups was not split by year;
+          it trades on only about one session in six, so a single year of it is too thin to read.)
         </p>
         <p>
           Sixty days is roughly fifty trading sessions. Seven years is roughly eighteen hundred.
