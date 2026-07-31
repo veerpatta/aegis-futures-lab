@@ -148,6 +148,97 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>The clean streak — the one number about you</h2>
+        <p>
+          Home used to show a <b>green streak</b>: how many days in a row finished in profit. That
+          rewarded the wrong thing. A day where you broke every rule and got away with it kept the
+          streak; a day where you followed your plan exactly and lost broke it. In an app built on
+          the idea that process beats outcome, that was backwards.
+        </p>
+        <p>
+          It is now a <b>clean streak</b>: days in a row where <i>you broke no rule</i>. It is
+          judged from your journal against the same rules the bot follows — entries only inside the
+          trading window, no more than two trades a day per market, stop after two losers, and
+          nothing wildly oversized.
+        </p>
+        <ul className={styles.steps}>
+          <li>
+            <b>A losing day where you followed the plan keeps the chain alive.</b> That is the whole
+            point.
+          </li>
+          <li>
+            <b>A winning day where you broke a rule ends it.</b> Getting away with it is not the
+            same as being right.
+          </li>
+          <li>
+            With an empty journal it reads <b>&ldquo;log a trade to start the chain&rdquo;</b> — not
+            a zero-day streak, which would look like a failure you have not had.
+          </li>
+        </ul>
+        <p className={styles.note}>
+          Don&apos;t break the chain. It is the only score on the app that is entirely within your
+          control.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Your costs are now counted</h2>
+        <p>
+          Your journalled trades used to be shown <b>gross</b> — before commission — while the
+          bot&apos;s figures were always <b>net</b>. Every close race quietly favoured you. Both
+          sides now have the same $2.40 per contract taken out, so &ldquo;bot vs you&rdquo; is a
+          fair fight.
+        </p>
+        <p className={styles.note}>
+          One consequence worth knowing: a trade that made a tick or two is now correctly shown as a
+          small <i>loss</i>, because the commission was bigger than the move. That is real, and it
+          is what your broker statement says too.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>How far a trade ran before it ended</h2>
+        <p>
+          Every finished trade now records the worst it got against you and the best it got in your
+          favour, measured in <b>R</b> — multiples of the distance from your entry to your stop.
+        </p>
+        <dl className={styles.dl}>
+          <dt>Worst drawdown (MAE)</dt>
+          <dd>
+            How far offside the trade went before it worked out. Look at this on your{" "}
+            <i>winners</i>: if they routinely go 0.8R against you first, a tighter stop would have
+            cut them all.
+          </dd>
+          <dt>Best run (MFE)</dt>
+          <dd>
+            How far onside it went before it ended. Look at this on your <i>losers</i>: if they were
+            usually green first, a break-even rule would have paid for itself.
+          </dd>
+          <dt>How much you kept</dt>
+          <dd>
+            What you actually took out of the move, against the best it ever showed. Low numbers
+            mean you are exiting well before the trade is done — or holding well past it.
+          </dd>
+        </dl>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Zones on the chart</h2>
+        <p>
+          On Markets, buy and sell areas are now drawn as <b>shaded rectangles</b> rather than
+          single lines. The <b>solid edge</b> is where price enters the zone — the line you would
+          get filled at. The <b>dashed edge</b> is the far side; your stop belongs just beyond it.
+          Green is a buy area, red is a sell area, and a faded box is one price has already worked
+          through.
+        </p>
+        <p className={styles.note}>
+          A single line could not show you the difference between price touching the edge of a zone
+          and eating all the way through it — which is exactly the difference between a trade and
+          no trade.
+        </p>
+      </section>
+
+      <section className={styles.card}>
         <h2>How to read one signal</h2>
         <dl className={styles.dl}>
           <dt>Entry / Stop / Target</dt>
@@ -571,7 +662,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-30. A printable version of this guide lives in the project
+        Matches the app as of 2026-07-31. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

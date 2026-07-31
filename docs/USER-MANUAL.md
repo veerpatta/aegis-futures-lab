@@ -74,6 +74,64 @@ None of this is a disclaimer. Reading a small sample as if it were a large one i
 expensive mistake available to a trader with a dashboard, and the app is built to make it
 hard.
 
+## 2b. The clean streak — the one number about you
+
+Home used to show a **green streak**: how many days in a row finished in profit. That
+rewarded the wrong thing. A day where you broke every rule and got away with it kept
+the streak; a day where you followed your plan exactly and lost broke it. In an app
+built on the idea that process beats outcome, that was backwards.
+
+It is now a **clean streak**: days in a row where *you broke no rule*. It is judged
+from your journal against the same rules the bot follows — entries only inside the
+trading window, no more than two trades a day per market, stop after two losers, and
+nothing wildly oversized.
+
+- **A losing day where you followed the plan keeps the chain alive.** That is the
+  whole point.
+- **A winning day where you broke a rule ends it.** Getting away with it is not the
+  same as being right.
+- With an empty journal it reads **"log a trade to start the chain"** — not a zero-day
+  streak, which would look like a failure you have not had.
+
+Don't break the chain. It is the only score on the app entirely within your control.
+
+## 2c. Your costs are now counted
+
+Your journalled trades used to be shown **gross** — before commission — while the
+bot's figures were always **net**. Every close race quietly favoured you. Both sides
+now have the same $2.40 per contract taken out, so "bot vs you" is a fair fight.
+
+One consequence worth knowing: a trade that made a tick or two is now correctly shown
+as a small *loss*, because the commission was bigger than the move. That is real, and
+it is what your broker statement says too.
+
+## 2d. How far a trade ran before it ended
+
+Every finished trade now records the worst it got against you and the best it got in
+your favour, measured in **R** — multiples of the distance from your entry to your stop.
+
+- **Worst drawdown (MAE)** — how far offside the trade went before it worked out. Look
+  at this on your *winners*: if they routinely go 0.8R against you first, a tighter
+  stop would have cut them all.
+- **Best run (MFE)** — how far onside it went before it ended. Look at this on your
+  *losers*: if they were usually green first, a break-even rule would have paid for
+  itself.
+- **How much you kept** — what you actually took out of the move, against the best it
+  ever showed. Low numbers mean you are exiting well before the trade is done, or
+  holding well past it.
+
+## 2e. Zones on the chart
+
+On Markets, buy and sell areas are drawn as **shaded rectangles** rather than single
+lines. The **solid edge** is where price enters the zone — the line you would get
+filled at. The **dashed edge** is the far side; your stop belongs just beyond it.
+Green is a buy area, red is a sell area, and a faded box is one price has already
+worked through.
+
+A single line could not show the difference between price touching the edge of a zone
+and eating all the way through it — which is exactly the difference between a trade
+and no trade.
+
 ## 3. Tier A and Tier B — the two kinds of ideas
 
 - **TIER A** — the classic zone setup: price returning to a fresh Daily or 4-hour
@@ -317,6 +375,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-07-30. If the app has changed since, the
+*Manual version: matches the app as of 2026-07-31. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*
