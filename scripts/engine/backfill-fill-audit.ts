@@ -15,6 +15,7 @@ import type { Bar } from "@/lib/types";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { EXECUTION } from "./tiers";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const url = process.env.SUPABASE_URL || SUPABASE_URL;
 const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
@@ -30,6 +31,7 @@ async function allBars(symbol: string): Promise<Bar[]> {
       .from("bars_5m")
       .select("time, open, high, low, close")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`bars_5m read: ${error.message}`);

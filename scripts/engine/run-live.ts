@@ -36,6 +36,7 @@ import { applyWinProb } from "./model";
 import { zoneRows } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
 
@@ -94,7 +95,14 @@ const iso = (sec: number) => new Date(sec * 1000).toISOString();
    fails all retries the trailing 60d is loaded back from the archive and
    the run continues with a warning; the run only errors when BOTH sources
    are unavailable. When both exist, Yahoo wins — the archive is a fallback
-   and a long-term store, never a merge source. */
+   and a long-term store, never a merge source.
+
+   Every read and write below pins source = 'yahoo'. bars_5m is keyed
+   (symbol, source, time) since 20260730105000_bars_5m_source, and the
+   Databento backfill lands the real CME contracts on the SAME timestamps.
+   Without the filter the max(time) probe would see Databento's rows and stop
+   archiving Yahoo, and the Yahoo-down fallback would read both feeds back as
+   duplicate bars. */
 
 const ARCHIVE_CHUNK = 1000; // rows per request, safely under Supabase limits
 const ARCHIVE_WINDOW_SEC = 60 * 86400;
@@ -104,6 +112,7 @@ async function archiveNewBars(symbol: FeedSymbol, bars: Bar[]): Promise<number> 
     .from("bars_5m")
     .select("time")
     .eq("symbol", symbol)
+    .eq("source", DEFAULT_BAR_SOURCE)
     .order("time", { ascending: false })
     .limit(1);
   if (error) throw new Error(`bars_5m max(time) for ${symbol}: ${error.message}`);
@@ -112,6 +121,7 @@ async function archiveNewBars(symbol: FeedSymbol, bars: Bar[]): Promise<number> 
   for (let i = 0; i < fresh.length; i += ARCHIVE_CHUNK) {
     const chunk = fresh.slice(i, i + ARCHIVE_CHUNK).map((b) => ({
       symbol,
+      source: DEFAULT_BAR_SOURCE,
       time: b.time,
       open: b.open,
       high: b.high,
@@ -121,7 +131,7 @@ async function archiveNewBars(symbol: FeedSymbol, bars: Bar[]): Promise<number> 
     }));
     const { error: upsertError } = await supabase
       .from("bars_5m")
-      .upsert(chunk, { onConflict: "symbol,time" });
+      .upsert(chunk, { onConflict: "symbol,source,time" });
     if (upsertError) throw new Error(`bars_5m upsert for ${symbol}: ${upsertError.message}`);
   }
   return fresh.length;
@@ -135,6 +145,7 @@ async function archiveTrailingBars(symbol: FeedSymbol, nowSec: number): Promise<
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .gte("time", from)
       .order("time", { ascending: true })
       .range(offset, offset + ARCHIVE_CHUNK - 1);

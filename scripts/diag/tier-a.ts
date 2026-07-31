@@ -47,6 +47,7 @@ import {
 import type { ParamValues, Strategy } from "@/lib/strategies/types";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "@/scripts/engine/tiers";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const LOOKBACK_DAYS = 60;
 const PAGE = 1000;
@@ -67,6 +68,7 @@ async function trailingBars(symbol: FeedSymbol, fromSec: number): Promise<Bar[]>
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .gte("time", fromSec)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);

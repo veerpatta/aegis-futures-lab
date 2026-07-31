@@ -22,6 +22,7 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { FUNNEL_LABELS, DIAGNOSTIC_REASONS } from "@/components/lab/funnel";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 export const GATE_COST_LOOKBACK_DAYS = 30;
 const PAGE = 1000;
@@ -34,6 +35,7 @@ async function trailingBars(supabase: SupabaseClient, symbol: FeedSymbol, fromSe
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .gte("time", fromSec)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);

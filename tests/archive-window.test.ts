@@ -189,3 +189,57 @@ describe("every bars_5m reader applies the whole-session trim", () => {
     }
   });
 });
+
+/* Same shape of guard, one layer down. bars_5m is keyed (symbol, source, time)
+   since the Databento backfill, so it holds TWO histories over the same
+   timestamps. A read that forgets the source filter gets both feeds
+   interleaved — two bars per timestamp, in arbitrary order. Nothing downstream
+   can catch that: every bar is finite, every timestamp is 5m-aligned, and the
+   series is simply doubled and self-contradictory.
+
+   There is no type that can enforce this, so it is enforced structurally, the
+   same way alignArchiveSlice is above. */
+describe("every bars_5m query pins a source", () => {
+  const READERS = [
+    "app/api/archive/route.ts",
+    "scripts/diag/archive-lib.ts",
+    "scripts/diag/atr-ratio.ts",
+    "scripts/diag/tier-a-baseline.ts",
+    "scripts/diag/tier-a.ts",
+    "scripts/engine/backfill-fill-audit.ts",
+    "scripts/engine/digest.ts",
+    "scripts/engine/gate-costs.ts",
+    "scripts/engine/report.ts",
+    "scripts/engine/run-live.ts",
+    "scripts/engine/tune-core.ts",
+  ];
+
+  it.each(READERS)("%s filters bars_5m by source", (path) => {
+    const src = readFileSync(join(process.cwd(), path), "utf8");
+    expect(src, `${path} no longer reads bars_5m — update this guard`).toContain('from("bars_5m")');
+    expect(src, `${path} queries bars_5m without pinning a source`).toContain('.eq("source"');
+  });
+
+  it("has a filter for every bars_5m query, not just one per file", () => {
+    for (const path of READERS) {
+      const src = readFileSync(join(process.cwd(), path), "utf8");
+      const queries = (src.match(/\.from\("bars_5m"\)/g) ?? []).length;
+      const filters = (src.match(/\.eq\("source"/g) ?? []).length;
+      // run-live's upsert names source in its row payload rather than a filter,
+      // so filters may legitimately be fewer than queries — never more, and
+      // never zero while queries exist.
+      expect(filters, `${path}: ${queries} bars_5m queries but ${filters} source filters`)
+        .toBeGreaterThan(0);
+      expect(filters).toBeLessThanOrEqual(queries);
+    }
+  });
+
+  it("routes the default through the shared constant, not a literal", () => {
+    /* A retyped "yahoo" in a query is the drift this repo keeps getting bitten
+       by. The constant is the single definition. */
+    for (const path of READERS) {
+      const src = readFileSync(join(process.cwd(), path), "utf8");
+      expect(src, `${path} hardcodes a source string`).not.toMatch(/\.eq\("source",\s*"/);
+    }
+  });
+});

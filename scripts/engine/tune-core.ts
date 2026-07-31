@@ -16,6 +16,7 @@ import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { fetchYahooBars } from "./data";
 import { resampleDrawdowns } from "./montecarlo";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, type TierStream } from "./tiers";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 export const OOS_DAYS = 30;
 export const MIN_OOS_TRADES = 8;
@@ -59,6 +60,7 @@ async function archiveAllBars(supabase: SupabaseClient, symbol: FeedSymbol): Pro
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);

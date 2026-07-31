@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { isFeedSymbol } from "@/lib/market/contracts";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import type { Bar } from "@/lib/types";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
         .from("bars_5m")
         .select("time, open, high, low, close, volume")
         .eq("symbol", symbol)
+        .eq("source", DEFAULT_BAR_SOURCE)
         .gte("time", from)
         .lte("time", to)
         .order("time", { ascending: true })

@@ -27,6 +27,7 @@ import {
 import { STALE_BAR_AGE_MIN } from "@/lib/signals/freshness";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -135,6 +136,7 @@ async function weekBars(symbol: string, fromSec: number) {
       .from("bars_5m")
       .select("time, high, low")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .gte("time", fromSec)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);
@@ -300,6 +302,7 @@ async function main() {
       .from("bars_5m")
       .select("time")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .order("time", { ascending: true })
       .limit(1);
     if (first?.length)

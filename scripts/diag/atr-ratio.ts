@@ -14,6 +14,7 @@ import { atr } from "@/lib/indicators/index";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { inNySession } from "@/lib/time/ny";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const PAGE = 1000;
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
@@ -32,6 +33,7 @@ async function allBars(symbol: FeedSymbol): Promise<Bar[]> {
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
+      .eq("source", DEFAULT_BAR_SOURCE)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
