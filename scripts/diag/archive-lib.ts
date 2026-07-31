@@ -10,9 +10,13 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { nyMeta } from "@/lib/time/ny";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
-import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { parseBarSource } from "@/lib/data/source";
+import { fetchArchiveBars } from "@/lib/data/archive";
 
-const PAGE = 1000;
+/* Defaults to yahoo so the 2026-07-26 research pass's recorded numbers keep
+   reproducing; BAR_SOURCE=databento re-runs the same three diagnostics over
+   seven years of real contracts instead of sixty days of a delayed proxy. */
+const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 export const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -21,28 +25,7 @@ export const supabase = createClient(
 );
 
 export async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .eq("source", DEFAULT_BAR_SOURCE)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
-  return alignArchiveSlice(out);
+  return alignArchiveSlice(await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));
 }
 
 /** Trading sessions in a series: NY weekdays with at least one RTH bar. */

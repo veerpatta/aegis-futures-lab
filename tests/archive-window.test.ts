@@ -128,12 +128,21 @@ describe("alignArchiveSlice", () => {
    mid-session would have silently corrupted both jobs.
 
    Any module that reads bars_5m must run the result through the trim. Asserted
-   at the source level because there is no type that can enforce it. */
+   at the source level because there is no type that can enforce it.
+
+   A reader now counts as a reader two ways: it may query bars_5m itself, or it
+   may delegate the paging to lib/data/archive.ts's fetchArchiveBars. Both are
+   discovered, because a module that gets archive bars has the same obligation
+   however it got them — and a guard that only knew about the direct form would
+   have quietly stopped covering the readers that moved to the helper. */
 describe("every bars_5m reader applies the whole-session trim", () => {
   /* Readers that aggregate bars into a MULTI-DAY frame — Daily/4H candles, and
      therefore candleMeta's rolling normalizer. A truncated leading day
      mis-scales these across the whole window, so they must trim. */
   const MUST_ALIGN = [
+    "scripts/diag/archive-lib.ts", // the weekly-research trio's shared read
+    "scripts/diag/tier-a-baseline.ts", // the tier-A band's own measurement
+    "scripts/diag/tier-b-baseline.ts", // the tier-B out-of-sample measurement
     "scripts/engine/gate-costs.ts", // the stored skip funnel
     "scripts/engine/report.ts", // the tuning report
     "scripts/engine/run-live.ts", // the Yahoo-down fallback (reaches live signals)
@@ -145,6 +154,27 @@ describe("every bars_5m reader applies the whole-session trim", () => {
      throw away data they legitimately want. Exempt WITH the reason, so a future
      reader has to justify itself rather than default into either list. */
   const EXEMPT: Record<string, string> = {
+    "app/api/archive/route.ts":
+      "serves a caller-bounded time range straight to the chart; the browser draws the bars it " +
+      "asked for and builds no Daily/4H frame, and trimming here would drop a leading session " +
+      "the user explicitly requested",
+    "components/data/DataClient.tsx":
+      "counts rows and reads the oldest timestamp for the archive card; it never loads a bar " +
+      "series at all, so there is no frame to align",
+    "lib/data/archive.ts":
+      "the shared paging transport, not an analysis reader — it returns exactly the rows the " +
+      "query names and deliberately does NOT trim, because whether the trim applies depends on " +
+      "what the caller builds (tune-core.ts aligns the UNION of archive and live bars, not the " +
+      "archive read alone). Folding it in here would take that decision away from the callers " +
+      "this guard exists to hold accountable",
+    "scripts/diag/atr-ratio.ts":
+      "measures ATR bar by bar to compare MES and MNQ volatility; no multi-day frame",
+    "scripts/diag/feed-delta.ts":
+      "pairs the two feeds' bars on identical timestamps to measure the roll seam; pairwise " +
+      "only, and trimming one feed's leading day would break the pairing it exists to do",
+    "scripts/diag/tier-a.ts":
+      "the funnel/edge-isolation harness — it deliberately varies the window to measure how " +
+      "sensitive the funnel is to it, which is the one thing the trim would hide",
     "scripts/engine/digest.ts":
       "integrity scan only — compares consecutive bars for gaps/dupes/zero-range; no aggregation, " +
       "and a trimmed leading day would hide real data rather than fix anything",
@@ -157,34 +187,44 @@ describe("every bars_5m reader applies the whole-session trim", () => {
       "job at write time, and trimming here would silently refuse to store real history",
   };
 
+  /** A module obtains archive bars if it queries bars_5m directly OR delegates
+      the paging to lib/data/archive.ts. Both incur the same obligation. */
+  const readsArchive = (src: string): boolean =>
+    src.includes('from("bars_5m")') ||
+    src.includes("rest/v1/bars_5m") ||
+    src.includes("fetchArchiveBars");
+
   it.each(MUST_ALIGN)("%s reads the archive and trims it", (path) => {
     const src = readFileSync(join(process.cwd(), path), "utf8");
-    expect(src, `${path} no longer reads bars_5m — update this guard`).toContain('from("bars_5m")');
-    expect(src, `${path} reads bars_5m without alignArchiveSlice`).toContain("alignArchiveSlice");
+    expect(readsArchive(src), `${path} no longer reads the archive — update this guard`).toBe(true);
+    expect(src, `${path} reads the archive without alignArchiveSlice`).toContain("alignArchiveSlice");
   });
 
-  it("forces a NEW bars_5m reader to be classified, not silently omitted", () => {
+  it("forces a NEW archive reader to be classified, not silently omitted", () => {
     const found: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
         const rel = `${dir}/${entry.name}`;
         if (entry.isDirectory()) walk(rel);
-        else if (/\.(ts|mjs)$/.test(entry.name)) {
+        else if (/\.(ts|tsx|mjs)$/.test(entry.name)) {
           const src = readFileSync(join(process.cwd(), rel), "utf8");
-          if (src.includes('from("bars_5m")') || src.includes("rest/v1/bars_5m")) found.push(rel);
+          if (readsArchive(src)) found.push(rel);
         }
       }
     };
-    ["scripts/engine", "lib"].forEach(walk);
+    /* Walks the whole app now, not just scripts/engine and lib. The reader that
+       escaped every version of this guard was components/data/DataClient.tsx —
+       a `.tsx` file, in a directory neither walk covered. */
+    ["app", "components", "lib", "scripts"].forEach(walk);
     expect(
       found.sort(),
-      "a module reads bars_5m without appearing in MUST_ALIGN or EXEMPT — decide which, with a reason"
+      "a module reads the archive without appearing in MUST_ALIGN or EXEMPT — decide which, with a reason"
     ).toEqual([...MUST_ALIGN, ...Object.keys(EXEMPT)].sort());
   });
 
   it("keeps a stated reason for every exemption", () => {
     for (const [path, reason] of Object.entries(EXEMPT)) {
-      expect(readFileSync(join(process.cwd(), path), "utf8")).toContain('from("bars_5m")');
+      expect(readsArchive(readFileSync(join(process.cwd(), path), "utf8")), path).toBe(true);
       expect(reason.length).toBeGreaterThan(30);
     }
   });
@@ -197,31 +237,64 @@ describe("every bars_5m reader applies the whole-session trim", () => {
    can catch that: every bar is finite, every timestamp is 5m-aligned, and the
    series is simply doubled and self-contradictory.
 
-   There is no type that can enforce this, so it is enforced structurally, the
-   same way alignArchiveSlice is above. */
-describe("every bars_5m query pins a source", () => {
-  const READERS = [
+   There is no type that can enforce this for a hand-written query, so it is
+   enforced structurally, the same way alignArchiveSlice is above. Readers that
+   go through lib/data/archive.ts get it for free instead: `source` is a
+   required field on ArchiveQuery, so omitting it does not compile. That is the
+   better mechanism, and the direction to move new readers in. */
+describe("every direct bars_5m query pins a source", () => {
+  /* Files that write the query themselves and therefore need the grep. Anything
+     using fetchArchiveBars is covered by the type instead and is deliberately
+     NOT here — listing it would assert a `.eq("source"` it does not contain. */
+  const DIRECT_READERS = [
     "app/api/archive/route.ts",
-    "scripts/diag/archive-lib.ts",
+    "components/data/DataClient.tsx",
+    "lib/data/archive.ts",
     "scripts/diag/atr-ratio.ts",
-    "scripts/diag/tier-a-baseline.ts",
-    "scripts/diag/tier-a.ts",
+    // Found by the discovery test below the first time it ran — it pins a
+    // source correctly, but nothing had ever checked that it did.
+    "scripts/diag/feed-delta.ts",
     "scripts/engine/backfill-fill-audit.ts",
+    "scripts/engine/databento-backfill.ts",
     "scripts/engine/digest.ts",
     "scripts/engine/gate-costs.ts",
-    "scripts/engine/report.ts",
     "scripts/engine/run-live.ts",
-    "scripts/engine/tune-core.ts",
   ];
 
-  it.each(READERS)("%s filters bars_5m by source", (path) => {
+  /* This list was hand-maintained and therefore incomplete: DataClient.tsx read
+     bars_5m twice with no source filter and printed the Databento archive's
+     523,327 rows on a card describing the 60-day Yahoo series. The align guard
+     above already discovers its readers; this one did not, and the gap is
+     exactly what it cost. Discovery now covers the UI and route trees too —
+     `.tsx` included, since the reader that escaped was a component. */
+  it("finds every direct bars_5m query in the repo, not just the ones listed", () => {
+    const found: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(rel);
+        else if (/\.(ts|tsx|mjs)$/.test(entry.name)) {
+          const src = readFileSync(join(process.cwd(), rel), "utf8");
+          if (src.includes('from("bars_5m")') || src.includes("rest/v1/bars_5m")) found.push(rel);
+        }
+      }
+    };
+    ["app", "components", "lib", "scripts"].forEach(walk);
+    expect(
+      found.sort(),
+      "a module queries bars_5m directly but is not in DIRECT_READERS — add it, and make sure " +
+        "it pins a source (or better, move it to fetchArchiveBars, where the type requires one)"
+    ).toEqual([...DIRECT_READERS].sort());
+  });
+
+  it.each(DIRECT_READERS)("%s filters bars_5m by source", (path) => {
     const src = readFileSync(join(process.cwd(), path), "utf8");
     expect(src, `${path} no longer reads bars_5m — update this guard`).toContain('from("bars_5m")');
     expect(src, `${path} queries bars_5m without pinning a source`).toContain('.eq("source"');
   });
 
   it("has a filter for every bars_5m query, not just one per file", () => {
-    for (const path of READERS) {
+    for (const path of DIRECT_READERS) {
       const src = readFileSync(join(process.cwd(), path), "utf8");
       const queries = (src.match(/\.from\("bars_5m"\)/g) ?? []).length;
       const filters = (src.match(/\.eq\("source"/g) ?? []).length;
@@ -236,8 +309,16 @@ describe("every bars_5m query pins a source", () => {
 
   it("routes the default through the shared constant, not a literal", () => {
     /* A retyped "yahoo" in a query is the drift this repo keeps getting bitten
-       by. The constant is the single definition. */
-    for (const path of READERS) {
+       by. The constant is the single definition.
+
+       ONE legitimate literal: databento-backfill.ts is the writer that CREATES
+       the databento namespace, so `.eq("source", "databento")` in its resume
+       probes is not a reference to somebody else's constant — it is the
+       definition of what this job writes. A constant there would be indirection
+       pointing back at itself. */
+    const LITERAL_OK = new Set(["scripts/engine/databento-backfill.ts"]);
+    for (const path of DIRECT_READERS) {
+      if (LITERAL_OK.has(path)) continue;
       const src = readFileSync(join(process.cwd(), path), "utf8");
       expect(src, `${path} hardcodes a source string`).not.toMatch(/\.eq\("source",\s*"/);
     }

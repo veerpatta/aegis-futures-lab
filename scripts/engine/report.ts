@@ -9,6 +9,18 @@
      --markdown   emit a GitHub-flavored markdown table instead of
                   console.table — used by .github/workflows/monthly-tune.yml
 
+   BAR_SOURCE selects which history --archive reads. It defaults to yahoo so
+   the numbers this file has always printed keep reproducing; BAR_SOURCE=
+   databento runs the same configuration over seven years of real CME
+   contracts instead of sixty days of a delayed proxy.
+
+   One caveat that belongs at the top rather than buried: with
+   BAR_SOURCE=databento the union with the current Yahoo window joins two
+   series that agree on 92% of bars but diverge around each quarterly contract
+   roll (lib/data/feed-delta.ts measures the seam). The union is still the
+   longest window available, but the joint is not seamless and a zone formed
+   across it is not real structure.
+
    Read-only: the archive read uses the publishable key (public SELECT). */
 
 import { createClient } from "@supabase/supabase-js";
@@ -20,12 +32,12 @@ import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fetchYahooBars } from "./data";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
-import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { parseBarSource } from "@/lib/data/source";
+import { fetchArchiveBars } from "@/lib/data/archive";
 
 const useArchive = process.argv.includes("--archive");
 const asMarkdown = process.argv.includes("--markdown");
-
-const PAGE = 1000;
+const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 async function archiveAllBars(symbol: FeedSymbol): Promise<Bar[]> {
   const supabase = createClient(
@@ -33,30 +45,10 @@ async function archiveAllBars(symbol: FeedSymbol): Promise<Bar[]> {
     process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
     { auth: { persistSession: false } }
   );
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .eq("source", DEFAULT_BAR_SOURCE)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
+  const bars = await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE });
   // The archive's own oldest bar is mid-session, so the tuning numbers were
   // exposed to the same truncated-first-day defect (lib/data/window.ts).
-  return alignArchiveSlice(out);
+  return alignArchiveSlice(bars);
 }
 
 async function loadSeries(symbol: FeedSymbol): Promise<Bar[]> {

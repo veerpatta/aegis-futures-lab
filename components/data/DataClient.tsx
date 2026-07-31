@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseCsv } from "@/lib/data/csv";
+import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 import { getSupabase } from "@/lib/supabase/client";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
@@ -50,13 +51,29 @@ export default function DataClient() {
       });
   }, []);
 
-  /* The cloud bar archive the engine fills on every pass — best effort. */
+  /* The cloud bar archive the engine fills on every pass — best effort.
+
+     Both reads MUST pin the source. bars_5m holds two histories over the same
+     timestamps since the Databento backfill, so an unpinned count returned
+     523,327 rows reaching back to 2019-05-06 — the Databento archive — under a
+     card that describes the 60-day Yahoo series the live engine writes. Nothing
+     downstream could catch it: the count was a real count, of the wrong thing. */
   useEffect(() => {
     const supabase = getSupabase();
     for (const s of ["MES", "MNQ"] as const) {
       Promise.all([
-        supabase.from("bars_5m").select("time", { count: "exact", head: true }).eq("symbol", s),
-        supabase.from("bars_5m").select("time").eq("symbol", s).order("time").limit(1),
+        supabase
+          .from("bars_5m")
+          .select("time", { count: "exact", head: true })
+          .eq("symbol", s)
+          .eq("source", DEFAULT_BAR_SOURCE),
+        supabase
+          .from("bars_5m")
+          .select("time")
+          .eq("symbol", s)
+          .eq("source", DEFAULT_BAR_SOURCE)
+          .order("time")
+          .limit(1),
       ])
         .then(([counted, first]) => {
           if (counted.error || first.error) return;

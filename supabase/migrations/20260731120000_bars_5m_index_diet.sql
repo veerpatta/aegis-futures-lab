@@ -1,0 +1,52 @@
+-- bars_5m index diet — reclaim ~127 MB on a 500 MB free tier.
+--
+-- WHY THIS IS URGENT, not cosmetic. After the seven-year Databento backfill
+-- bars_5m holds 1,031,174 rows and occupies 302 MB of the project's 500 MB
+-- free-tier allowance, 199 MB of which is indexes. When a Supabase free-tier
+-- database hits its cap it goes READ-ONLY: the signal engine's bars_5m upsert
+-- and its engine_runs heartbeat both start failing, on a schedule nobody is
+-- watching at the time. Headroom is a correctness property here.
+--
+-- WHAT IS REDUNDANT. Three indexes covered the same leading columns:
+--
+--   bars_5m_pkey                        (symbol, source, time)      72 MB
+--   bars_5m_symbol_source_time_desc_idx (symbol, source, time DESC) 72 MB
+--   bars_5m_symbol_time_desc_idx        (symbol, time DESC)         55 MB
+--
+-- A btree scans backwards as cheaply as forwards, so the primary key already
+-- serves the DESC shape; and every reader now pins `source`
+-- (tests/archive-window.test.ts enforces it structurally), so the
+-- source-less index has nothing left that needs it. The last reader that did
+-- not pin a source was components/data/DataClient.tsx, fixed in the same
+-- change as this migration — that was the 451 scans on
+-- bars_5m_symbol_time_desc_idx, and it was reporting the Databento archive's
+-- row count on a card describing the 60-day Yahoo series.
+--
+-- MEASURED, NOT ASSUMED. Both real query shapes were EXPLAIN ANALYZEd inside a
+-- transaction with the two indexes dropped and then rolled back:
+--
+--   trailing-N (run-live.ts):  ...order(time desc).limit(500)
+--     before  Index Only Scan using bars_5m_symbol_source_time_desc_idx
+--             cost 0.42..24.41   buffers shared hit=10
+--     after   Index Only Scan Backward using bars_5m_pkey
+--             cost 0.42..24.41   buffers shared hit=10      <- identical
+--
+--   full ascending page (tune-core.ts / the diag readers)
+--     already used bars_5m_pkey both before and after; unaffected.
+--
+-- No sequential scan appears in either plan.
+
+drop index if exists public.bars_5m_symbol_source_time_desc_idx;
+drop index if exists public.bars_5m_symbol_time_desc_idx;
+
+-- TO REVERSE, if a future reader genuinely needs either shape back:
+--
+--   create index bars_5m_symbol_source_time_desc_idx
+--     on public.bars_5m using btree (symbol, source, "time" desc);
+--   create index bars_5m_symbol_time_desc_idx
+--     on public.bars_5m using btree (symbol, "time" desc);
+--
+-- Before recreating the second one, check WHY a reader wants bars without a
+-- source filter. Since the backfill, bars_5m holds two feeds over the same
+-- timestamps and an unpinned read returns both interleaved — which is a bug,
+-- not a use case.

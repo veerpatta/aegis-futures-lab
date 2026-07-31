@@ -47,10 +47,11 @@ import {
 import type { ParamValues, Strategy } from "@/lib/strategies/types";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "@/scripts/engine/tiers";
-import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { parseBarSource } from "@/lib/data/source";
+import { fetchArchiveBars } from "@/lib/data/archive";
 
 const LOOKBACK_DAYS = 60;
-const PAGE = 1000;
+const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
 const TFS: Timeframe[] = ["D", "240", "60", "15"];
 const ANNOTATE_BUFFER = 0.25; // same buffer buildStack uses
@@ -62,29 +63,7 @@ const supabase = createClient(
 );
 
 async function trailingBars(symbol: FeedSymbol, fromSec: number): Promise<Bar[]> {
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .eq("source", DEFAULT_BAR_SOURCE)
-      .gte("time", fromSec)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
+  return fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE, fromSec });
 }
 
 /* ── the tier-A stream, straight from the live config ──────────────────── */

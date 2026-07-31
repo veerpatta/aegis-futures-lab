@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { byDay, pairOnTime, rollWindows, summarise } from "@/lib/data/feed-delta";
+import {
+  byDay,
+  dropSeamSessions,
+  pairOnTime,
+  rollWindows,
+  seamSessions,
+  summarise,
+  SEAM_GAP_RATIO,
+} from "@/lib/data/feed-delta";
 import type { Bar } from "@/lib/types";
 
 /* The proxy-error measurement. The shape it has to capture is specific: two
@@ -121,5 +129,111 @@ describe("byDay and rollWindows", () => {
 
   it("comes back in date order", () => {
     expect(days.map((d) => d.dateKey)).toEqual([...days.map((d) => d.dateKey)].sort());
+  });
+});
+
+/* ── Intrinsic seam detection ──────────────────────────────────────────────
+   The two-feed comparison above can only see the 68 sessions where Yahoo and
+   Databento overlap. The seven-year Databento archive has ~29 quarterly rolls
+   in it and no second feed, and each roll is a price discontinuity that a zone
+   engine reads as exactly the wide-range departure candle it hunts for. These
+   tests pin the one-series detector that makes those sessions excludable. */
+
+/** A session of 5-minute bars trading in a band around `base`. */
+function session(dayIndex: number, base: number, range = 10): Bar[] {
+  const out: Bar[] = [];
+  for (let i = 0; i < 12; i++) {
+    const t = dayIndex * DAY + 14 * 3600 + i * 300;
+    // Walk the band so the session's high-low really is `range`.
+    const mid = base + (i % 2 === 0 ? 0 : range / 2);
+    out.push({ time: t, open: mid, high: base + range, low: base, close: mid, volume: 10 });
+  }
+  return out;
+}
+
+describe("seamSessions", () => {
+  it("flags a session that opens far from the previous close", () => {
+    /* Twenty quiet sessions around 100 with a 10-point range, then one that
+       opens at 200 — the shape a contract roll makes in a continuous series. */
+    const bars = [
+      ...Array.from({ length: 20 }, (_, d) => session(d, 100)).flat(),
+      ...session(20, 200),
+    ];
+    const gaps = seamSessions(bars, dateKeyOf);
+    const flagged = gaps.filter((g) => g.seam);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].dateKey).toBe(dateKeyOf(20 * DAY + 14 * 3600));
+    expect(flagged[0].ratio).toBeGreaterThan(SEAM_GAP_RATIO);
+  });
+
+  it("does not flag ordinary session-to-session drift", () => {
+    // Each session opens a couple of points from the last close — normal.
+    const bars = Array.from({ length: 20 }, (_, d) => session(d, 100 + d * 2)).flat();
+    expect(seamSessions(bars, dateKeyOf).filter((g) => g.seam)).toEqual([]);
+  });
+
+  it("scales with the market, so one threshold serves MES and MNQ", () => {
+    /* The same 100-point gap is a seam in a 10-point-range market and noise in
+       a 400-point one. A fixed points threshold could not express that, which
+       is the whole reason the detector is a ratio. */
+    const quiet = [...Array.from({ length: 20 }, (_, d) => session(d, 100, 10)).flat(), ...session(20, 200, 10)];
+    const wild = [...Array.from({ length: 20 }, (_, d) => session(d, 100, 400)).flat(), ...session(20, 200, 400)];
+    expect(seamSessions(quiet, dateKeyOf).some((g) => g.seam)).toBe(true);
+    expect(seamSessions(wild, dateKeyOf).some((g) => g.seam)).toBe(false);
+  });
+
+  it("never flags the first session, which has no predecessor to gap from", () => {
+    const bars = Array.from({ length: 5 }, (_, d) => session(d, 100)).flat();
+    const gaps = seamSessions(bars, dateKeyOf);
+    expect(gaps.map((g) => g.dateKey)).not.toContain(dateKeyOf(14 * 3600));
+  });
+
+  it("does not divide by zero on a flat reference window", () => {
+    /* A zero-range window would make every ratio Infinity and flag the
+       quietest stretch in the series as the noisiest. */
+    const flat: Bar[] = Array.from({ length: 5 }, (_, d) =>
+      Array.from({ length: 3 }, (_, i) => ({
+        time: d * DAY + 14 * 3600 + i * 300,
+        open: 100,
+        high: 100,
+        low: 100,
+        close: 100,
+        volume: 1,
+      }))
+    ).flat();
+    const gaps = seamSessions(flat, dateKeyOf);
+    expect(gaps.every((g) => Number.isFinite(g.ratio))).toBe(true);
+    expect(gaps.some((g) => g.seam)).toBe(false);
+  });
+});
+
+describe("dropSeamSessions", () => {
+  const bars = [
+    ...Array.from({ length: 20 }, (_, d) => session(d, 100)).flat(),
+    ...session(20, 200),
+    ...session(21, 200),
+    ...session(22, 200),
+  ];
+
+  it("drops the seam session and the one after it", () => {
+    /* The pad exists because a stitched price does not stop mattering at
+       midnight — zones formed across the seam stay live for days. */
+    const { bars: kept, dropped } = dropSeamSessions(bars, dateKeyOf);
+    expect(dropped).toEqual([
+      dateKeyOf(20 * DAY + 14 * 3600),
+      dateKeyOf(21 * DAY + 14 * 3600),
+    ]);
+    expect(kept.length).toBe(bars.length - 24);
+  });
+
+  it("keeps everything when pad is 0 except the seam day itself", () => {
+    expect(dropSeamSessions(bars, dateKeyOf, SEAM_GAP_RATIO, 0).dropped).toHaveLength(1);
+  });
+
+  it("is a no-op on a series with no seam", () => {
+    const clean = Array.from({ length: 20 }, (_, d) => session(d, 100)).flat();
+    const { bars: kept, dropped } = dropSeamSessions(clean, dateKeyOf);
+    expect(dropped).toEqual([]);
+    expect(kept).toHaveLength(clean.length);
   });
 });

@@ -19,6 +19,20 @@ export type BarSource = "yahoo" | "databento";
    history is opt-in per call site rather than a silent upgrade. */
 export const DEFAULT_BAR_SOURCE: BarSource = "yahoo";
 
+/* The deep history: real CME contracts, 2019-05-06 → 2026-07-29, 1,015,938
+   bars. Use it for anything that STUDIES the past — a seven-year measurement,
+   an out-of-sample check, a regime breakdown.
+
+   Do NOT use it for anything that needs the present. It is a one-off backfill,
+   not a live feed: it stops on 2026-07-29 while the Yahoo series is current to
+   today. A reader that wants "the trailing 30 days" gets a stale window from
+   it, and the staleness checks in lib/time/session.ts — which are written
+   against the engine's own write cadence — would not notice.
+
+   This is why there is no global switch. `DEFAULT_BAR_SOURCE` stays yahoo and
+   each call site states which history it means. */
+export const HISTORICAL_BAR_SOURCE: BarSource = "databento";
+
 export const BAR_SOURCES: readonly BarSource[] = ["yahoo", "databento"] as const;
 
 /** Read a source from an env var or CLI flag, rejecting anything unknown.

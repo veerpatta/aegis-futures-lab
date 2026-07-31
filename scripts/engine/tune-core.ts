@@ -16,7 +16,8 @@ import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { fetchYahooBars } from "./data";
 import { resampleDrawdowns } from "./montecarlo";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, type TierStream } from "./tiers";
-import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { parseBarSource } from "@/lib/data/source";
+import { fetchArchiveBars } from "@/lib/data/archive";
 
 export const OOS_DAYS = 30;
 export const MIN_OOS_TRADES = 8;
@@ -51,31 +52,28 @@ export function tailGateReason(label: string, candP95: number, incP95: number): 
   );
 }
 
-const PAGE = 1000;
+/* WHICH HISTORY THE AUTOMATED TUNE READS.
+
+   Deliberately still DEFAULT_BAR_SOURCE, i.e. yahoo, even though seven years
+   of real CME data now sit in the same table. This module feeds two automated
+   decision paths — the monthly tune and the weekly challenger, which opens
+   PRs against the live parameters — and changing what they read changes what
+   they propose. That is a behaviour change to an automated system, and this
+   repo's convention for those is a switch that defaults to the existing
+   behaviour, flipped in a separate deliberate step once someone has looked at
+   what it does (lib/data/window.ts's ARCHIVE_DAY_ALIGN is the precedent).
+
+   There is also a substantive reason to think before flipping it. This reader
+   is unioned with the live Yahoo window below, and the two feeds diverge
+   around each quarterly contract roll (lib/data/feed-delta.ts). A challenger
+   trained across that joint would be fitting a seam.
+
+   BAR_SOURCE overrides it for a manual run, which is how to see the effect
+   before deciding. */
+const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 async function archiveAllBars(supabase: SupabaseClient, symbol: FeedSymbol): Promise<Bar[]> {
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .eq("source", DEFAULT_BAR_SOURCE)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
+  return fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE });
 }
 
 /* Bar archive unioned with the current Yahoo window (Yahoo wins on overlap).

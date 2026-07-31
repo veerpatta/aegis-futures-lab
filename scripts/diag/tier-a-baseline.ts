@@ -30,10 +30,12 @@ import { createClient } from "@supabase/supabase-js";
 import type { Bar } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
+import { dropSeamSessions } from "@/lib/data/feed-delta";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { parseBarSource } from "@/lib/data/source";
+import { fetchArchiveBars } from "@/lib/data/archive";
 import {
   EXECUTION,
   SESSION_EXIT_MINUTE,
@@ -57,28 +59,7 @@ const supabase = createClient(
 );
 
 async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
-  const out: Bar[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("bars_5m")
-      .select("time, open, high, low, close, volume")
-      .eq("symbol", symbol)
-      .eq("source", BAR_SOURCE)
-      .order("time", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
-    for (const r of data ?? [])
-      out.push({
-        time: Number(r.time),
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        volume: Number(r.volume ?? 0),
-      });
-    if (!data || data.length < PAGE) break;
-  }
-  return alignArchiveSlice(out);
+  return alignArchiveSlice(await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));
 }
 
 function tierA() {
@@ -178,6 +159,49 @@ async function main() {
       `The mean trades/day above is therefore NOT a rate — it is ` +
       `${m.trades} trades on ${active.length} day(s) divided by ${sessions.length}.`
   );
+
+  /* ── Seam-excluded, closing the caveat the backfill commit opened ────────
+     A continuous contract is stitched roughly 29 times over seven years, and
+     each stitch is a price discontinuity — which is exactly the wide-range
+     "departure" candle a zone engine is built to hunt. Dropping every session
+     whose open gaps more than 1.5× the trailing session range, plus the
+     session after it, isolates how much of the result is contract stitching
+     rather than market structure. */
+  const cleanSeries: Record<string, Bar[]> = {};
+  let droppedTotal = 0;
+  for (const s of stream.symbols) {
+    const { bars, dropped } = dropSeamSessions(full[s], (t) => nyMeta(t).dateKey);
+    cleanSeries[s] = bars;
+    droppedTotal = Math.max(droppedTotal, dropped.length);
+  }
+  const cleanRes = runTierA(cleanSeries);
+  const cm = cleanRes.metrics;
+  const cleanSessions = sessionsIn(cleanSeries[stream.symbols[0]]).length;
+  console.log(`\n=== with contract-roll seams excluded ===`);
+  console.log(
+    `${droppedTotal} of ${sessions.length} sessions dropped ` +
+      `(${num((100 * droppedTotal) / Math.max(1, sessions.length), 1)}%)`
+  );
+  console.table([
+    {
+      window: "all sessions",
+      sessions: sessions.length,
+      trades: m.trades,
+      "win%": num(m.winRate, 1),
+      PF: num(m.profitFactor),
+      net: `$${num(m.net, 0)}`,
+      "avg R": num(m.avgR, 3),
+    },
+    {
+      window: "seam-excluded",
+      sessions: cleanSessions,
+      trades: cm.trades,
+      "win%": num(cm.winRate, 1),
+      PF: num(cm.profitFactor),
+      net: `$${num(cm.net, 0)}`,
+      "avg R": num(cm.avgR, 3),
+    },
+  ]);
 
   // ── Per symbol ───────────────────────────────────────────────────────────
   console.log(`\n=== per symbol ===`);
