@@ -69,6 +69,11 @@ function loadExpectedStreams() {
   return {
     streams: raw.streams,
     silenceTradingDays: Number(process.env.WATCHDOG_SILENCE_DAYS || raw.silenceTradingDays || 10),
+    // Per-stream overrides. WATCHDOG_SILENCE_DAYS deliberately does NOT override
+    // these: it is the blunt global escape hatch, and letting it flatten a
+    // stream-specific threshold would silently undo the reason that stream has
+    // one. See the note in expected-streams.json.
+    silenceTradingDaysByStream: raw.silenceTradingDaysByStream || {},
   };
 }
 
@@ -117,16 +122,24 @@ async function supabaseGet(path) {
   return res.json();
 }
 
-/* Which configured streams have gone quiet for `silenceTradingDays` or more
+/* Which configured streams have gone quiet for their own threshold or more
    consecutive trading days. A stream that has NEVER produced a signal is timed
    from the engine's FIRST run, not from epoch — otherwise a freshly deployed
-   stream would alert on day one. Pure, so it is unit-tested directly. */
+   stream would alert on day one.
+
+   `silenceTradingDaysByStream` overrides `silenceTradingDays` per stream, so a
+   measurably rare stream gets a threshold matched to its own cadence instead of
+   an alert that can never clear. Optional and defaulted: every existing caller
+   that passes only the global threshold behaves exactly as before.
+
+   Pure, so it is unit-tested directly. */
 export function findSilentStreams({
   expected,
   rows,
   engineFirstRunMs,
   nowMs,
   silenceTradingDays,
+  silenceTradingDaysByStream = {},
   closedHolidays,
 }) {
   const newest = new Map();
@@ -142,11 +155,13 @@ export function findSilentStreams({
     // No signal ever ⇒ measure from when the engine started running at all.
     const sinceMs = lastMs ?? engineFirstRunMs;
     if (sinceMs === null) continue; // engine has never run — the cron check owns that
+    const threshold = Number(silenceTradingDaysByStream[stream] ?? silenceTradingDays);
     const days = tradingDaysBetween(new Date(sinceMs), new Date(nowMs), closedHolidays);
-    if (days >= silenceTradingDays)
+    if (days >= threshold)
       out.push({
         stream,
         days,
+        threshold,
         lastSignal: lastMs === null ? null : new Date(lastMs).toISOString(),
         everProduced: lastMs !== null,
       });
@@ -304,7 +319,8 @@ async function resolveIssue(label, comment) {
    because a perfectly healthy cron producing nothing is the failure we missed.
    Never throws — a read failure skips the check for this pass. */
 async function checkSilence(now, closedHolidays) {
-  const { streams, silenceTradingDays } = loadExpectedStreams();
+  const { streams, silenceTradingDays, silenceTradingDaysByStream } = loadExpectedStreams();
+  const thresholdFor = (s) => Number(silenceTradingDaysByStream[s] ?? silenceTradingDays);
   let rows = [];
   let firstRun = null;
   try {
@@ -325,35 +341,39 @@ async function checkSilence(now, closedHolidays) {
     engineFirstRunMs: firstRun,
     nowMs: now.getTime(),
     silenceTradingDays,
+    silenceTradingDaysByStream,
     closedHolidays,
   });
 
   console.log(
-    `silence: ${silent.length} of ${streams.length} configured stream(s) quiet ` +
-      `for ≥${silenceTradingDays} trading days` +
-      (silent.length ? ` → ${silent.map((s) => `${s.stream} (${s.days}d)`).join(", ")}` : "")
+    `silence: ${silent.length} of ${streams.length} configured stream(s) past their own ` +
+      `threshold` +
+      (silent.length
+        ? ` → ${silent.map((s) => `${s.stream} (${s.days}d ≥ ${s.threshold})`).join(", ")}`
+        : "")
   );
 
   if (!silent.length) {
     await resolveIssue(
       SILENCE_LABEL,
-      `Recovered at ${now.toISOString()} — every configured stream has produced a signal inside the last ${silenceTradingDays} trading days.`
+      `Recovered at ${now.toISOString()} — every configured stream is inside its own silence threshold ` +
+        `(${streams.map((s) => `\`${s}\` ${thresholdFor(s)}d`).join(", ")}).`
     );
     return { silent, telegramOk: true, issueOk: true };
   }
 
   const lines = silent.map(
     (s) =>
-      `- \`${s.stream}\`: ${s.days} trading days silent (threshold ${silenceTradingDays}) — ` +
+      `- \`${s.stream}\`: ${s.days} trading days silent (threshold ${s.threshold}) — ` +
       (s.everProduced ? `last signal ${s.lastSignal}` : `has NEVER produced a signal`)
   );
   const telegramOk = await sendTelegram(
     `🔇 <b>Stream silence</b>: ${silent.length} configured stream(s) have produced nothing for ` +
-      `≥${silenceTradingDays} trading days.\n` +
+      `longer than their own threshold.\n` +
       silent
         .map(
           (s) =>
-            `${s.stream}: ${s.days}d${s.everProduced ? `, last ${String(s.lastSignal).slice(0, 16)}` : ", never"}`
+            `${s.stream}: ${s.days}d (≥${s.threshold})${s.everProduced ? `, last ${String(s.lastSignal).slice(0, 16)}` : ", never"}`
         )
         .join("\n") +
       `\nThe cron may be perfectly healthy — this is about output, not uptime. Paper only.`
@@ -361,12 +381,13 @@ async function checkSilence(now, closedHolidays) {
   const issueOk = await raiseIssue(
     SILENCE_LABEL,
     "fbca04",
-    `Watchdog: ${silent.length} stream(s) silent for ≥${silenceTradingDays} trading days`,
+    `Watchdog: ${silent.length} stream(s) silent past their threshold`,
     `A configured stream can be silent while the engine is entirely healthy — that is how tier A ` +
       `ran quiet from go-live with no alert. Weekends and full CME holidays are excluded.\n\n` +
       lines.join("\n") +
-      `\n\n- Detected: ${now.toISOString()}\n- Threshold: ${silenceTradingDays} consecutive trading days\n` +
-      `- Configured streams: ${streams.map((s) => `\`${s}\``).join(", ")}\n\n` +
+      `\n\n- Detected: ${now.toISOString()}\n` +
+      `- Thresholds: ${streams.map((s) => `\`${s}\` ${thresholdFor(s)}d`).join(", ")} ` +
+      `(default ${silenceTradingDays}, per-stream overrides in lib/engine/expected-streams.json)\n\n` +
       `This issue closes itself on the next signal from every stream. A genuinely rare stream may ` +
       `need its threshold raised rather than its logic changed — check ` +
       `scripts/diag/PHASE1-FINDINGS.md before assuming a defect.`,

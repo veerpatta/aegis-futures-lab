@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Bar } from "@/lib/types";
 import { buildStack, scoreZoneAt, type Timeframe } from "@/lib/strategies/zone-v5/engine";
-import { dedupeZoneRows, zoneRows, type ZoneUpsertRow } from "../scripts/engine/zone-rows";
+import {
+  dedupeZoneRows,
+  rowsToDelete,
+  zoneRows,
+  type ExistingZoneRow,
+  type ZoneUpsertRow,
+} from "../scripts/engine/zone-rows";
 
 /* The zones table enforces a natural-key unique constraint on
    (symbol, timeframe, zone_type, price_high, price_low) alongside the
@@ -10,7 +16,7 @@ import { dedupeZoneRows, zoneRows, type ZoneUpsertRow } from "../scripts/engine/
    which used to abort the whole zones upsert. zoneRows must emit at most one
    row per natural key, keeping the freshest formation. */
 
-const naturalKey = (r: ZoneUpsertRow) =>
+const naturalKey = (r: ZoneUpsertRow | ExistingZoneRow) =>
   `${r.symbol}|${r.timeframe}|${r.zone_type}|${r.price_high}|${r.price_low}`;
 
 /* Expand one 15-minute candle spec into three aligned 5m bars: the first
@@ -81,6 +87,92 @@ describe("dedupeZoneRows", () => {
     const c = row({ dedupe_key: "MNQ:15M:demand:1", symbol: "MNQ" });
     const d = row({ dedupe_key: "MES:1h:demand:1", timeframe: "1H" });
     expect(dedupeZoneRows([a, b, c, d])).toHaveLength(4);
+  });
+});
+
+/* The prune that runs before the zones upsert. Keying it on dedupe_key alone
+   still let a 23505 through against the natural-key constraint — four times in
+   the 118 runs the 2026-07-25 digest covers — because a surviving row can hold
+   a natural key that a DIFFERENT row of the new snapshot now claims. Only exact
+   matches on BOTH keys may survive. */
+describe("rowsToDelete", () => {
+  const existing = (over: Partial<ExistingZoneRow>): ExistingZoneRow => ({
+    id: 1,
+    dedupe_key: "MES:15M:demand:1",
+    symbol: "MES",
+    timeframe: "15M",
+    zone_type: "demand",
+    price_high: 101,
+    price_low: 95,
+    ...over,
+  });
+  const snap = (over: Partial<ZoneUpsertRow>): ZoneUpsertRow => ({
+    dedupe_key: "MES:15M:demand:1",
+    symbol: "MES",
+    timeframe: "15M",
+    zone_type: "demand",
+    price_high: 101,
+    price_low: 95,
+    score: 80,
+    status: "fresh",
+    fresh: true,
+    achieved: false,
+    blocked80: false,
+    touches: 0,
+    source_candle_ts: "2026-07-06T14:30:00.000Z",
+    active: true,
+    updated_at: "2026-07-06T18:00:00.000Z",
+    ...over,
+  });
+
+  it("keeps a row that matches the snapshot on both keys", () => {
+    expect(rowsToDelete([existing({})], [snap({})])).toEqual([]);
+  });
+
+  it("deletes a row the snapshot no longer carries", () => {
+    expect(rowsToDelete([existing({ id: 7 })], [])).toEqual([7]);
+    expect(
+      rowsToDelete([existing({ id: 7 })], [snap({ dedupe_key: "MES:15M:demand:2" })])
+    ).toEqual([7]);
+  });
+
+  /* The case the dedupe_key-only prune missed. A zone's price_high/price_low
+     can move while its dedupe_key does not — formedAt is the aggregated frame
+     bar's bucket time, and that bar keeps widening while it is still forming.
+     The stale row then sits on a level another snapshot row claims, and the
+     upsert order decides whether Postgres raises 23505. */
+  it("deletes a row whose dedupe_key survived but whose natural key moved", () => {
+    const stale = existing({ id: 7, price_high: 101 });
+    const snapshot = [
+      snap({ dedupe_key: "MES:15M:demand:1", price_high: 104 }), // widened
+      snap({ dedupe_key: "MES:15M:demand:9", price_high: 101 }), // now claims 101
+    ];
+    expect(rowsToDelete([stale], snapshot)).toEqual([7]);
+  });
+
+  it("leaves no surviving row holding a natural key another snapshot row claims", () => {
+    const rowsInDb = [
+      existing({ id: 1, dedupe_key: "MES:15M:demand:1", price_high: 101 }),
+      existing({ id: 2, dedupe_key: "MES:15M:demand:2", price_high: 110, price_low: 104 }),
+      existing({ id: 3, dedupe_key: "MNQ:1H:supply:5", symbol: "MNQ", timeframe: "1H", zone_type: "supply" }),
+    ];
+    const snapshot = [
+      snap({ dedupe_key: "MES:15M:demand:1", price_high: 104, price_low: 95 }),
+      snap({ dedupe_key: "MES:15M:demand:9", price_high: 101, price_low: 95 }),
+      snap({ dedupe_key: "MES:15M:demand:2", price_high: 110, price_low: 104 }),
+    ];
+    const doomed = new Set(rowsToDelete(rowsInDb, snapshot));
+    const survivors = rowsInDb.filter((r) => !doomed.has(r.id));
+    const claimed = new Map(snapshot.map((r) => [naturalKey(r), r.dedupe_key]));
+    // Every survivor's natural key is claimed by the snapshot row it IS.
+    for (const s of survivors) expect(claimed.get(naturalKey(s))).toBe(s.dedupe_key);
+    // id 2 is untouched, id 1 (moved) and id 3 (gone) are cleared.
+    expect([...doomed].sort()).toEqual([1, 3]);
+  });
+
+  it("clears the whole table when the snapshot is empty", () => {
+    const rowsInDb = [existing({ id: 1 }), existing({ id: 2, dedupe_key: "x" })];
+    expect(rowsToDelete(rowsInDb, [])).toEqual([1, 2]);
   });
 });
 

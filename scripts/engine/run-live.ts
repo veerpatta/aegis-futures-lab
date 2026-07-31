@@ -33,7 +33,7 @@ import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
 import { applyBreakers, isSuppressedAt, streamKeyForRow } from "./breakers";
 import { applyWinProb } from "./model";
-import { zoneRows } from "./zone-rows";
+import { rowsToDelete, zoneRows, type ExistingZoneRow } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
@@ -523,7 +523,21 @@ async function main() {
   }
 
   if (signals.length) {
-    const { error } = await supabase.from("signals").upsert(signals, { onConflict: "dedupe_key" });
+    const upsertSignals = async () =>
+      (await supabase.from("signals").upsert(signals, { onConflict: "dedupe_key" })).error;
+    let error = await upsertSignals();
+    // PGRST204 = "Could not find the '<col>' column of '<table>' in the schema
+    // cache". Not a missing column: PostgREST caches the schema and reloads it
+    // asynchronously after DDL, so every migration that adds a column opens a
+    // window where a write naming that column bounces. It cost one run of 118
+    // on 2026-07-23 (`regime`, added that day — the column is present in the
+    // live DB). Retry once after giving the reload a moment; anything still
+    // failing after that is a genuinely absent column and must fail the run.
+    if (error?.code === "PGRST204") {
+      console.log(`signals upsert: ${error.message} — schema cache stale, retrying once`);
+      await new Promise((r) => setTimeout(r, 3000));
+      error = await upsertSignals();
+    }
     if (error) throw new Error(`signals upsert: ${error.message}`);
   }
 
@@ -549,19 +563,41 @@ async function main() {
   // (bit us live 2026-07-23). Anything not in this snapshot is superseded —
   // consumed, out of the nearest-N window, or an older formation of a level
   // this batch re-emits — so drop it first.
+  //
+  // The prune used to key on dedupe_key alone, which left rows whose natural
+  // key had MOVED under an unchanged dedupe_key still sitting on a level a
+  // different snapshot row now claims — the 23505 the 2026-07-25 digest
+  // reported four times. rowsToDelete keeps only exact matches on BOTH keys,
+  // so the upsert below cannot collide. See scripts/engine/zone-rows.ts.
   {
-    const query = supabase.from("zones").delete();
-    const { error } = zones.length
-      ? await query.filter(
-          "dedupe_key",
-          "not.in",
-          `(${zones.map((z) => `"${z.dedupe_key}"`).join(",")})`
-        )
-      : await query.gte("id", 0);
-    if (error) throw new Error(`zones cleanup: ${error.message}`);
+    const { data, error } = await supabase
+      .from("zones")
+      .select("id, dedupe_key, symbol, timeframe, zone_type, price_high, price_low");
+    if (error) throw new Error(`zones read: ${error.message}`);
+    const stale = rowsToDelete((data ?? []) as ExistingZoneRow[], zones);
+    for (let i = 0; i < stale.length; i += 200) {
+      const { error: delError } = await supabase
+        .from("zones")
+        .delete()
+        .in("id", stale.slice(i, i + 200));
+      if (delError) throw new Error(`zones cleanup: ${delError.message}`);
+    }
   }
   if (zones.length) {
-    const { error } = await supabase.from("zones").upsert(zones, { onConflict: "dedupe_key" });
+    const upsertZones = async () =>
+      (await supabase.from("zones").upsert(zones, { onConflict: "dedupe_key" })).error;
+    let error = await upsertZones();
+    // A concurrent run (GitHub has delayed this cron by up to 49 minutes
+    // against a 15-minute cadence — see self-heal.yml) can re-seat a natural
+    // key between our read and our write, which the reconcile above cannot
+    // see. One retry after clearing the conflicting rows converges; a second
+    // failure is a real fault and still fails the run.
+    if (error?.code === "23505") {
+      console.log(`zones upsert: ${error.message} — clearing and retrying once`);
+      const { error: delError } = await supabase.from("zones").delete().gte("id", 0);
+      if (delError) throw new Error(`zones cleanup (retry): ${delError.message}`);
+      error = await upsertZones();
+    }
     if (error) throw new Error(`zones upsert: ${error.message}`);
   }
   phaseT("zones", phaseStart);

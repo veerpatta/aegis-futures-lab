@@ -1,5 +1,7 @@
 {
   "note": "The stream keys the engine is CONFIGURED to produce, as streamKeyFor() builds them. The silence watchdog (scripts/engine/watchdog.mjs) needs this list in plain Node — it cannot import tiers.ts — and it must include streams that have produced NOTHING, which is exactly the tier-A failure mode it exists to catch (a stream with no rows is invisible to any DB-derived list). tests/silence.test.ts asserts this file matches tierStreams() exactly, so it cannot drift silently.",
   "silenceTradingDays": 10,
-  "streams": ["A", "B:rsi-reversion:MES", "B:rsi-reversion:MNQ"]
+  "streams": ["A", "B:rsi-reversion:MES", "B:rsi-reversion:MNQ"],
+  "byStreamNote": "Per-stream overrides of silenceTradingDays. A stream that is GENUINELY rare needs a threshold matched to its own cadence, or its alert fires forever and the whole label gets ignored — which is what happened to `A`. scripts/diag/PHASE1-FINDINGS.md §1 measures tier A at one clustered day in fifty (14 trades, all on 2026-07-09, over 50 sessions), so a 10-day threshold cannot ever clear and says nothing when it trips. 60 sits just above that measured cadence. This is a coverage trade, stated plainly: tier A now goes unwatched for silence until roughly 60 trading days from the engine's first run (2026-07-19 → ~2026-10-13). Raise the frequency, not this number, if that is unacceptable.",
+  "silenceTradingDaysByStream": { "A": 60 }
 }

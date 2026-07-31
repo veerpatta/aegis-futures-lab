@@ -46,12 +46,64 @@ export interface ZoneUpsertRow {
 
 const iso = (sec: number) => new Date(sec * 1000).toISOString();
 
+/* The DB natural key, as a string. Mirrors
+   zones_symbol_timeframe_zone_type_price_high_price_low_key. */
+export const zoneNaturalKey = (r: {
+  symbol: string;
+  timeframe: string;
+  zone_type: string;
+  price_high: number;
+  price_low: number;
+}) => `${r.symbol}|${r.timeframe}|${r.zone_type}|${r.price_high}|${r.price_low}`;
+
+export interface ExistingZoneRow {
+  id: number;
+  dedupe_key: string;
+  symbol: string;
+  timeframe: string;
+  zone_type: string;
+  price_high: number;
+  price_low: number;
+}
+
+/* Which existing zones rows must go before the snapshot is upserted.
+   KEEP a row only when it is an EXACT match of a snapshot row — same
+   dedupe_key AND same natural key. Everything else is deleted.
+
+   Pruning on dedupe_key alone (what this did until 2026-07-31) is not enough,
+   and that is what kept throwing
+   `duplicate key value violates unique constraint
+    zones_symbol_timeframe_zone_type_price_high_price_low_key`
+   — four times in the 118 runs the 2026-07-25 digest covers. A row surviving
+   the prune still carries its OLD natural key; a zone's price_high/price_low
+   can move while its dedupe_key (symbol:tf:type:formedAt) does not, because
+   formedAt is the aggregated frame bar's bucket time and that bar keeps
+   widening while it is still forming. So the survivor sits on natural key N
+   while another snapshot row now claims N, and whichever of the two Postgres
+   applies first wins — an ordering-dependent 23505 that no amount of in-batch
+   deduping can prevent.
+
+   Deleting every non-exact match makes the collision impossible by
+   construction rather than by argument: after this runs, every remaining row
+   is byte-identical on both keys to a row in the snapshot, so the upsert can
+   only ever INSERT rows whose natural keys are unheld. It costs one SELECT of
+   a table that holds ~25 rows. */
+export function rowsToDelete(
+  existing: ExistingZoneRow[],
+  snapshot: ZoneUpsertRow[]
+): number[] {
+  const wanted = new Map(snapshot.map((r) => [r.dedupe_key, zoneNaturalKey(r)]));
+  return existing
+    .filter((row) => wanted.get(row.dedupe_key) !== zoneNaturalKey(row))
+    .map((row) => row.id);
+}
+
 /* Collapse rows sharing the DB natural key, keeping the row with the latest
    source_candle_ts (the freshest formation of that price level). */
 export function dedupeZoneRows(rows: ZoneUpsertRow[]): ZoneUpsertRow[] {
   const byNaturalKey = new Map<string, ZoneUpsertRow>();
   for (const row of rows) {
-    const key = `${row.symbol}|${row.timeframe}|${row.zone_type}|${row.price_high}|${row.price_low}`;
+    const key = zoneNaturalKey(row);
     const kept = byNaturalKey.get(key);
     if (!kept || row.source_candle_ts > kept.source_candle_ts) byNaturalKey.set(key, row);
   }

@@ -33,6 +33,20 @@ describe("the stream manifest cannot drift from tiers.ts", () => {
   it("carries a threshold of 10 trading days", () => {
     expect(manifest.silenceTradingDays).toBe(10);
   });
+
+  /* Every per-stream override must name a stream that actually exists, or the
+     override is dead config that silently does nothing — the exact failure
+     shape a threshold override is most likely to hide behind. */
+  it("only overrides thresholds for streams that are configured", () => {
+    for (const stream of Object.keys(manifest.silenceTradingDaysByStream))
+      expect(manifest.streams).toContain(stream);
+  });
+
+  /* Tier A fires on one session in fifty (scripts/diag/PHASE1-FINDINGS.md §1),
+     so the 10-day default can never clear for it. */
+  it("raises tier A above its measured one-in-fifty cadence", () => {
+    expect(manifest.silenceTradingDaysByStream.A).toBeGreaterThan(50);
+  });
 });
 
 describe("findSilentStreams", () => {
@@ -119,6 +133,53 @@ describe("findSilentStreams", () => {
     expect(withHoliday).toEqual([]);
     expect(withoutHoliday).toHaveLength(1);
     expect(withoutHoliday[0].days).toBe(10);
+  });
+
+  /* Item: a stream whose real cadence is rarer than the global threshold used
+     to alert forever — tier A tripped at 10 trading days when it fires on one
+     session in fifty, and the permanently-open issue is what teaches everyone
+     to ignore the label. A per-stream override raises only that stream. */
+  describe("per-stream thresholds", () => {
+    const rows = [sig("B", "MES", "rsi-reversion", "2026-07-24T14:00:00Z")];
+    const nowMs = ms("2026-07-24T22:00:00Z"); // >10 trading days after the first run
+
+    it("does not flag a stream that is inside its own raised threshold", () => {
+      const out = findSilentStreams({
+        ...base,
+        rows,
+        nowMs,
+        silenceTradingDaysByStream: { A: 60 },
+      });
+      expect(out).toEqual([]);
+    });
+
+    it("still flags that stream once the raised threshold is itself passed", () => {
+      const out = findSilentStreams({
+        ...base,
+        rows,
+        nowMs,
+        silenceTradingDaysByStream: { A: 3 },
+      });
+      expect(out.map((s: { stream: string }) => s.stream)).toEqual(["A"]);
+      expect(out[0].threshold).toBe(3);
+    });
+
+    it("leaves streams with no override on the global threshold", () => {
+      const out = findSilentStreams({
+        ...base,
+        rows: [], // B silent too, and it has no override
+        nowMs,
+        silenceTradingDaysByStream: { A: 60 },
+      });
+      expect(out.map((s: { stream: string }) => s.stream)).toEqual(["B:rsi-reversion:MES"]);
+      expect(out[0].threshold).toBe(10);
+    });
+
+    it("behaves exactly as before when no override map is passed", () => {
+      const out = findSilentStreams({ ...base, rows, nowMs });
+      expect(out.map((s: { stream: string }) => s.stream)).toEqual(["A"]);
+      expect(out[0].threshold).toBe(10);
+    });
   });
 
   it("stays quiet when the engine has never run at all (the cron check owns that)", () => {
