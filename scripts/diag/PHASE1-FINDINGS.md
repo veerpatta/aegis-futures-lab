@@ -170,26 +170,94 @@ poisoned Daily frame in a bookkeeping job.
 
 ## Recommendation
 
+> **Status (updated 2026-07-31): steps 1 and 2 have LANDED. Step 3 is still
+> open.** Everything above this line is the original diagnosis, unedited — the
+> measurements are what they were on the day. Read the per-step status below
+> before treating any of it as outstanding work. This section read as a live
+> proposal for six days after it was executed, and cost one agent a redundant
+> re-implementation pass; that is what the status lines are here to prevent.
+
 **Do not ship the fix the brief describes yet, in either direction.** Both land
 below the tuned band — `structure:"full"` at 0.12/day and PF 0.50, and both
 basis-aligned variants at zero — so "make the annotation basis and the walk basis
-agree" replaces a drought with a guaranteed silence.
+agree" replaces a drought with a guaranteed silence. *(Still true — this is what
+step 3 below has to decide, and it has not been decided.)*
 
 Sequence I'd propose instead:
 
 1. Day-align the archive slice in `gate-costs.ts` (and `archiveTrailingBars`), so
    the funnel stops changing 80% between runs. Param-gated, defaults preserved,
    parity untouched. Re-measure everything after.
+
+   **✅ DONE 2026-07-25**, in the two-commit shape this repo requires for a
+   behaviour change: `550bde5` added `lib/data/window.ts` with
+   `ARCHIVE_DAY_ALIGN` defaulting OFF, `40b44e6` flipped the default ON. The
+   trim drops the leading NY date only when the slice cut into its session,
+   detected by the first RTH bar's minute.
+
+   **Result: the window-choice dependence is gone.** A mid-session and a
+   pre-open start over the same archive now produce identical funnels —
+   `nesting` 3,654 and `invalidFill` 4 either way, 14 tier-A trades either way
+   (`lib/data/window.ts:31-36`) — against the ~80% disagreement §5 measures.
+   Across eleven one-day window shifts tier A now moves 14–18 trades with
+   `invalidFill` pinned at 4; before alignment the same shifts swung it 2–14
+   with `invalidFill` 4–61 (`scripts/engine/tiers.ts` header). Tier B is
+   unaffected by construction — it builds no multi-day frame.
+
+   **The gap this round left, and how it was closed.** The first pass wired the
+   trim into `gate-costs.ts`, `report.ts` and `run-live.ts` but MISSED
+   `tune-core.ts`, which has its own archive read feeding the monthly tune and
+   the weekly challenger. It was harmless only by luck — the archive happens to
+   start 00:05 ET, so its leading RTH session is whole — and a backfill or
+   retention change starting mid-session would have silently corrupted both
+   jobs. `tests/archive-window.test.ts` now enforces this structurally: every
+   module reading `bars_5m` must appear in `MUST_ALIGN` or in `EXEMPT` **with a
+   written reason**, so a new reader cannot default into neither list. Any
+   future archive reader has to satisfy that guard.
+
 2. Re-run the tuning report on a day-aligned archive. The 0.3–0.4/day at PF 1.35
    baseline was produced by the affected path and should be treated as unverified
    until then.
+
+   **✅ DONE 2026-07-25.** Re-measured over 51 aligned sessions: **16 trades ·
+   0.314/day · PF 1.27 · net +$357 · win rate 43.8%**. Reproduce with
+   `npx tsx scripts/diag/tier-a-baseline.ts`.
+
+   The *level* roughly reproduces the original 0.3–0.4/day at PF ~1.35 — **for a
+   reason the original band hid.** Tier A traded on 3 of 51 sessions (5.9%), and
+   14 of the 16 trades were on 2026-07-09 alone, a day that LOST $192; the P&L
+   comes from two isolated single-trade winners (2026-05-20 +$243, 2026-06-09
+   +$305). So §1's finding survives the alignment fix: this is a cluster, not a
+   pace. The re-measured band now lives in `TUNING_BASELINE` (`tiers.ts`) with
+   its provenance and `clustered: true`, the original promise is kept beside it
+   marked as history, and `tests/tuning-baseline.test.ts` pins the honesty
+   properties — every band carries a dated, reproducible provenance string, no
+   PF floor sits at break-even, and tier A stays marked clustered.
+
 3. Only then decide the annotation basis, with a funnel that means something.
    The honest options at that point are to accept tier A as a ~1-day-in-50
    stream, or to loosen an upstream gate (`htf1h`, `htfRange`) — both of which
    need the stable measurement first.
 
+   **⬜ STILL OPEN — and now unblocked**, since the funnel it depends on is
+   stable. Note what step 2 settled: the alignment fix did **not** rescue tier
+   A's frequency, so "accept tier A as a ~1-day-in-50 stream" is the option the
+   evidence currently favours. That choice has already been made operationally
+   in one place — `lib/engine/expected-streams.json` raises tier A's silence
+   threshold to 60 trading days on exactly this basis (issue #19, 2026-07-31) —
+   but the annotation basis itself is untouched, and any change to it is a
+   zone-v5 behaviour change that must be param-gated with legacy-preserving
+   defaults, per the golden parity tests.
+
 ## Housekeeping
 
 `scripts/diag/tier-a.ts` **kept** (not deleted): the window-sensitivity and
 edge-isolation harness is reusable and is what any future funnel anomaly should
-be checked against.
+be checked against. It is what produced the before/after numbers in step 1.
+
+Guards that now protect this work, and that a future change must keep green:
+
+- `tests/archive-window.test.ts` — the trim's own unit tests, plus the
+  structural guard on `bars_5m` readers described in step 1.
+- `tests/tuning-baseline.test.ts` — stops a tier band outliving the measurement
+  behind it, which is the failure this whole document is a post-mortem of.
