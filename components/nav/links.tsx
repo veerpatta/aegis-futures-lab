@@ -117,6 +117,22 @@ export const NAV_LINKS: NavLink[] = [
    both are desk work, not glance-at-the-phone work. */
 export const SECONDARY_LINKS: NavLink[] = [
   {
+    /* Secondary rather than primary on purpose: the phone tab bar holds
+       exactly five, and post-trade review is a weekend job done sitting down,
+       not something reached one-handed during a session. */
+    href: "/review",
+    label: "Review",
+    hint: "Calendar, heatmap, and when the money is made",
+    icon: (
+      <svg {...iconProps}>
+        {/* calendar with a marked day */}
+        <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+        <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+        <rect x="7" y="12.5" width="3.5" height="3.5" rx="0.6" />
+      </svg>
+    ),
+  },
+  {
     href: "/brain",
     label: "What the bot knows",
     shortLabel: "Brain",
