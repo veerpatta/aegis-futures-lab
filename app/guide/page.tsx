@@ -358,6 +358,15 @@ export default function GuidePage() {
             not help. The page also shows every result twice: <b>gross</b> (before costs) beside{" "}
             <b>net</b> (after), so you can see how much of a loss is the idea and how much is the
             commission and spread.
+            <br />
+            <br />
+            Lower down the same page: <b>where the drift actually is</b> — how much of the market&apos;s
+            move happens overnight, while this bot is flat, versus during the day when it can trade.
+            Then the <b>promotion gate</b>, shown turning down all three of the bot&apos;s own live
+            ideas, and a <b>hypothesis board</b> of new ideas being tested the same way. Nothing on
+            the board is a signal or a recommendation; a new idea starts with no more standing than
+            the old ones ended with, and every setting tried counts against the bar the next one has
+            to clear.
           </dd>
         </dl>
       </section>

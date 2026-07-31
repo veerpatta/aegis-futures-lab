@@ -5,6 +5,8 @@ import { rsiReversion } from "./rsi-reversion";
 import { orb } from "./orb";
 import { vwapReversion } from "./vwap-reversion";
 import { bollingerBreakout } from "./bollinger-breakout";
+import { orbRelVol } from "./orb-relvol";
+import { turnOfMonth } from "./turn-of-month";
 
 export const STRATEGIES: Strategy<unknown>[] = [
   zoneV5,
@@ -13,7 +15,19 @@ export const STRATEGIES: Strategy<unknown>[] = [
   orb,
   vwapReversion,
   bollingerBreakout,
+  // Phase 4 hypotheses. Registered so they run through the same engine, Lab
+  // and diagnostics as everything else — NOT promoted, and not in the shadow
+  // lab's audition set. Each carries its evidence status in its own blurb.
+  orbRelVol,
+  turnOfMonth,
 ] as Strategy<unknown>[];
+
+/* Strategies that exist to be TESTED rather than traded. The distinction is
+   load-bearing for the UI: a hypothesis with no evidence behind it must never
+   be displayed with the same standing as a measured stream. */
+export const PHASE4_HYPOTHESES = new Set(["orb-relvol", "turn-of-month"]);
+
+export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
 
 export function strategyById(id: string): Strategy<unknown> {
   const s = STRATEGIES.find((x) => x.id === id);

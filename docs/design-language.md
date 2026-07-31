@@ -362,8 +362,23 @@ extended.
 | `.duo` / `.duoCard` / `.duoRow` | `Kpi`'s inset tile, in a labelled key-value grid | Gross and net must always appear together. A pair of `Kpi`s side by side would let one be screenshotted alone; one card holding both cannot be. |
 | `.pill` / `.pillGood` / `.pillBad` / `.pillWarn` | `Badge` (`ui.module.css:210-226`) | Same tone triplet, smaller, for use inside a `DataTable` cell where `Badge`'s padding breaks the row rhythm. Follows the §6 rule exactly: a cell that merely failed to clear the bar is **amber**, and red is reserved for a measured negative (actively anti-predictive). |
 
+The Phase 3/4 additions (`HypothesisBoard.tsx`) introduce **no new CSS at all** —
+they reuse `.duo`, `.pill`, `.note` and `.empty` from the same module, plus
+`Panel`, `Kpi`, `Badge` and `DataTable`. That is the intended outcome of
+writing this section: the second feature on a surface should cost no new
+tokens.
+
 No new colours, radii, spacing steps or font sizes outside the existing scale
 were introduced.
+
+### One layout rule that is an honesty rule
+
+The Phase 1 verdict on the live streams renders **above** the Phase 4
+hypothesis board, on the same scrolling page, and neither is behind a tab.
+New candidates are more interesting to look at than a refuted baseline, so the
+pull is always toward leading with them — and "we moved the refutation to its
+own tab" is de-emphasising it. The brief forbids that, and it is the specific
+way a research tool turns back into a sales page.
 
 ---
 

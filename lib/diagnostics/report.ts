@@ -85,6 +85,73 @@ export interface CorrelationRow {
   effectiveTrades: number;
 }
 
+/* ── Phase 4 ─────────────────────────────────────────────────────────────*/
+
+export interface OvernightRow {
+  symbol: string;
+  sessions: number;
+  excludedSeams: number;
+  overnightBps: { mean: number; lo: number; hi: number };
+  intradayBps: { mean: number; lo: number; hi: number };
+  overnightTotalPct: number;
+  intradayTotalPct: number;
+  overnightShare: number;
+  overnightWinRate: number;
+  intradayWinRate: number;
+}
+
+export interface HypothesisTrial {
+  trial: string;
+  strategyId: string;
+  symbol: string;
+  params: Record<string, unknown>;
+  hypothesis: string;
+  prediction: string;
+  trades: number;
+  grossTotal: number;
+  netTotal: number;
+  netPerTrade: number | null;
+  avgR: number;
+  pf: number;
+  randomEntryPercentile: number | null;
+  realisedNRatio: number | null;
+  gate: {
+    promote: boolean;
+    failed: string[];
+    evidenceGaps: string[];
+    summary: string;
+    checks: { key: string; label: string; status: string; value: number | null; threshold: number; detail: string }[];
+  };
+}
+
+export interface NotTested {
+  candidate: string;
+  reason: string;
+}
+
+export interface Phase4Report {
+  generatedFrom: string;
+  measuredAt: string;
+  barSource: string;
+  iterations: number;
+  priorTrials: number;
+  totalTrials: number;
+  trialSharpeDispersion: number;
+  overnight: OvernightRow[];
+  trials: HypothesisTrial[];
+  deflatedSharpe: {
+    sharpe: number;
+    dsr: number;
+    tStat: number;
+    trials: number;
+    expectedMaxSharpe: number;
+    significant: boolean;
+  } | null;
+  pbo: { pbo: number; combinations: number; strategies: number; meanIsPerformance: number; meanOosPerformance: number } | null;
+  cvSummary: { folds: number; meanTrain: number; meanTest: number; totalPurged: number; totalEmbargoed: number; discardedShare: number };
+  notTested: NotTested[];
+}
+
 export interface Phase1Report {
   generatedFrom: string;
   measuredAt: string;
