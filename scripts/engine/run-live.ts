@@ -569,7 +569,7 @@ async function main() {
   // different snapshot row now claims — the 23505 the 2026-07-25 digest
   // reported four times. rowsToDelete keeps only exact matches on BOTH keys,
   // so the upsert below cannot collide. See scripts/engine/zone-rows.ts.
-  {
+  const reconcileZones = async () => {
     const { data, error } = await supabase
       .from("zones")
       .select("id, dedupe_key, symbol, timeframe, zone_type, price_high, price_low");
@@ -582,20 +582,23 @@ async function main() {
         .in("id", stale.slice(i, i + 200));
       if (delError) throw new Error(`zones cleanup: ${delError.message}`);
     }
-  }
+  };
+  await reconcileZones();
   if (zones.length) {
     const upsertZones = async () =>
       (await supabase.from("zones").upsert(zones, { onConflict: "dedupe_key" })).error;
     let error = await upsertZones();
     // A concurrent run (GitHub has delayed this cron by up to 49 minutes
     // against a 15-minute cadence — see self-heal.yml) can re-seat a natural
-    // key between our read and our write, which the reconcile above cannot
-    // see. One retry after clearing the conflicting rows converges; a second
-    // failure is a real fault and still fails the run.
+    // key between the read and the write, which one reconcile pass cannot see.
+    // Reconciling AGAIN picks up whatever that run left and deletes it, since
+    // it is by definition not an exact match of this snapshot. Deliberately
+    // not "clear the table and retry": that would leave zones EMPTY if the
+    // second upsert also failed, which is worse than the stale-but-complete
+    // snapshot a failed upsert used to leave behind.
     if (error?.code === "23505") {
-      console.log(`zones upsert: ${error.message} — clearing and retrying once`);
-      const { error: delError } = await supabase.from("zones").delete().gte("id", 0);
-      if (delError) throw new Error(`zones cleanup (retry): ${delError.message}`);
+      console.log(`zones upsert: ${error.message} — reconciling again and retrying once`);
+      await reconcileZones();
       error = await upsertZones();
     }
     if (error) throw new Error(`zones upsert: ${error.message}`);
