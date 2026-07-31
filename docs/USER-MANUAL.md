@@ -353,6 +353,12 @@ the exact same settings over it:
 
 A profit factor below 1.0 means the losses were bigger than the wins.
 
+Read the profit factor, not the dollar figure. Those totals assume a constant
+$160 of risk on every trade for seven years and ignore the account being wiped
+out along the way — the worst drawdown alone is $69,711 against a $3,000
+starting balance. They are the size of the leak, not a bill anyone could have
+paid.
+
 And it is not one bad patch. Broken down year by year, **all sixteen** stream-years — both
 markets, every year from 2019 to 2026 — lost money. Not one profitable year.
 

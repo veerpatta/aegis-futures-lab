@@ -19,6 +19,7 @@ import { expectancy, rateFromPnls, type RateReadout } from "@/lib/stats";
 import { money } from "@/lib/format";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { SampleNote } from "@/components/ui";
+import { liveOnly } from "@/lib/signals/live";
 import styles from "./home.module.css";
 
 interface SideStat {
@@ -43,7 +44,11 @@ export default function BotVsYouHero({ signals }: { signals: SignalRow[] }) {
        it just says the bot traded more, which is true by construction. */
     const journalDays = new Set(journal.map((t) => nyMeta(t.entryTime).dateKey));
 
-    const botPnls = signals
+    /* liveOnly first: comparing the human against rows the engine wrote about
+       sessions that were already over would flatter the bot by construction —
+       the worst place in the app for that, since this card exists to be a fair
+       comparison. See lib/signals/live.ts. */
+    const botPnls = liveOnly(signals)
       .filter(
         (s) =>
           s.pnl_usd !== null &&

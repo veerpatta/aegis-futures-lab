@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { profitFactor } from "@/lib/stats";
 import { legacyStreamKeyFor, streamKeyFor, streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { tradingDaysBetween } from "@/lib/time/trading-days";
+import { liveOnly } from "@/lib/signals/live";
 import { sendTelegram } from "./notify";
 import { tierStreams } from "./tiers";
 
@@ -212,7 +213,14 @@ export async function applyBreakers(
       q = stream.tier === "A" ? q.eq("tier", "A") : q.like("dedupe_key", `B:${stream.label}:${symbol}:%`);
       const { data: sigs, error: sigErr } = await q;
       if (sigErr) throw new Error(sigErr.message);
-      const closed: ClosedSignal[] = (sigs ?? [])
+      /* liveOnly: this window decides whether a stream gets PAUSED. The
+         engine's first pass mirrored a trailing seven days, and those rows are
+         net POSITIVE while everything live is negative — leaving them in would
+         hold the rolling profit factor up and delay a pause the breaker should
+         make. See lib/signals/live.ts. */
+      const closed: ClosedSignal[] = liveOnly(
+        (sigs ?? []).map((r) => ({ ...r, signal_ts: String(r.signal_ts) }))
+      )
         .map((r) => ({
           pnl_usd: r.pnl_usd === null ? null : Number(r.pnl_usd),
           fill_confidence: (r.fill_confidence as string | null) ?? null,

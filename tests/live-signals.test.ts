@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isLiveSignal, liveOnly } from "@/lib/signals/live";
 import { GO_LIVE_DATE } from "@/scripts/engine/tiers";
@@ -61,5 +63,84 @@ describe("liveOnly", () => {
 
   it("returns an empty list rather than throwing on no input", () => {
     expect(liveOnly([])).toEqual([]);
+  });
+});
+
+/* ── The structural guard ─────────────────────────────────────────────────
+   "Performance aggregation goes through liveOnly" is an invariant with nothing
+   in the type system to enforce it. This session fixed the bars_5m guards TWICE
+   for exactly that reason — a hand-maintained list rots, and its sibling's
+   discovery walk missed a whole directory. Rather than repeat the lesson, the
+   new invariant gets a discovery guard on the same day it is introduced.
+
+   Every module that reads the `signals` table must appear in MUST_FILTER or in
+   EXEMPT with a written reason, and MUST_FILTER members must import liveOnly. */
+describe("every signals reader is classified", () => {
+  const MUST_FILTER = [
+    "components/home/HomeClient.tsx", // headline P&L, the card that was wrong
+    "components/review/ReviewClient.tsx", // P&L calendar + year heatmap
+    "components/signals/SignalsClient.tsx", // the feed's performance panel
+    "scripts/diag/nightly-research.ts", // mirrors the breaker's rolling PF
+    "scripts/engine/breakers.ts", // rolling PF -> PAUSES a stream
+    "scripts/engine/digest.ts", // the weekly Telegram digest
+    "scripts/engine/learn.ts", // calibration + the win-prob training set
+    "scripts/engine/tune.ts", // VIX-bucket split, no time window at all
+  ];
+
+  const EXEMPT: Record<string, string> = {
+    "scripts/engine/debrief.ts":
+      "filters to ONE trading day and reports that day; a backfilled row cannot reach today's " +
+      "debrief, and filtering would make no difference to any day it can report on",
+    "scripts/engine/model.ts":
+      "reads win_prob and dedupe_key to check model coverage; sums no P&L and makes no " +
+      "performance claim, so there is nothing for a backfilled row to distort",
+    "scripts/engine/run-live.ts":
+      "the WRITER — it inserts and closes signal rows. Filtering its own reads would make it " +
+      "unable to find and update the rows it wrote",
+    "scripts/engine/backfill-fill-audit.ts":
+      "re-judges the fill confidence stored ON each row, one row at a time; it is a data " +
+      "correction pass over history, so excluding history is exactly wrong for it",
+  };
+
+  /* A reader may name the table inline OR pass it to a generic helper. The
+     first version of this guard only matched `from("signals")` and so missed
+     scripts/engine/learn.ts, which goes through fetchAll<SignalRow>("signals",
+     …) — the single most consequential reader in the list, since the breakers
+     and the win-prob training set both hang off it. Exactly the hole the
+     bars_5m guards had, found the same way: by running the guard. */
+  const readsSignals = (src: string): boolean =>
+    /from\("signals"\)/.test(src) || /fetchAll\w*(?:<[^>]*>)?\(\s*"signals"/.test(src);
+
+  it("finds every signals reader, and every one is classified", () => {
+    const found: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(rel);
+        else if (/\.(ts|tsx|mjs)$/.test(entry.name)) {
+          const src = readFileSync(join(process.cwd(), rel), "utf8");
+          if (readsSignals(src)) found.push(rel);
+        }
+      }
+    };
+    ["app", "components", "lib", "scripts"].forEach(walk);
+    expect(
+      found.sort(),
+      "a module reads the signals table without appearing in MUST_FILTER or EXEMPT — decide " +
+        "which, with a reason. If it sums pnl_usd it belongs in MUST_FILTER."
+    ).toEqual([...MUST_FILTER, ...Object.keys(EXEMPT)].sort());
+  });
+
+  it.each(MUST_FILTER)("%s runs its signal rows through liveOnly", (path) => {
+    const src = readFileSync(join(process.cwd(), path), "utf8");
+    expect(readsSignals(src), `${path} no longer reads signals — update this guard`).toBe(true);
+    expect(src, `${path} aggregates signals without liveOnly`).toMatch(/\bliveOnly\s*\(/);
+  });
+
+  it("keeps a stated reason for every exemption", () => {
+    for (const [path, reason] of Object.entries(EXEMPT)) {
+      expect(readsSignals(readFileSync(join(process.cwd(), path), "utf8")), path).toBe(true);
+      expect(reason.length, `${path}'s exemption reason is too thin`).toBeGreaterThan(30);
+    }
   });
 });

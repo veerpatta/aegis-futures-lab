@@ -25,6 +25,7 @@ import {
   stats,
 } from "./digest-stats";
 import { STALE_BAR_AGE_MIN } from "@/lib/signals/freshness";
+import { liveOnly } from "@/lib/signals/live";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
@@ -224,7 +225,11 @@ async function main() {
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);
-  const signals = (sigData ?? []) as SignalRow[];
+  /* liveOnly: the digest's window can reach back past go-live, and the rows
+     before it were written retroactively by the first pass. A digest that
+     reports them as performance contradicts the dashboard, which does not.
+     See lib/signals/live.ts. */
+  const signals = liveOnly((sigData ?? []) as SignalRow[]);
   // Headline stats exclude breaker-suppressed rows (consistent with Home and
   // the Signals page); the benched streams' practice is reported separately.
   const active = activeOnly(signals);

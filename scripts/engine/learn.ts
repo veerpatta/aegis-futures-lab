@@ -20,6 +20,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { nyMeta } from "@/lib/time/ny";
+import { liveOnly } from "@/lib/signals/live";
 import { holidayFor } from "@/lib/market/holidays";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { profitFactor } from "@/lib/stats";
@@ -206,9 +207,20 @@ async function main() {
         : "Daily learning records evidence only; model deployment is unchanged.",
   });
 
-  const signals = await fetchAll<SignalRow>(
-    "signals",
-    "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price"
+  /* liveOnly at the read boundary, and this one reaches further than the UI.
+     Everything below is downstream of it: the breakers' rolling profit factor
+     (which PAUSES a stream), the score calibration, and the win-prob model's
+     training set. The engine's first pass mirrored a trailing seven days, so
+     the earliest rows describe sessions that were over before the bot existed
+     — and they hold +$1,441.78 against -$215.68 for everything genuinely
+     live. Left in, they would delay a pause the breaker should make, and train
+     the model partly on the window the parameters were fitted to.
+     See lib/signals/live.ts. */
+  const signals = liveOnly(
+    await fetchAll<SignalRow>(
+      "signals",
+      "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price"
+    )
   );
   const quality = dataQualityReport(signals);
   const datasetHash = stableHash(

@@ -643,6 +643,12 @@ export default function GuidePage() {
           </li>
         </ul>
         <p>
+          Read the profit factor, not the dollar figure. Those totals assume a constant $160 of
+          risk on every trade for seven years and ignore the account being wiped out along the way
+          — the worst drawdown alone is $69,711 against a $3,000 starting balance. They are the
+          size of the leak, not a bill anyone could have paid.
+        </p>
+        <p>
           And it is not one bad patch. Broken down year by year, <b>all sixteen</b> stream-years —
           both markets, every year from 2019 to 2026 — lost money. Not one profitable year.
         </p>

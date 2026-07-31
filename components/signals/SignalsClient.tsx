@@ -38,6 +38,7 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import { money } from "@/lib/format";
 import { fmtPf, profitFactor, rateReadout } from "@/lib/stats";
 import { Badge, Button, DataTable, Kpi, Panel, Rate, SampleNote, Tabs } from "@/components/ui";
+import { liveOnly } from "@/lib/signals/live";
 import styles from "./signals.module.css";
 
 const REFRESH_MS = 60_000;
@@ -202,7 +203,11 @@ export default function SignalsClient() {
       if (err) throw new Error(err.message);
       setState({
         status: "ready",
-        signals: (signals.data ?? []) as SignalRow[],
+        /* liveOnly at the read boundary: the performance panel below sums
+           these, and the engine's first pass mirrored a trailing seven days,
+           so the earliest rows are sessions that finished before the bot
+           existed. See lib/signals/live.ts. */
+        signals: liveOnly((signals.data ?? []) as SignalRow[]),
         zones: (zones.data ?? []) as ZoneRow[],
         runs: (runs.data ?? []) as EngineRunRow[],
         policy: (policy.data ?? []) as BotPolicyRow[],

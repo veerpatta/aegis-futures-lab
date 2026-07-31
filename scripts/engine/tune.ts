@@ -30,6 +30,7 @@ import { fmtPf, profitFactor as profitFactorOf } from "@/lib/stats";
 import { resampleDrawdowns } from "./montecarlo";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
+import { liveOnly } from "@/lib/signals/live";
 import {
   challengerFor,
   evaluate,
@@ -153,8 +154,14 @@ async function main() {
 
   // VIX-bucket split over live signals — judged only at ≥10 per bucket.
   try {
-    const { data, error } = await supabase.from("signals").select("pnl_usd, vix_bucket");
+    const { data: allRows, error } = await supabase
+      .from("signals")
+      .select("pnl_usd, vix_bucket, signal_ts");
     if (error) throw new Error(error.message);
+    /* liveOnly, and note this read has NO time window at all — "all-time"
+       here means every row in the table, which includes the six days the
+       first engine pass wrote retroactively. See lib/signals/live.ts. */
+    const data = liveOnly((allRows ?? []) as { pnl_usd: number | null; vix_bucket: string | null; signal_ts: string }[]);
     const pnlsFor = (bucket: string) =>
       (data ?? [])
         .filter((r) => r.vix_bucket === bucket && r.pnl_usd !== null)

@@ -3,6 +3,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { liveOnly } from "@/lib/signals/live";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -84,16 +85,23 @@ async function main() {
   // Rolling PF over last 20 closed signals per stream (tier+symbol), real signals only.
   const { data: recentAll, error: recentErr } = await supabase
     .from("signals")
-    .select("id,tier,symbol,status,exit_ts,pnl_usd")
+    .select("id,tier,symbol,status,exit_ts,pnl_usd,signal_ts")
     .not("exit_ts", "is", null)
     .order("exit_ts", { ascending: false })
     .limit(500);
   console.log("\n=== signals recent 500 (for rolling PF calc) ===");
   if (recentErr) console.log("ERROR:", recentErr.message);
   else {
-    type RecentRow = { tier: string | null; symbol: string; pnl_usd: number | null };
+    type RecentRow = {
+      tier: string | null;
+      symbol: string;
+      pnl_usd: number | null;
+      signal_ts: string;
+    };
     const byStream = new Map<string, RecentRow[]>();
-    for (const row of (recentAll || []) as RecentRow[]) {
+    // liveOnly: this mirrors the breaker's rolling-PF window, so it has to see
+    // what the breaker sees. See lib/signals/live.ts.
+    for (const row of liveOnly((recentAll || []) as RecentRow[])) {
       const key = `${row.tier}:${row.symbol}`;
       if (!byStream.has(key)) byStream.set(key, []);
       const arr = byStream.get(key)!;

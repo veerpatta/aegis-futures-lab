@@ -28,6 +28,7 @@ import { money } from "@/lib/format";
 import { nyMeta } from "@/lib/time/ny";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { Panel, Rate, SampleNote } from "@/components/ui";
+import { liveOnly } from "@/lib/signals/live";
 import styles from "./review.module.css";
 
 type State =
@@ -51,7 +52,11 @@ export default function ReviewClient() {
         .order("signal_ts", { ascending: false })
         .limit(2000);
       if (error) throw new Error(error.message);
-      setState({ status: "ready", rows: (data ?? []) as SignalRow[] });
+      /* liveOnly at the read boundary: the calendar and the year heatmap are
+         performance surfaces, and the engine's first pass mirrored a trailing
+         seven days — so without this they paint winning squares on 2026-07-13
+         to 07-18, sessions that were over before the bot existed. */
+      setState({ status: "ready", rows: liveOnly((data ?? []) as SignalRow[]) });
     } catch (e) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
