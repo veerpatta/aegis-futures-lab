@@ -142,7 +142,26 @@ describe("describeCell — no bare percentages, ever", () => {
     const text = describeCell(h);
     expect(text).toContain("55% win rate");
     expect(text).toContain("profit factor 1.40");
-    expect(text).toContain("(n=24)");
+    expect(text).toContain("n=24");
+  });
+
+  /* Clearing MIN_CELL_N is not the same as being judgeable. A cell at n=24 is
+     past the collecting gate and still nowhere near the display gate, and this
+     line is read as justification for placing a trade. */
+  it("still flags a usable-but-thin cell as previewed", () => {
+    const [h] = historicalCells(ledger(), sig());
+    expect(h.insufficient).toBe(false);
+    expect(describeCell(h)).toContain("previewed, not judged");
+  });
+
+  it("drops the flag once the cell is genuinely judgeable", () => {
+    const cells = historicalCells(
+      ledger({ tierRegime: { "B·range-low-vol": cell(40, 500, 1.4) }, tierVix: {} }),
+      sig()
+    );
+    const text = describeCell(cells[0]);
+    expect(text).toContain("n=40");
+    expect(text).not.toContain("previewed");
   });
 
   it("refuses to show a rate at all when the cell is thin", () => {
@@ -165,7 +184,7 @@ describe("describeCell — no bare percentages, ever", () => {
       sig()
     );
     expect(describeCell(cells[0])).toBe(
-      "Tier B in a choppy, quiet market: — win rate, profit factor — (n=20)"
+      "Tier B in a choppy, quiet market: — win rate, profit factor — (n=20 · previewed, not judged)"
     );
   });
 });

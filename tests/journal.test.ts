@@ -141,6 +141,15 @@ describe("journalPnl", () => {
       journalPnl(mkJournal({ symbol: "MNQ", side: "SHORT", entryPrice: 23000, exitPrice: 22990, qty: 1 })).grossPnl
     ).toBe(10 * 2);
   });
+
+  /* Net is what every surface now shows. The engine's side has always been
+     net, so showing the journal gross made the bot-vs-you comparison flatter
+     the human on every close race. */
+  it("also reports net, charging the engine's own per-contract cost", () => {
+    const p = journalPnl(mkJournal()); // qty 2
+    expect(p.commission).toBeCloseTo(4.8, 6);
+    expect(p.netPnl).toBeCloseTo(95.2, 6);
+  });
 });
 
 describe("trade matching", () => {
@@ -189,7 +198,8 @@ describe("trade matching", () => {
     expect(s.missedByYou).toBe(1);
     expect(s.engineSkipped).toBe(0);
     expect(s.engineNet).toBe(48 - 30);
-    expect(s.userGross).toBe(100);
+    // NET, matching the engine's side. 100 gross − 2.4 × 2 contracts.
+    expect(s.userNet).toBeCloseTo(95.2, 6);
   });
 
   it("matchAll groups by NY date", () => {

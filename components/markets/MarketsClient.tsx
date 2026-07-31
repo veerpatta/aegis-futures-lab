@@ -13,7 +13,8 @@ import { useData } from "@/components/providers/DataProvider";
 import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, Panel, SelectField, toneClass } from "@/components/ui";
-import CandleChart from "@/components/chart/CandleChart";
+import CandleChart, { type ZoneBox } from "@/components/chart/CandleChart";
+import { zoneToBox } from "@/components/chart/zoneBoxes";
 import PriceArea from "./PriceArea";
 import styles from "./markets.module.css";
 
@@ -179,6 +180,16 @@ export default function MarketsClient() {
       .slice(0, 4);
   }, [zones, quotes]);
 
+  /* The charted symbol's zones as rectangles. A demand zone is entered at its
+     HIGH (price falls into it) and a supply zone at its LOW — that asymmetry
+     is why proximal/distal is worth drawing at all rather than a single band.
+     Freshness dims a zone price has already worked through. */
+  const chartBoxes = useMemo<ZoneBox[]>(
+    () =>
+      zones.filter((z) => z.symbol === chartSymbol && z.status !== "broken").map(zoneToBox),
+    [zones, chartSymbol]
+  );
+
   const phase = marketPhase(tick ?? 0);
   const remaining = tick === null ? null : sessionRemainingSec(tick);
 
@@ -278,6 +289,7 @@ export default function MarketsClient() {
                   <CandleChart
                     bars={chartBars}
                     height={300}
+                    boxes={chartBoxes}
                     lines={
                       heroQuote
                         ? [

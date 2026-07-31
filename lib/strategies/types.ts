@@ -65,6 +65,12 @@ export interface OpenPosition {
   openedAt: number;
   score?: number;
   tags?: Record<string, string>;
+  /* Running intra-trade excursion in POINTS from the entry price, both
+     non-negative. Bookkeeping only — no strategy reads these and nothing in
+     the engine branches on them, so they cannot move a trade (parity). The
+     engine seeds them at 0 on open and folds every bar it manages. */
+  maePoints?: number;
+  mfePoints?: number;
 }
 
 export interface ExecutionConfig {

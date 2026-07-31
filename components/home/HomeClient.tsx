@@ -44,7 +44,10 @@ import WhyNoSignal from "./WhyNoSignal";
 import SignalContext, { useConditionLedger } from "@/components/signals/SignalContext";
 import SignalSheet from "@/components/signals/SignalSheet";
 import { money } from "@/lib/format";
-import { fmtPf, profitFactor } from "@/lib/stats";
+import { expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
+import { loadJournal } from "@/lib/journal";
+import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
+import { Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
 import styles from "./home.module.css";
 
@@ -430,13 +433,17 @@ export default function HomeClient() {
     const exPnls = closed
       .filter((s) => s.fill_confidence !== "doubtful")
       .map((s) => s.pnl_usd ?? 0);
+    const pnls = closed.map((s) => s.pnl_usd ?? 0);
     return {
       exNet: exPnls.reduce((a, v) => a + v, 0),
       exPf: profitFactor(exPnls),
       ideas: window.length,
       closed: closed.length,
       net: closed.reduce((a, s) => a + (s.pnl_usd ?? 0), 0),
-      winRate: closed.length ? (wins / closed.length) * 100 : null,
+      /* Win rate with its n and Wilson interval, and expectancy as the
+         headline — a win rate without R context misleads (lib/stats.ts). */
+      rate: rateReadout(wins, closed.length),
+      expectancy: expectancy(pnls),
       perDay: tradingDays ? window.length / tradingDays : null,
       days: [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])),
       tierA: tierNet("A"),
@@ -444,22 +451,16 @@ export default function HomeClient() {
     };
   }, [signals]);
 
-  /* Green streak: consecutive most-recent trading days that finished up, and
-     the best such run inside the same three-week window. */
-  const streak = useMemo(() => {
-    let current = 0;
-    for (let i = perf.days.length - 1; i >= 0; i--) {
-      if (perf.days[i][1] > 0) current++;
-      else break;
-    }
-    let best = 0;
-    let run = 0;
-    for (const [, v] of perf.days) {
-      run = v > 0 ? run + 1 : 0;
-      if (run > best) best = run;
-    }
-    return { current, best };
-  }, [perf.days]);
+  /* Clean streak: consecutive most-recent JOURNALLED days with no rule break.
+     Deliberately not a P&L streak — see lib/journal/discipline.ts. Reads the
+     local journal, so it is empty until the user logs a trade, and must render
+     as "nothing logged yet" rather than a zero-day failure. */
+  const discipline = useMemo(
+    () => disciplineStreak(disciplineDays(loadJournal().trades)),
+    // Recomputed when the signal set changes, which is the app's natural tick;
+    // the journal is device-local and changes only on the Journal page.
+    [signals]
+  );
 
   const recent = useMemo(
     () => signals.filter((s) => s.id !== live?.id).slice(0, 3),
@@ -621,6 +622,10 @@ export default function HomeClient() {
                 </span>
               )}
             </div>
+            {/* The headline profit factor is the number most likely to be
+                over-read, so it carries the gate even though the sub-line
+                below already spells out the counts. */}
+            {hero && hero.closed > 0 && <SampleNote n={hero.closed} />}
             <div className={styles.heroSub}>
               {hero === null
                 ? "Loading…"
@@ -857,15 +862,30 @@ export default function HomeClient() {
               <span className={styles.cellLabel}>Bot heartbeat</span>
               <Heartbeat runs={health.runs} />
             </div>
+            {/* Rule adherence, not profit. A losing day where you followed
+                every rule keeps this alive; a winning day where you did not
+                breaks it. The old "green streak" counted P&L up-days, which
+                rewarded luck in an app whose whole thesis is process. */}
             <div className={styles.duoCell}>
-              <span className={styles.cellLabel}>Green streak</span>
+              <span className={styles.cellLabel}>Clean streak</span>
               <b className={`${styles.duoBig} num`}>
-                {streak.current} <span className={styles.duoUnit}>day{streak.current === 1 ? "" : "s"}</span>
+                {discipline.daysJudged === 0 ? (
+                  "—"
+                ) : (
+                  <>
+                    {discipline.current}{" "}
+                    <span className={styles.duoUnit}>
+                      day{discipline.current === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
               </b>
               <span className={styles.beatNote}>
-                {perf.days.length === 0
-                  ? "No closed days yet"
-                  : `Best in 3 weeks: ${streak.best}`}
+                {discipline.daysJudged === 0
+                  ? "Log a trade to start the chain"
+                  : `${discipline.adherencePct!.toFixed(0)}% of ${discipline.daysJudged} logged day${
+                      discipline.daysJudged === 1 ? "" : "s"
+                    } clean · best ${discipline.best}`}
               </span>
             </div>
           </section>
@@ -994,12 +1014,24 @@ export default function HomeClient() {
                 <b className={`${styles.bigValue} num ${perf.net < 0 ? styles.bad : styles.good}`}>
                   {mask(money(perf.net))}
                 </b>
+                <SampleNote n={perf.closed} />
+              </div>
+              {/* Expectancy leads. It is the figure that answers "does this
+                  make money per trade"; win rate cannot answer it alone. */}
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>Expectancy / trade</span>
+                <b
+                  className={`${styles.bigValue} num ${
+                    perf.expectancy === null ? "" : perf.expectancy < 0 ? styles.bad : styles.good
+                  }`}
+                >
+                  {perf.expectancy === null ? "—" : mask(money(perf.expectancy))}
+                </b>
+                <SampleNote n={perf.closed} />
               </div>
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Win rate</span>
-                <b className={`${styles.bigValue} num`}>
-                  {perf.winRate === null ? "—" : `${perf.winRate.toFixed(0)}%`}
-                </b>
+                <Rate readout={perf.rate} valueClassName={`${styles.bigValue} num`} />
               </div>
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Ideas</span>

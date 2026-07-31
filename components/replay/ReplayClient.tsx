@@ -334,9 +334,9 @@ export default function ReplayClient() {
               <Kpi
                 label="You"
                 value={`${dayUserTrades.length} trade${dayUserTrades.length === 1 ? "" : "s"}`}
-                sub={dayUserTrades.length ? `${money(daySummary.userGross)} gross` : "journal empty"}
+                sub={dayUserTrades.length ? `${money(daySummary.userNet)} net` : "journal empty"}
                 tone={
-                  daySummary.userGross > 0 ? "good" : daySummary.userGross < 0 ? "bad" : "dim"
+                  daySummary.userNet > 0 ? "good" : daySummary.userNet < 0 ? "bad" : "dim"
                 }
               />
               <Kpi label="Matched" value={String(daySummary.matched)} sub="engine took it too" />
@@ -397,8 +397,8 @@ export default function ReplayClient() {
                 />
                 <Kpi
                   label="Your gross"
-                  value={money(journalSummary.summary.userGross)}
-                  tone={journalSummary.summary.userGross >= 0 ? "good" : "bad"}
+                  value={money(journalSummary.summary.userNet)}
+                  tone={journalSummary.summary.userNet >= 0 ? "good" : "bad"}
                   sub="before commissions"
                 />
                 <Kpi label="Matched" value={String(journalSummary.summary.matched)} />
@@ -433,9 +433,9 @@ export default function ReplayClient() {
                         </span>,
                         <span
                           key="u"
-                          style={{ color: s.userGross > 0 ? "var(--green)" : s.userGross < 0 ? "var(--red)" : undefined }}
+                          style={{ color: s.userNet > 0 ? "var(--green)" : s.userNet < 0 ? "var(--red)" : undefined }}
                         >
-                          {money(s.userGross)}
+                          {money(s.userNet)}
                         </span>,
                         s.matched,
                         s.missedByYou,

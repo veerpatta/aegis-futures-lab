@@ -33,11 +33,30 @@ export function saveJournal(store: JournalStore): void {
   saveStored(KEYS.journal, store);
 }
 
-/* Gross P&L in dollars — the journal knows nothing about the user's actual
-   commissions, so label this "gross" wherever it is shown. */
-export function journalPnl(t: JournalTrade): { points: number; grossPnl: number } {
+/* Round-trip commission per contract, in dollars. Defaults to the same figure
+   the engine charges itself (EXECUTION.cost in scripts/engine/tiers.ts), so
+   bot and human are costed identically unless the user says otherwise.
+
+   This is what makes the bot-vs-you comparison honest. It used to put the
+   engine's NET against the journal's GROSS and footnote the mismatch, which
+   flatters the human on every close race — a comparison worth nothing at the
+   exact moment it matters. */
+export const DEFAULT_COMMISSION_PER_CONTRACT = 2.4;
+
+export function commissionFor(t: JournalTrade, perContract: number): number {
+  return perContract * t.qty;
+}
+
+/* P&L in dollars, gross and net. Net is the one to show: it is the only side
+   comparable with the engine's figures, which have always been net. */
+export function journalPnl(
+  t: JournalTrade,
+  perContract: number = DEFAULT_COMMISSION_PER_CONTRACT
+): { points: number; grossPnl: number; netPnl: number; commission: number } {
   const points = t.side === "LONG" ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice;
-  return { points, grossPnl: points * (POINT_VALUES[t.symbol] ?? 1) * t.qty };
+  const grossPnl = points * (POINT_VALUES[t.symbol] ?? 1) * t.qty;
+  const commission = commissionFor(t, perContract);
+  return { points, grossPnl, netPnl: grossPnl - commission, commission };
 }
 
 export function journalTradesToCsv(trades: JournalTrade[]): string {

@@ -103,25 +103,27 @@ export function matchAll(
 
 export interface MatchSummary {
   engineNet: number;
-  userGross: number;
+  /* NET, like the engine's side. Named userNet since the fix that stopped
+     comparing the engine's net against the journal's gross. */
+  userNet: number;
   matched: number;
   missedByYou: number;
   engineSkipped: number;
 }
 
 export function summarize(rows: MatchRow[]): MatchSummary {
-  const s: MatchSummary = { engineNet: 0, userGross: 0, matched: 0, missedByYou: 0, engineSkipped: 0 };
+  const s: MatchSummary = { engineNet: 0, userNet: 0, matched: 0, missedByYou: 0, engineSkipped: 0 };
   for (const r of rows) {
     if (r.kind === "matched") {
       s.matched++;
       s.engineNet += r.engine.pnl;
-      s.userGross += journalPnl(r.user).grossPnl;
+      s.userNet += journalPnl(r.user).netPnl;
     } else if (r.kind === "missedByYou") {
       s.missedByYou++;
       s.engineNet += r.engine.pnl;
     } else {
       s.engineSkipped++;
-      s.userGross += journalPnl(r.user).grossPnl;
+      s.userNet += journalPnl(r.user).netPnl;
     }
   }
   return s;

@@ -408,7 +408,7 @@ export default function JournalPanel({
           mobileCards={{ titleIndexes: [0, 1, 5] }}
           columns={["Entry", "Sym", "Side", "Qty", "In → Out", "Gross P&L", ""]}
           rows={dayTrades.map((t) => {
-            const { grossPnl } = journalPnl(t);
+            const { netPnl } = journalPnl(t);
             return [
               `${clockIn(t.entryTime, zone)}–${clockIn(t.exitTime, zone)} ${ZONE_ABBR[zone]}`,
               t.symbol,
@@ -417,8 +417,8 @@ export default function JournalPanel({
               </Badge>,
               t.qty,
               `${t.entryPrice.toFixed(2)} → ${t.exitPrice.toFixed(2)}`,
-              <span key="p" style={{ color: grossPnl >= 0 ? "var(--green)" : "var(--red)" }}>
-                {money(grossPnl)}
+              <span key="p" style={{ color: netPnl >= 0 ? "var(--green)" : "var(--red)" }}>
+                {money(netPnl)}
               </span>,
               <Button key="x" small variant="ghost" onClick={() => remove(t.id)}>
                 ✕

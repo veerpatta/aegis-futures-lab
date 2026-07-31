@@ -383,3 +383,57 @@
   .badge { font-size: 11px; }
   .fieldHelp { font-size: 11px; }
 }
+
+/* ── The sample gate (components/ui/index.tsx SampleNote / Rate) ──────────
+   One definition of how "not enough data yet" reads, so the eight surfaces
+   that print a number cannot disagree about it. */
+
+.rateWrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sampleNote {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.sampleN {
+  font-variant-numeric: tabular-nums;
+}
+
+.sampleCi {
+  color: var(--text-faint);
+}
+
+/* The flag is the thing a reader should notice, so it gets the accent the
+   rest of the note does not. Amber = "careful", never red: too little data
+   is not a loss, and colouring it like one would be its own dishonesty. */
+.sampleFlag {
+  color: var(--amber);
+  border: 1px solid var(--amber-line);
+  background: var(--amber-soft);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* Below n=30 the figure itself is muted, so a previewed number never reads
+   as loudly as a judged one at a glance. */
+.sampleDimValue {
+  color: var(--text-dim);
+}
+
+@media (max-width: 480px) {
+  .sampleNote { font-size: 11px; }
+  .sampleFlag { font-size: 11px; }
+}

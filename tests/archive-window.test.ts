@@ -150,6 +150,11 @@ describe("every bars_5m reader applies the whole-session trim", () => {
       "and a trimmed leading day would hide real data rather than fix anything",
     "scripts/engine/backfill-fill-audit.ts":
       "walks the bars after one entry to re-judge a single fill; no multi-day frame",
+    "scripts/engine/databento-backfill.ts":
+      "a WRITER, not an analysis reader — its only two reads are a one-row probe for the source " +
+      "column and a max(time) probe to resume, neither of which builds a bar series. It supplies " +
+      "the rows the MUST_ALIGN readers later slice; the trim is their job at read time, not its " +
+      "job at write time, and trimming here would silently refuse to store real history",
   };
 
   it.each(MUST_ALIGN)("%s reads the archive and trims it", (path) => {

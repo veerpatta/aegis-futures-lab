@@ -12,9 +12,9 @@ import {
   type ModelRegistryRow,
   type PromotionDecisionRow,
 } from "@/lib/supabase/client";
-import { Badge, DataTable, Kpi, Panel } from "@/components/ui";
+import { Badge, DataTable, Kpi, Panel, SampleNote } from "@/components/ui";
 import { money } from "@/lib/format";
-import { fmtPf } from "@/lib/stats";
+import { MIN_JUDGED_N, PREVIEW_NOTE, fmtPf } from "@/lib/stats";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "@/scripts/engine/winprob";
 import styles from "./brain.module.css";
 
@@ -97,10 +97,13 @@ function cellNode(c: Cell | undefined, key: string) {
         collecting (n={c.n} of {MIN_CELL})
       </span>
     );
+  /* Past the brain's own MIN_CELL_N of 10 a cell used to print a bare rate.
+     Ten is enough to stop saying "collecting" and nowhere near enough to
+     judge, so the display gate (n=30) applies on top of it. */
   return (
     <span key={key}>
       <span className="num">{money(c.net)}</span> · PF {fmtPf(c.pf)}
-      {c.winRate === null ? "" : ` · ${c.winRate}%`} <span className={styles.dim}>(n={c.n})</span>
+      {c.winRate === null ? "" : ` · ${c.winRate}%`} <SampleNote n={c.n} />
     </span>
   );
 }
@@ -271,8 +274,9 @@ export default function BrainClient() {
           <Badge>collecting</Badge>
         )}
         <span className={styles.dim}>
-          &nbsp;Cells with fewer than {MIN_CELL} closed signals read “collecting (n=X of {MIN_CELL})”
-          — the bot will not judge them until the sample is real.
+          &nbsp;Cells with fewer than {MIN_CELL} closed signals read “collecting (n=X of {MIN_CELL})”.
+          Past that but under {MIN_JUDGED_N} they show their numbers marked “{PREVIEW_NOTE}” — the
+          bot will not draw a lesson from a handful of trades.
         </span>
       </div>
 
@@ -443,7 +447,9 @@ export default function BrainClient() {
             columns={["Stream", "Closed", "Net", "PF", "Win rate", "Checklist", "Ready?"]}
             rows={shadow.streams.map((s) => [
               <span key="s"><b>{s.strategy}</b> · {s.symbol}</span>,
-              String(s.closed),
+              /* Gates the whole row — PF and win rate beside it both come
+                 from this n, and every shadow stream sits well below 30. */
+              <SampleNote key="c" n={s.closed} />,
               <span key="n" className="num">{money(s.net)}</span>,
               fmtPf(s.pf),
               s.winRateNote ? (
@@ -545,10 +551,10 @@ function decileRow(d: Decile): React.ReactNode[] {
     return [
       `#${d.decile}`,
       range,
-      <span key="w" className={styles.collecting}>collecting (n={d.n})</span>,
+      <span key="w" className={styles.collecting}>collecting</span>,
       "—",
       "—",
-      String(d.n),
+      <SampleNote key="n" n={d.n} />,
     ];
   return [
     `#${d.decile}`,
@@ -556,6 +562,6 @@ function decileRow(d: Decile): React.ReactNode[] {
     d.winRate === null ? "—" : `${d.winRate}%`,
     <span key="n" className="num">{money(d.net)}</span>,
     fmtPf(d.pf),
-    String(d.n),
+    <SampleNote key="n2" n={d.n} />,
   ];
 }

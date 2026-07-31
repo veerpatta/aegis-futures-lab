@@ -12,12 +12,20 @@
    mean anything. */
 
 import type { Trade } from "@/lib/types";
-import { journalPnl, type JournalTrade } from "@/lib/journal";
+import {
+  DEFAULT_COMMISSION_PER_CONTRACT,
+  journalPnl,
+  type JournalTrade,
+} from "@/lib/journal";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { money } from "@/lib/format";
+import { expectancy, rateReadout, type RateReadout } from "@/lib/stats";
+import { SampleNote } from "@/components/ui";
 import styles from "./replay.module.css";
 
-/** Below this on either side, a percentage is noise rather than a signal. */
+/** Below this on either side, the closing note is not worth generating. The
+    per-metric display gate is the shared one in lib/stats.ts (n=30) — this is
+    only about whether the prose comparison is worth writing at all. */
 const MIN_N = 3;
 
 interface Side {
@@ -25,6 +33,8 @@ interface Side {
   net: number;
   wins: number;
   holdMin: number | null;
+  rate: RateReadout;
+  expectancy: number | null;
 }
 
 function avg(values: number[]): number | null {
@@ -44,17 +54,24 @@ export default function BotVsYou({
 }) {
   const { mask } = usePrivacy();
 
+  const botPnls = engineTrades.map((t) => t.pnl);
+  const youPnls = userTrades.map((t) => journalPnl(t).netPnl);
+
   const bot: Side = {
     n: engineTrades.length,
-    net: engineTrades.reduce((a, t) => a + t.pnl, 0),
-    wins: engineTrades.filter((t) => t.pnl > 0).length,
+    net: botPnls.reduce((a, v) => a + v, 0),
+    wins: botPnls.filter((v) => v > 0).length,
     holdMin: avg(engineTrades.map((t) => (t.exitTime - t.entryTime) / 60)),
+    rate: rateReadout(botPnls.filter((v) => v > 0).length, botPnls.length),
+    expectancy: expectancy(botPnls),
   };
   const you: Side = {
     n: userTrades.length,
-    net: userTrades.reduce((a, t) => a + journalPnl(t).grossPnl, 0),
-    wins: userTrades.filter((t) => journalPnl(t).grossPnl > 0).length,
+    net: youPnls.reduce((a, v) => a + v, 0),
+    wins: youPnls.filter((v) => v > 0).length,
     holdMin: avg(userTrades.map((t) => (t.exitTime - t.entryTime) / 60)),
+    rate: rateReadout(youPnls.filter((v) => v > 0).length, youPnls.length),
+    expectancy: expectancy(youPnls),
   };
 
   const enough = bot.n >= MIN_N && you.n >= MIN_N;
@@ -74,10 +91,24 @@ export default function BotVsYou({
       you: mask(money(you.net)),
       split: split(bot.net, you.net),
     },
+    /* Expectancy leads: it is the only row that survives a different number of
+       trades on each side, which is the normal case here. */
     {
-      k: "Win rate",
-      bot: bot.n ? `${Math.round((bot.wins / bot.n) * 100)}%` : "—",
-      you: you.n ? `${Math.round((you.wins / you.n) * 100)}%` : "—",
+      k: "Expectancy per trade",
+      bot: bot.expectancy === null ? "—" : mask(money(bot.expectancy)),
+      you: you.expectancy === null ? "—" : mask(money(you.expectancy)),
+      split: split(bot.expectancy ?? 0, you.expectancy ?? 0),
+    },
+    /* The interval rides along with the rate rather than sitting in the
+       sample footer, where it would read as bounding every row above it. */
+    {
+      k: "Win rate (95% CI)",
+      bot: bot.rate.ciLabel
+        ? `${bot.rate.valueLabel} (${bot.rate.ciLabel})`
+        : bot.rate.valueLabel,
+      you: you.rate.ciLabel
+        ? `${you.rate.valueLabel} (${you.rate.ciLabel})`
+        : you.rate.valueLabel,
       split: split(bot.n ? bot.wins / bot.n : 0, you.n ? you.wins / you.n : 0),
     },
     {
@@ -122,6 +153,17 @@ export default function BotVsYou({
         </div>
       ))}
 
+      {/* Both sample sizes stated separately, because they are almost never
+          equal — the bot trades every setup and you trade some of them. */}
+      <div className={styles.vsSamples}>
+        <span>
+          <span className={styles.vsBot}>Bot</span> <SampleNote n={bot.rate.n} />
+        </span>
+        <span>
+          <span className={styles.vsYou}>You</span> <SampleNote n={you.rate.n} />
+        </span>
+      </div>
+
       <p className={styles.vsNote}>
         {!enough
           ? `Log at least ${MIN_N} trades in this window to make the comparison meaningful — right now it is ${bot.n} engine trade${
@@ -136,8 +178,9 @@ export default function BotVsYou({
                 : "You and the bot hold for about the same time."}
       </p>
       <p className={styles.vsFoot}>
-        Your side is gross of costs — the engine&rsquo;s side already has commission and slippage
-        taken out, so a close race favours you on paper.
+        Both sides are net of costs, charged at the same ${DEFAULT_COMMISSION_PER_CONTRACT.toFixed(2)}{" "}
+        per contract the bot charges itself. Your side used to be shown gross, which quietly
+        favoured you on every close race.
       </p>
     </div>
   );

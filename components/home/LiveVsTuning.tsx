@@ -16,11 +16,16 @@ import type { SignalRow } from "@/lib/supabase/client";
 import { GO_LIVE_DATE, TUNING_BASELINE } from "@/scripts/engine/tiers";
 import { isMarketHoliday } from "@/lib/market/holidays";
 import { nyMeta } from "@/lib/time/ny";
-import { fmtPf, profitFactor } from "@/lib/stats";
+import {
+  MIN_VERDICT_N,
+  bandVerdict,
+  fmtPf,
+  profitFactor,
+  type BandVerdict,
+} from "@/lib/stats";
 import { money } from "@/lib/format";
+import { SampleNote } from "@/components/ui";
 import styles from "./home.module.css";
-
-const MIN_CLOSED = 20; // never render a verdict on fewer closed signals
 
 interface StreamState {
   key: string;
@@ -37,14 +42,7 @@ interface StreamState {
   perDay: number | null;
   exPf: number | null;
   exNet: number;
-  verdict: "collecting" | "tracking" | "lagging" | "underwater";
-}
-
-function verdictFor(closed: number, pf: number | null, band: [number, number]): StreamState["verdict"] {
-  if (closed < MIN_CLOSED) return "collecting";
-  if (pf === null || pf >= band[0]) return "tracking"; // null PF = no losses yet
-  if (pf >= 1.0) return "lagging";
-  return "underwater";
+  verdict: BandVerdict;
 }
 
 /* NY weekdays since go-live, CME full holidays excluded — the trades/day
@@ -88,7 +86,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
         perDay: rows.length ? rows.length / days : null,
         exPf: profitFactor(exPnls),
         exNet: exPnls.reduce((a, v) => a + v, 0),
-        verdict: verdictFor(closed.length, pf, b.pfBand),
+        verdict: bandVerdict(closed.length, pf, b.pfBand),
       };
     });
   }, [signals]);
@@ -109,7 +107,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
             <span className={styles.gapLabel}>{s.label}</span>
             <span className={`${styles.tag} ${look[s.verdict].cls}`}>
               {s.verdict === "collecting"
-                ? `COLLECTING ${s.closed}/${MIN_CLOSED}`
+                ? `COLLECTING ${s.closed}/${MIN_VERDICT_N}`
                 : look[s.verdict].label}
             </span>
           </div>
@@ -120,6 +118,10 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
             <b className="num">{s.perDay === null ? "—" : s.perDay.toFixed(2)}</b>/day · net{" "}
             <b className={`num ${s.net >= 0 ? styles.good : styles.bad}`}>{money(s.net)}</b>
           </div>
+          {/* The COLLECTING badge shows n only while a stream is below the
+              verdict threshold. Past it the figures would otherwise go bare,
+              so the gate is stated for every stream at every size. */}
+          <SampleNote n={s.closed} />
           <div className={`${styles.gapMeta} ${styles.dim}`}>
             excluding doubtful fills: PF {fmtPf(s.exPf)} · net {money(s.exNet)}
           </div>

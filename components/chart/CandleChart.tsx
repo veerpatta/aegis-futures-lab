@@ -15,6 +15,9 @@ import {
 import type { Bar } from "@/lib/types";
 import { clockIn, dateShortIn, stampIn } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
+import { ZoneBoxPrimitive, type ZoneBox } from "./zoneBoxes";
+
+export type { ZoneBox };
 
 export interface TradeMarker {
   time: number;
@@ -36,11 +39,15 @@ export default function CandleChart({
   bars,
   markers = [],
   lines = [],
+  boxes = [],
   height = 320,
 }: {
   bars: Bar[];
   markers?: TradeMarker[];
   lines?: PriceLine[];
+  /* Demand/supply zones as rectangles. Stop and target stay price LINES —
+     they genuinely are lines; a zone genuinely is a band. */
+  boxes?: ZoneBox[];
   height?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -132,6 +139,10 @@ export default function CandleChart({
       }));
       createSeriesMarkers(series, sm);
     }
+    /* Zones first, so the primitive's autoscale is folded in before
+       fitContent decides the visible range. */
+    if (boxes.length) series.attachPrimitive(new ZoneBoxPrimitive(boxes, series, chart));
+
     for (const line of lines)
       series.createPriceLine({
         price: line.price,
@@ -147,7 +158,7 @@ export default function CandleChart({
       chart.remove();
       chartRef.current = null;
     };
-  }, [bars, markers, lines, height, zone]);
+  }, [bars, markers, lines, boxes, height, zone]);
 
   return <div ref={containerRef} style={{ minWidth: 0 }} />;
 }
