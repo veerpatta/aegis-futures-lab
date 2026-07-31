@@ -37,6 +37,29 @@ const SYMBOLS = ["MES.c.0", "MNQ.c.0"] as const;
 /** The free credit, for framing the printed numbers. */
 const FREE_CREDIT_USD = 125;
 
+/* ── Storage projection ───────────────────────────────────────────────────
+   On a free-tier Supabase project the binding constraint is NOT the dollar
+   cost — it is the 500 MB database ceiling. get_billable_size reports the
+   size of the ONE-MINUTE download; what actually lands in bars_5m is the
+   five-minute aggregate, roughly a fifth of the rows. So the download size
+   badly overstates the storage impact and cannot be used for this.
+
+   Both constants are measured against the live table rather than guessed
+   (2026-07-31: 30,312 rows occupying 5,349,376 bytes including indexes,
+   covering 2026-05-12 → 2026-07-30 for two symbols). */
+const MEASURED_BYTES_PER_ROW = 176.5;
+const BARS_PER_TRADING_DAY = 270; // ~22.5h of Globex at 5m, per symbol
+const SUPABASE_FREE_TIER_BYTES = 500e6;
+/** Current database total, measured the same day, for headroom arithmetic. */
+const CURRENT_DB_BYTES = 17e6;
+
+function projectStorage(start: string, end: string, symbols: number) {
+  const days = (Date.parse(end) - Date.parse(start)) / 86_400_000;
+  const tradingDays = Math.max(0, days * (5 / 7)); // weekends carry no session
+  const rows = tradingDays * BARS_PER_TRADING_DAY * symbols;
+  return { rows: Math.round(rows), bytes: Math.round(rows * MEASURED_BYTES_PER_ROW) };
+}
+
 /* Candidate windows, cheapest first. The first one is the minimum that makes
    the proxy-error measurement possible at all: it must overlap the existing
    Yahoo archive, which starts 2026-05-12. The longer windows are what the
@@ -65,7 +88,21 @@ const WINDOWS: { label: string; start: string; end: string; why: string }[] = [
     label: "2-year",
     start: "2024-07-30",
     end: "2026-07-30",
-    why: "two years; the most useful for out-of-sample work if the cost allows",
+    why: "two years; enough for a train/holdout split that spans regimes",
+  },
+  {
+    label: "5-year",
+    start: "2021-07-30",
+    end: "2026-07-30",
+    why: "five years — covers the 2022 bear market, which no shorter window does",
+  },
+  {
+    /* MES and MNQ began trading on CME on 2019-05-06. Asking for anything
+       earlier cannot return these contracts, so this is the true ceiling. */
+    label: "max",
+    start: "2019-05-06",
+    end: "2026-07-30",
+    why: "the entire life of both contracts — MES/MNQ launched 2019-05-06",
   },
 ];
 
@@ -170,10 +207,15 @@ async function estimate(): Promise<void> {
       note = `FAILED — ${e instanceof Error ? e.message : String(e)}`;
     }
     rows.push({ label: w.label, cost, bytes, note });
+    const store = projectStorage(w.start, w.end, SYMBOLS.length);
+    const dbAfter = CURRENT_DB_BYTES + store.bytes;
     console.log(
       `${w.label.padEnd(14)} ${w.start} → ${w.end}  ` +
-        `${cost === null ? "cost —" : fmtUsd(cost).padEnd(10)} ` +
-        `${bytes === null ? "size —" : fmtBytes(bytes).padEnd(10)}`
+        `${cost === null ? "cost —" : fmtUsd(cost).padEnd(9)} ` +
+        `dl ${(bytes === null ? "—" : fmtBytes(bytes)).padEnd(9)} ` +
+        `store ~${fmtBytes(store.bytes).padEnd(8)} ` +
+        `db→${fmtBytes(dbAfter)} of ${fmtBytes(SUPABASE_FREE_TIER_BYTES)}` +
+        `${dbAfter > SUPABASE_FREE_TIER_BYTES ? "  ⚠ OVER FREE TIER" : ""}`
     );
     console.log(`${"".padEnd(14)} ${note}\n`);
   }
@@ -190,6 +232,13 @@ async function estimate(): Promise<void> {
         `(${(((best.cost as number) / FREE_CREDIT_USD) * 100).toFixed(1)}% of it).`
     );
   }
+  console.log(
+    "\n'dl' is the one-minute download get_billable_size reports; 'store' is the\n" +
+      "five-minute aggregate that actually lands in bars_5m, projected from the\n" +
+      `live table's measured ${MEASURED_BYTES_PER_ROW} bytes/row. On a free-tier project the 500 MB\n` +
+      "database ceiling binds long before the $125 credit does, so read the db\n" +
+      "column, not the dollar column, when choosing."
+  );
   console.log(
     "\nNothing was downloaded and no credit was spent. Pick a window before the\n" +
       "backfill runs — the pull is one-shot and the credit expires six months\n" +
