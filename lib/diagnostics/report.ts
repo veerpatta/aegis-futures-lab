@@ -1,0 +1,142 @@
+/* The shape of the Phase 1 artefact, shared by the script that writes it
+   (scripts/diag/random-entry.ts) and the view that reads it
+   (components/diagnostics/DiagnosticsClient.tsx). One definition so the two
+   cannot drift — a dashboard reading a stale key would render "—" and look
+   like a measurement rather than a bug. */
+
+import type { SamplingMode } from "./randomEntry";
+import type { Verdict } from "./randomEntryRun";
+
+export interface GrossNetRow {
+  stream: string;
+  trades: number;
+  grossTotal: number;
+  netTotal: number;
+  grossPerTrade: number | null;
+  netPerTrade: number | null;
+  meanQty: number;
+  minQty: number;
+  maxQty: number;
+  frictionPerContract: number;
+  modelledCost: number;
+  /** gross − net, measured from the two books. */
+  measuredDrag: number;
+  /** measuredDrag / |netTotal|. Above 1 means the gross book was profitable. */
+  costShareOfLoss: number;
+  sameSignals: number;
+}
+
+export interface ExcursionRow {
+  stream: string;
+  n: number;
+  reliable: boolean;
+  avgMaeR: number | null;
+  avgMfeR: number | null;
+  avgMaeAtr: number | null;
+  avgMfeAtr: number | null;
+  edgeRatio: number | null;
+  edgeRatioWinners: number | null;
+  edgeRatioLosers: number | null;
+  avgMinutesToMae: number | null;
+  avgMinutesToMfe: number | null;
+  avgExitEfficiency: number | null;
+}
+
+export interface RandomEntryCell {
+  cell: string;
+  stream: string;
+  symbol: string;
+  year: string;
+  /** Per cell, because tier A's whole-archive null is far more expensive. */
+  iterations: number;
+  realTrades: number;
+  realNet: number;
+  realAvgR: number;
+  realPf: number;
+  percentileAvgR: number;
+  percentileNet: number;
+  pValueAvgR: number;
+  medianNullAvgR: number;
+  p95NullAvgR: number;
+  medianNullNet: number;
+  realisedNRatio: number;
+  minuteDeviation: number;
+  verdict: Verdict;
+  /** Set when the null involves an approximation that must be stated. */
+  caveat?: string;
+  /* True when this cell was run with costs switched OFF on BOTH sides — the
+     real book and the null. Diagnostic only, never a performance claim: it
+     isolates whether the ENTRY carries information, separately from whether
+     the resulting edge is large enough to survive friction. Necessary because
+     when cost dominates both sides, a costed percentile reads
+     "indistinguishable" for reasons that have nothing to do with entries. */
+  grossOnly?: boolean;
+}
+
+export interface CorrelationRow {
+  pair: string;
+  pairs: number;
+  overall: number;
+  medianRolling: number;
+  minRolling: number;
+  maxRolling: number;
+  shareAbove80: number;
+  nominalTrades: number;
+  effectiveTrades: number;
+}
+
+export interface Phase1Report {
+  generatedFrom: string;
+  measuredAt: string;
+  barSource: string;
+  iterations: number;
+  mode: SamplingMode;
+  costModel: string;
+  windowFrom: string;
+  windowTo: string;
+  grossNet: GrossNetRow[];
+  excursion: ExcursionRow[];
+  randomEntry: RandomEntryCell[];
+  correlation: CorrelationRow[];
+}
+
+/* The headline: how many cells cleared the brief's bar.
+   Stated as a function so the page and the script cannot disagree about what
+   "beat random" means. */
+export function beatCount(cells: RandomEntryCell[]): number {
+  return cells.filter((c) => c.verdict === "beats-random").length;
+}
+
+export function overallVerdict(cells: RandomEntryCell[]): {
+  tone: "good" | "bad" | "warn";
+  headline: string;
+  detail: string;
+} {
+  if (!cells.length) {
+    return { tone: "warn", headline: "Not measured", detail: "No cells have been run yet." };
+  }
+  const beats = beatCount(cells);
+  const worse = cells.filter((c) => c.verdict === "worse-than-random").length;
+  if (beats === cells.length) {
+    return {
+      tone: "good",
+      headline: "Beats random entries",
+      detail: `All ${cells.length} symbol-years sit at or above the 95th percentile of matched random entries.`,
+    };
+  }
+  if (beats > 0) {
+    return {
+      tone: "warn",
+      headline: "Mixed",
+      detail: `${beats} of ${cells.length} symbol-years clear the 95th percentile. A minority of cells clearing the bar is what selection looks like, not what edge looks like.`,
+    };
+  }
+  return {
+    tone: "bad",
+    headline: "No better than random",
+    detail:
+      `0 of ${cells.length} symbol-years clear the 95th percentile of matched random entries` +
+      (worse ? `, and ${worse} sit below the 5th — actively anti-predictive.` : ".") +
+      " The entry signal contributes nothing, and no amount of parameter tuning will change that.",
+  };
+}

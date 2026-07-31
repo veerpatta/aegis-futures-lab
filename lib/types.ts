@@ -41,6 +41,21 @@ export interface Trade {
      from stored rows (which predate the fields) legitimately have none. */
   maePoints?: number;
   mfePoints?: number;
+  /* Bar times at which the MAE and MFE extremes were set. Subtracting
+     entryTime gives time-to-MAE / time-to-MFE, which separates "died
+     immediately" from "worked, then gave it back" — two failures that look
+     identical in P&L. Same additive category as the points above. */
+  maeTime?: number;
+  mfeTime?: number;
+  /* The stop as it stood at ENTRY, before any breakeven or trailing move.
+     `stop` above is the final stop, so it is the wrong denominator for
+     excursion: a trade trailed to breakeven has |entry - stop| -> 0, which
+     sends maeR/mfeR to infinity. Nothing in the engine reads this. */
+  initialStop?: number;
+  /* ATR at the entry bar, in points. Lets excursion be compared across
+     symbols and across eight years of very different volatility, which R
+     alone cannot do once stop distance is itself volatility-scaled. */
+  atrAtEntry?: number;
 }
 
 export interface EquityPoint {

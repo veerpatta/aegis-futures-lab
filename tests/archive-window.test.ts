@@ -143,6 +143,7 @@ describe("every bars_5m reader applies the whole-session trim", () => {
     "scripts/diag/archive-lib.ts", // the weekly-research trio's shared read
     "scripts/diag/tier-a-baseline.ts", // the tier-A band's own measurement
     "scripts/diag/tier-b-baseline.ts", // the tier-B out-of-sample measurement
+    "scripts/diag/random-entry.ts", // Phase 1: gross/net, excursion, random-entry null
     "scripts/engine/gate-costs.ts", // the stored skip funnel
     "scripts/engine/report.ts", // the tuning report
     "scripts/engine/run-live.ts", // the Yahoo-down fallback (reaches live signals)

@@ -9,7 +9,8 @@
 
 import type { Bar, EquityPoint, Trade } from "@/lib/types";
 import { nyMeta } from "@/lib/time/ny";
-import { metricsFromTrades, scoreBuckets, type RunMetrics } from "./metrics";
+import { atr } from "@/lib/indicators";
+import { metricsFromTrades, scoreBuckets, EXCURSION_ATR_LEN, type RunMetrics } from "./metrics";
 import type {
   EntrySignal,
   ExecutionConfig,
@@ -117,6 +118,18 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     series[s].forEach((b, i) => m.set(b.time, i));
     indexOf[s] = m;
   }
+
+  /* ATR(14) per symbol, computed once and read only when a trade opens, to
+     stamp atrAtEntry. Bookkeeping: nothing branches on it. Lazy so a run that
+     never opens a trade does not pay for it. */
+  const atrCache: Record<string, (number | null)[]> = {};
+  const atrAt = (symbol: string, time: number): number | undefined => {
+    const idx = indexOf[symbol]?.get(time);
+    if (idx === undefined) return undefined;
+    const series14 = (atrCache[symbol] ??= atr(series[symbol], EXCURSION_ATR_LEN));
+    const v = series14[idx];
+    return v === null || v === undefined || !(v > 0) ? undefined : v;
+  };
   const times = [
     ...new Set(
       symbols.flatMap((s) =>
@@ -167,8 +180,17 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   const foldExcursion = (p: OpenPosition, bar: Bar) => {
     const adverse = p.side === "LONG" ? p.entry - bar.low : bar.high - p.entry;
     const favourable = p.side === "LONG" ? bar.high - p.entry : p.entry - bar.low;
-    p.maePoints = Math.max(p.maePoints ?? 0, adverse, 0);
-    p.mfePoints = Math.max(p.mfePoints ?? 0, favourable, 0);
+    // Stamp the bar that SET each extreme, so time-to-MAE/MFE separates "died
+    // immediately" from "worked, then gave it all back". Equivalent to the
+    // previous Math.max form for the points themselves.
+    if (adverse > (p.maePoints ?? 0)) {
+      p.maePoints = adverse;
+      p.maeTime = bar.time;
+    } else p.maePoints ??= 0;
+    if (favourable > (p.mfePoints ?? 0)) {
+      p.mfePoints = favourable;
+      p.mfeTime = bar.time;
+    } else p.mfePoints ??= 0;
   };
 
   const closeTrade = (bar: Bar, reason: Trade["exitReason"], exit: number) => {
@@ -198,6 +220,10 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       tags: p.tags,
       maePoints: p.maePoints ?? 0,
       mfePoints: p.mfePoints ?? 0,
+      maeTime: p.maeTime,
+      mfeTime: p.mfeTime,
+      initialStop: p.initialStop,
+      atrAtEntry: p.atrAtEntry,
     });
     equity += pnl;
     peak = Math.max(peak, equity);
@@ -249,6 +275,11 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       openedAt: bar.time,
       score: sig.score,
       tags: sig.tags,
+      // Captured at entry because both are destroyed later: `stop` is mutated
+      // by adjustStop, and ATR at the entry bar is not recoverable from the
+      // trade row alone.
+      initialStop: sig.stop,
+      atrAtEntry: atrAt(sig.symbol, bar.time),
     };
   };
 

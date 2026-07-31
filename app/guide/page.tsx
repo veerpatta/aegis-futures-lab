@@ -347,6 +347,18 @@ export default function GuidePage() {
             10)&rdquo;, and anything past that but still under 30 is marked &ldquo;previewed, not
             judged&rdquo; — the bot will not draw a lesson from a handful of trades.
           </dd>
+          <dt>Diagnostics</dt>
+          <dd>
+            Under <b>More</b> in the side menu. This page asks the hardest question in the app:
+            <b> is the entry actually doing anything?</b> It re-runs every stream a thousand times
+            with the entries replaced by coin flips — same stops, same targets, same costs, same
+            number of trades, same times of day, same long/short balance — and shows where the real
+            result lands among those thousand random versions. If the real strategy is not in the
+            top 5% of them, the entry rule is not adding anything, and changing its settings will
+            not help. The page also shows every result twice: <b>gross</b> (before costs) beside{" "}
+            <b>net</b> (after), so you can see how much of a loss is the idea and how much is the
+            commission and spread.
+          </dd>
         </dl>
       </section>
 

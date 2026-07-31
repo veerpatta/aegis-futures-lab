@@ -1,0 +1,206 @@
+/* Diagnostics view. Built from docs/design-language.md — every colour, radius
+   and spacing value below is a token from app/globals.css. No new idioms:
+   .hero extends the run-summary hero already used in lab.module.css, and
+   everything else is Panel/Kpi/Badge/DataTable from components/ui. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ── The hero readout: the random-entry percentile ──────────────────────
+   The brief makes this the headline of the screen, so it gets the hero
+   radius and the mono display face, matching Lab's .runHero. */
+.hero {
+  background: linear-gradient(165deg, var(--bg-elevated), var(--bg-inset) 65%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-hero);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.heroKicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.heroFigures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.heroFigure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroBig {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroLabel {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Verdict tones. Amber, never red, for "not proven" — a thing that has not
+   cleared the bar is not a loss (docs/design-language.md §6). */
+.toneGood { color: var(--green); }
+.toneBad { color: var(--red); }
+.toneWarn { color: var(--amber); }
+.toneDim { color: var(--text-dim); }
+
+/* ── The interpretation rule, stated on screen ─────────────────────────── */
+.rule {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.rule strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ── Gross beside net, never one without the other ─────────────────────── */
+.duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.duoCard {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.duoHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.duoTitle {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.duoRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  font-size: 12.5px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+
+.duoRow:first-of-type {
+  border-top: 0;
+}
+
+.duoRowLabel {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.duoVal {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 84px;
+  text-align: right;
+}
+
+.note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+/* Per-cell verdict pills in the table. */
+.pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pillGood {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+
+.pillBad {
+  color: var(--red);
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}
+
+.pillWarn {
+  color: var(--amber);
+  border-color: var(--amber-line);
+  background: var(--amber-soft);
+}
+
+/* Empty state — dashed, per the house pattern. */
+.empty {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--bg-raised);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: 20px 16px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.empty code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--bg-inset);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+@media (max-width: 480px) {
+  .heroBig {
+    font-size: 26px;
+  }
+}

@@ -133,6 +133,19 @@ export const SECONDARY_LINKS: NavLink[] = [
     ),
   },
   {
+    href: "/diagnostics",
+    label: "Diagnostics",
+    hint: "Does the signal beat random entries?",
+    icon: (
+      <svg {...iconProps}>
+        {/* distribution curve with a marker where the real result sits */}
+        <path d="M3 17c3 0 3.5-9 6.5-9s3.5 9 6.5 9 2.5-5 5-5" />
+        <path d="M8 20.5v-3" />
+        <circle cx="8" cy="15.5" r="1.4" />
+      </svg>
+    ),
+  },
+  {
     href: "/brain",
     label: "What the bot knows",
     shortLabel: "Brain",

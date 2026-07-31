@@ -1,0 +1,234 @@
+import { describe, it, expect } from "vitest";
+import {
+  CONTRACT_SPECS,
+  specFor,
+  assertTradable,
+  LEGACY_MODEL,
+  REALISTIC_MODEL,
+  ZERO_COST_MODEL,
+  roundTripCost,
+  baseSlippagePoints,
+  frictionDollarsPerContract,
+  resolveExecution,
+  frictionSpecFor,
+  slippagePointsAt,
+  nfpTimes,
+  firstFridayKey,
+} from "@/lib/costs";
+import { POINT_VALUES } from "@/lib/market/contracts";
+import { EXECUTION } from "@/scripts/engine/tiers";
+import { nyMeta, nyTimeToUnix, NY_SESSION_START_MIN } from "@/lib/time/ny";
+
+/* ── The equivalence anchor ──────────────────────────────────────────────
+   The whole cost module is only trustworthy if it reproduces the numbers the
+   engine has always used. If this block fails, every measured result in
+   TUNING_BASELINE is being compared against a different cost model than the
+   one that produced it. */
+describe("legacy model reproduces EXECUTION exactly", () => {
+  const base = { maxRisk: EXECUTION.maxRisk, sizing: EXECUTION.sizing, fillModel: EXECUTION.fillModel };
+
+  /* EXECUTION is now DERIVED from LEGACY_MODEL, so comparing the two would be
+     tautological on its own. This pins the historical literal instead — the
+     values every figure in TUNING_BASELINE was measured with. Together with
+     the round-trip assertions below, a change to the model that moved live
+     behaviour still fails here. */
+  it("still equals the literal the baselines were measured with", () => {
+    expect(EXECUTION).toEqual({
+      cost: 2.4,
+      slippage: 0.25,
+      maxRisk: 160,
+      sizing: "risk",
+      fillModel: "limit",
+    });
+  });
+
+  it("resolves to the committed EXECUTION for MES", () => {
+    expect(resolveExecution(LEGACY_MODEL, "MES", base)).toEqual(EXECUTION);
+  });
+
+  it("resolves to the committed EXECUTION for MNQ", () => {
+    // Both micros tick at 0.25, which is why one scalar sufficed until now.
+    expect(resolveExecution(LEGACY_MODEL, "MNQ", base)).toEqual(EXECUTION);
+  });
+
+  /* Catches the realistic failure mode: entering $2.40 as the per-SIDE
+     commission instead of the round trip, which doubles every cost silently
+     while leaving all the shapes and types correct. */
+  it("charges $1.20 per side, not $2.40", () => {
+    expect(LEGACY_MODEL.commissionPerSidePerContract).toBe(1.2);
+    expect(roundTripCost(LEGACY_MODEL)).toBeCloseTo(2.4, 10);
+  });
+
+  it("slips one tick on the entry side only", () => {
+    expect(LEGACY_MODEL.entryOnly).toBe(true);
+    expect(baseSlippagePoints(LEGACY_MODEL, specFor("MES"))).toBeCloseTo(0.25, 10);
+  });
+});
+
+/* ── Friction magnitudes ─────────────────────────────────────────────────
+   These are the numbers quoted when explaining how much of the measured loss
+   is cost. Pinning them means the claim "friction is 14%/28% of the damage"
+   cannot drift without a test failing. */
+describe("per-contract friction", () => {
+  it("legacy: $3.65 MES, $2.90 MNQ", () => {
+    expect(frictionDollarsPerContract(LEGACY_MODEL, "MES")).toBeCloseTo(3.65, 10);
+    expect(frictionDollarsPerContract(LEGACY_MODEL, "MNQ")).toBeCloseTo(2.9, 10);
+  });
+
+  it("realistic: $4.90 MES, $3.40 MNQ", () => {
+    expect(frictionDollarsPerContract(REALISTIC_MODEL, "MES")).toBeCloseTo(4.9, 10);
+    expect(frictionDollarsPerContract(REALISTIC_MODEL, "MNQ")).toBeCloseTo(3.4, 10);
+  });
+
+  it("zero model is actually zero", () => {
+    expect(frictionDollarsPerContract(ZERO_COST_MODEL, "MES")).toBe(0);
+    expect(frictionDollarsPerContract(ZERO_COST_MODEL, "MNQ")).toBe(0);
+    const base = { maxRisk: 160, sizing: "risk" as const, fillModel: "limit" as const };
+    expect(resolveExecution(ZERO_COST_MODEL, "MES", base)).toMatchObject({ cost: 0, slippage: 0 });
+  });
+
+  /* Even the harsher model cannot account for the measured losses. Stated as
+     a test so it cannot quietly stop being true. */
+  it("no model's friction approaches the measured per-trade loss", () => {
+    expect(frictionDollarsPerContract(REALISTIC_MODEL, "MES")).toBeLessThan(25.75 * 0.25);
+    expect(frictionDollarsPerContract(REALISTIC_MODEL, "MNQ")).toBeLessThan(10.54 * 0.5);
+  });
+});
+
+/* ── Spec table integrity ────────────────────────────────────────────────
+   A hand-entered table's realistic failure is a transcription typo, and this
+   invariant is what catches it. */
+describe("contract specs", () => {
+  it("tickValue / tickSize === pointValue for every contract", () => {
+    for (const spec of Object.values(CONTRACT_SPECS)) {
+      expect(spec.tickValue / spec.tickSize).toBeCloseTo(spec.pointValue, 9);
+    }
+  });
+
+  it("agrees with POINT_VALUES for the tradable symbols", () => {
+    for (const [symbol, pointValue] of Object.entries(POINT_VALUES)) {
+      expect(specFor(symbol).pointValue).toBe(pointValue);
+    }
+  });
+
+  it("only MES and MNQ are tradable, and only they are verified", () => {
+    const tradable = Object.values(CONTRACT_SPECS)
+      .filter((s) => s.tradable)
+      .map((s) => s.symbol)
+      .sort();
+    expect(tradable).toEqual(["MES", "MNQ"]);
+    for (const spec of Object.values(CONTRACT_SPECS)) {
+      // An unverified spec must never be tradable. The converse is allowed:
+      // a verified spec may still lack a data feed.
+      if (!spec.verified) expect(spec.tradable).toBe(false);
+      expect(spec.source.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("refuses to size a non-tradable instrument", () => {
+    expect(() => assertTradable("MGC")).toThrow(/not tradable/);
+    expect(() => assertTradable("SIL")).toThrow(/not tradable/);
+    expect(() => assertTradable("SI")).toThrow(/not tradable/);
+    expect(assertTradable("MES").symbol).toBe("MES");
+  });
+
+  it("throws on an unknown symbol rather than defaulting", () => {
+    expect(() => specFor("ZZZ")).toThrow(/No contract spec/);
+  });
+});
+
+/* ── Time-varying slippage ───────────────────────────────────────────────*/
+describe("slippagePointsAt", () => {
+  const friction = frictionSpecFor(REALISTIC_MODEL, ["MES", "MNQ"]);
+  const at = (dateKey: string, minute: number) => nyTimeToUnix(dateKey, minute);
+
+  it("is one tick in the middle of the session", () => {
+    expect(slippagePointsAt(friction, "MES", at("2026-06-01", 720))).toBeCloseTo(0.25, 10);
+  });
+
+  it("widens 1.5x in the opening 30 minutes", () => {
+    const t = at("2026-06-01", NY_SESSION_START_MIN + 5);
+    expect(nyMeta(t).minutes).toBe(NY_SESSION_START_MIN + 5);
+    expect(slippagePointsAt(friction, "MES", t)).toBeCloseTo(0.375, 10);
+  });
+
+  it("widens 1.5x in the closing 30 minutes", () => {
+    expect(slippagePointsAt(friction, "MES", at("2026-06-01", 910))).toBeCloseTo(0.375, 10);
+  });
+
+  it("is flat everywhere under the legacy model", () => {
+    const legacy = frictionSpecFor(LEGACY_MODEL, ["MES", "MNQ"]);
+    for (const m of [575, 720, 910]) {
+      expect(slippagePointsAt(legacy, "MES", at("2026-06-01", m))).toBeCloseTo(0.25, 10);
+    }
+  });
+
+  it("returns 0 for a symbol the spec does not cover", () => {
+    expect(slippagePointsAt(friction, "MGC", at("2026-06-01", 720))).toBe(0);
+  });
+
+  /* Overlapping windows must not compound into 2.25x. */
+  it("takes the widest applicable window, never the product", () => {
+    const overlapping = {
+      ...friction,
+      openCloseWindows: [
+        { fromMin: 570, toMin: 700, mult: 1.5 },
+        { fromMin: 600, toMin: 650, mult: 2 },
+      ],
+    };
+    expect(slippagePointsAt(overlapping, "MES", at("2026-06-01", 620))).toBeCloseTo(0.5, 10);
+  });
+});
+
+/* ── Macro calendar ──────────────────────────────────────────────────────*/
+describe("macro releases", () => {
+  it("finds the first Friday of a month", () => {
+    // 2026-06-05 is the first Friday of June 2026.
+    expect(firstFridayKey(2026, 6)).toBe("2026-06-05");
+    // 2026-05-01 is itself a Friday.
+    expect(firstFridayKey(2026, 5)).toBe("2026-05-01");
+  });
+
+  it("lands on 08:30 NY regardless of DST", () => {
+    const [winter] = nfpTimes(nyTimeToUnix("2026-01-01", 0), nyTimeToUnix("2026-01-31", 0));
+    const [summer] = nfpTimes(nyTimeToUnix("2026-07-01", 0), nyTimeToUnix("2026-07-31", 0));
+    expect(nyMeta(winter).minutes).toBe(8 * 60 + 30);
+    expect(nyMeta(summer).minutes).toBe(8 * 60 + 30);
+  });
+
+  it("returns one release per month over a year", () => {
+    const times = nfpTimes(nyTimeToUnix("2025-01-01", 0), nyTimeToUnix("2025-12-31", 23 * 60));
+    expect(times).toHaveLength(12);
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+
+  /* The multiplier must stay off while the calendar is partial. */
+  it("is disabled by default in every shipped model", () => {
+    expect(LEGACY_MODEL.macroMult).toBe(1);
+    expect(REALISTIC_MODEL.macroMult).toBe(1);
+    const spec = frictionSpecFor(REALISTIC_MODEL, ["MES"], [1_700_000_000]);
+    expect(spec.macroTimes).toEqual([]);
+  });
+});
+
+/* ── The descriptor that crosses the worker boundary ─────────────────────*/
+describe("frictionSpecFor", () => {
+  it("is structured-clone safe (plain data only)", () => {
+    const spec = frictionSpecFor(REALISTIC_MODEL, ["MES", "MNQ"]);
+    expect(() => structuredClone(spec)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(spec))).toEqual(spec);
+  });
+
+  it("turns exit slippage and gap-through on only for non-legacy models", () => {
+    expect(frictionSpecFor(LEGACY_MODEL, ["MES"])).toMatchObject({
+      slipExits: false,
+      sizeWithExitSlippage: false,
+      gapThroughStops: false,
+    });
+    expect(frictionSpecFor(REALISTIC_MODEL, ["MES"])).toMatchObject({
+      slipExits: true,
+      sizeWithExitSlippage: true,
+      gapThroughStops: true,
+    });
+  });
+});

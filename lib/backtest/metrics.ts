@@ -62,9 +62,24 @@ export function metricsFromTrades(trades: Trade[], startingCapital: number): Run
    entry before recovering has MAE 1.5R — it was, at its worst, half again past
    where the idea was wrong. That is the number worth seeing. */
 
-/** Stop distance in points. Null when the trade carries no usable stop. */
+/** ATR length used for atrAtEntry. Shared with the engine so they cannot drift. */
+export const EXCURSION_ATR_LEN = 14;
+
+/* Below this many trades, excursion averages are noise dressed as a finding.
+   The brief's threshold; surfaced rather than silently applied. */
+export const EXCURSION_MIN_N = 150;
+
+/* Stop distance in points. Null when the trade carries no usable stop.
+
+   Uses the stop AT ENTRY when the trade carries one. `t.stop` is the FINAL
+   stop, and adjustStop (breakeven/trailing) mutates it — a trade trailed to
+   breakeven has |entry - stop| -> 0, which sends maeR/mfeR/exitEfficiency to
+   infinity. That was a real defect for any Lab user who switched trailing on;
+   the live tier-A config has breakevenR/trailR at 0, so the published
+   baselines were never affected. Falls back to `stop` for trades reconstructed
+   from stored rows, which predate the field. */
 export function stopPoints(t: Trade): number | null {
-  const d = Math.abs(t.entryPrice - t.stop);
+  const d = Math.abs(t.entryPrice - (t.initialStop ?? t.stop));
   return d > 0 ? d : null;
 }
 
@@ -91,6 +106,28 @@ export function exitEfficiency(t: Trade): number | null {
   return realisedR / best;
 }
 
+/* ── ATR-normalised excursion ─────────────────────────────────────────────
+   R normalises by the trade's own stop, which is circular once the stop is
+   itself volatility-scaled: a wider stop shrinks MAE-in-R without the trade
+   having behaved any better. Dividing by ATR at entry instead gives a measure
+   that is comparable across symbols AND across eight years in which Nasdaq
+   roughly tripled. Null when the entry bar had no ATR (series warm-up). */
+export const maeAtr = (t: Trade): number | null =>
+  t.atrAtEntry && t.maePoints !== undefined ? t.maePoints / t.atrAtEntry : null;
+
+export const mfeAtr = (t: Trade): number | null =>
+  t.atrAtEntry && t.mfePoints !== undefined ? t.mfePoints / t.atrAtEntry : null;
+
+/* Minutes from entry to the bar that set each extreme. The pair separates two
+   failures that look identical in P&L: "never worked" (low time-to-MAE, MFE
+   near zero) is an ENTRY problem; "worked, then gave it back" (high
+   time-to-MFE, large MFE, negative P&L) is an EXIT problem. */
+export const minutesToMae = (t: Trade): number | null =>
+  t.maeTime === undefined ? null : (t.maeTime - t.entryTime) / 60;
+
+export const minutesToMfe = (t: Trade): number | null =>
+  t.mfeTime === undefined ? null : (t.mfeTime - t.entryTime) / 60;
+
 export interface ExcursionSummary {
   n: number; // trades carrying excursion data
   avgMaeR: number | null;
@@ -103,22 +140,59 @@ export interface ExcursionSummary {
   /* Losers' best excursion, in R. "How often were the losers green first?" —
      the number that argues for or against a breakeven rule. */
   avgLoserMfeR: number | null;
+  /* ATR-normalised means, and the edge ratio built from them. */
+  avgMaeAtr: number | null;
+  avgMfeAtr: number | null;
+  /* mean(MFE/ATR) / mean(MAE/ATR). Above 1 means the average trade showed more
+     favourable travel than adverse before it resolved — a necessary (not
+     sufficient) condition for the entry to be carrying information. At or
+     below 1 the entries are picking moments with no directional tilt. */
+  edgeRatio: number | null;
+  edgeRatioWinners: number | null;
+  edgeRatioLosers: number | null;
+  avgMinutesToMae: number | null;
+  avgMinutesToMfe: number | null;
+  /* False when n < EXCURSION_MIN_N. Callers must surface this rather than
+     quoting the averages bare. */
+  reliable: boolean;
 }
 
 const mean = (xs: number[]): number | null =>
   xs.length ? xs.reduce((a, v) => a + v, 0) / xs.length : null;
 
+/* Edge ratio over a trade set: mean(MFE/ATR) / mean(MAE/ATR).
+
+   Deliberately a ratio OF MEANS, not a mean of ratios — the brief specifies
+   it that way, and it is the more robust of the two here because a single
+   trade with a near-zero MAE would dominate a mean of per-trade ratios. */
+export function edgeRatioOf(trades: Trade[]): number | null {
+  const mfe = mean(trades.map(mfeAtr).filter((v): v is number => v !== null && Number.isFinite(v)));
+  const mae = mean(trades.map(maeAtr).filter((v): v is number => v !== null && Number.isFinite(v)));
+  if (mfe === null || mae === null || !(mae > 0)) return null;
+  return mfe / mae;
+}
+
 export function excursionSummary(trades: Trade[]): ExcursionSummary {
   const withData = trades.filter((t) => t.maePoints !== undefined && t.mfePoints !== undefined);
   const num = (f: (t: Trade) => number | null, src = withData) =>
     src.map(f).filter((v): v is number => v !== null && Number.isFinite(v));
+  const winners = withData.filter((t) => t.pnl > 0);
+  const losers = withData.filter((t) => t.pnl < 0);
   return {
     n: withData.length,
     avgMaeR: mean(num(maeR)),
     avgMfeR: mean(num(mfeR)),
     avgExitEfficiency: mean(num(exitEfficiency)),
-    avgWinnerMaeR: mean(num(maeR, withData.filter((t) => t.pnl > 0))),
-    avgLoserMfeR: mean(num(mfeR, withData.filter((t) => t.pnl < 0))),
+    avgWinnerMaeR: mean(num(maeR, winners)),
+    avgLoserMfeR: mean(num(mfeR, losers)),
+    avgMaeAtr: mean(num(maeAtr)),
+    avgMfeAtr: mean(num(mfeAtr)),
+    edgeRatio: edgeRatioOf(withData),
+    edgeRatioWinners: edgeRatioOf(winners),
+    edgeRatioLosers: edgeRatioOf(losers),
+    avgMinutesToMae: mean(num(minutesToMae)),
+    avgMinutesToMfe: mean(num(minutesToMfe)),
+    reliable: withData.length >= EXCURSION_MIN_N,
   };
 }
 

@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { runBacktest, type BacktestInput } from "@/lib/backtest/engine";
 import {
+  EXCURSION_MIN_N,
   R_BUCKETS,
+  edgeRatioOf,
   excursionSummary,
   exitEfficiency,
+  maeAtr,
   maeR,
+  mfeAtr,
   mfeR,
+  minutesToMae,
+  minutesToMfe,
   rDistribution,
   sliceBy,
   sliceByTag,
@@ -343,5 +349,190 @@ describe("sliceBy", () => {
 
   it("returns an empty object for an empty book", () => {
     expect(sliceByTag([], "pattern", 2000)).toEqual({});
+  });
+});
+
+/* ── The trailing-stop denominator defect ────────────────────────────────
+   stopPoints() used to divide by t.stop, which adjustStop mutates. A trade
+   trailed toward breakeven therefore had its excursion normalised against a
+   denominator approaching zero, inflating maeR/mfeR without limit. The live
+   tier-A config has breakevenR/trailR at 0 so the published baselines were
+   never affected — but every Lab user who switched trailing on was reading
+   nonsense. These tests pin the fix. */
+describe("excursion normalises against the stop at ENTRY, not the trailed stop", () => {
+  /* Trails the stop to 4999.75 — half a point under a 5000.25 entry — once
+     the trade is open. Tighten-only, so the engine accepts it. */
+  function trailingOneShot(signalIndex: number, trailTo: number): Strategy<unknown> {
+    return {
+      id: "trailing-one-shot",
+      name: "Trailing one shot",
+      blurb: "",
+      symbolMode: "single",
+      params: [],
+      prepare: () => ({}),
+      onSnapshot(_ctx, snap) {
+        const vis = snap.bySymbol.TEST;
+        if (!vis || vis.index !== signalIndex) return [];
+        const b = vis.bars[vis.index];
+        return [
+          {
+            symbol: "TEST",
+            side: "LONG",
+            stop: b.close - 10,
+            target: { kind: "price", price: 9999 }, // unreachable: force the stop exit
+          } as EntrySignal,
+        ];
+      },
+      adjustStop: () => trailTo,
+    };
+  }
+
+  const bars: Bar[] = [
+    bar(0, 5000, 5001, 4999, 5000), // signal here (close 5000 -> stop 4990)
+    bar(1, 5000, 5001, 5000, 5000), // fill at 5000.25
+    bar(2, 5000, 5005, 4996, 5000), // MAE 4.25, MFE 4.75
+    bar(3, 5000, 5000, 4999, 4999), // stop 4999.75 hit
+  ];
+  const res = runBacktest(baseInput(bars, trailingOneShot(0, 4999.75)));
+  const t = res.trades[0];
+
+  it("actually trailed the stop (guards the fixture)", () => {
+    expect(t.exitReason).toBe("stop");
+    expect(t.entryPrice).toBeCloseTo(5000.25, 10);
+    expect(t.stop).toBeCloseTo(4999.75, 10); // final, mutated
+    expect(t.initialStop).toBeCloseTo(4990, 10); // as at entry
+  });
+
+  it("records the raw excursion in points regardless", () => {
+    expect(t.maePoints).toBeCloseTo(4.25, 10);
+    expect(t.mfePoints).toBeCloseTo(4.75, 10);
+  });
+
+  it("normalises against the 10.25-point entry stop", () => {
+    expect(maeR(t)).toBeCloseTo(4.25 / 10.25, 9);
+    expect(mfeR(t)).toBeCloseTo(4.75 / 10.25, 9);
+  });
+
+  /* The bug, made explicit: the old denominator was 0.5 points, so the same
+     trade reported 8.5R of heat on a position risking 1R. Any threshold or
+     average built on that was meaningless. */
+  it("would have reported an absurd figure using the final stop", () => {
+    const naive = Math.abs(t.entryPrice - t.stop);
+    expect(naive).toBeCloseTo(0.5, 10);
+    expect(t.maePoints! / naive).toBeGreaterThan(8);
+    expect(maeR(t)!).toBeLessThan(1);
+  });
+
+  it("falls back to the final stop for rows that predate initialStop", () => {
+    const legacyRow = { ...t, initialStop: undefined } as Trade;
+    expect(maeR(legacyRow)!).toBeCloseTo(4.25 / 0.5, 9);
+  });
+});
+
+/* ── Time-to-extreme and ATR normalisation ───────────────────────────────*/
+describe("excursion timing and ATR normalisation", () => {
+  // 20 flat-ish bars so ATR(14) has warmed up before the signal on bar 19.
+  const warmup: Bar[] = Array.from({ length: 20 }, (_, i) =>
+    bar(i, 5000, 5002, 4998, 5000),
+  );
+  /* Exits at windowEnd, not at the stop or target. Both of those resolve ON a
+     bar whose own high/low would set a new extreme (the engine folds the exit
+     bar deliberately), which makes it impossible to place the extremes on
+     interior bars — and interior extremes are the whole point of the timing
+     test. */
+  const bars: Bar[] = [
+    ...warmup,
+    bar(20, 5000, 5001, 5000, 5000), // fill at 5000.25
+    bar(21, 5000, 5001, 4994, 5000), // MAE 6.25 set here
+    bar(22, 5000, 5010, 5000, 5000), // MFE 9.75 set here
+    bar(23, 5000, 5001, 4995, 5000), // neither extreme; run ends
+  ];
+  const res = runBacktest(
+    baseInput(bars, oneShot(19, { target: { kind: "price", price: 9999 } })),
+  );
+  const t = res.trades[0];
+
+  it("exits at the end of the run (guards the fixture)", () => {
+    expect(t.exitReason).toBe("windowEnd");
+  });
+
+  it("stamps the bar that set each extreme", () => {
+    expect(t.maePoints).toBeCloseTo(6.25, 10);
+    expect(t.mfePoints).toBeCloseTo(9.75, 10);
+    expect(t.maeTime).toBe(bars[21].time);
+    expect(t.mfeTime).toBe(bars[22].time);
+  });
+
+  it("converts those stamps to minutes from entry", () => {
+    expect(minutesToMae(t)).toBeCloseTo(5, 10); // one 5m bar after the fill
+    expect(minutesToMfe(t)).toBeCloseTo(10, 10);
+  });
+
+  it("captures ATR at the entry bar", () => {
+    expect(t.atrAtEntry).toBeGreaterThan(0);
+    expect(maeAtr(t)).toBeCloseTo(t.maePoints! / t.atrAtEntry!, 9);
+    expect(mfeAtr(t)).toBeCloseTo(t.mfePoints! / t.atrAtEntry!, 9);
+  });
+
+  it("returns null ATR-normalised values when the series never warmed up", () => {
+    const cold = runBacktest(baseInput(bars.slice(18), oneShot(1)));
+    expect(cold.trades[0]?.atrAtEntry).toBeUndefined();
+    expect(maeAtr(cold.trades[0])).toBeNull();
+  });
+});
+
+/* ── Edge ratio ──────────────────────────────────────────────────────────*/
+describe("edgeRatioOf", () => {
+  const mk = (mfe: number, mae: number, pnl: number): Trade =>
+    ({
+      id: 1,
+      symbol: "TEST",
+      side: "LONG",
+      qty: 1,
+      entryTime: 0,
+      entryPrice: 100,
+      exitTime: 300,
+      exitPrice: 100,
+      stop: 90,
+      initialStop: 90,
+      target: null,
+      exitReason: "stop",
+      points: 0,
+      pnl,
+      rMultiple: 0,
+      maePoints: mae,
+      mfePoints: mfe,
+      atrAtEntry: 10,
+    }) as Trade;
+
+  it("is the ratio of mean MFE/ATR to mean MAE/ATR", () => {
+    // MFE/ATR mean = (2+4)/2/10 -> 0.3 ; MAE/ATR mean = (1+1)/2/10 -> 0.1
+    expect(edgeRatioOf([mk(2, 1, 1), mk(4, 1, 1)])).toBeCloseTo(3, 9);
+  });
+
+  it("is 1 when favourable and adverse travel match", () => {
+    expect(edgeRatioOf([mk(5, 5, 1), mk(3, 3, -1)])).toBeCloseTo(1, 9);
+  });
+
+  it("is null without ATR, rather than silently falling back to points", () => {
+    const noAtr = { ...mk(5, 5, 1), atrAtEntry: undefined } as Trade;
+    expect(edgeRatioOf([noAtr])).toBeNull();
+  });
+
+  it("is null when nothing ever moved against the trade", () => {
+    expect(edgeRatioOf([mk(5, 0, 1)])).toBeNull();
+  });
+
+  it("splits winners from losers in the summary", () => {
+    const s = excursionSummary([mk(6, 1, 50), mk(1, 6, -50)]);
+    expect(s.edgeRatioWinners).toBeCloseTo(6, 9);
+    expect(s.edgeRatioLosers).toBeCloseTo(1 / 6, 9);
+    expect(s.edgeRatio).toBeCloseTo(1, 9);
+  });
+
+  it("flags a small sample as unreliable", () => {
+    expect(excursionSummary([mk(2, 1, 1)]).reliable).toBe(false);
+    const many = Array.from({ length: EXCURSION_MIN_N }, () => mk(2, 1, 1));
+    expect(excursionSummary(many).reliable).toBe(true);
   });
 });

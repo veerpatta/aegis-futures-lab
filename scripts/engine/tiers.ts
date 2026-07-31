@@ -99,17 +99,27 @@
 import type { Bar } from "@/lib/types";
 import type { DisciplineLocks } from "@/lib/backtest/engine";
 import { defaultParams, type ExecutionConfig, type ParamValues } from "@/lib/strategies/types";
+import { LEGACY_MODEL, resolveExecution } from "@/lib/costs";
 import { zoneV5 } from "@/lib/strategies/zone-v5";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { strategyById } from "@/lib/strategies/registry";
 
-export const EXECUTION: ExecutionConfig = {
-  cost: 2.4,
-  slippage: 0.25,
+/* Cost assumptions now come from lib/costs rather than two bare numbers here.
+   LEGACY_MODEL resolves to exactly { cost: 2.4, slippage: 0.25 } — $1.20 per
+   side per contract plus one tick of entry slippage — so this is a pure
+   refactor and every figure in TUNING_BASELINE below still stands.
+   tests/costs.test.ts pins both the resolved values and the literals, so the
+   derivation cannot silently drift.
+
+   The harsher REALISTIC_MODEL (both sides slipped, 1.5x at the session edges,
+   gap-through stops) is deliberately NOT adopted here: switching it on would
+   invalidate every outOfSample provenance string below and needs its own
+   re-measurement commit. */
+export const EXECUTION: ExecutionConfig = resolveExecution(LEGACY_MODEL, "MES", {
   maxRisk: 160,
   sizing: "risk",
   fillModel: "limit",
-};
+});
 
 export const STARTING_CAPITAL = 3000;
 export const SESSION_EXIT_MINUTE = 925; // flat by 15:25 ET

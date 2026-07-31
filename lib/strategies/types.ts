@@ -71,6 +71,15 @@ export interface OpenPosition {
      engine seeds them at 0 on open and folds every bar it manages. */
   maePoints?: number;
   mfePoints?: number;
+  /* Bar times of the MAE/MFE extremes, and the entry-bar context needed to
+     normalise them later. Same bookkeeping-only category as the two above:
+     no strategy reads them and the engine never branches on them. */
+  maeTime?: number;
+  mfeTime?: number;
+  /* The stop at entry, kept because `stop` is mutated by adjustStop and is
+     therefore the wrong excursion denominator once a trade has trailed. */
+  initialStop?: number;
+  atrAtEntry?: number;
 }
 
 export interface ExecutionConfig {
