@@ -199,6 +199,67 @@ export function aggregate1mTo5m(oneMin: Bar[]): Bar[] {
     .sort((a, b) => a.time - b.time);
 }
 
+/* ── Chunking ─────────────────────────────────────────────────────────────
+
+   A multi-year pull has to be requested in pieces, and the pieces interact
+   with the completeness rule above in a way that silently loses data if you
+   let them.
+
+   Cut a request at a month boundary and the final 5-minute bucket of that
+   month has no later minute inside the response, so aggregate1mTo5m drops it.
+   Over a seven-year backfill that is ~87 missing bars, one per seam, each
+   leaving a hole in exactly the multi-day frames zone-v5 builds structure
+   from — and nothing downstream would report it.
+
+   Two halves, both needed:
+     * request [from, to + CHUNK_TAIL_SEC) so the last real bucket has a later
+       minute proving it closed, then discard anything at or past `to` (the
+       next chunk owns it, with its full complement of minutes);
+     * keep every boundary 5m-aligned, or the FIRST bucket of each chunk is
+       missing its earlier minutes while looking complete — a half-formed bar
+       no downstream check can catch. Month starts are midnight UTC and
+       86400 % 300 === 0, so they already are; assertAligned proves it rather
+       than trusting it.
+
+   Buckets seen twice across an overlap are harmless: the upsert is keyed
+   (symbol, source, time) and the second write is byte-identical. */
+
+/** How far past a chunk's end to request, so its last bucket can be closed. */
+export const CHUNK_TAIL_SEC = 300;
+
+/** First-of-month UTC boundaries spanning [start, end). */
+export function monthBoundaries(start: string, end: string): { from: Date; to: Date }[] {
+  const out: { from: Date; to: Date }[] = [];
+  const endMs = Date.parse(`${end}T00:00:00Z`);
+  let cursor = new Date(Date.parse(`${start}T00:00:00Z`));
+  while (cursor.getTime() < endMs) {
+    const next = new Date(
+      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1, 0, 0, 0, 0)
+    );
+    const to = next.getTime() > endMs ? new Date(endMs) : next;
+    out.push({ from: new Date(cursor), to });
+    cursor = to;
+  }
+  return out;
+}
+
+/** Throws unless every boundary sits on the 5-minute grid. */
+export function assertAligned(chunks: { from: Date; to: Date }[]): void {
+  for (const c of chunks)
+    for (const [which, d] of [
+      ["from", c.from],
+      ["to", c.to],
+    ] as const) {
+      const sec = d.getTime() / 1000;
+      if (!Number.isInteger(sec) || sec % 300 !== 0)
+        throw new Error(
+          `Chunk ${which} ${d.toISOString()} is not 5m-aligned. An unaligned ` +
+            `boundary produces a first bucket missing its earlier minutes that ` +
+            `still looks complete.`
+        );
+    }
+}
+
 /** Parse + aggregate + sanity-check, which is what a caller actually wants. */
 export function bars5mFromOhlcv1mCsv(
   text: string,

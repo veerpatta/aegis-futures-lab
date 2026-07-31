@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHUNK_TAIL_SEC,
   DATABENTO_SUNDAY_GAP,
   DBN_PX_SCALE,
   aggregate1mTo5m,
+  assertAligned,
   assertPlausible,
   bars5mFromOhlcv1mCsv,
   isUtcSunday,
+  monthBoundaries,
   parseOhlcv1mCsv,
   parseTsEvent,
 } from "../lib/data/databento";
@@ -29,6 +32,8 @@ const m = (time: number, o: number, h: number, l: number, c: number, v = 10): Ba
 /* 2026-06-01T14:00:00Z = 1780322400, which is 5m-aligned. */
 const T0 = 1780322400;
 expect(T0 % 300).toBe(0);
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 describe("parseTsEvent", () => {
   it("converts nanoseconds to unix seconds", () => {
@@ -299,6 +304,93 @@ describe("bars5mFromOhlcv1mCsv", () => {
     expect(() => bars5mFromOhlcv1mCsv(csv, { rawPrices: true }, "MES.c.0")).toThrow(
       /implausible price/
     );
+  });
+});
+
+/* ── Chunk seams ──────────────────────────────────────────────────────────
+   The failure this guards against is quiet: cut a request at a month boundary
+   and the month's last 5m bucket has no later minute in the response, so it is
+   dropped. Over the seven-year backfill that is ~87 missing bars, one per
+   seam, with nothing reporting them. */
+describe("monthBoundaries", () => {
+  const chunks = monthBoundaries("2026-05-06", "2026-08-01");
+
+  it("splits on first-of-month and covers the range contiguously", () => {
+    expect(chunks.map((c) => isoDay(c.from))).toEqual([
+      "2026-05-06",
+      "2026-06-01",
+      "2026-07-01",
+    ]);
+    // Every chunk's end is the next chunk's start — no gap, no overlap.
+    for (let i = 1; i < chunks.length; i++)
+      expect(chunks[i].from.getTime()).toBe(chunks[i - 1].to.getTime());
+    expect(chunks[chunks.length - 1].to.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+  });
+
+  it("produces 5m-aligned boundaries, which assertAligned proves", () => {
+    expect(() => assertAligned(chunks)).not.toThrow();
+    for (const c of chunks) {
+      expect((c.from.getTime() / 1000) % 300).toBe(0);
+      expect((c.to.getTime() / 1000) % 300).toBe(0);
+    }
+  });
+
+  it("assertAligned actually rejects an unaligned boundary", () => {
+    const bad = [{ from: new Date("2026-05-06T00:02:00Z"), to: new Date("2026-06-01T00:00:00Z") }];
+    expect(() => assertAligned(bad)).toThrow(/not 5m-aligned/);
+  });
+
+  it("spans the whole max window without losing a month", () => {
+    const all = monthBoundaries("2019-05-06", "2026-07-30");
+    expect(all.length).toBe(87); // 2019-05 .. 2026-07 inclusive
+    expect(isoDay(all[0].from)).toBe("2019-05-06");
+    expect(all[all.length - 1].to.toISOString()).toBe("2026-07-30T00:00:00.000Z");
+  });
+});
+
+describe("chunked aggregation loses nothing at a seam", () => {
+  /* One minute bar every minute across a boundary, so every 5m bucket is
+     fully populated and any dropped bucket is unmistakable. */
+  const BOUNDARY = Date.UTC(2026, 5, 1, 0, 0, 0) / 1000; // 2026-06-01T00:00:00Z
+  const oneMin: Bar[] = [];
+  for (let t = BOUNDARY - 3600; t < BOUNDARY + 3600; t += 60)
+    oneMin.push(m(t, 100, 101, 99, 100));
+
+  /** Exactly what run() does: request past `to`, then discard the overlap. */
+  const chunkOf = (from: number, to: number): Bar[] =>
+    aggregate1mTo5m(
+      oneMin.filter((b) => b.time >= from && b.time < to + CHUNK_TAIL_SEC)
+    ).filter((b) => b.time < to);
+
+  it("reassembles into exactly the whole-range aggregate", () => {
+    const whole = aggregate1mTo5m(oneMin);
+    const pieced = [
+      ...chunkOf(BOUNDARY - 3600, BOUNDARY),
+      ...chunkOf(BOUNDARY, BOUNDARY + 3600),
+    ];
+    // The final bucket has no later minute in either view, so neither emits
+    // it — that is the completeness rule doing its job, not a seam defect.
+    expect(pieced).toEqual(whole);
+  });
+
+  it("keeps the bucket immediately before the seam", () => {
+    const pre = chunkOf(BOUNDARY - 3600, BOUNDARY);
+    expect(pre.map((b) => b.time)).toContain(BOUNDARY - 300);
+  });
+
+  it("would lose that bucket without the tail — the bug this prevents", () => {
+    const noTail = aggregate1mTo5m(
+      oneMin.filter((b) => b.time >= BOUNDARY - 3600 && b.time < BOUNDARY)
+    );
+    expect(noTail.map((b) => b.time)).not.toContain(BOUNDARY - 300);
+  });
+
+  it("emits the seam bucket exactly once across the two chunks", () => {
+    const times = [
+      ...chunkOf(BOUNDARY - 3600, BOUNDARY),
+      ...chunkOf(BOUNDARY, BOUNDARY + 3600),
+    ].map((b) => b.time);
+    expect(new Set(times).size).toBe(times.length);
   });
 });
 
