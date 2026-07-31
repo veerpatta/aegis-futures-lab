@@ -65,7 +65,9 @@
    1.0. MES ranges 0.52-0.79 and MNQ 0.64-0.98; not one profitable year on
    either. Excluding contract-roll seams moves MES to 0.72 and leaves MNQ at
    0.87, so the stitching caveat the backfill commit raised is closed: it
-   explains essentially nothing.
+   explains essentially nothing. Same answer on tier A — 8 of 1,838 sessions
+   carry a real discontinuity, and dropping them plus the session after moves
+   it from PF 0.55 to 0.57.
 
    Reproduce: BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts
 
@@ -210,7 +212,9 @@ export const TUNING_BASELINE: TuningBaseline[] = [
       provenance:
         "measured 2026-07-30 on seven years of Databento GLBX.MDP3 (real MES/MNQ contracts, " +
         "2019-05-06 → 2026-07-29, 1,015,938 bars): 1,180 trades over 1,838 sessions, PF 0.55, " +
-        "net −$57,065, avg R −0.302, expectancy −$48.36/trade. Reproduce: " +
+        "net −$57,065, avg R −0.302, expectancy −$48.36/trade. Traded on 287 of 1,838 sessions " +
+        "(15.6%), so it still clusters. Excluding the 8 contract-roll seams and the session " +
+        "after each leaves PF 0.57 on 1,155 trades — the stitching caveat is closed. Reproduce: " +
         "BAR_SOURCE=databento npx tsx scripts/diag/tier-a-baseline.ts",
     },
   },
