@@ -1,0 +1,73 @@
+# Nightly report card (audit item 13) — what the bot did today, in plain
+# trading language, to Telegram.
+#
+# TIMING. 02:00 UTC Tue-Sat = 07:30 IST, so it is waiting with morning coffee
+# and reports on the New York session that closed the previous evening. It
+# runs BEFORE nightly-learn (05:30 UTC) on purpose: the debrief reads the skip
+# funnel that run-live.ts writes on every engine pass, not anything learn.ts
+# produces, so there is nothing to wait for. Saturday is included because
+# Friday's session is the one it describes; Sunday and Monday are not, because
+# there is no closed session behind them.
+#
+# WHY DETERMINISTIC AND NOT AN LLM. The audit asked for an "AI-generated"
+# debrief. Every sentence this sends carries a number, and a model asked to
+# narrate numbers will eventually round one or describe a trend that is one
+# trade long. The whole app exists to stop small samples reading as findings;
+# generating its own summary with something that can hallucinate would undo
+# that at the last step. scripts/engine/debrief-copy.ts composes the prose and
+# tests/debrief.test.ts pins every claim it can make.
+#
+# WHY TELEGRAM AND NOT DISCORD. The audit suggested Discord; this repo already
+# has TELEGRAM_BOT_TOKEN wired and alerting through it (scripts/engine/
+# notify.ts). A second channel for the same job is maintenance for nothing.
+#
+# SCOPE. The bot's day only. The human journal is behind Supabase Auth with
+# owner-scoped RLS, and the point of that migration was that it stays private —
+# a scheduled job has no business reading it. Bot-vs-you lives in the app,
+# where the user is authenticated as themselves.
+#
+# The job never fails: debrief.ts exits 0 even on error, because a broken
+# report card must not mask the engine's own health signal, which is what the
+# watchdog actually reads.
+#
+# Paper only, delayed data. Nothing here touches real money.
+
+name: daily-debrief
+
+on:
+  schedule:
+    - cron: "0 2 * * 2-6"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Trading day to report on (YYYY-MM-DD). Blank = the session that just closed."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-debrief
+  cancel-in-progress: false
+
+jobs:
+  debrief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/engine/debrief.ts
+        env:
+          # Read-only work: the publishable key is enough, and using it keeps
+          # the service-role key out of a job that never writes.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DEBRIEF_DATE: ${{ inputs.date }}

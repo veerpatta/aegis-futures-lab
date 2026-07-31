@@ -132,6 +132,17 @@ A single line could not show the difference between price touching the edge of a
 and eating all the way through it — which is exactly the difference between a trade
 and no trade.
 
+## 2f. The Review page — when the money is made
+
+The weekend page. A calendar of every trading day coloured by profit or loss, a
+year-at-a-glance heatmap, and the same results split by **session** (London, NY open,
+lunch, NY close), weekday, market and market conditions.
+
+Use it to find *when* the money is made and when it is given back. Every split carries
+its own sample size, and they are all small — read those before the percentages. A
+session showing "0% win rate" on three trades is not a broken session; it is three
+trades.
+
 ## 3. Tier A and Tier B — the two kinds of ideas
 
 - **TIER A** — the classic zone setup: price returning to a fresh Daily or 4-hour
@@ -375,6 +386,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-07-31. If the app has changed since, the
+*Manual version: matches the app as of 2026-08-01. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

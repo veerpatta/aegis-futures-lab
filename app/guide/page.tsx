@@ -304,6 +304,14 @@ export default function GuidePage() {
           </dd>
           <dt>Signals</dt>
           <dd>Every idea, grouped by day, with the full zone watchlist and engine detail.</dd>
+          <dt>Review</dt>
+          <dd>
+            The weekend page. A calendar of every trading day coloured by profit or loss, a
+            year-at-a-glance heatmap, and the same results split by <b>session</b> (London, NY
+            open, lunch, NY close), weekday, market and market conditions. Use it to find{" "}
+            <i>when</i> the money is made and when it is given back. Every split carries its own
+            sample size, and they are all small — read those before the percentages.
+          </dd>
           <dt>Markets</dt>
           <dd>
             Delayed charts, live strategy readout, and the news calendar — each week&apos;s
@@ -662,7 +670,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-07-31. A printable version of this guide lives in the project
+        Matches the app as of 2026-08-01. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"
