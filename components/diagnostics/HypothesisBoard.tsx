@@ -13,6 +13,12 @@ const pct = (v: number | null | undefined, dp = 0) =>
 
 const money = (v: number) => `${v < 0 ? "−" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`;
 
+/** Signed dollars to 2dp, with the minus OUTSIDE the currency symbol. */
+const signedDollars = (v: number | null | undefined) =>
+  v === null || v === undefined || !Number.isFinite(v)
+    ? "—"
+    : `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(2)}`;
+
 function StatusPill({ status }: { status: string }) {
   const cls =
     status === "pass"
@@ -38,7 +44,7 @@ function GateAgainstIncumbents() {
         {num(ev.randomEntryPercentile, 1)}
       </span>,
       <span key="e" className={`num ${styles.toneBad}`}>
-        ${num(ev.oosNetExpectancy)}
+        {signedDollars(ev.oosNetExpectancy)}
       </span>,
       <span key="t" className="num">
         {ev.trades?.toLocaleString()}

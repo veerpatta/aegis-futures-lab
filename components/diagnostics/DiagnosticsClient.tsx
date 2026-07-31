@@ -13,6 +13,12 @@ const num = (v: number | null | undefined, dp = 2) =>
 
 const pct = (v: number, dp = 0) => (Number.isFinite(v) ? `${(v * 100).toFixed(dp)}%` : "—");
 
+/** Signed dollars to 2dp, minus OUTSIDE the currency symbol ("−$4.09"). */
+const dollars = (v: number | null | undefined) =>
+  v === null || v === undefined || !Number.isFinite(v)
+    ? "—"
+    : `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(2)}`;
+
 const toneOf = (v: number) => (v > 0 ? styles.toneGood : v < 0 ? styles.toneBad : styles.toneDim);
 
 /* Verdict pill. Note the colour rule from docs/design-language.md: a cell that
@@ -132,7 +138,7 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
                   {money(r.grossTotal)}
                 </span>
                 <span className={`${styles.duoVal} ${toneOf(r.grossPerTrade ?? 0)}`}>
-                  {num(r.grossPerTrade)}/t
+                  {dollars(r.grossPerTrade)}/t
                 </span>
               </div>
               <div className={styles.duoRow}>
@@ -141,7 +147,7 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
                   {money(r.netTotal)}
                 </span>
                 <span className={`${styles.duoVal} ${toneOf(r.netPerTrade ?? 0)}`}>
-                  {num(r.netPerTrade)}/t
+                  {dollars(r.netPerTrade)}/t
                 </span>
               </div>
               <div className={styles.duoRow}>
@@ -155,7 +161,7 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
               </div>
               <p className={styles.note}>
                 {r.trades.toLocaleString()} trades at {r.minQty}–{r.maxQty} contracts (mean{" "}
-                {num(r.meanQty)}), {num(r.frictionPerContract)} per contract round trip — so
+                {num(r.meanQty)}), {dollars(r.frictionPerContract)} per contract round trip — so
                 friction scales with position size while any edge does not.{" "}
                 {r.sameSignals.toLocaleString()} of {r.trades.toLocaleString()} signals are common
                 to both books, so the gap is cost and size, not a different strategy.
