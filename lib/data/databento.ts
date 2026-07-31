@@ -44,6 +44,19 @@ export function isUtcSunday(unixSec: number): boolean {
   return new Date(unixSec * 1000).getUTCDay() === 0;
 }
 
+/* Saturday has no session at all — the market is shut for the whole of
+   Saturday UTC in either DST regime, which is why signal-engine.yml runs no
+   Saturday cron. An empty Saturday is not a gap, and reporting it as one is
+   not harmless: the first full backfill flagged 73+ Saturdays as "check
+   these", which is exactly how a report teaches you to stop reading it. */
+export function isUtcSaturday(unixSec: number): boolean {
+  return new Date(unixSec * 1000).getUTCDay() === 6;
+}
+
+/** A day that legitimately carries no bars, for either reason. */
+export const expectedEmptyDay = (unixSec: number): boolean =>
+  isUtcSaturday(unixSec) || isUtcSunday(unixSec);
+
 /** A plausible index level for the contracts this app trades. MES ≈ 7,400 and
     MNQ ≈ 27,500 as of writing; the window is wide enough to survive years of
     drift and narrow enough to catch a 1e-9 scaling mistake, which lands either

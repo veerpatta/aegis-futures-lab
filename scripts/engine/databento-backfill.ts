@@ -29,6 +29,7 @@ import {
   DATABENTO_SUNDAY_GAP,
   assertAligned,
   bars5mFromOhlcv1mCsv,
+  isUtcSaturday,
   isUtcSunday,
   monthBoundaries,
 } from "@/lib/data/databento";
@@ -381,21 +382,34 @@ async function run(windowLabel: string): Promise<void> {
       console.log(
         `${feed}: resuming — already have data through ${new Date(resumeFrom * 1000).toISOString()}`
       );
-      /* Resume skips any month ending at or before the newest stored bar. That
-         is correct for re-running an interrupted pull, because months are
-         fetched oldest-first — but it is WRONG if this window starts earlier
-         than data already present, which happens if a short window was run
-         first and a longer one second. Every earlier month would be skipped
-         and the gap would look like Databento had no data. Refuse rather than
-         quietly under-fetch. */
+      /* Resume skips any month ending at or before the NEWEST stored bar,
+         which is correct when months were filled oldest-first — the normal
+         interrupted-run case.
+
+         It is wrong when the window starts before anything stored, because
+         those earlier months would be skipped and read back as Databento
+         having no data. The test for that is the OLDEST stored bar, not the
+         newest: a gap at the front is the failure, and comparing against the
+         newest bar would also reject every legitimate resume (the first
+         version of this guard did exactly that, and blocked the resume of the
+         very run it was written for). */
+      const { data: oldestRow, error: oldestErr } = await supabase
+        .from("bars_5m")
+        .select("time")
+        .eq("symbol", feed)
+        .eq("source", "databento")
+        .order("time", { ascending: true })
+        .limit(1);
+      if (oldestErr) throw new Error(`oldest probe for ${feed}: ${oldestErr.message}`);
+      const oldest = oldestRow?.length ? Number(oldestRow[0].time) : null;
       const windowStart = months[0].from.getTime() / 1000;
-      if (windowStart < resumeFrom) {
-        const stored = new Date(resumeFrom * 1000).toISOString().slice(0, 10);
+      if (oldest !== null && windowStart < oldest) {
+        const have = new Date(oldest * 1000).toISOString().slice(0, 10);
         throw new Error(
-          `${feed}: window starts ${w.start} but rows already exist through ${stored}.\n` +
-            `Resume skips months at or before the newest stored bar, so every month from ` +
-            `${w.start} to ${stored} would be silently skipped and read back as missing data.\n` +
-            `Either run a window that starts at or after ${stored}, or clear the namespace first:\n` +
+          `${feed}: window starts ${w.start} but the oldest stored bar is ${have}.\n` +
+            `Resume fills forward from the newest bar, so ${w.start} → ${have} would be ` +
+            `skipped and read back as missing data.\n` +
+            `Either run a window starting at or after ${have}, or clear the namespace:\n` +
             `  delete from public.bars_5m where source = 'databento' and symbol = '${feed}';`
         );
       }
@@ -415,6 +429,10 @@ async function run(windowLabel: string): Promise<void> {
 
       for (const day of emptyDayKeys(inChunk, from, to)) {
         const daySec = Date.parse(`${day}T12:00:00Z`) / 1000;
+        // Saturday has no session at all, so it is not a gap and never gets
+        // listed. Sunday IS a session (the Globex reopen) that Databento's
+        // continuous feed is known to omit, so it is counted and reported.
+        if (isUtcSaturday(daySec)) continue;
         if (isUtcSunday(daySec)) knownSundayGaps.push(`${feed} ${day}`);
         else unexpectedGaps.push(`${feed} ${day}`);
       }

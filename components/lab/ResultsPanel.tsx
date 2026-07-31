@@ -10,6 +10,7 @@ import { nyDateKey } from "@/lib/time/ny";
 import { money, pct, ratio, ts, dateOnly } from "@/lib/format";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/ui";
+import ExcursionPanel from "./ExcursionPanel";
 import EquityChart from "@/components/chart/EquityChart";
 import CandleChart, { type TradeMarker } from "@/components/chart/CandleChart";
 import FrequencyDoctor from "./FrequencyDoctor";
@@ -156,6 +157,10 @@ export default function ResultsPanel({
           />
         </Panel>
       )}
+
+      {/* MAE/MFE and the R-distribution. Placed above the funnel because the
+          funnel explains what did NOT happen, and these explain what did. */}
+      <ExcursionPanel trades={result.trades} />
 
       <Panel title="Qualification funnel" hint="why setups were skipped">
         <div className={styles.funnel}>

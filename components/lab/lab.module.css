@@ -482,3 +482,100 @@
 .bad {
   color: var(--red);
 }
+
+/* ── Excursion + R-distribution (ExcursionPanel) ─────────────────────────── */
+
+.exGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  margin: 0 0 10px;
+}
+
+.exGrid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.exGrid dt {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.exGrid dd {
+  margin: 0;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.exNote {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.rDist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rRow {
+  display: grid;
+  grid-template-columns: 88px 1fr 34px 76px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+
+.rLabel {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.rBarTrack {
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.rBarUp,
+.rBarDown {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.rBarUp {
+  background: var(--green);
+}
+
+.rBarDown {
+  background: var(--red);
+}
+
+.rCount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rNet {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+@media (max-width: 480px) {
+  .rRow {
+    grid-template-columns: 74px 1fr 28px;
+  }
+  .rNet {
+    display: none;
+  }
+}

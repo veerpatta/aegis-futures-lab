@@ -33,7 +33,7 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
-import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { parseBarSource } from "@/lib/data/source";
 import {
   EXECUTION,
   SESSION_EXIT_MINUTE,
@@ -41,6 +41,11 @@ import {
   TUNING_BASELINE,
   tierStreams,
 } from "@/scripts/engine/tiers";
+
+/* Which feed to measure. Defaults to yahoo so the documented numbers keep
+   reproducing; BAR_SOURCE=databento re-measures the same thing on the real
+   CME contracts. Comparing the two is the point of having both. */
+const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 const PAGE = 1000;
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
@@ -58,7 +63,7 @@ async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
       .from("bars_5m")
       .select("time, open, high, low, close, volume")
       .eq("symbol", symbol)
-      .eq("source", DEFAULT_BAR_SOURCE)
+      .eq("source", BAR_SOURCE)
       .order("time", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`bars_5m read for ${symbol}: ${error.message}`);
