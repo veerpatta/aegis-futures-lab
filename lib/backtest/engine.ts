@@ -156,8 +156,26 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   let currentDate: string | null = null;
   let tradeId = 0;
 
+  /* Fold one bar's range into the open position's running excursion. Pure
+     bookkeeping: reads b.high/b.low, writes only maePoints/mfePoints, which
+     nothing else in this file or any strategy ever reads. It therefore cannot
+     alter a fill, an exit or the trade list — the same category as the
+     skipReasons counters above, and the parity tests prove it.
+
+     Both are non-negative points from entry: MAE is the worst adverse move,
+     MFE the best favourable one, direction-corrected per side. */
+  const foldExcursion = (p: OpenPosition, bar: Bar) => {
+    const adverse = p.side === "LONG" ? p.entry - bar.low : bar.high - p.entry;
+    const favourable = p.side === "LONG" ? bar.high - p.entry : p.entry - bar.low;
+    p.maePoints = Math.max(p.maePoints ?? 0, adverse, 0);
+    p.mfePoints = Math.max(p.mfePoints ?? 0, favourable, 0);
+  };
+
   const closeTrade = (bar: Bar, reason: Trade["exitReason"], exit: number) => {
     const p = position!;
+    // The exit bar counts too — a trade that spiked before stopping out on the
+    // same bar really did have that excursion.
+    foldExcursion(p, bar);
     const point = pointValueOf(p.symbol);
     const points = p.side === "LONG" ? exit - p.entry : p.entry - exit;
     const pnl = points * point * p.qty - execution.cost * p.qty;
@@ -178,6 +196,8 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       rMultiple: p.risk ? pnl / p.risk : 0,
       score: p.score,
       tags: p.tags,
+      maePoints: p.maePoints ?? 0,
+      mfePoints: p.mfePoints ?? 0,
     });
     equity += pnl;
     peak = Math.max(peak, equity);
@@ -265,6 +285,9 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       if (v && v.bar.time >= position.openedAt) {
         const b = v.bar;
         const p = position;
+        // Before adjustStop, so a trailing stop can never retroactively hide
+        // the excursion that triggered it.
+        foldExcursion(p, b);
         if (strategy.adjustStop) {
           const ns = strategy.adjustStop(ctx, snapshot, p, params);
           // tighten-only: breakeven/trailing may never widen the risk
@@ -294,6 +317,10 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         const entry =
           sig.side === "LONG" ? v.bar.open + execution.slippage : v.bar.open - execution.slippage;
         position = tryOpen(sig, v.bar, entry);
+        // The manage block above already ran for this bar while the position
+        // was still null, so the fill bar's own range would otherwise never be
+        // folded and every next-open trade would under-report by one bar.
+        if (position) foldExcursion(position, v.bar);
       }
     }
     if (position || pending) continue;
@@ -378,6 +405,10 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         const opened = tryOpen(best, b, entry);
         if (opened) {
           position = opened;
+          // The fill bar is the trade's first bar, and for a same-bar sweep it
+          // is also its only one — without this those trades report zero
+          // excursion, which is the one case where it is provably wrong.
+          foldExcursion(opened, b);
           // Conservative same-bar resolution: if the touch bar also swept the
           // stop we cannot know the intra-bar order — count it as a stop-out
           // (consistent with the engine's stop-first convention). The target

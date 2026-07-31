@@ -31,6 +31,16 @@ export interface Trade {
   rMultiple: number;
   score?: number;
   tags?: Record<string, string>;
+  /* Intra-trade excursion, in POINTS from the entry price and both
+     non-negative: how far the trade went against you (MAE) and in your favour
+     (MFE) before it closed. Measured from bar highs/lows while the position
+     was open, so on 5-minute bars they are bar-resolution, not tick-exact.
+
+     Additive bookkeeping — nothing in the engine or any strategy reads them,
+     so they cannot change a decision. Optional because trades reconstructed
+     from stored rows (which predate the fields) legitimately have none. */
+  maePoints?: number;
+  mfePoints?: number;
 }
 
 export interface EquityPoint {
