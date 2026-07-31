@@ -40,6 +40,7 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useBotHealth } from "@/components/providers/BotHealthProvider";
 import LiveVsTuning from "./LiveVsTuning";
+import BotVsYouHero from "./BotVsYouHero";
 import WhyNoSignal from "./WhyNoSignal";
 import SignalContext, { useConditionLedger } from "@/components/signals/SignalContext";
 import SignalSheet from "@/components/signals/SignalSheet";
@@ -1156,6 +1157,11 @@ export default function HomeClient() {
           {/* Trading day, matching the key run-live.ts writes the funnel under:
               after 18:00 ET the session on screen is the next weekday's. */}
           <WhyNoSignal dateKey={tradingDayKey(Math.floor(Date.now() / 1000))} />
+
+          {/* The app's most original idea, promoted from the Journal page.
+              Placed above "Live vs tuning" because how YOU did against the
+              rules matters more than how the bot tracked its own backtest. */}
+          <BotVsYouHero signals={signals} />
 
           <LiveVsTuning signals={signals} />
 
