@@ -167,8 +167,10 @@ export function compareBooks(
       n.map((t) => frictionDollarsPerContract(costModel, t.symbol) * t.qty),
     ),
     meanNetQty: n.length ? sum(n.map((t) => t.qty)) / n.length : 0,
-    minNetQty: n.length ? Math.min(...n.map((t) => t.qty)) : 0,
-    maxNetQty: n.length ? Math.max(...n.map((t) => t.qty)) : 0,
+    // Folded rather than spread: Math.min(...xs) overflows the call stack on a
+    // large book, and a book is exactly the kind of array that grows.
+    minNetQty: n.reduce((m, t) => Math.min(m, t.qty), n.length ? Infinity : 0),
+    maxNetQty: n.reduce((m, t) => Math.max(m, t.qty), n.length ? -Infinity : 0),
     frictionOnMatched,
     commissionOnMatched,
     deltaMatched,

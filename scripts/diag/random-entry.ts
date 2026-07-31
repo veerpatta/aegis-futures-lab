@@ -330,6 +330,16 @@ async function main() {
     }
   }
 
+  /* Checkpoint the cells the moment the expensive work is done, BEFORE any
+     reporting. The first version of this script spent 35 minutes computing 17
+     cells and then lost all of them to a stack overflow in a date-formatting
+     line. Reporting is cheap and rerunnable; the nulls are not. */
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(
+    OUT + ".partial",
+    JSON.stringify({ grossNet: grossNetRows, excursion: excursionRows, randomEntry: cells }, null, 2),
+  );
+
   /* ── 4. Correlation and effective sample size ──
      "16 stream-years, all losing" reads as sixteen independent confirmations.
      MES and MNQ are both US equity index futures; intraday they are close to
@@ -426,8 +436,18 @@ async function main() {
   );
   for (const line of verdictLines) console.log(`  · ${line}`);
 
-  const allBars = [...barsBySymbol.values()].flat();
+  /* Fold, never spread. `Math.min(...oneMillionBars)` overflows the call stack
+     — it did, after 35 minutes of computation had already been done and was
+     thrown away with it. The bars are time-ordered per symbol, so the bounds
+     are the endpoints anyway. */
   const stamp = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
+  let first = Infinity;
+  let last = -Infinity;
+  for (const bars of barsBySymbol.values()) {
+    if (!bars.length) continue;
+    first = Math.min(first, bars[0].time);
+    last = Math.max(last, bars[bars.length - 1].time);
+  }
   const payload: Phase1Report = {
     generatedFrom: "scripts/diag/random-entry.ts",
     measuredAt: new Date().toISOString(),
@@ -435,8 +455,8 @@ async function main() {
     iterations: ITERATIONS,
     mode: MODE,
     costModel: LEGACY_MODEL.id,
-    windowFrom: allBars.length ? stamp(Math.min(...allBars.map((b) => b.time))) : "",
-    windowTo: allBars.length ? stamp(Math.max(...allBars.map((b) => b.time))) : "",
+    windowFrom: Number.isFinite(first) ? stamp(first) : "",
+    windowTo: Number.isFinite(last) ? stamp(last) : "",
     grossNet: grossNetRows,
     excursion: excursionRows,
     randomEntry: cells,
