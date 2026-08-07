@@ -1,0 +1,19 @@
+# Line endings: LF in the index AND in every working tree.
+#
+# Without this file, a Windows clone with the default `core.autocrlf=true`
+# checks out CRLF while the index stays LF. That is normally invisible — but
+# scripts/engine/challenger-logic.ts rewrites tiers.ts by regex and anchors on
+# `;\n`, so a CRLF working tree makes replaceDeclaration() fail to find
+# CHALLENGER_OVERRIDES and four tests in tests/challenger-edit.test.ts fail
+# locally while CI (Linux, LF) stays green.
+#
+# That combination is worse than a plain broken test: it makes CLAUDE.md's
+# "Run npm test before every push" unsatisfiable on Windows, which trains a
+# contributor to push past a red suite. `eol=lf` keeps the checkout byte-identical
+# to what the engine and CI actually run against.
+
+* text=auto eol=lf
+
+# Binaries — never normalize, never diff as text.
+*.png binary
+*.pdf binary
