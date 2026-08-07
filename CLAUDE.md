@@ -64,9 +64,16 @@ short sentences. The reader knows trading but not software. Always keep the
   which moved the journal to owner-scoped `journal_entries`.) Engine writes need
   the service-role key (GitHub secret). Schema/policy changes are SQL files under
   `supabase/migrations/` — applied manually or via MCP, never assumed applied just
-  because they are committed. The reverse also happens: `signals.dedupe_key`, `.qty`
-  and `.score` are read and written by committed code but have NO committed
-  migration, so this folder is not a complete picture of the live schema.
+  because they are committed. The reverse used to happen too: a full column-level
+  diff of the live project against every committed migration found 18 columns and
+  3 indexes that existed only in production. `20260807030500_catch_up_drifted_schema.sql`
+  closes that gap — it is `if not exists` throughout and a no-op against the live
+  database, so its whole purpose is that a rebuild from this folder produces a
+  database the engine can write to. Two of the three indexes were the `dedupe_key`
+  unique constraints, i.e. the arbiters for the engine's `on conflict` upserts; a
+  rebuild without them fails on every write with 42P10, not just on the first.
+  Re-run that diff before trusting this folder again — drift is the default here,
+  not the exception.
 - Research tables (`research_baselines`, `research_trials`, `signal_excursion`) are
   guarded by TRIGGERS, not policies, and the distinction is deliberate: the engine
   writes with the service-role key, which bypasses RLS. A policy saying "nobody may
