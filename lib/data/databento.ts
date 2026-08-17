@@ -57,21 +57,44 @@ export function isUtcSaturday(unixSec: number): boolean {
 export const expectedEmptyDay = (unixSec: number): boolean =>
   isUtcSaturday(unixSec) || isUtcSunday(unixSec);
 
-/** A plausible index level for the contracts this app trades. MES ≈ 7,400 and
-    MNQ ≈ 27,500 as of writing; the window is wide enough to survive years of
-    drift and narrow enough to catch a 1e-9 scaling mistake, which lands either
-    around 7e-6 or 7e12. */
-const MIN_PLAUSIBLE_PX = 100;
-const MAX_PLAUSIBLE_PX = 1_000_000;
+/* Plausible price bands, PER SYMBOL.
 
+   The guard's job is to catch the DBN 1e-9 fixed-point scaling applied the
+   wrong way, which lands a price around 1e-6 of itself or 1e12 times it. A
+   single [100, 1e6] window did that for the equity index contracts (MES ≈
+   7,400, MNQ ≈ 27,500) but would reject SILVER outright — it trades near $66,
+   below the old floor, so every silver bar would have thrown while blaming the
+   scaling. A band has to be wide enough to survive years of drift and narrow
+   enough to still catch a 1e9 error; those are compatible per symbol and not
+   compatible across metals and equity index together. */
+const DEFAULT_BAND: readonly [number, number] = [100, 1_000_000];
+const PLAUSIBLE_BANDS: Record<string, readonly [number, number]> = {
+  MES: DEFAULT_BAND,
+  MNQ: DEFAULT_BAND,
+  // Gold ≈ 4,470 as of writing.
+  MGC: [100, 1_000_000],
+  // Silver ≈ 66. A 1e-9 error lands at ~6.6e-8, a 1e9 one at ~6.6e10 — both
+  // still far outside this band, so the guard keeps all of its power.
+  SI: [5, 100_000],
+  SIL: [5, 100_000],
+};
+
+export function plausibleBand(symbol: string): readonly [number, number] {
+  return PLAUSIBLE_BANDS[symbol] ?? DEFAULT_BAND;
+}
+
+/** `label` is used to select the band, so pass the feed symbol (or a string
+    starting with it) rather than a free-form description. */
 export function assertPlausible(bars: Bar[], label: string): void {
   if (!bars.length) return;
+  const key = Object.keys(PLAUSIBLE_BANDS).find((k) => label.startsWith(k));
+  const [lo, hi] = plausibleBand(key ?? "");
   for (const b of bars) {
     for (const px of [b.open, b.high, b.low, b.close]) {
-      if (!Number.isFinite(px) || px < MIN_PLAUSIBLE_PX || px > MAX_PLAUSIBLE_PX)
+      if (!Number.isFinite(px) || px < lo || px > hi)
         throw new Error(
           `${label}: implausible price ${px} at ${new Date(b.time * 1000).toISOString()} — ` +
-            `expected ${MIN_PLAUSIBLE_PX}–${MAX_PLAUSIBLE_PX}. This is almost always the DBN ` +
+            `expected ${lo}–${hi}. This is almost always the DBN ` +
             `1e-9 fixed-point scaling applied the wrong way (pretty_px on/off mismatch), ` +
             `not bad market data.`
         );

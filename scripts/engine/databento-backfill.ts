@@ -24,6 +24,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { FeedSymbol } from "@/lib/market/contracts";
 import {
   CHUNK_TAIL_SEC,
   DATABENTO_SUNDAY_GAP,
@@ -41,7 +42,29 @@ const STYPE_IN = "continuous";
 /* Continuous front-month, volume-rolled. These are the real CME contracts,
    which is the entire point of the exercise — the live feed's MES=F/MNQ=F are
    the right instruments but a delayed, unofficial, front-month stitch. */
-const SYMBOLS = ["MES.c.0", "MNQ.c.0"] as const;
+const ALL_SYMBOLS = ["MES.c.0", "MNQ.c.0", "MGC.c.0", "SI.c.0"] as const;
+
+/* --symbols MGC.c.0,SI.c.0 restricts the pull.
+
+   This exists because the archive is built INCREMENTALLY. MES and MNQ were
+   pulled in 2026-07; re-requesting them to add gold would spend credit again
+   on bars already stored and double the projected storage. The estimate and
+   the run share this filter, so the number you read is the number you spend —
+   an estimate built from a different symbol set is not an estimate. */
+const SYMBOLS: readonly string[] = (() => {
+  const i = process.argv.indexOf("--symbols");
+  const raw = i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : "";
+  if (!raw) return ALL_SYMBOLS;
+  const want = raw.split(",").map((x: string) => x.trim()).filter(Boolean);
+  const unknown = want.filter(
+    (w: string) => !(ALL_SYMBOLS as readonly string[]).includes(w)
+  );
+  if (unknown.length)
+    throw new Error(
+      `Unknown --symbols: ${unknown.join(", ")}. Known: ${ALL_SYMBOLS.join(", ")}`
+    );
+  return want;
+})();
 
 /** The free credit, for framing the printed numbers. */
 const FREE_CREDIT_USD = 125;
@@ -281,9 +304,15 @@ async function estimate(): Promise<void> {
 
 const UPSERT_CHUNK = 1000; // matches archiveNewBars in run-live.ts
 
-const FEED_SYMBOL: Record<string, "MES" | "MNQ"> = {
+const FEED_SYMBOL: Record<string, FeedSymbol> = {
   "MES.c.0": "MES",
   "MNQ.c.0": "MNQ",
+  "MGC.c.0": "MGC",
+  /* Full-size silver, not micro. It is a CONFIRMATION series — never traded,
+     only read for its zone structure — and specs.ts role-locks SIL against
+     exactly that duty because its thin book manufactures structure that is not
+     there. */
+  "SI.c.0": "SI",
 };
 
 const isoZ = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");

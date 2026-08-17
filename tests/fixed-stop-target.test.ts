@@ -66,7 +66,23 @@ const run = (bars: Bar[], sig: Partial<EntrySignal>, over: Partial<BacktestInput
     ...over,
   } as BacktestInput);
 
-const opened = (r: ReturnType<typeof run>) => r.trades[0] ?? r.openPosition;
+/* trades[0] and openPosition carry the same facts under different names. The
+   fixtures are flat, so these stay open — but the union has to be handled. */
+const opened = (r: ReturnType<typeof run>) => {
+  const t = r.trades[0];
+  if (t)
+    return {
+      entry: t.entryPrice,
+      openedAt: t.entryTime,
+      stop: t.stop,
+      target: t.target,
+      initialStop: t.initialStop,
+    };
+  const p = r.openPosition;
+  return p
+    ? { entry: p.entry, openedAt: p.openedAt, stop: p.stop, target: p.target, initialStop: p.initialStop }
+    : null;
+};
 
 describe("stopPoints — a fixed stop measured from the fill", () => {
   it("is absent by default, and the structural stop is used", () => {
