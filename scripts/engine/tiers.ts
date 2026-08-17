@@ -339,6 +339,19 @@ export interface TierStream {
      what every stream used before the split, so callers that ignore this
      field keep today's behaviour exactly. */
   maxRisk?: number;
+  /* The token that identifies this stream inside a signals.dedupe_key.
+     Absent ⇒ `label`, which is what every existing row was written with, so
+     no key changes and nothing orphans.
+
+     It exists because dedupe_key is `${tier}:${label}:${symbol}:${entryTime}`
+     and carries no stream identity beyond the label. Promoting a shadow whose
+     label matches a live stream — `rsi-reversion` on MES is the obvious one,
+     since it is the same family the shadow catalogue auditions — produces a
+     byte-identical key for two different streams. run-live.ts builds its rows
+     into a Map keyed on it, so one stream's row would silently overwrite the
+     other's before the write, and the upsert would finish the job. Contrast
+     streamOverrideKey below, which does include symbols. */
+  dedupeTag?: string;
 }
 
 export const B_LOCKS: DisciplineLocks = {
@@ -513,6 +526,11 @@ export function tierStreams(): TierStream[] {
     params: defaultParams(strategyById(p.strategyId)),
     fillModel: "nextOpen",
     locks: B_LOCKS,
+    /* Namespaced so a promoted shadow can never collide with the live stream
+       of the same name. The label stays as-is for display; only the key token
+       changes, and only for streams that do not exist yet — so no row already
+       in the table is affected. */
+    dedupeTag: `shadow:${p.label}`,
   }));
   return [...withOverrides, ...promoted];
 }

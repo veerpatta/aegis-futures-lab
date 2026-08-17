@@ -8,6 +8,9 @@ interface Ctx {
   bySymbol: Record<string, { rsi: (number | null)[]; atr: (number | null)[] }>;
 }
 
+/* Spacing of the feed this strategy runs on. */
+const BAR_SECONDS = 300;
+
 export const rsiReversion: Strategy<Ctx> = {
   id: "rsi-reversion",
   name: "RSI Mean-Reversion",
@@ -26,6 +29,17 @@ export const rsiReversion: Strategy<Ctx> = {
       help: "Off = longs out of oversold only.",
     },
     { key: "atrMult", label: "ATR stop multiple", type: "number", default: 1.5, min: 0.5, max: 5, step: 0.25 },
+    {
+      key: "requireContiguous",
+      label: "Require an unbroken pair of bars",
+      type: "boolean",
+      default: false,
+      help:
+        "On = only take a cross when the two bars it is built from are genuinely consecutive. " +
+        "shapeCompleted5mBars drops non-finite bars into a COMPACTED array with no gap marker, " +
+        "so without this a 'cross' can be assembled from bars either side of a weekend, a holiday, " +
+        "the daily maintenance halt or a feed outage. Default off preserves legacy behaviour.",
+    },
     {
       key: "exitStyle",
       label: "Exit style",
@@ -70,6 +84,19 @@ export const rsiReversion: Strategy<Ctx> = {
       const r0 = ind.rsi[v.index - 1],
         r1 = ind.rsi[v.index];
       if (r0 === null || r1 === null) continue;
+      /* The two bars a cross is built from must actually be adjacent in time.
+         Yahoo bars arrive compacted — lib/data/yahoo.ts drops any bar with a
+         non-finite OHLC and leaves no hole — so index-1 and index can sit
+         either side of a weekend or an outage while looking contiguous. The
+         engine's FILL is already session-guarded (engine.ts checks the next
+         bar's dateKey); the SIGNAL never was. */
+      if (params.requireContiguous) {
+        const prev = v.bars[v.index - 1];
+        if (!prev || v.bar.time - prev.time !== BAR_SECONDS) {
+          note("barGap", v.symbol);
+          continue;
+        }
+      }
       note("evaluated");
       const mins = nyMeta(v.bar.time).minutes;
       if (

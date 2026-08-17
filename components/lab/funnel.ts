@@ -18,6 +18,7 @@ export const FUNNEL_LABELS: Record<string, string> = {
   hours: "Outside entry session",
   riskUnfit: "Risk did not fit",
   stopTooTight: "Stop too tight to be a real fill",
+  barGap: "Gap in the price feed between the two bars",
   news: "News lockout",
   lock: "Discipline lock",
   noSignal: "No trigger",

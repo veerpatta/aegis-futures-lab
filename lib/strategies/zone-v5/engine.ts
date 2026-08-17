@@ -19,6 +19,7 @@
    - Symmetric 80% first-counter-zone block after an HTF reaction.
    - Old directional-alignment engine kept as a labelled comparison mode. */
 
+import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { Bar, FrameBar } from "@/lib/types";
 import { nyMeta } from "@/lib/time/ny";
 
@@ -70,8 +71,13 @@ export const DEFAULT_CONFIG: V5Config = {
   freshGraceSec: 0, // live callers allow the in-progress first return
 };
 
+/* One table, not a literal pair repeated per file. This used to be
+   `symbol === "MES" ? 5 : 2` here AND again in index.ts's adjustStop, which
+   priced any third symbol as MNQ in both places. POINT_VALUES is the canonical
+   contract table; an unknown symbol now returns 1 rather than silently
+   inheriting Nasdaq's multiplier. */
 export function pointValue(symbol: string): number {
-  return symbol === "MES" ? 5 : 2;
+  return POINT_VALUES[symbol as FeedSymbol] ?? 1;
 }
 
 export interface Zone {

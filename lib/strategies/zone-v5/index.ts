@@ -5,7 +5,7 @@
 
 import type { Bar } from "@/lib/types";
 import { inNySession, nyMeta } from "@/lib/time/ny";
-import { TF_LABEL, buildStack, evaluate, intermarketCheck } from "./engine";
+import { TF_LABEL, buildStack, evaluate, intermarketCheck, pointValue } from "./engine";
 import type { Stack, EvalResult, Timeframe } from "./engine";
 import type {
   EntrySignal,
@@ -416,7 +416,10 @@ export const zoneV5: Strategy<ZoneCtx> = {
     if (!vis || vis.index < 1) return null;
     const prev = vis.bars[vis.index - 1];
     if (prev.time <= pos.openedAt) return null; // need a completed bar after entry
-    const point = pos.symbol === "MES" ? 5 : 2;
+    /* pointValue(), not a hardcoded `symbol === "MES" ? 5 : 2`. That pair
+       priced any third symbol as MNQ; dead today only because breakevenR and
+       trailR both default to 0, so adjustStop never runs live. */
+    const point = pointValue(pos.symbol);
     const stopPts = Math.max(1e-9, (pos.risk / pos.qty - ctx.execution.cost) / point);
     const favorable = pos.side === "LONG" ? prev.close - pos.entry : pos.entry - prev.close;
     let stop: number | null = null;

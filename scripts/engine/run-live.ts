@@ -196,6 +196,13 @@ function dedupeKey(tier: "A" | "B", label: string, symbol: string, entryTime: nu
   return `${tier}:${label}:${symbol}:${entryTime}`;
 }
 
+/* The token identifying a stream inside its dedupe_key. Falls back to `label`,
+   which is what every row in the table was written with, so nothing orphans.
+   Only promoted shadows override it — see TierStream.dedupeTag. */
+function tagOf(stream: { label: string; dedupeTag?: string }): string {
+  return stream.dedupeTag ?? stream.label;
+}
+
 function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
   const status = statusFromExit(t.exitReason, t.pnl);
   const stopDist = Math.abs(t.entryPrice - t.stop);
@@ -414,10 +421,10 @@ async function main() {
          archive still holds every bar those signals were measured on; once it
          does not, they are gone, so the widest honest window is the right one. */
       if (hasExcursion(t)) {
-        closedByKey.set(dedupeKey(stream.tier, stream.label, t.symbol, t.entryTime), t);
+        closedByKey.set(dedupeKey(stream.tier, tagOf(stream), t.symbol, t.entryTime), t);
       }
       if (t.entryTime < cutoff) continue;
-      const row = rowFromTrade(stream.tier, stream.label, t);
+      const row = rowFromTrade(stream.tier, tagOf(stream), t);
       row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
       row.fill_confidence = audit(t.side, t.symbol, t.entryPrice, t.entryTime, t.exitTime);
       row.vix_bucket = bucketFor(t.entryTime);
@@ -425,7 +432,7 @@ async function main() {
     }
     if (res.openPosition && res.openPosition.openedAt >= cutoff) {
       const p = res.openPosition;
-      const row = rowFromOpen(stream.tier, stream.label, p);
+      const row = rowFromOpen(stream.tier, tagOf(stream), p);
       row.regime = computeRegime(bySymbol[p.symbol] ?? [], p.openedAt);
       row.fill_confidence = audit(p.side, p.symbol, p.entry, p.openedAt, null);
       row.vix_bucket = bucketFor(p.openedAt);
@@ -622,6 +629,41 @@ async function main() {
       warnings.push(`signal_excursion write failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
     }
   }
+
+  /* 1b) Orphan check.
+     Zones get an explicit prune-before-upsert (see below). `signals` never
+     has: the run upserts and never deletes, and the file header's claim that
+     "re-running with the same data writes the same rows" holds only while the
+     trade set is stable. It is not. Each pass recomputes over a SLIDING 60-day
+     window while mirroring 7, the engine holds one position at a time, and
+     Yahoo revises bars — so a single changed exit early in the window
+     cascades, and a trade can vanish from a later recompute. Its row stays
+     behind with a stale status and P&L, counted forever by liveOnly(),
+     promotionReport, the digest and the debrief.
+
+     This REPORTS rather than deletes, deliberately. Deleting would make the
+     engine destroy live history every time the vendor revised a bar, and the
+     signals table is the record the whole app is judged on — a wrong row that
+     is visible is recoverable, a right row that was deleted is not. The count
+     lands in the heartbeat so the drift is measurable before anyone decides
+     what the reconciliation policy should be. */
+  try {
+    const mirrored = new Set(signals.map((s) => s.dedupe_key));
+    const { data, error } = await supabase
+      .from("signals")
+      .select("dedupe_key")
+      .gte("signal_ts", iso(cutoff));
+    if (error) throw new Error(error.message);
+    const orphans = (data ?? []).filter((r) => !mirrored.has(r.dedupe_key as string));
+    if (orphans.length) {
+      warnings.push(
+        `${orphans.length} signal row(s) inside the mirror window no longer match a computed trade`
+      );
+      console.log(`orphans: ${orphans.length} (e.g. ${orphans.slice(0, 3).map((o) => o.dedupe_key).join(", ")})`);
+    }
+  } catch (e) {
+    warnings.push(`orphan check failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+  }
   phaseT("signals", phaseStart);
   phaseStart = Date.now();
 
@@ -760,9 +802,15 @@ async function main() {
     duration_ms: Date.now() - started,
     source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
     message: [
-      `bars MES ${mes.length} / MNQ ${mnq.length}, last ${iso(
-        Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time)
-      )}`,
+      /* Guarded. Both arrays are non-empty on every path that reaches here,
+         so this is not reachable today — but an unguarded read turns whatever
+         DID go wrong into a TypeError thrown from the heartbeat writer, which
+         is the one line of telemetry left when everything else has failed. */
+      `bars MES ${mes.length} / MNQ ${mnq.length}${
+        mes.length && mnq.length
+          ? `, last ${iso(Math.min(mes[mes.length - 1].time, mnq[mnq.length - 1].time))}`
+          : ""
+      }`,
       `age MES ${mesAge}m / MNQ ${mnqAge}m${stale ? ` ${STALE_MARKER}` : ""}`,
       ...warnings,
     ].join("; "),
