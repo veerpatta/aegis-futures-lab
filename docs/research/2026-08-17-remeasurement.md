@@ -203,6 +203,72 @@ applied to the last one.
    infrastructure is measured against fills it could actually get — which was
    the point of the Phase 1 machinery, and is the durable value here.
 
+### One operational rule survives with a weaker justification
+
+The 2026-07-31 findings concluded that tier A "should not be promoted past
+`shadow` under **any** evidence gate", and grounded that in the 0.0th
+percentile — a claim about the entries being actively harmful.
+
+**Keep the rule, drop the reasoning.** Tier A must still not be promoted, but
+for the ordinary reason the other two streams must not be: it fails the p95
+gate. That is a materially weaker statement than the original, and the
+difference matters operationally. "Never, under any gate" is a permanent
+blacklist that no future evidence could lift. "Fails the gate at 37.2" is a
+verdict a genuinely better tier-A configuration could in principle overturn by
+clearing the gate — which is exactly what `lib/validation/promotionGate.ts`
+exists to adjudicate, and it should be allowed to.
+
+This does not license tuning tier A. Conclusion 1 is untouched: the entries
+carry no information, so grid-searching them is curve-fitting against noise.
+
+---
+
+## 6. Recommendation
+
+**Proceed to Phase 4, not Phase 2. Unchanged, and now on firmer ground.**
+
+The Phase 2 gate requires beating matched random entries at the 95th
+percentile. Nothing does, on either engine, in any of 17 cells. Re-measuring
+did not rescue a single stream, and the two corrections that moved numbers
+materially moved them for reasons unrelated to entry quality.
+
+Three things changed about *why* this is the recommendation:
+
+1. **The "two things worth fixing regardless" are now fixed.** The original
+   flagged fill realism at the extremes and the optimistic exit model as
+   defects to correct before the infrastructure could be trusted. Both are
+   closed, so a Phase 4 candidate now inherits an engine that refuses fills it
+   could not get and charges the round trip it would actually pay.
+
+2. **The friction bar is higher than the original stated, and it is the
+   binding constraint.** Conclusion 3 survives — the null's median is negative
+   in all 17 cells, so the geometry still loses on its own — but the corrected
+   model makes it harsher: measured drag is $3,754 / $26,238 / $21,363 against
+   modelled costs of $8,619 / $49,224 / $29,348. Any Phase 4 hypothesis must
+   clear that *before* its entry rule is asked to do any work. A candidate that
+   is merely "not obviously losing" gross will not survive contact with it.
+
+3. **The costs-are-everything reading is no longer available as a consolation.**
+   The original left open a hopeful interpretation: MNQ was break-even gross, so
+   perhaps the entries were fine and only the plumbing was broken. They were
+   not. All three streams lose gross under realistic exits. There is no
+   "fix the costs and this works" candidate hiding in the incumbents.
+
+**What to run first.** The Phase 4 candidates already registered — opening-range
+breakout with a relative-volume filter, time-series momentum, intraday
+seasonality, turn-of-the-month — go through the same gross/net split, the same
+excursion measurement and the same random-entry benchmark, unchanged. Register
+the hypothesis, prediction and decision rule in `research_trials` **before**
+looking at results; `scripts/diag/phase4.ts` reads the trial count to build the
+deflated-Sharpe hurdle and throws rather than guessing when it cannot.
+
+**What not to do.** Do not tune `zone-v5` or `rsi-reversion`. Do not read
+MNQ 2020 at the 93.4th percentile or MNQ 2024 at 86.2 as promising: with 17
+cells, roughly one crossing p95 by chance is the expectation, and treating a
+near-miss as a signal is the selection this brief exists to prevent.
+
+---
+
 Both baselines are in `research_baselines`, side by side and immutable: the
 `phase1-*` rows measured the old engine, the 2026-08-17 rows measured this one.
 The table's no-edit trigger means correcting a measurement can only ever mean

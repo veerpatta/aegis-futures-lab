@@ -1,5 +1,34 @@
 # Phase 1 — the truth layer: findings
 
+> ## ⚠ PARTIALLY SUPERSEDED — read `2026-08-17-remeasurement.md` alongside this
+>
+> This run measured an engine with two defects it identified itself in
+> "Two things worth fixing regardless". Both are now fixed, and Phase 1 was
+> re-run against the corrected engine. **The headline below survives: 0 of 17
+> symbol-years beat matched random entries.** Three specific claims do not, and
+> they are quoted throughout the text that follows:
+>
+> 1. **"Tier A sits at the 0.0th percentile / is actively anti-predictive"**
+>    (§3, §5.2) — WITHDRAWN. That was measuring fills the strategy could not
+>    have gotten: 63% of its 1,180 trades came from same-bar limit look-ahead
+>    and sub-2-point stops sized to the risk cap. The surviving 442 trades sit
+>    at the **37.2nd percentile** — ordinary noise. It still fails the gate and
+>    still loses money.
+> 2. **"MNQ is break-even gross / the entire loss is transaction costs"**
+>    (§1) — WITHDRAWN. The +$214 came from filling every stop at exactly the
+>    stop price, including on bars that gapped through it. Realistic exits give
+>    **−$19,286 gross**. All three streams lose before costs.
+> 3. **"Tier A should not be promoted past `shadow` under ANY evidence gate"**
+>    (§5.2) — the RULE stands, the reasoning does not. Tier A must not be
+>    promoted because it fails the p95 gate, like the other two streams — not
+>    because it is harmful. That is a weaker claim, and deliberately so.
+>
+> Everything else — the interpretation rule, the benchmark's self-validation,
+> the negative null medians, the ~1.0 edge ratios, the effective-N discount —
+> stands unchanged. This document is kept as written rather than edited,
+> because a correction that quietly rewrites the thing it corrects is not a
+> correction.
+
 Measured 2026-07-31 on seven years of Databento GLBX.MDP3 bars (real MES/MNQ
 contracts, 2019-05-06 → 2026-07-29, 1,015,938 bars). Paper only; no real money
 has ever been deployed by this application.
