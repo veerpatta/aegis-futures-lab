@@ -97,6 +97,9 @@ export default function MarketsClient() {
     getSupabase()
       .from("zones")
       .select("*")
+      .or("active.is.null,active.eq.true")
+      .neq("status", "broken")
+      .order("created_at", { ascending: false })
       .limit(120)
       .then(({ data: rows, error }) => {
         if (!error) setZones((rows ?? []) as ZoneRow[]);

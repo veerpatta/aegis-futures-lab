@@ -45,7 +45,7 @@ import WhyNoSignal from "./WhyNoSignal";
 import SignalContext, { useConditionLedger } from "@/components/signals/SignalContext";
 import SignalSheet from "@/components/signals/SignalSheet";
 import { money } from "@/lib/format";
-import { expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
+import { countLosses, countWins, expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
 import { loadJournal, type JournalTrade } from "@/lib/journal";
 import { useStoredValue } from "@/lib/data/useStored";
 import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
@@ -141,8 +141,12 @@ function rangeStats(signals: SignalRow[], fromMs: number | null, dateKey: string
     net: run,
     ideas: inRange.length,
     closed: closed.length,
-    wins: closed.filter((s) => (s.pnl_usd ?? 0) > 0).length,
-    losses: closed.filter((s) => (s.pnl_usd ?? 0) <= 0).length,
+    /* countWins/countLosses, not a local `<= 0`. lib/stats.ts is explicit that
+       a scratch is neither a win nor a loss; counting it as a loss here put
+       "4 wins · 2 losses" under a win rate that had partitioned the same
+       trades differently. */
+    wins: countWins(closed.map((s) => s.pnl_usd ?? 0)),
+    losses: countLosses(closed.map((s) => s.pnl_usd ?? 0)),
     pf: profitFactor(closed.map((s) => s.pnl_usd ?? 0)),
     curve,
   };
@@ -317,7 +321,13 @@ export default function HomeClient() {
       const supabase = getSupabase();
       const [signals, zones, learning] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
-        supabase.from("zones").select("*").limit(120),
+        supabase
+          .from("zones")
+          .select("*")
+          .or("active.is.null,active.eq.true")
+          .neq("status", "broken")
+          .order("created_at", { ascending: false })
+          .limit(120),
         supabase
           .from("learning_runs")
           .select("*")

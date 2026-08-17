@@ -220,3 +220,26 @@ describe("parseDailyFunnel", () => {
     expect(parseDailyFunnel({ dateKey: "d", staleData: true })!.staleData).toBe(true);
   });
 });
+
+describe("the headline names the session it is describing", () => {
+  it('says "Today" when the row is the day the caller asked about', () => {
+    const s = summarizeDailyFunnel(payload({ dateKey: "2026-07-24" }), "2026-07-24");
+    expect(s.sentence.startsWith("Today:")).toBe(true);
+  });
+
+  it("names the date when the newest row is an earlier session", () => {
+    /* WhyNoSignal fetches the NEWEST funnel row regardless of date, so before
+       the first pass of a morning — and through the whole Globex evening,
+       where the funnel's tradingDayKey and Home's nyMeta dateKey are different
+       days on purpose — "Today:" sat above another session's counts. */
+    const s = summarizeDailyFunnel(payload({ dateKey: "2026-07-23" }), "2026-07-24");
+    expect(s.sentence.startsWith("2026-07-23:")).toBe(true);
+    expect(s.sentence).not.toContain("Today:");
+  });
+
+  it('falls back to "Today" when the caller has no clock yet', () => {
+    // nowSec is null until mount, so dateKey is null on the first render.
+    const s = summarizeDailyFunnel(payload({ dateKey: "2026-07-24" }), null);
+    expect(s.sentence.startsWith("Today:")).toBe(true);
+  });
+});

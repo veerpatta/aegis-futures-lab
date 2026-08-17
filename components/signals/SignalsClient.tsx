@@ -202,7 +202,13 @@ export default function SignalsClient() {
       const supabase = getSupabase();
       const [signals, zones, runs, policy] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
-        supabase.from("zones").select("*").limit(120),
+        supabase
+          .from("zones")
+          .select("*")
+          .or("active.is.null,active.eq.true")
+          .neq("status", "broken")
+          .order("created_at", { ascending: false })
+          .limit(120),
         supabase.from("engine_runs").select("*").order("ran_at", { ascending: false }).limit(5),
         // Breaker/model policy log — best effort; absent before the table exists.
         supabase.from("bot_policy").select("*").order("changed_at", { ascending: false }).limit(50),

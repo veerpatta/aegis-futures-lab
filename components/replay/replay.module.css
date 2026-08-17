@@ -406,3 +406,23 @@
     min-width: 0;
   }
 }
+
+/* The page's own honesty note. Amber, not red: this is a caution about what
+   the numbers below mean, not a fault and not a loss. */
+.replayCaveat {
+  border: 1px solid var(--amber-line);
+  background: var(--amber-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 var(--space-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 78ch;
+}
+
+.replayCaveat a {
+  color: var(--amber);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

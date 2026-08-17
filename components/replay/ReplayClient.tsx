@@ -256,8 +256,15 @@ export default function ReplayClient() {
     <>
       <h1 className="pageTitle">Journal</h1>
       <p className="pageSub">
-        Pick a past day and see exactly what the engine did — and would have told you — next to
-        your own trades. Delayed data, paper simulation only.
+        Your own trades, next to a <b>re-run</b> of the zone strategy on the same day. Delayed data,
+        paper simulation only.
+      </p>
+      <p className={styles.replayCaveat}>
+        This page re-simulates the zone strategy here in your browser over the last 60 days. It is
+        not the bot&apos;s own record, and its totals will not match Home or Signals: it runs the
+        zone strategy only (not the two daily-flow streams), it uses the Lab&apos;s default risk
+        limits rather than the live ones, and it covers days from before the bot went live. For
+        what the bot actually posted, use <a href="/signals">Signals</a>.
       </p>
 
       {feedError && (

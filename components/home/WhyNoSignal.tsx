@@ -65,7 +65,7 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
       </Panel>
     );
 
-  const summary = summarizeDailyFunnel(payload ?? null);
+  const summary = summarizeDailyFunnel(payload ?? null, dateKey);
   // A payload from an earlier session is still useful, but say so plainly rather
   // than letting yesterday's count read as today's.
   const isToday = payload !== null && dateKey !== null && payload.dateKey === dateKey;
@@ -92,7 +92,7 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
 
           {summary.blockers.length > 0 && (
             <DataTable
-              columns={["What stopped a trade", "Times today"]}
+              columns={["What stopped a trade", isToday ? "Times today" : "Times that session"]}
               rows={summary.blockers.map((b) => [
                 b.label,
                 <span key="n" className="num">
@@ -105,7 +105,7 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
 
           <h3 className={styles.whySubhead}>Each strategy right now</h3>
           <DataTable
-            columns={["Stream", "Status", "Ideas today"]}
+            columns={["Stream", "Status", isToday ? "Ideas today" : "Ideas that session"]}
             rows={payload.streams.map((s) => [
               <span key="s">
                 {s.tier === "A" ? "Zone setups" : "Daily flow"} · {s.label}
@@ -121,7 +121,7 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
           />
 
           <p className={styles.cellSub}>
-            &ldquo;Bars checked&rdquo; is every five-minute candle the bot walked today across both
+            &ldquo;Bars checked&rdquo; is every five-minute candle the bot walked in that session across both
             markets. A high count with nothing qualified is the normal, healthy state — the strategy
             is meant to wait. Paper only, delayed data.
           </p>

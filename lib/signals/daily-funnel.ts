@@ -156,7 +156,28 @@ export interface FunnelSummary {
    downstream of it. */
 const AFTER_TOUCH = ["qualified", "noConfirm", "belowMinScore", "intermarket", "firstZone", "invalidFill"];
 
-export function summarizeDailyFunnel(payload: DailyFunnelPayload | null): FunnelSummary {
+/* Day label for the headline. The sentence used to open with a hardcoded
+   "Today:" whatever day the row was actually describing, and WhyNoSignal
+   fetches the NEWEST funnel row regardless of date — so on any morning before
+   the first pass, and through the whole Globex evening, "Today:" sat above
+   another session's counts.
+
+   It is also not a bug that can be fixed by fetching more carefully. Home's
+   "Ideas today" counts by nyMeta().dateKey (the NY calendar day, how signals
+   group) while the engine files the funnel under tradingDayKey() (the 18:00 ET
+   Globex roll, so an evening pass does not file a zeroed row under Sunday).
+   Between 18:00 ET and midnight those are different days ON PURPOSE, and the
+   two panels sit in one viewport. The honest fix is for the sentence to say
+   which session it is describing rather than to assert "today". */
+function dayPrefix(payloadDay: string, todayKey: string | null | undefined): string {
+  if (!todayKey || payloadDay === todayKey) return "Today";
+  return payloadDay;
+}
+
+export function summarizeDailyFunnel(
+  payload: DailyFunnelPayload | null,
+  todayKey?: string | null
+): FunnelSummary {
   if (!payload)
     return {
       sentence: "Today's check has not run yet.",
@@ -180,7 +201,7 @@ export function summarizeDailyFunnel(payload: DailyFunnelPayload | null): Funnel
     .sort((a, b) => b.count - a.count);
 
   const headline =
-    `Today: ${barsChecked.toLocaleString()} bars checked · ` +
+    `${dayPrefix(payload.dateKey, todayKey)}: ${barsChecked.toLocaleString()} bars checked · ` +
     `${zonesTouched} zone${zonesTouched === 1 ? "" : "s"} touched · ` +
     `${qualified} qualified`;
 
