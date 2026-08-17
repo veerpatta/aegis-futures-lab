@@ -27,8 +27,16 @@ export async function GET(req: NextRequest) {
         range: "60 calendar days",
         interval: "5m",
         fetchedAt: new Date().toISOString(),
-        firstTimestamp: new Date(bars[0].time * 1000).toISOString(),
-        lastTimestamp: new Date(bars[bars.length - 1].time * 1000).toISOString(),
+        /* Guarded the way /api/archive already guards it. Unguarded, an empty
+           result threw on bars[0].time and the catch below reported "Free
+           historical feed unavailable" with a 502 — blaming the vendor for a
+           response it had successfully returned, which is the kind of error
+           message that sends you looking in the wrong place. */
+        count: bars.length,
+        firstTimestamp: bars.length ? new Date(bars[0].time * 1000).toISOString() : null,
+        lastTimestamp: bars.length
+          ? new Date(bars[bars.length - 1].time * 1000).toISOString()
+          : null,
         bars,
       },
       {
