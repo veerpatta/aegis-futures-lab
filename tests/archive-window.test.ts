@@ -171,6 +171,11 @@ describe("every bars_5m reader applies the whole-session trim", () => {
       "this guard exists to hold accountable",
     "scripts/diag/atr-ratio.ts":
       "measures ATR bar by bar to compare MES and MNQ volatility; no multi-day frame",
+    "scripts/diag/metals-correlation.ts":
+      "pairs two symbols' bars on identical timestamps to measure co-movement — pairwise only, " +
+      "like feed-delta.ts, and no multi-day frame is built. Trimming one leg's leading session " +
+      "would drop it from the pairing while leaving the other, biasing the very statistic it " +
+      "exists to measure",
     "scripts/diag/feed-delta.ts":
       "pairs the two feeds' bars on identical timestamps to measure the roll seam; pairwise " +
       "only, and trimming one feed's leading day would break the pairing it exists to do",
