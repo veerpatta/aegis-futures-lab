@@ -101,6 +101,13 @@ Your journalled trades used to be shown **gross** — before commission — whil
 bot's figures were always **net**. Every close race quietly favoured you. Both sides
 now have the same $2.40 per contract taken out, so "bot vs you" is a fair fight.
 
+One difference remains, and it runs against the bot. The bot also pays a tick of
+slippage on the way in, because its fills are simulated and it assumes it does not
+always get the price it wanted. Your entry price is the fill you actually got, so your
+slippage is already in the number — charging you a second helping would count it twice.
+All in, the bot carries about $3.65 a contract on MES and $2.90 on MNQ against your
+$2.40.
+
 One consequence worth knowing: a trade that made a tick or two is now correctly shown
 as a small *loss*, because the commission was bigger than the move. That is real, and
 it is what your broker statement says too.
@@ -426,6 +433,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-08-01. If the app has changed since, the
+*Manual version: matches the app as of 2026-08-17. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

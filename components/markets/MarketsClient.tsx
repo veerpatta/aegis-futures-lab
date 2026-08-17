@@ -8,7 +8,7 @@ import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/sessi
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
 import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
 import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
-import { money } from "@/lib/format";
+import { points } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -268,7 +268,7 @@ export default function MarketsClient() {
                   className={`${styles.heroChg} num ${heroUp ? styles.good : styles.bad}`}
                 >
                   {heroQuote
-                    ? `${money(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
+                    ? `${points(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
                     : heroState.status === "error"
                       ? "feed offline"
                       : "loading…"}

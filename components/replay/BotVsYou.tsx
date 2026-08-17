@@ -178,9 +178,13 @@ export default function BotVsYou({
                 : "You and the bot hold for about the same time."}
       </p>
       <p className={styles.vsFoot}>
-        Both sides are net of costs, charged at the same ${DEFAULT_COMMISSION_PER_CONTRACT.toFixed(2)}{" "}
-        per contract the bot charges itself. Your side used to be shown gross, which quietly
-        favoured you on every close race.
+        Both sides are net of costs. Your trades are charged the same $
+        {DEFAULT_COMMISSION_PER_CONTRACT.toFixed(2)} per contract in commission the bot charges
+        itself. The bot pays one more thing you do not: a tick of slippage built into its entry
+        price, because its fills are simulated. Your entry price is what you actually got, so it
+        already includes whatever slippage you paid. That leaves the bot carrying about $3.65 per
+        contract on MES and $2.90 on MNQ against your $2.40 — a real difference, and one that
+        counts against the bot rather than you.
       </p>
     </div>
   );

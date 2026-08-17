@@ -396,10 +396,10 @@ export default function ReplayClient() {
                   sub="costs included"
                 />
                 <Kpi
-                  label="Your gross"
+                  label="You"
                   value={money(journalSummary.summary.userNet)}
                   tone={journalSummary.summary.userNet >= 0 ? "good" : "bad"}
-                  sub="before commissions"
+                  sub="costs included"
                 />
                 <Kpi label="Matched" value={String(journalSummary.summary.matched)} />
                 <Kpi
@@ -416,7 +416,7 @@ export default function ReplayClient() {
               <div style={{ marginTop: "var(--space-3)" }}>
                 <DataTable
                   mobileCards={{ titleIndexes: [0, 1, 2] }}
-                  columns={["Day", "Engine", "You (gross)", "Matched", "Missed", "Skipped"]}
+                  columns={["Day", "Engine", "You", "Matched", "Missed", "Skipped"]}
                   rows={Object.entries(matchByDay)
                     .filter(([d]) => d >= journalSummary.from && d <= journalSummary.to)
                     .map(([d, rows]) => {

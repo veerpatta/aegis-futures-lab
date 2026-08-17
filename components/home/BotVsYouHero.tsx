@@ -7,8 +7,17 @@
    with: over the same window, did following the rules beat what I did?
 
    Both sides go through lib/stats.ts, and both are NET — the journal side
-   charges the same per-contract commission the engine charges itself. A
-   comparison where one side is gross is not a comparison. */
+   charges the same per-contract COMMISSION the engine charges itself. A
+   comparison where one side is gross is not a comparison.
+
+   Commission is where the parity ends, and the card says so rather than
+   claiming more. The engine also eats a tick of entry slippage inside its
+   fill price (lib/backtest/engine.ts), which lib/costs/model.ts measures as
+   $3.65/contract on MES and $2.90 on MNQ against the journal's flat $2.40.
+   That is not an error to correct: a journalled entry price is the fill the
+   user actually got, so it already contains their real slippage, and charging
+   a modelled tick on top would double-count it. The residual runs against the
+   bot, which is the safe direction for a card whose job is to not flatter it. */
 
 import { useMemo } from "react";
 import Link from "next/link";

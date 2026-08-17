@@ -189,6 +189,13 @@ export default function GuidePage() {
           sides now have the same $2.40 per contract taken out, so &ldquo;bot vs you&rdquo; is a
           fair fight.
         </p>
+        <p>
+          One difference remains, and it runs against the bot. The bot also pays a tick of slippage
+          on the way in, because its fills are simulated and it assumes it does not always get the
+          price it wanted. Your entry price is the fill you actually got, so your slippage is
+          already in the number — charging you a second helping would count it twice. All in, the
+          bot carries about $3.65 a contract on MES and $2.90 on MNQ against your $2.40.
+        </p>
         <p className={styles.note}>
           One consequence worth knowing: a trade that made a tick or two is now correctly shown as a
           small <i>loss</i>, because the commission was bigger than the move. That is real, and it
@@ -742,7 +749,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-08-01. A printable version of this guide lives in the project
+        Matches the app as of 2026-08-17. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"
