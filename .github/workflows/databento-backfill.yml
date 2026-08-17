@@ -1,0 +1,81 @@
+# One-shot historical backfill into bars_5m. MANUAL ONLY — there is no schedule.
+#
+# Why this exists as a workflow rather than a local script run: writing to
+# bars_5m needs the Supabase service-role key, which lives here as a secret and
+# deliberately nowhere else. The engine has always written from CI for the same
+# reason. Running the pull here means the key never has to leave GitHub.
+#
+# THIS SPENDS DATABENTO CREDIT. The free tier is $125 and expires six months
+# from signup, so the pull is effectively one-shot. Run `--estimate` first —
+# it calls only the free metadata endpoints and prints both the credit cost and
+# the projected Supabase storage, which on a free-tier project is the binding
+# constraint long before the dollars are.
+#
+# The estimate and the run share the same --symbols and --window arguments, so
+# the number you read is the number you spend. An estimate built from different
+# parameters is not an estimate.
+#
+# Paper only, delayed data — nothing here touches real money or real orders.
+
+name: databento-backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "estimate (free, spends nothing) or run (SPENDS CREDIT)"
+        required: true
+        type: choice
+        options: [estimate, run]
+        default: estimate
+      window:
+        description: "Window label: overlap-only | 6-month | 1-year | 2-year | 5-year | max"
+        required: true
+        type: string
+        default: max
+      symbols:
+        description: "Comma-separated vendor symbols, e.g. MGC.c.0,SI.c.0"
+        required: true
+        type: string
+        default: MGC.c.0,SI.c.0
+
+# Read-only on the repo: this job writes to the database, never to the code.
+permissions:
+  contents: read
+
+concurrency:
+  group: databento-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Backfill
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://bizgcoljagsnytrnaicr.supabase.co' }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          MODE: ${{ inputs.mode }}
+          WINDOW: ${{ inputs.window }}
+          SYMBOLS: ${{ inputs.symbols }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABENTO_API_KEY:-}" ]; then
+            echo "DATABENTO_API_KEY secret is not set — add it before running." >&2
+            exit 1
+          fi
+          if [ "$MODE" = "estimate" ]; then
+            npx tsx scripts/engine/databento-backfill.ts --estimate --symbols "$SYMBOLS"
+          else
+            echo "Spending credit: window=$WINDOW symbols=$SYMBOLS"
+            npx tsx scripts/engine/databento-backfill.ts --run --window "$WINDOW" --symbols "$SYMBOLS"
+          fi
