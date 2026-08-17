@@ -117,6 +117,21 @@ export interface ExecutionConfig {
      unreachable, and frictionSpecFor had no caller outside its own test. This
      field is what makes the claim true. */
   friction?: FrictionSpec;
+  /* Make a "limit" fill model mean a genuinely RESTING order: placed on the
+     bar the decision was made, eligible to fill only on LATER bars. DEFAULT
+     false = the legacy same-bar fill the parity oracle pins.
+
+     Legacy is same-bar look-ahead. The strategy emits a limit signal only
+     after seeing that the bar ALREADY touched the zone, and the engine then
+     fills inside that same bar, justified as "the order was resting before
+     price arrived". It was not: the decision to rest an order is taken at the
+     bar's CLOSE, and there is no persistent order — a bar that did not touch
+     discards the signal entirely. So an order is only ever treated as having
+     rested on the bars where it demonstrably filled.
+
+     Turning this on makes results WORSE, which is the point: look-ahead
+     flatters, and tier A already sits at the 0.0th percentile with it. */
+  restingLimitOrders?: boolean;
 }
 
 export interface ReadoutRow {

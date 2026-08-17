@@ -161,6 +161,9 @@ export function runBacktest(input: BacktestInput): BacktestResult {
 
   let position: OpenPosition | null = null;
   let pending: PendingEntry | null = null;
+  /* A limit order that is genuinely RESTING: placed on the bar the decision
+     was made, eligible to fill on LATER bars only. See execution.restingLimitOrders. */
+  let resting: { signal: EntrySignal; date: string } | null = null;
   let equity = startingCapital;
   let peak = startingCapital;
   let maxDrawdownSoFar = 0;
@@ -384,6 +387,54 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       }
     }
 
+    /* 1b) A resting limit order fills on a LATER bar than the one that placed
+       it. This is what "the order was resting before price arrived" actually
+       means, and the legacy same-bar path does not model it.
+
+       The legacy path emits a signal only after observing that the bar ALREADY
+       touched the zone (zone-v5/index.ts checks bar.low <= proximal), then
+       fills inside that same bar. The decision to have an order resting is
+       made at the bar's CLOSE — evaluate() is called with price: bar.close, and
+       HTF zone selection, the 1H achievement that drives nyCaution, atEntry and
+       the intermarket speed window all read it. There is no persistent order:
+       if the bar did not touch, the engine discards the signal. So an order is
+       only ever deemed to have been resting on bars where it demonstrably
+       filled, which is same-bar look-ahead.
+
+       Direction matters and is worth stating: look-ahead FLATTERS results, and
+       tier A still sits at the 0.0th percentile against a null whose fills are
+       at next-open. Correcting this makes the measured book worse, not better.
+       It is here so a FUTURE candidate on the limit path is measured honestly. */
+    if (!position && !pending && resting) {
+      const v = visible[resting.signal.symbol];
+      if (!v || nyMeta(v.bar.time).dateKey !== resting.date || pastSessionExit(v.bar.time)) {
+        resting = null; // the session it belonged to is over — a real order is cancelled
+      } else {
+        const sig = resting.signal;
+        const lim = sig.limit as number;
+        const b0 = v.bar;
+        const touched = sig.side === "LONG" ? b0.low <= lim : b0.high >= lim;
+        if (touched) {
+          resting = null;
+          const entry =
+            sig.side === "LONG"
+              ? Math.min(b0.open, lim) + slipAt(sig.symbol, b0.time)
+              : Math.max(b0.open, lim) - slipAt(sig.symbol, b0.time);
+          if (sig.side === "LONG" ? entry <= sig.stop : entry >= sig.stop) {
+            note("invalidFill", sig.symbol);
+          } else {
+            const opened = tryOpen(sig, b0, entry);
+            if (opened) {
+              position = opened;
+              foldExcursion(opened, b0);
+              const swept = opened.side === "LONG" ? b0.low <= opened.stop : b0.high >= opened.stop;
+              if (swept) closeTrade(b0, "stop", opened.stop);
+            }
+          }
+        }
+      }
+    }
+
     // 2) Execute a pending next-open fill.
     if (!position && pending && time >= pending.executeTime) {
       const plan = pending;
@@ -402,7 +453,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         if (position) foldExcursion(position, v.bar);
       }
     }
-    if (position || pending) continue;
+    if (position || pending || resting) continue;
 
     // 3) Seek a new entry on the completed bar.
     const signals = strategy.onSnapshot(ctx, snapshot, params, note);
@@ -459,6 +510,12 @@ export function runBacktest(input: BacktestInput): BacktestResult {
           (b.sig.score ?? 0) - (a.sig.score ?? 0) ||
           a.i - b.i
       )[0].sig;
+    if (limitFills && best.limit != null && execution.restingLimitOrders) {
+      /* Place it and wait. The bar that produced the decision cannot also be
+         the bar that fills it. */
+      resting = { signal: best, date };
+      continue;
+    }
     if (limitFills && best.limit != null) {
       // The order was resting at the limit before price arrived, so it fills
       // on the touch bar itself: at the limit (or at the open, if the bar

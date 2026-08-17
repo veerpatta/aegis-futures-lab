@@ -21,7 +21,7 @@
 
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import type { Bar, FrameBar } from "@/lib/types";
-import { nyMeta } from "@/lib/time/ny";
+import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 
 export type Timeframe = "D" | "240" | "60" | "15";
 export type ZoneType = "demand" | "supply";
@@ -153,12 +153,39 @@ export interface EvalResult {
   atEntry: boolean;
 }
 
-export function aggregateMinutes(bars: Bar[], minutes: number): FrameBar[] {
+/* Options that change zone STRUCTURE. Every one defaults to the legacy
+   behaviour, because the golden parity oracle and every published figure were
+   produced under it. See StackOptions below. */
+export interface StackOptions {
+  sessionAnchoredFrames?: boolean;
+  causalBlocked80?: boolean;
+  globexDailyRoll?: boolean;
+}
+
+export function aggregateMinutes(
+  bars: Bar[],
+  minutes: number,
+  sessionAnchored = false
+): FrameBar[] {
   const span = minutes * 60,
     out: FrameBar[] = [];
   for (const b of bars) {
-    const time = Math.floor(b.time / span) * span,
-      last = out[out.length - 1];
+    /* Legacy bins on the UTC epoch: Math.floor(time / span) * span. For the
+       240-minute frame that puts boundaries at 00/04/08/12/16/20 UTC, which
+       are NOT fixed points in the trading session — NY RTH is 13:30-20:00 UTC
+       in EDT and 14:30-21:00 in EST. So a session yields TWO "4H" bars in
+       summer and THREE in winter, with different shapes, and the 4H frame is
+       one of the two HTF anchors deciding whether a tier-A setup exists at
+       all. It silently reshapes twice a year.
+
+       Anchored, the bin is derived from NY wall-clock minutes, so boundaries
+       land at NY 00:00/04:00/08:00/12:00/16:00/20:00 in both halves of the
+       year and the session always occupies the same bins. 15m and 60m divide
+       the hour evenly and are unaffected either way. */
+    const time = sessionAnchored
+      ? b.time - (nyMeta(b.time).minutes - Math.floor(nyMeta(b.time).minutes / minutes) * minutes) * 60
+      : Math.floor(b.time / span) * span;
+    const last = out[out.length - 1];
     if (last && last.time === time) {
       last.high = Math.max(last.high, b.high);
       last.low = Math.min(last.low, b.low);
@@ -179,11 +206,16 @@ export function aggregateMinutes(bars: Bar[], minutes: number): FrameBar[] {
   return out;
 }
 
-export function aggregateDaily(bars: Bar[]): FrameBar[] {
+export function aggregateDaily(bars: Bar[], globexRoll = false): FrameBar[] {
   const out: FrameBar[] = [];
   for (const b of bars) {
-    const date = nyMeta(b.time).dateKey,
-      last = out[out.length - 1];
+    /* Legacy groups on the NY CALENDAR day while the rest of the app uses the
+       18:00 ET Globex roll (lib/time/ny.ts tradingDayKey). Masked today by
+       structure:"rth", which never sees an evening bar; with structure:"full"
+       every Sunday-evening and weekday-evening session is glued onto the
+       previous day's daily bar. */
+    const date = globexRoll ? tradingDayKey(b.time) : nyMeta(b.time).dateKey;
+    const last = out[out.length - 1];
     if (last && last.date === date) {
       last.high = Math.max(last.high, b.high);
       last.low = Math.min(last.low, b.low);
@@ -395,11 +427,32 @@ function tagReactionZones(allZones: Zone[]): void {
 
 /* §4 — symmetric 80% rule. After price reacts from an HTF zone, the first
    opposing-side zone formed afterwards is tagged blocked_first_counter_zone. */
-function tagBlocked80(zonesByTf: Record<Timeframe, Zone[]>): void {
+function tagBlocked80(zonesByTf: Record<Timeframe, Zone[]>, opts: StackOptions = {}): void {
   const events: { time: number; counterSide: ZoneType; source: string }[] = [];
   for (const tf of ["D", "240"] as Timeframe[])
     for (const z of zonesByTf[tf] || [])
-      if (z.firstReturnAt !== null && z.brokenAt === null)
+      /* `z.brokenAt === null` asks "was this zone EVER broken, anywhere in the
+         loaded series" — a whole-series condition used to decide something at
+         a point in time. A daily zone that reacted in January and broke in
+         June therefore emits no blocking event at all, including for February
+         through May, when an observer could only know it had not broken YET.
+         So whether a 1H zone is tradeable at time T depends on whether some
+         HTF zone breaks AFTER T.
+
+         It also makes the rule a different rule on different windows: more
+         data means more zones eventually break, means fewer blocking events,
+         means more tradeable zones. That is a concrete mechanism for the
+         window-shift instability tiers.ts describes and for part of the
+         Yahoo/Databento divergence.
+
+         The causal form asks the question at the event's own timestamp: was
+         the zone unbroken THEN. annotateZones's header already claims the
+         backtest "never reads information from the future" — true of the
+         timestamps it writes, false of what this did with them. */
+      if (
+        z.firstReturnAt !== null &&
+        (opts.causalBlocked80 ? z.brokenAt === null || z.brokenAt > z.firstReturnAt : z.brokenAt === null)
+      )
         events.push({
           time: z.firstReturnAt,
           counterSide: z.type === "supply" ? "demand" : "supply",
@@ -418,13 +471,14 @@ function tagBlocked80(zonesByTf: Record<Timeframe, Zone[]>): void {
 
 /* Build the full multi-timeframe stack from an execution series
    (5-minute preferred; 1-minute imports are aggregated first). */
-export function buildStack(inputBars: Bar[]): Stack {
-  const exec = aggregateMinutes(inputBars, 5);
+export function buildStack(inputBars: Bar[], opts: StackOptions = {}): Stack {
+  const sa = opts.sessionAnchoredFrames === true;
+  const exec = aggregateMinutes(inputBars, 5, sa);
   const frames: Record<Timeframe, FrameBar[]> = {
-    D: aggregateDaily(exec),
-    "240": aggregateMinutes(exec, 240),
-    "60": aggregateMinutes(exec, 60),
-    "15": aggregateMinutes(exec, 15),
+    D: aggregateDaily(exec, opts.globexDailyRoll === true),
+    "240": aggregateMinutes(exec, 240, sa),
+    "60": aggregateMinutes(exec, 60, sa),
+    "15": aggregateMinutes(exec, 15, sa),
   };
   const zones = {} as Record<Timeframe, Zone[]>,
     rejects = {} as Record<Timeframe, number>;
@@ -436,7 +490,7 @@ export function buildStack(inputBars: Bar[]): Stack {
   }
   const all = ([] as Zone[]).concat(zones.D, zones["240"], zones["60"], zones["15"]);
   tagReactionZones(all);
-  tagBlocked80(zones);
+  tagBlocked80(zones, opts);
   return { exec, frames, zones, rejects, all };
 }
 

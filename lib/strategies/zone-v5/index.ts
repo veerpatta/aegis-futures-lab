@@ -191,6 +191,38 @@ export const zoneV5: Strategy<ZoneCtx> = {
       help: "Phase-4 odds-enhancer checklist: Fresh 20 · Trend alignment 20 · Strong departure 20 · Profit margin 20 · Little time at base 20. Pair with the minimum-score gate to trade only high-scoring zones.",
     },
     {
+      key: "causalBlocked80",
+      label: "80% rule asks the question at the time",
+      type: "boolean",
+      default: false,
+      help:
+        "Off (legacy) treats a zone as blocking only if it was NEVER broken anywhere in the loaded " +
+        "series, so a daily zone that broke in June emits no block for February — whether a zone is " +
+        "tradeable at time T depends on what happens after T. It also makes the rule behave " +
+        "differently on a 60-day window than on a 7-year one. On asks whether the zone was unbroken " +
+        "at the moment of the reaction.",
+    },
+    {
+      key: "sessionAnchoredFrames",
+      label: "Anchor 4H bars to the session, not the UTC epoch",
+      type: "boolean",
+      default: false,
+      help:
+        "Off (legacy) bins the 4H frame on the UTC epoch, so NY RTH lands in two 4H bars in summer " +
+        "and three in winter — one of the two HTF anchors reshapes twice a year. On bins by New York " +
+        "wall-clock so the session occupies the same bars all year. 15m and 60m are unaffected.",
+    },
+    {
+      key: "globexDailyRoll",
+      label: "Daily bars roll at 18:00 ET",
+      type: "boolean",
+      default: false,
+      help:
+        "Off (legacy) groups daily bars on the NY calendar day while the rest of the app uses the " +
+        "18:00 ET Globex roll. Masked while structure is 'NY session bars only'; with 'full' it glues " +
+        "each evening session onto the previous day.",
+    },
+    {
       key: "structure",
       label: "Zone structure from",
       type: "select",
@@ -277,7 +309,11 @@ export const zoneV5: Strategy<ZoneCtx> = {
     const rthOnly = params.structure === "rth";
     for (const s of symbols) {
       const bars = rthOnly ? series[s].filter((b) => inNySession(b.time)) : series[s];
-      stacks[s] = buildStack(bars.length ? bars : series[s]);
+      stacks[s] = buildStack(bars.length ? bars : series[s], {
+        sessionAnchoredFrames: params.sessionAnchoredFrames === true,
+        causalBlocked80: params.causalBlocked80 === true,
+        globexDailyRoll: params.globexDailyRoll === true,
+      });
     }
     return { stacks, symbols, execution };
   },
