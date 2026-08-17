@@ -165,7 +165,15 @@ export default function SignalsClient() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [tierTab, setTierTab] = useState("all");
   const [prices, setPrices] = useState<Record<string, number>>({});
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  /* null until mounted — the clock must not render on the server.
+
+     This page is statically prerendered, so a Date.now() seed here is BUILD
+     time, frozen into the HTML: the shipped artefact carried a literal
+     "14:56 next engine pass" and a literal tape width. The browser recomputed
+     both on hydration, React saw the mismatch, threw, and discarded the whole
+     server tree — which with no error boundary in the app read as a crash.
+     HomeClient and MarketsClient already do it this way. */
+  const [nowSec, setNowSec] = useState<number | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [showIntro, setShowIntro] = useState(false);
   const [segment, setSegment] = useState<Segment>("live");
@@ -241,23 +249,29 @@ export default function SignalsClient() {
   const lastRun = ready?.runs[0] ?? null;
   /* Same split as BotHealthProvider: outside the cron's own window nothing was
      scheduled, so silence is sleep, not staleness. */
-  const engineAsleep = !engineScheduled(nowSec);
+  /* Every one of these is clock-derived, so all of them stay neutral until the
+     mount effect supplies a real time. Rendering a placeholder on both the
+     server and the first client pass is what makes the two agree. */
+  const engineAsleep = nowSec !== null && !engineScheduled(nowSec);
   const engineStale =
+    nowSec !== null &&
     !engineAsleep &&
     (!lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000);
 
-  const phase = marketPhase(nowSec);
-  const delayed = dataDelayed(ready?.runs ?? [], nowSec);
-  const nextRun = nextRunSec(nowSec);
-  const tape = tapeProgress(nowSec);
-  const todayKey = nyMeta(nowSec).dateKey;
+  const phase = nowSec === null ? null : marketPhase(nowSec);
+  const delayed = nowSec !== null && dataDelayed(ready?.runs ?? [], nowSec);
+  const nextRun = nowSec === null ? null : nextRunSec(nowSec);
+  const tape = nowSec === null ? null : tapeProgress(nowSec);
+  const todayKey = nowSec === null ? null : nyMeta(nowSec).dateKey;
   const todayCount = useMemo(
     () =>
-      (ready?.signals ?? []).filter(
-        (s) =>
-          !s.suppressed &&
-          nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
-      ).length,
+      todayKey === null
+        ? null
+        : (ready?.signals ?? []).filter(
+            (s) =>
+              !s.suppressed &&
+              nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
+          ).length,
     [ready, todayKey]
   );
 
@@ -450,15 +464,19 @@ export default function SignalsClient() {
       {/* ── Session heartbeat ── */}
       <section className={styles.hero} aria-label="Session status">
         <div className={styles.heroCell}>
-          <span className={`${styles.phaseDot} ${styles[phase.tone]} ${phase.live ? styles.phaseLive : ""}`} />
+          <span
+            className={`${styles.phaseDot} ${phase ? styles[phase.tone] : ""} ${phase?.live ? styles.phaseLive : ""}`}
+          />
           <div>
-            <div className={styles.heroValue}>{phase.label}</div>
-            <div className={styles.heroDetail}>{phase.detail}</div>
+            <div className={styles.heroValue}>{phase ? phase.label : "Loading the session…"}</div>
+            <div className={styles.heroDetail}>{phase ? phase.detail : " "}</div>
           </div>
         </div>
         <div className={styles.heroCell}>
           <div>
-            <div className={`${styles.heroValue} num`}>{fmtCountdown(Math.max(0, nextRun - nowSec))}</div>
+            <div className={`${styles.heroValue} num`}>
+              {nextRun === null || nowSec === null ? "—" : fmtCountdown(Math.max(0, nextRun - nowSec))}
+            </div>
             <div className={styles.heroDetail}>
               next engine pass ·{" "}
               {lastRun ? (
@@ -488,10 +506,10 @@ export default function SignalsClient() {
         <div className={styles.heroCell}>
           <div>
             <div className={styles.heroValue}>
-              <span className="num">{todayCount}</span>
+              <span className="num">{todayCount ?? "—"}</span>
               <span className={styles.paceDots} aria-hidden>
                 {Array.from({ length: TARGET_PER_DAY }, (_, i) => (
-                  <i key={i} className={i < todayCount ? styles.paceOn : styles.paceOff} />
+                  <i key={i} className={i < (todayCount ?? 0) ? styles.paceOn : styles.paceOff} />
                 ))}
               </span>
             </div>

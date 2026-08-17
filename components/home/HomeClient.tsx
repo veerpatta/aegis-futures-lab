@@ -46,7 +46,8 @@ import SignalContext, { useConditionLedger } from "@/components/signals/SignalCo
 import SignalSheet from "@/components/signals/SignalSheet";
 import { money } from "@/lib/format";
 import { expectancy, fmtPf, profitFactor, rateReadout } from "@/lib/stats";
-import { loadJournal } from "@/lib/journal";
+import { loadJournal, type JournalTrade } from "@/lib/journal";
+import { useStoredValue } from "@/lib/data/useStored";
 import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
 import { Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
@@ -67,6 +68,10 @@ const SHORT_NAME: Record<string, string> = {
 function tierName(tier: "A" | "B"): string {
   return tier === "A" ? "zone setup" : "daily flow";
 }
+
+/* Module-level so the pre-mount value is referentially stable — a fresh []
+   each render would re-fire the discipline memo on every pass. */
+const NO_TRADES: JournalTrade[] = [];
 
 function greeting(hour: number): string {
   if (hour < 12) return "Good morning";
@@ -463,11 +468,16 @@ export default function HomeClient() {
      Deliberately not a P&L streak — see lib/journal/discipline.ts. Reads the
      local journal, so it is empty until the user logs a trade, and must render
      as "nothing logged yet" rather than a zero-day failure. */
+  /* Hydrated on mount rather than read during render — see
+     lib/data/useStored.ts. Read in the render pass, a user with a journal got
+     "3 days · 100% of 5 logged days clean" on the client against the
+     prerender's "Log a trade to start the chain", and React discarded the
+     tree. The empty state was always correct here; it is the populated one
+     that never survived hydration. */
+  const journalTrades = useStoredValue(() => loadJournal().trades, NO_TRADES);
   const discipline = useMemo(
-    () => disciplineStreak(disciplineDays(loadJournal().trades)),
-    // Recomputed when the signal set changes, which is the app's natural tick;
-    // the journal is device-local and changes only on the Journal page.
-    [signals]
+    () => disciplineStreak(disciplineDays(journalTrades)),
+    [journalTrades]
   );
 
   const recent = useMemo(

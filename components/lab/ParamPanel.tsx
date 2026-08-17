@@ -21,6 +21,7 @@ import {
   splitParams,
 } from "@/lib/strategies/plain";
 import { loadPresets, savePresets, type StrategyPreset } from "@/lib/data/storage";
+import { useStoredState } from "@/lib/data/useStored";
 import { Badge, Button, Panel } from "@/components/ui";
 import ParamFields from "./ParamFields";
 import styles from "./lab.module.css";
@@ -78,8 +79,12 @@ export default function ParamPanel({
   params: ParamValues;
   onChange: (p: ParamValues) => void;
 }) {
-  const [presets, setPresets] = useState<StrategyPreset[]>(() =>
-    loadPresets().filter((p) => p.strategyId === strategy.id)
+  /* Hydrated on mount, not during render — see lib/data/useStored.ts. Read in
+     the render pass, a user with saved presets got different HTML from the
+     prerender and React discarded the tree. */
+  const [presets, setPresets] = useStoredState<StrategyPreset[]>(
+    () => loadPresets().filter((p) => p.strategyId === strategy.id),
+    []
   );
 
   const { key, advanced } = splitParams(strategy);

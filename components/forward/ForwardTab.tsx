@@ -7,6 +7,7 @@ import type { ParamValues } from "@/lib/strategies/types";
 import { strategyById } from "@/lib/strategies/registry";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { loadStored, saveStored, removeStored, KEYS } from "@/lib/data/storage";
+import { useStoredState, useStoredValue } from "@/lib/data/useStored";
 import { money, pct, ts } from "@/lib/format";
 import { rateReadout } from "@/lib/stats";
 import { useData } from "@/components/providers/DataProvider";
@@ -50,12 +51,19 @@ export default function ForwardTab({
   useEffect(() => {
     zoneRef.current = zone;
   }, [zone]);
-  const [stored, setStored] = useState<ForwardState | null>(() =>
-    loadStored<ForwardState>(KEYS.agent)
+  /* Both hydrated on mount rather than during render — see
+     lib/data/useStored.ts. Read in the render pass, any user with a saved
+     forward run hydrated to different HTML than was prerendered. */
+  const [stored, setStored] = useStoredState<ForwardState | null>(
+    () => loadStored<ForwardState>(KEYS.agent),
+    null
   );
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [evalNote, setEvalNote] = useState<string>("");
-  const legacy = useMemo(() => loadStored<LegacyAgentState>(KEYS.legacyAgent), []);
+  const legacy = useStoredValue<LegacyAgentState | null>(
+    () => loadStored<LegacyAgentState>(KEYS.legacyAgent),
+    null
+  );
 
   const feedsReady =
     data.history.MES.status === "ready" && data.history.MNQ.status === "ready";

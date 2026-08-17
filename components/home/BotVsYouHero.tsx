@@ -13,7 +13,8 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import type { SignalRow } from "@/lib/supabase/client";
-import { loadJournal, journalPnl } from "@/lib/journal";
+import { loadJournal, journalPnl, type JournalTrade } from "@/lib/journal";
+import { useStoredValue } from "@/lib/data/useStored";
 import { nyMeta } from "@/lib/time/ny";
 import { expectancy, rateFromPnls, type RateReadout } from "@/lib/stats";
 import { money } from "@/lib/format";
@@ -28,6 +29,10 @@ interface SideStat {
   rate: RateReadout;
 }
 
+/* Module-level so the pre-mount value is referentially stable — a fresh []
+   each render would re-fire the memo below on every pass. */
+const NO_TRADES: JournalTrade[] = [];
+
 const statOf = (pnls: number[]): SideStat => ({
   net: pnls.reduce((a, v) => a + v, 0),
   expectancy: expectancy(pnls),
@@ -37,8 +42,13 @@ const statOf = (pnls: number[]): SideStat => ({
 export default function BotVsYouHero({ signals }: { signals: SignalRow[] }) {
   const { mask } = usePrivacy();
 
+  /* Hydrated on mount rather than read during render — see
+     lib/data/useStored.ts. This card was one of the two places on the
+     dashboard where a user WITH a journal got different HTML from the
+     prerender, which is the population for whom the page appeared to crash. */
+  const journal = useStoredValue(() => loadJournal().trades, NO_TRADES);
+
   const { bot, you, days } = useMemo(() => {
-    const journal = loadJournal().trades;
     /* Compare only over the days the user actually journalled. Measuring the
        bot across a window where you were not trading is not a comparison —
        it just says the bot traded more, which is true by construction. */
@@ -63,7 +73,7 @@ export default function BotVsYouHero({ signals }: { signals: SignalRow[] }) {
     const youPnls = journal.map((t) => journalPnl(t).netPnl);
 
     return { bot: statOf(botPnls), you: statOf(youPnls), days: journalDays.size };
-  }, [signals]);
+  }, [signals, journal]);
 
   /* Nothing journalled: say so and point at the fix. An empty comparison
      rendered as "0 vs 0" would look like a result. */
