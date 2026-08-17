@@ -39,10 +39,30 @@ const HIST = "https://hist.databento.com/v0";
 const DATASET = "GLBX.MDP3";
 const SCHEMA = "ohlcv-1m";
 const STYPE_IN = "continuous";
-/* Continuous front-month, volume-rolled. These are the real CME contracts,
-   which is the entire point of the exercise — the live feed's MES=F/MNQ=F are
-   the right instruments but a delayed, unofficial, front-month stitch. */
-const ALL_SYMBOLS = ["MES.c.0", "MNQ.c.0", "MGC.c.0", "SI.c.0"] as const;
+/* Continuous front-month. These are the real CME contracts, which is the
+   entire point of the exercise — the live feed's MES=F/MNQ=F are the right
+   instruments but a delayed, unofficial, front-month stitch.
+
+   ROLL RULE, PER SYMBOL, and the comment above this one used to be wrong.
+   It said "volume-rolled" while every symbol used `.c.0`, which is Databento's
+   CALENDAR rank — nearest expiry, regardless of where the liquidity is.
+
+   For MES/MNQ that distinction is invisible: they list quarterly, so the
+   nearest expiry IS the liquid one almost all the time. Their baselines were
+   measured on `.c.0` and stay on it; changing them would invalidate every
+   published figure.
+
+   For gold it is not invisible. MGC lists monthly but liquidity concentrates
+   in Feb/Apr/Jun/Aug/Oct/Dec, so in those months `.c.0` tracks the contract
+   that is expiring and that everyone has already rolled out of. Measured on a
+   real pull: every even month came back ~88% empty (2025-02: 661 bars against
+   MES's 5,471; 2025-04: 755; 2025-06: 743) while odd months were full. The
+   data was not missing — it was the wrong contract.
+
+   `.v.0` is the volume rank: whichever contract is actually trading. Its
+   download is 273.7 MB against `.c.0`'s 69.8 MB over the same window, which is
+   the same fact stated in bytes. */
+const ALL_SYMBOLS = ["MES.c.0", "MNQ.c.0", "MGC.v.0", "SI.v.0"] as const;
 
 /* --symbols MGC.c.0,SI.c.0 restricts the pull.
 
