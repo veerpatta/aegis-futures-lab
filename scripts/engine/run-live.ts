@@ -18,6 +18,7 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { statusFromExit } from "@/lib/signals/status";
 import { assessStaleness, lastBarBySymbol, staleAtSignal } from "@/lib/signals/freshness";
 import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
+import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
@@ -188,11 +189,18 @@ async function loadBars(
   }
 }
 
+/* The signals table's conflict target. One definition, because the excursion
+   write below has to build the same key to join a trade to its stored row —
+   two spellings of this would pair a row with someone else's numbers. */
+function dedupeKey(tier: "A" | "B", label: string, symbol: string, entryTime: number): string {
+  return `${tier}:${label}:${symbol}:${entryTime}`;
+}
+
 function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
   const status = statusFromExit(t.exitReason, t.pnl);
   const stopDist = Math.abs(t.entryPrice - t.stop);
   return {
-    dedupe_key: `${tier}:${label}:${t.symbol}:${t.entryTime}`,
+    dedupe_key: dedupeKey(tier, label, t.symbol, t.entryTime),
     tier,
     symbol: t.symbol,
     timeframe: t.tags?.entryTf ?? "5m",
@@ -341,6 +349,11 @@ async function main() {
 
   // 1) Signals from every tier stream.
   const signalRows = new Map<string, SignalRow>();
+  /* Closed trades kept alongside their rows so the excursion write below can
+     join them to the ids the upsert hands back. Keyed identically to
+     signalRows, so a dedupe_key collision drops the trade and its excursion
+     together rather than pairing a row with someone else's numbers. */
+  const closedByKey = new Map<string, Trade>();
   let tierA = 0;
   let tierB = 0;
   // Item 2.7 — today's skip funnel, summed across streams, for the Home panel.
@@ -394,6 +407,15 @@ async function main() {
         bars: bySymbol[symbol] ?? [],
       });
     for (const t of res.trades) {
+      /* Excursion is collected across the WHOLE recompute window, not just the
+         mirrored tail. It is keyed on signal_id and written only for signals
+         that already exist, so it never creates or edits a signal row — it
+         just backfills the ones written before this table had a writer. The
+         archive still holds every bar those signals were measured on; once it
+         does not, they are gone, so the widest honest window is the right one. */
+      if (hasExcursion(t)) {
+        closedByKey.set(dedupeKey(stream.tier, stream.label, t.symbol, t.entryTime), t);
+      }
       if (t.entryTime < cutoff) continue;
       const row = rowFromTrade(stream.tier, stream.label, t);
       row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
@@ -550,6 +572,55 @@ async function main() {
     );
     const message = formatAlertMessage(diffSignalAlerts(oldStatus, alertable));
     if (message) await sendTelegram(message); // never throws
+  }
+
+  /* 1a) Excursion for every closed signal in the recompute window.
+     `signal_excursion` has existed since the truth-layer migration with no
+     writer, and unlike backtest excursion it cannot be rebuilt later — the
+     live bar path around a signal survives only as long as the feed keeps it.
+
+     Idempotent by construction: unique (signal_id) plus an upsert, so the pass
+     that first sees an older signal backfills it and every later pass rewrites
+     the same numbers. That is what lets this double as the backfill for the
+     rows written before the writer existed, with no separate script and no
+     second copy of the MAE/MFE arithmetic.
+
+     Runs AFTER the alert send so a slow write cannot delay Telegram, and it is
+     best effort in the same sense as the daily funnel: measurement bookkeeping
+     must never fail a signal run.
+
+     Ids come from a read-back rather than `.select()` on the upsert, to leave
+     the PGRST204 retry above exactly as it is. */
+  if (closedByKey.size) {
+    try {
+      const keys = [...closedByKey.keys()];
+      const idByKey = new Map<string, number>();
+      for (let i = 0; i < keys.length; i += 200) {
+        const { data, error } = await supabase
+          .from("signals")
+          .select("id, dedupe_key")
+          .in("dedupe_key", keys.slice(i, i + 200));
+        if (error) throw new Error(error.message);
+        for (const row of data ?? []) idByKey.set(row.dedupe_key as string, row.id as number);
+      }
+      const computedAt = new Date().toISOString();
+      const rows = keys.flatMap((k) => {
+        const id = idByKey.get(k);
+        const t = closedByKey.get(k);
+        // A key with no id means the row was not written — suppressed by a
+        // collision, or the read raced a delete. Skip rather than guess.
+        return id === undefined || t === undefined ? [] : [excursionRow(id, t, DEFAULT_BAR_SOURCE, computedAt)];
+      });
+      if (rows.length) {
+        const { error } = await supabase
+          .from("signal_excursion")
+          .upsert(rows, { onConflict: "signal_id" });
+        if (error) throw new Error(error.message);
+        console.log(`excursion: ${rows.length} rows`);
+      }
+    } catch (e) {
+      warnings.push(`signal_excursion write failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+    }
   }
   phaseT("signals", phaseStart);
   phaseStart = Date.now();
