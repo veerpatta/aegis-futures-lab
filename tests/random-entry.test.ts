@@ -17,6 +17,8 @@ import {
 } from "@/lib/diagnostics/randomEntry";
 import { runNullDistribution, statsOf, verdictFor } from "@/lib/diagnostics/randomEntryRun";
 import { mulberry32 } from "@/scripts/engine/montecarlo";
+import type { ExecutionConfig } from "@/lib/strategies/types";
+import { LEGACY_MODEL, resolveExecution } from "@/lib/costs";
 import { EXECUTION } from "@/scripts/engine/tiers";
 import { nyMeta, NY_SESSION_START_MIN } from "@/lib/time/ny";
 import type { Bar, Trade } from "@/lib/types";
@@ -337,6 +339,20 @@ describe("cost parity between null and real", () => {
   });
 });
 
+/* The pre-2026-08-17 EXECUTION, rebuilt explicitly.
+
+   tiers.ts's EXECUTION now carries the corrections adopted with the Phase 1
+   re-measurement (minStopPoints, restingLimitOrders, REALISTIC friction).
+   The assertions below are about something else — the ENTRY SAMPLER's fidelity, not the fill guards — so they pin the legacy
+   config rather than silently measuring two changes at once. Relaxing the
+   thresholds instead would have been the goalpost move this repo exists to
+   refuse. */
+const LEGACY_EXECUTION: ExecutionConfig = resolveExecution(LEGACY_MODEL, "MES", {
+  maxRisk: 160,
+  sizing: "risk",
+  fillModel: "limit",
+});
+
 /* ── Reporting ───────────────────────────────────────────────────────────*/
 describe("runNullDistribution reporting", () => {
   /* A deliberately LARGER book than the 20-trade PROFILE used above.
@@ -359,7 +375,7 @@ describe("runNullDistribution reporting", () => {
     {
       cell: "report",
       series: SERIES,
-      execution: EXECUTION,
+      execution: LEGACY_EXECUTION,
       locks: null,
       startingCapital: 3000,
       sessionExitMinute: 925,

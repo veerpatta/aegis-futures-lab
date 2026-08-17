@@ -39,13 +39,32 @@ short sentences. The reader knows trading but not software. Always keep the
   both halves of the year).
 - The engine's live tier configuration lives in `scripts/engine/tiers.ts`; the
   scheduled runner is `scripts/engine/run-live.ts` (GitHub Actions,
-  `.github/workflows/signal-engine.yml`, Node 22 required). `EXECUTION` is now
-  DERIVED from `LEGACY_MODEL` in `lib/costs/` rather than hardcoded — it still
-  resolves to `{cost: 2.4, slippage: 0.25}`, and `tests/costs.test.ts` pins both
-  the derivation and the literal every published figure was measured with.
+  `.github/workflows/signal-engine.yml`, Node 22 required). `EXECUTION` is
+  DERIVED from `lib/costs/` rather than hardcoded. Its scalars are still
+  `{cost: 2.4, slippage: 0.25}` — `REALISTIC_MODEL` carries the same $1.20/side
+  and the same one tick as `LEGACY_MODEL`. What changed on 2026-08-17 is where
+  and how often they are charged: `EXECUTION` now also carries
+  `minStopPoints: 2.0`, `restingLimitOrders: true` and a REALISTIC
+  `FrictionSpec` (both sides slipped, 1.5x at the session edges, gapped stops
+  filled at the open, one exit's slippage inside the sizing risk).
+  `tests/costs.test.ts` pins the scalars AND the corrections, so dropping one
+  silently reverts the live engine to the book Phase 1 refuted while the
+  published figures keep describing the corrected one.
+- Every behaviour-changing correction is a PARAM WHOSE DEFAULT IS LEGACY, and
+  the live config opts in. `ExecutionConfig`: `minStopPoints`,
+  `restingLimitOrders`, `friction`. zone-v5: `causalBlocked80`,
+  `sessionAnchoredFrames`, `globexDailyRoll`. rsi-reversion:
+  `requireContiguous`. That split is what lets the golden parity oracle stay
+  green while live behaviour moves — never change a default to fix a bug.
 - All three live streams are REFUTED and the evidence is in
-  `docs/research/2026-07-31-phase1-findings.md`: 0 of 17 symbol-years beat matched
-  random entries, tier A sits at the 0.0th percentile. Do not tune them — the brief
+  `docs/research/2026-07-31-phase1-findings.md`, RE-MEASURED on the corrected
+  engine in `docs/research/2026-08-17-remeasurement.md`: 0 of 17 symbol-years beat
+  matched random entries, on either engine. Two claims from the first run are
+  WITHDRAWN by the second and should not be repeated: tier A is NOT
+  anti-predictive (percentile 0.0 → 37.2 once impossible fills are removed — 63%
+  of its 1,180 trades could not have been taken), and MNQ is NOT break-even gross
+  (+$214 → −$19,286 once gapped stops stop filling at a price that never traded,
+  so the entries lose before costs too). Do not tune them — the brief
   in that document forbids optimising a signal that does not beat a coin flip, and
   the losing baseline in `research_baselines` is the control for everything after.
   New ideas go through `/diagnostics` and the promotion gate

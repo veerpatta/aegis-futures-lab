@@ -159,29 +159,30 @@ const limitRun = (restingLimitOrders: boolean) =>
     keepOpenAtEnd: true,
   } as BacktestInput);
 
+/* trades[0] and openPosition carry the same facts under different names. */
+const entryOf = (r: ReturnType<typeof limitRun>) => {
+  const t = r.trades[0];
+  if (t) return { at: t.entryTime, price: t.entryPrice };
+  const p = r.openPosition!;
+  return { at: p.openedAt, price: p.entry };
+};
+
 describe("restingLimitOrders", () => {
   it("legacy fills on the SAME bar that revealed the touch", () => {
-    const r = limitRun(false);
-    const pos = r.trades[0] ?? r.openPosition;
-    expect(pos).toBeTruthy();
-    expect(pos!.openedAt).toBe(touchBars[0].time);
+    expect(entryOf(limitRun(false)).at).toBe(touchBars[0].time);
   });
 
   it("a resting order cannot fill on the bar that placed it", () => {
     /* The decision is taken at bar 0's close — zone-v5 evaluates with
        price: bar.close — so filling inside bar 0 uses information from the end
        of the bar to justify an order that was supposedly there at the start. */
-    const r = limitRun(true);
-    const pos = r.trades[0] ?? r.openPosition;
-    expect(pos).toBeTruthy();
-    expect(pos!.openedAt).toBeGreaterThan(touchBars[0].time);
+    expect(entryOf(limitRun(true)).at).toBeGreaterThan(touchBars[0].time);
   });
 
   it("still fills, on the next bar that reaches the limit", () => {
-    const r = limitRun(true);
-    const pos = r.trades[0] ?? r.openPosition;
-    expect(pos!.openedAt).toBe(touchBars[1].time);
-    expect(pos!.entry).toBeCloseTo(4990, 6);
+    const e = entryOf(limitRun(true));
+    expect(e.at).toBe(touchBars[1].time);
+    expect(e.price).toBeCloseTo(4990, 6);
   });
 
   it("defaults to the legacy same-bar fill", () => {
@@ -196,7 +197,7 @@ describe("restingLimitOrders", () => {
       pointValueOf: () => 5,
       keepOpenAtEnd: true,
     } as BacktestInput);
-    const pos = r.trades[0] ?? r.openPosition;
-    expect(pos!.openedAt).toBe(touchBars[0].time);
+    const t = r.trades[0];
+    expect(t ? t.entryTime : r.openPosition!.openedAt).toBe(touchBars[0].time);
   });
 });

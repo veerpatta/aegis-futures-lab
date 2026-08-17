@@ -99,7 +99,7 @@
 import type { Bar } from "@/lib/types";
 import type { DisciplineLocks } from "@/lib/backtest/engine";
 import { defaultParams, type ExecutionConfig, type ParamValues } from "@/lib/strategies/types";
-import { LEGACY_MODEL, resolveExecution } from "@/lib/costs";
+import { LEGACY_MODEL, REALISTIC_MODEL, frictionSpecFor, resolveExecution } from "@/lib/costs";
 import { zoneV5 } from "@/lib/strategies/zone-v5";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { strategyById } from "@/lib/strategies/registry";
@@ -111,10 +111,11 @@ import { strategyById } from "@/lib/strategies/registry";
    tests/costs.test.ts pins both the resolved values and the literals, so the
    derivation cannot silently drift.
 
-   The harsher REALISTIC_MODEL (both sides slipped, 1.5x at the session edges,
-   gap-through stops) is deliberately NOT adopted here: switching it on would
-   invalidate every outOfSample provenance string below and needs its own
-   re-measurement commit. */
+   REALISTIC_MODEL (both sides slipped, 1.5x at the session edges, gap-through
+   stops) IS now adopted — see EXECUTION below — together with the Phase 1
+   re-measurement that its adoption required. Until 2026-08-17 this comment
+   said it was "deliberately not adopted", which read as a flag left off; in
+   fact lib/backtest/engine.ts had no consumer for it and no flag existed. */
 /* MIN_STOP_POINTS — the fill-realism guard Phase 1 asked for.
 
    Risk sizing is maxRisk / (stopDistance × pointValue + cost), so a stop
@@ -158,11 +159,33 @@ import { strategyById } from "@/lib/strategies/registry";
    oracle, every Lab run and the live engine are all unchanged. */
 export const MIN_STOP_POINTS = 2.0;
 
-export const EXECUTION: ExecutionConfig = resolveExecution(LEGACY_MODEL, "MES", {
-  maxRisk: 160,
-  sizing: "risk",
-  fillModel: "limit",
-});
+/* THE CORRECTED EXECUTION MODEL.
+   Adopted 2026-08-17 together with a full Phase 1 re-measurement, because
+   every one of these changes which trades exist and what they earn:
+
+     minStopPoints        refuses the 0.25-point stop that sized to 43 MES
+                          contracts (see MIN_STOP_POINTS above)
+     restingLimitOrders   a limit order placed on the decision bar can only
+                          fill on a LATER bar — the legacy path filled inside
+                          the bar whose close produced the decision
+     friction             REALISTIC_MODEL: slippage on BOTH sides, 1.5x in the
+                          opening and closing 30 minutes, gapped stops filled
+                          at the open rather than at a price that never traded,
+                          and one exit's slippage inside the sizing risk
+
+   cost and slippage are unchanged scalars — REALISTIC_MODEL carries the same
+   1.2/side commission and 1 tick as LEGACY_MODEL. What changes is where and
+   how often they are charged. */
+export const EXECUTION: ExecutionConfig = {
+  ...resolveExecution(REALISTIC_MODEL, "MES", {
+    maxRisk: 160,
+    sizing: "risk",
+    fillModel: "limit",
+  }),
+  minStopPoints: MIN_STOP_POINTS,
+  restingLimitOrders: true,
+  friction: frictionSpecFor(REALISTIC_MODEL, ["MES", "MNQ"]),
+};
 
 export const STARTING_CAPITAL = 3000;
 export const SESSION_EXIT_MINUTE = 925; // flat by 15:25 ET
@@ -270,7 +293,14 @@ export const TUNING_BASELINE: TuningBaseline[] = [
         "net −$57,065, avg R −0.302, expectancy −$48.36/trade. Traded on 287 of 1,838 sessions " +
         "(15.6%), so it still clusters. Excluding the 8 contract-roll seams and the session " +
         "after each leaves PF 0.57 on 1,155 trades — the stitching caveat is closed. Reproduce: " +
-        "BAR_SOURCE=databento npx tsx scripts/diag/tier-a-baseline.ts",
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-a-baseline.ts. " +
+        "RE-MEASURED 2026-08-17 on the corrected engine (see " +
+        "docs/research/2026-08-17-remeasurement.md): 442 trades, net −$14,317. " +
+        "63% of the trade count above was fills that could not happen — same-bar " +
+        "limit look-ahead and sub-2-point stops sized to the risk cap. The " +
+        "percentile moved 0.0 → 37.2, so the ANTI-PREDICTIVE claim is withdrawn: " +
+        "tier A is ordinary noise that loses money, not worse than a coin flip. " +
+        "Still refuted — 37.2 is not 95.",
     },
   },
   {
@@ -296,7 +326,8 @@ export const TUNING_BASELINE: TuningBaseline[] = [
         "2019-05-06 → 2026-07-29): 2,641 trades over 1,838 sessions, PF 0.71, net −$68,001, " +
         "avg R −0.174. Every one of the eight calendar years lost money (PF 0.52–0.79). " +
         "Excluding roll seams changes it to PF 0.72. Reproduce: " +
-        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts",
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts" +
+        "RE-MEASURED 2026-08-17 on the corrected engine (see docs/research/2026-08-17-remeasurement.md): 2578 trades, net -$83,247. Realistic exits change the GROSS book materially here — MES goes -$10,809 to -$57,009 gross.",
     },
   },
   {
@@ -322,7 +353,8 @@ export const TUNING_BASELINE: TuningBaseline[] = [
         "2019-05-06 → 2026-07-29): 2,731 trades over 1,838 sessions, PF 0.87, net −$28,773, " +
         "avg R −0.072. Every one of the eight calendar years lost money (PF 0.64–0.98). " +
         "Excluding roll seams leaves it at PF 0.87. Reproduce: " +
-        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts",
+        "BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts" +
+        "RE-MEASURED 2026-08-17 on the corrected engine (see docs/research/2026-08-17-remeasurement.md): 2713 trades, net -$40,650. Realistic exits change the GROSS book materially here — MNQ's +$214 break-even gross becomes -$19,286, so the entries lose before costs too.",
     },
   },
 ];
@@ -480,6 +512,19 @@ export function tierStreams(): TierStream[] {
     session: "day",
     oversold: 25,
     overbought: 75,
+    /* A cross must be built from two genuinely adjacent bars. The Yahoo feed
+       arrives compacted, so without this one could span a weekend or an
+       outage. */
+    requireContiguous: true,
+  };
+  /* The three structural corrections. globexDailyRoll is inert while
+     structure is "rth" (no evening bar is ever seen) and is set anyway so the
+     daily frame does not silently change meaning if structure ever moves. */
+  const zoneParams: ParamValues = {
+    ...defaultParams(zoneV5),
+    causalBlocked80: true,
+    sessionAnchoredFrames: true,
+    globexDailyRoll: true,
   };
   const base: TierStream[] = [
     {
@@ -487,7 +532,7 @@ export function tierStreams(): TierStream[] {
       label: "zone-v5",
       strategyId: "zone-v5",
       symbols: ["MES", "MNQ"],
-      params: defaultParams(zoneV5),
+      params: zoneParams,
       fillModel: "limit",
       locks: null,
     },

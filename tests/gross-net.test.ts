@@ -12,6 +12,8 @@ import {
   frictionDollarsPerContract,
   roundTripCost,
 } from "@/lib/costs";
+import type { ExecutionConfig } from "@/lib/strategies/types";
+import { resolveExecution } from "@/lib/costs";
 import { EXECUTION } from "@/scripts/engine/tiers";
 import type { Bar, Trade } from "@/lib/types";
 
@@ -32,12 +34,26 @@ function bars(count: number, drift = 0, range = 4): Bar[] {
   });
 }
 
+/* The pre-2026-08-17 EXECUTION, rebuilt explicitly.
+
+   tiers.ts's EXECUTION now carries the corrections adopted with the Phase 1
+   re-measurement (minStopPoints, restingLimitOrders, REALISTIC friction).
+   The assertions below are about something else — the gross-vs-net geometry story under the legacy cost model — so they pin the legacy
+   config rather than silently measuring two changes at once. Relaxing the
+   thresholds instead would have been the goalpost move this repo exists to
+   refuse. */
+const LEGACY_EXECUTION: ExecutionConfig = resolveExecution(LEGACY_MODEL, "MES", {
+  maxRisk: 160,
+  sizing: "risk",
+  fillModel: "limit",
+});
+
 function req(series: Bar[], overrides: Partial<RunRequest> = {}): RunRequest {
   return {
     strategyId: "rsi-reversion",
     params: { length: 14, oversold: 30, overbought: 70, atrMult: 1.5, targetR: 1.5, session: "all" },
     series: { MES: series },
-    execution: EXECUTION,
+    execution: LEGACY_EXECUTION,
     locks: null,
     startingCapital: 3000,
     sessionExitMinute: 925,

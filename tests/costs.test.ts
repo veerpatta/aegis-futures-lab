@@ -27,28 +27,44 @@ import { nyMeta, nyTimeToUnix, NY_SESSION_START_MIN } from "@/lib/time/ny";
 describe("legacy model reproduces EXECUTION exactly", () => {
   const base = { maxRisk: EXECUTION.maxRisk, sizing: EXECUTION.sizing, fillModel: EXECUTION.fillModel };
 
-  /* EXECUTION is now DERIVED from LEGACY_MODEL, so comparing the two would be
-     tautological on its own. This pins the historical literal instead — the
-     values every figure in TUNING_BASELINE was measured with. Together with
-     the round-trip assertions below, a change to the model that moved live
-     behaviour still fails here. */
-  it("still equals the literal the baselines were measured with", () => {
-    expect(EXECUTION).toEqual({
-      cost: 2.4,
-      slippage: 0.25,
-      maxRisk: 160,
-      sizing: "risk",
-      fillModel: "limit",
-    });
+  /* The SCALARS are still the historical literal, and that is deliberate:
+     REALISTIC_MODEL carries the same $1.20/side commission and the same one
+     tick as LEGACY_MODEL. What the 2026-08-17 adoption changed is WHERE and
+     HOW OFTEN they are charged — both sides instead of entry only, 1.5x at the
+     session edges, gapped stops filled at the open — plus the two sizing
+     corrections. So a drift in the underlying commission or tick still fails
+     here, while the corrections live in fields of their own. */
+  it("still charges the literal the baselines were measured with", () => {
+    expect(EXECUTION.cost).toBeCloseTo(2.4, 10);
+    expect(EXECUTION.slippage).toBeCloseTo(0.25, 10);
+    expect(EXECUTION.maxRisk).toBe(160);
+    expect(EXECUTION.sizing).toBe("risk");
+    expect(EXECUTION.fillModel).toBe("limit");
   });
 
-  it("resolves to the committed EXECUTION for MES", () => {
-    expect(resolveExecution(LEGACY_MODEL, "MES", base)).toEqual(EXECUTION);
+  it("carries the corrections adopted with the re-measurement", () => {
+    /* If any of these is ever silently dropped, the live engine reverts to the
+       book Phase 1 refuted while the published figures keep describing the
+       corrected one. That mismatch is the thing this file exists to catch. */
+    expect(EXECUTION.minStopPoints).toBe(2.0);
+    expect(EXECUTION.restingLimitOrders).toBe(true);
+    expect(EXECUTION.friction).toBeTruthy();
+    expect(EXECUTION.friction!.slipExits).toBe(true);
+    expect(EXECUTION.friction!.gapThroughStops).toBe(true);
+    expect(EXECUTION.friction!.sizeWithExitSlippage).toBe(true);
   });
 
-  it("resolves to the committed EXECUTION for MNQ", () => {
+  it("derives its scalars from the model for MES", () => {
+    const r = resolveExecution(LEGACY_MODEL, "MES", base);
+    expect(r.cost).toBeCloseTo(EXECUTION.cost, 10);
+    expect(r.slippage).toBeCloseTo(EXECUTION.slippage, 10);
+  });
+
+  it("derives its scalars from the model for MNQ", () => {
     // Both micros tick at 0.25, which is why one scalar sufficed until now.
-    expect(resolveExecution(LEGACY_MODEL, "MNQ", base)).toEqual(EXECUTION);
+    const r = resolveExecution(LEGACY_MODEL, "MNQ", base);
+    expect(r.cost).toBeCloseTo(EXECUTION.cost, 10);
+    expect(r.slippage).toBeCloseTo(EXECUTION.slippage, 10);
   });
 
   /* Catches the realistic failure mode: entering $2.40 as the per-SIDE
