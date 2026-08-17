@@ -162,7 +162,16 @@ export function resolveExecution(
    Its ABSENCE is the legacy path. Every consumer in engine.ts checks
    `friction !== undefined` before reading it, so a run that does not pass one
    behaves exactly as it did before this module existed — which is what keeps
-   the zone-v5 parity tests green. */
+   the zone-v5 parity tests green.
+
+   That paragraph described code that did not exist for a long time:
+   lib/backtest/engine.ts never imported from this module, ExecutionConfig had
+   no `friction` field, and frictionSpecFor had no caller outside its own test.
+   REALISTIC_MODEL was therefore not "built and deliberately not adopted" —
+   it was unreachable, and no flag existed to turn it on. The consumers are
+   now real (slipAt / exitSlip / gapThroughStops / sizeWithExitSlippage in
+   engine.ts), and tests/friction.test.ts pins both halves: legacy runs are
+   byte-identical, and a REALISTIC_MODEL run measurably differs. */
 export interface FrictionSpec {
   bySymbol: Record<string, { tickSize: number; slippageTicks: number; pointValue: number }>;
   openCloseWindows: SlipWindow[];

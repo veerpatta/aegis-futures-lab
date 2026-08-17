@@ -1,3 +1,4 @@
+import type { FrictionSpec } from "@/lib/costs/model";
 import type { Bar } from "@/lib/types";
 
 /* The strategy contract: heavy precompute happens once in prepare(); after
@@ -105,6 +106,17 @@ export interface ExecutionConfig {
      the gross and net figures at the tail, in whichever direction they
      happened to resolve. This is the guard that brief asked for. */
   minStopPoints?: number;
+  /* Time- and symbol-aware friction. ABSENT is the legacy path, which is what
+     keeps the zone-v5 parity oracle green: with no spec the engine uses the
+     flat `slippage` scalar on entry only, exactly as before.
+
+     lib/costs/model.ts documented this contract — "every consumer in engine.ts
+     checks friction !== undefined" — for a long time while engine.ts did not
+     import from lib/costs at all and ExecutionConfig had no such field. So
+     REALISTIC_MODEL was not "built and deliberately not adopted"; it was
+     unreachable, and frictionSpecFor had no caller outside its own test. This
+     field is what makes the claim true. */
+  friction?: FrictionSpec;
 }
 
 export interface ReadoutRow {

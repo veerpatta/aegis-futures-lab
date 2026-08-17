@@ -7,6 +7,7 @@
    - session flat by NY 15:25, discipline locks reset on date rollover
    - quantity and dollar target are re-derived from the actual fill price */
 
+import { slippagePointsAt } from "@/lib/costs/slippage";
 import type { Bar, EquityPoint, Trade } from "@/lib/types";
 import { nyMeta } from "@/lib/time/ny";
 import { atr } from "@/lib/indicators";
@@ -193,13 +194,32 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     } else p.mfePoints ??= 0;
   };
 
+  /* Slippage in points for one fill. With no FrictionSpec this is the flat
+     `execution.slippage` scalar the engine has always used — the legacy path
+     the zone-v5 parity oracle pins. With one, it is symbol-aware and
+     time-aware (wider in the opening and closing 30 minutes). */
+  const slipAt = (symbol: string, timeSec: number): number =>
+    execution.friction ? slippagePointsAt(execution.friction, symbol, timeSec) : execution.slippage;
+
+  /* Exit slippage, charged only when the model says both sides are slipped.
+     LEGACY_MODEL is entryOnly, so this is 0 and closeTrade behaves exactly as
+     before. It always moves the fill AGAINST the position. */
+  const exitSlip = (symbol: string, timeSec: number): number =>
+    execution.friction?.slipExits ? slippagePointsAt(execution.friction, symbol, timeSec) : 0;
+
   const closeTrade = (bar: Bar, reason: Trade["exitReason"], exit: number) => {
     const p = position!;
     // The exit bar counts too — a trade that spiked before stopping out on the
     // same bar really did have that excursion.
     foldExcursion(p, bar);
     const point = pointValueOf(p.symbol);
-    const points = p.side === "LONG" ? exit - p.entry : p.entry - exit;
+    /* The exit fill, slipped against the position when the friction model
+       charges both sides. Applied here rather than at each call site so every
+       exit reason (stop, target, signal, session, windowEnd, same-bar sweep)
+       inherits it and none can be forgotten. */
+    const slip = exitSlip(p.symbol, bar.time);
+    const filled = slip === 0 ? exit : p.side === "LONG" ? exit - slip : exit + slip;
+    const points = p.side === "LONG" ? filled - p.entry : p.entry - filled;
     const pnl = points * point * p.qty - execution.cost * p.qty;
     trades.push({
       id: ++tradeId,
@@ -209,7 +229,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       entryTime: p.openedAt,
       entryPrice: p.entry,
       exitTime: bar.time,
-      exitPrice: exit,
+      exitPrice: filled,
       stop: p.stop,
       target: p.target,
       exitReason: reason,
@@ -251,7 +271,13 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       note("stopTooTight", sig.symbol);
       return null;
     }
-    const perContract = stopDistance * point + execution.cost;
+    /* One exit's slippage folded into the per-contract risk when the model
+       charges both sides, so size reflects what the round trip actually costs
+       rather than only what the entry did. Absent under LEGACY_MODEL. */
+    const exitSlipPts = execution.friction?.sizeWithExitSlippage
+      ? slippagePointsAt(execution.friction, sig.symbol, bar.time)
+      : 0;
+    const perContract = (stopDistance + exitSlipPts) * point + execution.cost;
     const qty =
       execution.sizing === "fixed"
         ? Math.max(1, Math.floor(execution.fixedQty ?? 1))
@@ -337,7 +363,17 @@ export function runBacktest(input: BacktestInput): BacktestResult {
         const stopHit = p.side === "LONG" ? b.low <= p.stop : b.high >= p.stop;
         const targetHit =
           p.target !== null && (p.side === "LONG" ? b.high >= p.target : b.low <= p.target);
-        if (stopHit) closeTrade(b, "stop", p.stop);
+        if (stopHit) {
+          /* A bar that OPENED beyond the stop never traded at the stop price:
+             the first available fill was the open. Legacy fills at the exact
+             stop regardless, which quietly hands back every gap. Only active
+             under a friction model that asks for it (REALISTIC_MODEL);
+             LEGACY_MODEL leaves this false and the parity oracle unmoved. */
+          const gapped =
+            execution.friction?.gapThroughStops === true &&
+            (p.side === "LONG" ? b.open < p.stop : b.open > p.stop);
+          closeTrade(b, "stop", gapped ? b.open : p.stop);
+        }
         else if (targetHit) closeTrade(b, "target", p.target as number);
         else if (
           strategy.shouldExit &&
@@ -356,7 +392,9 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       if (v && nyMeta(v.bar.time).dateKey === plan.date) {
         const sig = plan.signal;
         const entry =
-          sig.side === "LONG" ? v.bar.open + execution.slippage : v.bar.open - execution.slippage;
+          sig.side === "LONG"
+            ? v.bar.open + slipAt(sig.symbol, v.bar.time)
+            : v.bar.open - slipAt(sig.symbol, v.bar.time);
         position = tryOpen(sig, v.bar, entry);
         // The manage block above already ran for this bar while the position
         // was still null, so the fill bar's own range would otherwise never be
@@ -433,8 +471,8 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       if (touched) {
         const entry =
           best.side === "LONG"
-            ? Math.min(b.open, lim) + execution.slippage
-            : Math.max(b.open, lim) - execution.slippage;
+            ? Math.min(b.open, lim) + slipAt(best.symbol, b.time)
+            : Math.max(b.open, lim) - slipAt(best.symbol, b.time);
         // Fill sanity: when the bar opens through the zone AND its stop, the
         // "fill at open, swept same bar" convention would exit at the stop on
         // the PROFIT side of the entry — a free-money artifact, not a trade.
