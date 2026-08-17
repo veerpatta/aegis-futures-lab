@@ -398,7 +398,15 @@ export function riskFor(symbols: ("MES" | "MNQ")[]): SymbolRisk {
 /* ── Bot-editable blocks — the ONLY things the weekly-challenger bot may edit,
    and only ever via a human-merged PR. Both DEFAULT EMPTY, so live behaviour
    (and the golden parity tests) are unchanged until a human merges. Keying:
-   "A" for the zone stream, "B:MES"/"B:MNQ" for the RSI streams. */
+   "A" for the zone stream, "B:MES"/"B:MNQ" for the RSI streams.
+
+   That first sentence was FALSE from the day autopilot.yml landed until the
+   day it was made read-only: that workflow squash-merged any green bot/* PR
+   30 minutes after the challenger opened it, so these blocks could change with
+   no human involved, on the 60-trade/PF-1.2 checklist in promotion.ts rather
+   than on lib/validation/promotionGate.ts — which nothing imported. Recorded
+   here rather than quietly corrected, because a comment asserting a safety
+   property is worth exactly as much as the last time someone checked it. */
 
 /** Param overrides adopted from a surviving challenger. */
 export const CHALLENGER_OVERRIDES: Record<string, Partial<ParamValues>> = {};
