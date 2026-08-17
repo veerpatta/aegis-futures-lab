@@ -88,3 +88,35 @@ export async function fetchArchiveBars(
   }
   return out;
 }
+
+/* ── Missing DATA vs a quiet STRATEGY ─────────────────────────────────────
+   fetchArchiveBars returns [] for a symbol with no rows, which is correct for
+   a bounded query and disastrous as a default: every diagnostic downstream
+   then reports "0 trades" — indistinguishable from a strategy that found no
+   setups, and the exact shape of "we added gold to the streams but never
+   backfilled it".
+
+   lib/data/source.ts already hardened the SOURCE against precisely this
+   ("an unrecognised source would filter to zero rows and read as an empty
+   archive"). There was no equivalent guard on the symbol. This is it.
+
+   Deliberately NOT inside fetchArchiveBars: an empty window is legitimate.
+   Call this at the entry points that are about to measure something. */
+export function assertArchivePresent(
+  bars: Bar[],
+  q: { symbol: string; source: BarSource; minBars?: number }
+): Bar[] {
+  if (!bars.length)
+    throw new Error(
+      `bars_5m has NO rows for ${q.symbol} (source=${q.source}). This is missing ` +
+        `DATA, not a strategy that found nothing — backfill it before measuring.`
+    );
+  const floor = q.minBars ?? 0;
+  if (floor > 0 && bars.length < floor)
+    throw new Error(
+      `bars_5m has only ${bars.length} rows for ${q.symbol} (source=${q.source}), ` +
+        `below the ${floor} required to measure. A PARTIAL backfill is the subtler ` +
+        `version of no backfill: it produces a smaller study that reads as a real one.`
+    );
+  return bars;
+}

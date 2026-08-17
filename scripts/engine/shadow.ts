@@ -31,7 +31,23 @@ import { B_LOCKS, EXECUTION, PROMOTED_SHADOWS, SESSION_EXIT_MINUTE, STARTING_CAP
    evidence); it simply stops generating new ones. */
 export const SHADOW_STRATEGIES = ["vwap-reversion", "orb", "bollinger-breakout"] as const;
 export const RETIRED_SHADOW_STRATEGIES = ["ema-cross"] as const;
+/* The audition roster's symbols.
+
+   Deliberately still equity-only, and stated rather than derived. These four
+   strategies are equity-index-shaped — ORB anchors its opening range to
+   NY_SESSION_START_MIN, which for gold sits ~70 minutes after the COMEX pit
+   open and hours after London. Enrolling MGC here by deriving from the live
+   streams would audition them on a clock they were never designed for and
+   report the result as if it meant something.
+
+   What IS guarded is the failure this used to allow: a symbol listed here with
+   no bars in the run produced a green shadow pass auditing an empty series —
+   zero signals, zero errors, indistinguishable from "the strategies were
+   quiet". runShadows now asserts each symbol actually has bars. */
 export const SHADOW_SYMBOLS = ["MES", "MNQ"] as const;
+
+/* Below this a run is not an audition, it is a feed problem wearing one. */
+const MIN_AUDITION_BARS = 200;
 
 export interface ShadowRow {
   dedupe_key: string;
@@ -160,6 +176,17 @@ export async function runShadows(args: {
         continue;
       }
       try {
+        /* A symbol with no bars used to audition an empty series and report a
+           GREEN run: zero signals, zero errors, indistinguishable from "the
+           strategies were quiet". Fail the stream instead — it is collected
+           into `errors` below and surfaced, which is what a missing feed
+           deserves. */
+        const series = bySymbol[symbol];
+        if (!series || series.length < MIN_AUDITION_BARS)
+          throw new Error(
+            `${symbol}: ${series?.length ?? 0} bars — below the ${MIN_AUDITION_BARS} ` +
+              `needed to audition. An empty series would report a clean pass.`
+          );
         const strategy = strategyById(strategyId);
         const res = executeRun({
           strategyId,
@@ -167,7 +194,7 @@ export async function runShadows(args: {
           // auditions run stock settings; tuning them comes only after a
           // stream earns promotion interest.
           params: defaultParams(strategy),
-          series: { [symbol]: bySymbol[symbol] ?? [] },
+          series: { [symbol]: series },
           // All four emit market signals (no resting limits) → nextOpen.
           execution: { ...EXECUTION, fillModel: "nextOpen" },
           locks: B_LOCKS,

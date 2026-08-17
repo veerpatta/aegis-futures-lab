@@ -277,10 +277,24 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
       </Panel>
 
       {/* ── Effective sample size ───────────────────────────────────────── */}
-      {corr && (
+      {corr?.unavailable && (
+        <Panel title="How much evidence is this really?" hint="correlation-adjusted sample size">
+          <p className={styles.note}>
+            <b>Not measured.</b> {corr.unavailable}. Every figure above is therefore
+            quoted against <b>nominal</b> trade counts, with no correlation discount
+            applied. Two instruments that move together make a result confirmed on
+            both closer to one observation than two, so an un-discounted count
+            overstates the evidence — in either direction.
+          </p>
+        </Panel>
+      )}
+
+      {corr && !corr.unavailable && (
         <Panel title="How much evidence is this really?" hint="correlation-adjusted sample size">
           <div className={styles.duo}>
-            <Kpi label="MES/MNQ correlation" value={num(corr.overall, 3)} sub="whole archive" />
+            {/* Label from the data, not a literal. This read "MES/MNQ correlation"
+                above whatever pair the artefact actually held. */}
+            <Kpi label={`${corr.pair} correlation`} value={num(corr.overall, 3)} sub="whole archive" />
             <Kpi label="Median rolling" value={num(corr.medianRolling, 3)} sub="5-session window" />
             <Kpi
               label="Windows above 0.8"
@@ -296,10 +310,10 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
             />
           </div>
           <p className={styles.note} style={{ marginTop: 12 }}>
-            {describeEffectiveN(corr.nominalTrades, corr.effectiveTrades, "tier-B trades")} MES and
-            MNQ are both US equity index futures and move together intraday, so a result confirmed
-            on both is closer to one observation than two. This cuts both ways: it weakens a
-            positive finding as much as a negative one.
+            {describeEffectiveN(corr.nominalTrades, corr.effectiveTrades, "tier-B trades")} The two
+            instruments in {corr.pair} move together intraday, so a result confirmed on both is
+            closer to one observation than two. This cuts both ways: it weakens a positive finding
+            as much as a negative one.
           </p>
         </Panel>
       )}

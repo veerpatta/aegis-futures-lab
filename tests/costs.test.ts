@@ -15,7 +15,7 @@ import {
   nfpTimes,
   firstFridayKey,
 } from "@/lib/costs";
-import { POINT_VALUES } from "@/lib/market/contracts";
+import { FEED_SYMBOLS, POINT_VALUES } from "@/lib/market/contracts";
 import { EXECUTION } from "@/scripts/engine/tiers";
 import { nyMeta, nyTimeToUnix, NY_SESSION_START_MIN } from "@/lib/time/ny";
 
@@ -204,8 +204,26 @@ describe("slippagePointsAt", () => {
     }
   });
 
-  it("returns 0 for a symbol the spec does not cover", () => {
-    expect(slippagePointsAt(friction, "MGC", at("2026-06-01", 720))).toBe(0);
+  /* This assertion used to read "returns 0 for a symbol the spec does not
+     cover", with MGC as the stand-in for "a symbol nobody trades". MGC is now
+     traded, and keeping that assertion would have meant shipping a gold stream
+     that paid no slippage at all — a clean, plausible, entirely fictional book.
+
+     The property being defended is NOT "uncovered symbols are free". It is
+     "friction must be explicit, never assumed". The old code made the
+     assumption free and invisible; throwing makes it impossible. That is a
+     strictly stronger guarantee, which is why this is a correction and not a
+     relaxed threshold. */
+  it("throws for a symbol the spec does not cover, rather than charging nothing", () => {
+    expect(() => slippagePointsAt(friction, "ZZZ", at("2026-06-01", 720))).toThrow(
+      /not covered/
+    );
+  });
+
+  it("covers every fetchable symbol, so a live stream cannot fill for free", () => {
+    for (const s of FEED_SYMBOLS) {
+      expect(() => slippagePointsAt(EXECUTION.friction!, s, at("2026-06-01", 720))).not.toThrow();
+    }
   });
 
   /* Overlapping windows must not compound into 2.25x. */

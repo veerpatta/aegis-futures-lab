@@ -100,6 +100,7 @@ import type { Bar } from "@/lib/types";
 import type { DisciplineLocks } from "@/lib/backtest/engine";
 import { defaultParams, type ExecutionConfig, type ParamValues } from "@/lib/strategies/types";
 import { LEGACY_MODEL, REALISTIC_MODEL, frictionSpecFor, resolveExecution } from "@/lib/costs";
+import { FEED_SYMBOLS } from "@/lib/market/contracts";
 import { zoneV5 } from "@/lib/strategies/zone-v5";
 import { rsiReversion } from "@/lib/strategies/rsi-reversion";
 import { strategyById } from "@/lib/strategies/registry";
@@ -184,7 +185,14 @@ export const EXECUTION: ExecutionConfig = {
   }),
   minStopPoints: MIN_STOP_POINTS,
   restingLimitOrders: true,
-  friction: frictionSpecFor(REALISTIC_MODEL, ["MES", "MNQ"]),
+  /* Every FETCHABLE symbol, not a hand-listed pair. slippagePointsAt now
+     throws on an uncovered symbol rather than silently charging zero, so this
+     list is the thing standing between a new stream and a frictionless book.
+     Deriving it from tierStreams() would be circular at module-init time
+     (EXECUTION is read while building the streams); FEED_SYMBOLS is the
+     smallest superset that cannot drift, and covering a symbol that never
+     fills costs nothing. */
+  friction: frictionSpecFor(REALISTIC_MODEL, [...FEED_SYMBOLS]),
 };
 
 export const STARTING_CAPITAL = 3000;

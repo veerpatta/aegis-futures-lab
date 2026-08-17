@@ -40,8 +40,17 @@ export function slippagePointsAt(
   symbol: string,
   timeSec: number,
 ): number {
+  /* Throws rather than returning 0. A symbol that reaches a fill without a
+     friction entry is a config bug, not a frictionless instrument — and the
+     old behaviour meant adding a stream to tierStreams() without adding it to
+     frictionSpecFor() produced a book that paid no slippage at all and looked
+     entirely plausible. */
   const spec = friction.bySymbol[symbol];
-  if (!spec) return 0;
+  if (!spec)
+    throw new Error(
+      `Symbol "${symbol}" is not covered by this FrictionSpec — it would fill ` +
+        `with zero slippage. Add it to the frictionSpecFor(...) symbol list.`
+    );
   const base = spec.slippageTicks * spec.tickSize;
   if (base === 0) return 0;
   return base * windowMultiplier(friction, timeSec) * macroMultiplier(friction, timeSec);

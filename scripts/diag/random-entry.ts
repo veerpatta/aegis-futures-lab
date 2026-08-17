@@ -346,15 +346,36 @@ async function main() {
      one instrument. The losing result stands either way — but its STRENGTH
      has to be quoted against effective N. */
   const correlationRows: CorrelationRow[] = [];
-  const mes = barsBySymbol.get("MES");
-  const mnq = barsBySymbol.get("MNQ");
-  if (mes && mnq) {
-    const c = summariseCorrelation(mes, mnq);
+  /* The pair is DERIVED from the symbols this run actually loaded, not
+     hardcoded to MES/MNQ. Two symbols → one pair; anything else is reported as
+     unavailable rather than dropped, because a vanished effective-N section
+     inflates every significance claim built on top of it. */
+  const loaded = [...barsBySymbol.keys()].sort();
+  const [symA, symB] = loaded;
+  const barsA = symA ? barsBySymbol.get(symA) : undefined;
+  const barsB = symB ? barsBySymbol.get(symB) : undefined;
+  if (loaded.length !== 2 || !barsA || !barsB) {
+    const why =
+      loaded.length < 2
+        ? `only ${loaded.length} symbol(s) loaded (${loaded.join(", ") || "none"})`
+        : `${loaded.length} symbols loaded (${loaded.join(", ")}) — pairwise correlation is not defined`;
+    correlationRows.push({
+      pair: loaded.join("/") || "(none)",
+      unavailable: why,
+      pairs: 0, overall: 0, medianRolling: 0, minRolling: 0, maxRolling: 0,
+      shareAbove80: 0, nominalTrades: 0, effectiveTrades: 0,
+    });
+    console.log(`
+── Correlation and effective N ──
+  NOT MEASURED: ${why}.`);
+    console.log("  Significance claims below are quoted against NOMINAL trades.");
+  } else {
+    const c = summariseCorrelation(barsA, barsB);
     const perSymbol = grossNetRows
       .filter((r) => r.stream.startsWith("B:"))
       .reduce((s, r) => s + r.trades, 0);
     correlationRows.push({
-      pair: "MES/MNQ",
+      pair: `${symA}/${symB}`,
       ...c,
       nominalTrades: perSymbol,
       effectiveTrades: effectiveSampleSize(perSymbol / 2, 2, c.overall),

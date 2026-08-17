@@ -38,7 +38,20 @@ export function executeRun(req: RunRequest): BacktestResult {
     sessionExitMinuteByDay: req.sessionExitMinuteByDay,
     newsTimes: req.newsTimes,
     window: req.window,
-    pointValueOf: (symbol) => req.pointValues[symbol] ?? 1,
+    /* Throws rather than defaulting. `?? 1` priced an unmapped symbol at a
+       DOLLAR A POINT: for MGC that is a 10x understatement of every gain and
+       loss, for SI a 500x one — internally consistent, passing every finite
+       check, warning nobody. A missing point value is a config bug, and the
+       cheapest moment to say so is before the first fill. */
+    pointValueOf: (symbol) => {
+      const v = req.pointValues[symbol];
+      if (v === undefined)
+        throw new Error(
+          `Unpriced symbol "${symbol}" — pointValues has no entry, and defaulting ` +
+            `to $1/point would understate every figure without erroring.`
+        );
+      return v;
+    },
     keepOpenAtEnd: req.keepOpenAtEnd,
     collectEvents: req.collectEvents,
   });

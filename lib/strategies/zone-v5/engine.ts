@@ -74,10 +74,13 @@ export const DEFAULT_CONFIG: V5Config = {
 /* One table, not a literal pair repeated per file. This used to be
    `symbol === "MES" ? 5 : 2` here AND again in index.ts's adjustStop, which
    priced any third symbol as MNQ in both places. POINT_VALUES is the canonical
-   contract table; an unknown symbol now returns 1 rather than silently
-   inheriting Nasdaq's multiplier. */
+   contract table. It used to return 1 for an unknown symbol, which removed the
+   WRONG answer but kept the SILENT one — a dollar a point is not a safe
+   default, it is a 10x error on gold. */
 export function pointValue(symbol: string): number {
-  return POINT_VALUES[symbol as FeedSymbol] ?? 1;
+  const v = POINT_VALUES[symbol as FeedSymbol];
+  if (v === undefined) throw new Error(`No point value for "${symbol}"`);
+  return v;
 }
 
 export interface Zone {

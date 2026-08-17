@@ -75,6 +75,15 @@ export interface RandomEntryCell {
 
 export interface CorrelationRow {
   pair: string;
+  /* Set when the pair could NOT be measured. The whole row is then a
+     placeholder, and every numeric field below is 0.
+
+     It exists because the alternative is worse: the correlation block used to
+     be wrapped in `if (mes && mnq)`, so a missing symbol removed the entire
+     effective-N section from the report with no message. That deflation is
+     load-bearing for every significance claim in this repo — silently dropping
+     it inflates them all. An explicit row says "not measured" out loud. */
+  unavailable?: string;
   pairs: number;
   overall: number;
   medianRolling: number;
