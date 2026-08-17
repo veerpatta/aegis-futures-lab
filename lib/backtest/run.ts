@@ -14,6 +14,7 @@ export interface RunRequest {
   locks: DisciplineLocks | null;
   startingCapital: number;
   sessionExitMinute: number;
+  sessionAnchorMin?: number;
   sessionExitMinuteByDay?: Record<string, number>;
   newsTimes?: number[];
   window?: { fromTime?: number; toTime?: number };
@@ -35,6 +36,7 @@ export function executeRun(req: RunRequest): BacktestResult {
     locks: req.locks,
     startingCapital: req.startingCapital,
     sessionExitMinute: req.sessionExitMinute,
+    sessionAnchorMin: req.sessionAnchorMin,
     sessionExitMinuteByDay: req.sessionExitMinuteByDay,
     newsTimes: req.newsTimes,
     window: req.window,

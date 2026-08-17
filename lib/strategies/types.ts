@@ -38,6 +38,11 @@ export type TargetSpec =
   | { kind: "price"; price: number }
   | { kind: "rMultiple"; r: number }
   | { kind: "netDollar"; amount: number }
+  /* A fixed distance in POINTS from the actual fill. rMultiple could express
+     this only as a ratio against the stop, which breaks the moment the stop is
+     itself fixed — and `price` cannot, because a strategy emits its signal
+     before it knows the fill. */
+  | { kind: "points"; points: number }
   | { kind: "signalOnly" };
 
 export interface EntrySignal {
@@ -53,6 +58,18 @@ export interface EntrySignal {
   score?: number;
   tags?: Record<string, string>;
   rank?: number; // candidate priority when several symbols signal at once
+  /* A fixed stop distance in POINTS, measured from the ACTUAL fill rather than
+     the intended entry. Absent = the legacy path, where `stop` above is used
+     as-is.
+
+     `stop` stays required even when this is set, and deliberately: the
+     fill-sanity guards compare the fill against the signal's structural stop
+     to reject an order that filled far through the zone. Under a purely
+     derived stop those guards go vacuous — the derived stop is always exactly
+     N points away, so a fill 40 points through structure looks perfectly
+     healthy. `stop` remains the structural intent; this is the risk actually
+     taken. */
+  stopPoints?: number;
 }
 
 export interface OpenPosition {

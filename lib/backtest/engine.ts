@@ -9,7 +9,7 @@
 
 import { slippagePointsAt } from "@/lib/costs/slippage";
 import type { Bar, EquityPoint, Trade } from "@/lib/types";
-import { nyMeta } from "@/lib/time/ny";
+import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import { atr } from "@/lib/indicators";
 import { metricsFromTrades, scoreBuckets, EXCURSION_ATR_LEN, type RunMetrics } from "./metrics";
 import type {
@@ -36,6 +36,12 @@ export interface BacktestInput {
   locks: DisciplineLocks | null;
   startingCapital: number;
   sessionExitMinute: number; // NY minutes; 925 = flat by 15:25
+  /* Minute-of-NY-day the trading day is measured FROM. Absent/0 = legacy
+     (midnight), which is what every published equity-index figure used. Set to
+     1080 (18:00 ET, the Globex reopen) for an instrument whose session spans
+     the evening — without it every overnight bar reads as past the flatten
+     minute and no overnight trade can ever open. */
+  sessionAnchorMin?: number;
   /* Per-day override of sessionExitMinute (NY dateKey → minutes), for CME
      early-close days. Bookkeeping/configuration only: absent → legacy
      behavior, and no strategy ever reads it. */
@@ -99,9 +105,28 @@ export function runBacktest(input: BacktestInput): BacktestResult {
 
   // Session flatten minute for a bar's NY day — normal exit unless an
   // early-close override is configured for that date.
+  /* Elapsed minutes into the trading day, measured from `sessionAnchorMin`.
+
+     Absent (0) is legacy: minutes since NY midnight, which is what every
+     equity-index figure was measured with. It is also why an overnight session
+     was unreachable — every Globex evening bar (18:00-23:59 ET = 1080-1439) is
+     >= a 925 flatten minute, so it read as "past session exit" and the engine
+     cancelled resting orders, refused fills and closed positions. A strategy
+     trading Asia could not open a trade, and it failed as "no trades" rather
+     than as an error.
+
+     Anchored at 1080 the same day runs 18:00 -> 18:00 and the 15:25 flat lands
+     at elapsed 1285, so the evening is early in the day rather than past its
+     end. */
+  const anchorMin = input.sessionAnchorMin ?? 0;
+  const elapsedMin = (time: number) => (nyMeta(time).minutes - anchorMin + 1440) % 1440;
   const pastSessionExit = (time: number) => {
-    const m = nyMeta(time);
-    return m.minutes >= (input.sessionExitMinuteByDay?.[m.dateKey] ?? sessionExitMinute);
+    /* Keyed on the TRADING day when anchored: an evening bar belongs to the
+       next session, so an early-close override must not be read from the
+       calendar date it happens to fall on. */
+    const key = anchorMin === 0 ? nyMeta(time).dateKey : tradingDayKey(time);
+    const exit = input.sessionExitMinuteByDay?.[key] ?? sessionExitMinute;
+    return elapsedMin(time) >= (exit - anchorMin + 1440) % 1440;
   };
 
   const lastTimes = symbols.map((s) => series[s][series[s].length - 1].time);
@@ -264,7 +289,18 @@ export function runBacktest(input: BacktestInput): BacktestResult {
      Returns null (with a riskUnfit note) when sizing yields no contracts. */
   const tryOpen = (sig: EntrySignal, bar: Bar, entry: number): OpenPosition | null => {
     const point = pointValueOf(sig.symbol);
-    const stopDistance = Math.abs(entry - sig.stop);
+    /* A fixed stop is measured from the ACTUAL fill, not the intended entry —
+       the strategy emits its signal before it knows where it filled, and a
+       limit fill plus slippage moves that by a tick or more. `sig.stop` stays
+       the structural intent and still guards the fill (see EntrySignal). */
+    const fixedStop =
+      sig.stopPoints === undefined
+        ? null
+        : sig.side === "LONG"
+          ? entry - sig.stopPoints
+          : entry + sig.stopPoints;
+    const effectiveStop = fixedStop ?? sig.stop;
+    const stopDistance = Math.abs(entry - effectiveStop);
     /* Refuse a stop too tight to be a real trade. Off by default (0), so the
        parity oracle is untouched; the live streams opt in via tiers.ts. The
        check is on the ACTUAL fill, not the signal's intended entry, because a
@@ -297,18 +333,19 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     else if (spec.kind === "rMultiple")
       target =
         sig.side === "LONG"
-          ? entry + spec.r * Math.abs(entry - sig.stop)
-          : entry - spec.r * Math.abs(entry - sig.stop);
+          ? entry + spec.r * stopDistance
+          : entry - spec.r * stopDistance;
     else if (spec.kind === "netDollar") {
       const targetPoints = (spec.amount + execution.cost * qty) / (point * qty);
       target = sig.side === "LONG" ? entry + targetPoints : entry - targetPoints;
-    }
+    } else if (spec.kind === "points")
+      target = sig.side === "LONG" ? entry + spec.points : entry - spec.points;
     return {
       symbol: sig.symbol,
       side: sig.side,
       qty,
       entry,
-      stop: sig.stop,
+      stop: effectiveStop,
       target,
       risk: perContract * qty,
       openedAt: bar.time,
@@ -317,7 +354,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       // Captured at entry because both are destroyed later: `stop` is mutated
       // by adjustStop, and ATR at the entry bar is not recoverable from the
       // trade row alone.
-      initialStop: sig.stop,
+      initialStop: effectiveStop,
       atrAtEntry: atrAt(sig.symbol, bar.time),
     };
   };
