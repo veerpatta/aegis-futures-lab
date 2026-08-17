@@ -327,12 +327,12 @@ const UPSERT_CHUNK = 1000; // matches archiveNewBars in run-live.ts
 const FEED_SYMBOL: Record<string, FeedSymbol> = {
   "MES.c.0": "MES",
   "MNQ.c.0": "MNQ",
-  "MGC.c.0": "MGC",
+  "MGC.v.0": "MGC",
   /* Full-size silver, not micro. It is a CONFIRMATION series — never traded,
      only read for its zone structure — and specs.ts role-locks SIL against
      exactly that duty because its thin book manufactures structure that is not
      there. */
-  "SI.c.0": "SI",
+  "SI.v.0": "SI",
 };
 
 const isoZ = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
