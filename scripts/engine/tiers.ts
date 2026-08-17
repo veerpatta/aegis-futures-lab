@@ -115,6 +115,49 @@ import { strategyById } from "@/lib/strategies/registry";
    gap-through stops) is deliberately NOT adopted here: switching it on would
    invalidate every outOfSample provenance string below and needs its own
    re-measurement commit. */
+/* MIN_STOP_POINTS — the fill-realism guard Phase 1 asked for.
+
+   Risk sizing is maxRisk / (stopDistance × pointValue + cost), so a stop
+   approaching zero sends the contract count to the cap. Phase 1 found tier A
+   sizing to 55 contracts on a stop roughly 0.1 points wide and said plainly
+   that "a 55-lot fill on a 0.1-point stop is not a trade anyone gets".
+
+   Measured on the 65 live signals in the table, the same pathology is in the
+   LIVE tier-B MES stream, not only in tier A:
+
+     MES  n=32  min stop 0.25 pts (ONE TICK)  max qty 43   median stop 6.99
+     MNQ  n=33  min stop 14.30 pts            max qty  5   median stop 52.70
+
+   43 is not a coincidence: floor(160 / (0.25 × 5 + 2.40)) = 43 exactly.
+
+   2.0 points sits just above the MES 5th percentile (1.825), so it trims the
+   tail that produces these fills and leaves the median trade untouched. It
+   caps MES size at floor(160 / (2 × 5 + 2.40)) = 12 contracts. MNQ's smallest
+   live stop is 14.3 points, so one scalar is enough — the threshold binds only
+   where the pathology actually is.
+
+   NOT YET WIRED INTO EXECUTION, deliberately. Adding it changed four tests,
+   and both of them were right to fail:
+
+     - tests/costs.test.ts pins EXECUTION as a literal because it is the
+       config every published figure in TUNING_BASELINE was measured with.
+     - tests/random-entry.test.ts "realises close to the real trade count"
+       moved, because the guard also removes entries from the matched NULL —
+       so the benchmark itself is a different benchmark under it.
+
+   That second one is the real argument. Turning this on silently would leave
+   every number on /diagnostics describing an engine that no longer exists,
+   which is the exact failure docs/research/2026-07-31-phase1-findings.md was
+   written to prevent. The switch belongs in the same commit as the re-run of
+
+     BAR_SOURCE=databento npx tsx scripts/diag/random-entry.ts --iterations 1000
+
+   and a new research_baselines row (the table's no-edit trigger forbids
+   amending the old one, by design). Until then the mechanism ships tested and
+   off: ExecutionConfig.minStopPoints defaults to 0, so the golden parity
+   oracle, every Lab run and the live engine are all unchanged. */
+export const MIN_STOP_POINTS = 2.0;
+
 export const EXECUTION: ExecutionConfig = resolveExecution(LEGACY_MODEL, "MES", {
   maxRisk: 160,
   sizing: "risk",

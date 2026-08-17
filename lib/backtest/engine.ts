@@ -241,7 +241,17 @@ export function runBacktest(input: BacktestInput): BacktestResult {
      Returns null (with a riskUnfit note) when sizing yields no contracts. */
   const tryOpen = (sig: EntrySignal, bar: Bar, entry: number): OpenPosition | null => {
     const point = pointValueOf(sig.symbol);
-    const perContract = Math.abs(entry - sig.stop) * point + execution.cost;
+    const stopDistance = Math.abs(entry - sig.stop);
+    /* Refuse a stop too tight to be a real trade. Off by default (0), so the
+       parity oracle is untouched; the live streams opt in via tiers.ts. The
+       check is on the ACTUAL fill, not the signal's intended entry, because a
+       limit fill plus slippage is what determines the distance the position
+       really has. */
+    if (execution.minStopPoints && stopDistance < execution.minStopPoints) {
+      note("stopTooTight", sig.symbol);
+      return null;
+    }
+    const perContract = stopDistance * point + execution.cost;
     const qty =
       execution.sizing === "fixed"
         ? Math.max(1, Math.floor(execution.fixedQty ?? 1))

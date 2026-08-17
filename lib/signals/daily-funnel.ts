@@ -122,6 +122,7 @@ const PLAIN: Record<string, string> = {
   intermarket: "the two markets disagreed",
   firstZone: "first market to the zone (skipped on purpose)",
   riskUnfit: "risk did not fit",
+  stopTooTight: "stop too tight to be a real fill",
   invalidFill: "price gapped straight through the entry",
   noConfirm: "no confirmation candle",
   hours: "outside trading hours",

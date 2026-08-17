@@ -92,6 +92,19 @@ export interface ExecutionConfig {
      signal bar (realistic for resting zone orders); "nextOpen" (default)
      keeps the legacy next-bar-open market fill. */
   fillModel?: "nextOpen" | "limit";
+  /* Minimum entry-to-stop distance, in POINTS, below which a setup is not
+     taken. DEFAULT 0 = off, which is the legacy behaviour the golden parity
+     tests pin; switching it on is a per-stream config decision, not a change
+     of default.
+
+     Why it exists: risk sizing is maxRisk / (stopDistance × pointValue +
+     cost), so as the stop distance approaches zero the contract count runs
+     away. Phase 1 measured tier A sizing up to 55 contracts, which implies a
+     stop roughly 0.1 points from entry — and, in its own words, "a 55-lot fill
+     on a 0.1-point stop is not a trade anyone gets". Those trades inflate both
+     the gross and net figures at the tail, in whichever direction they
+     happened to resolve. This is the guard that brief asked for. */
+  minStopPoints?: number;
 }
 
 export interface ReadoutRow {

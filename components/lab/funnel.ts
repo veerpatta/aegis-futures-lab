@@ -17,6 +17,7 @@ export const FUNNEL_LABELS: Record<string, string> = {
   noConfirm: "No confirmation candle",
   hours: "Outside entry session",
   riskUnfit: "Risk did not fit",
+  stopTooTight: "Stop too tight to be a real fill",
   news: "News lockout",
   lock: "Discipline lock",
   noSignal: "No trigger",
