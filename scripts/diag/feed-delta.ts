@@ -23,7 +23,11 @@ const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
    than it puts a zone on the wrong side of the trade. MES stops average ~9.6
    points and MNQ ~56 (scripts/diag/atr-ratio.ts), so half a stop is a
    defensible line for "this is a different contract, not noise". */
-const ROLL_THRESHOLD: Record<FeedSymbol, number> = { MES: 5, MNQ: 28 };
+/* Partial on purpose. This script is a historical reproduction of the
+   MES/MNQ feed comparison and is pinned to those two symbols (SYMBOLS above);
+   it is not a general tool, and inventing a gold threshold here would imply a
+   measurement nobody made. */
+const ROLL_THRESHOLD: Partial<Record<FeedSymbol, number>> = { MES: 5, MNQ: 28 };
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -89,7 +93,13 @@ async function main(): Promise<void> {
       console.log(`  median disagreement in money: $${(s.p50Close * pv).toFixed(2)} per contract`);
 
     const rows = pairOnTime(yahoo, databento);
-    const days = byDay(rows, (sec) => nyMeta(sec).dateKey, ROLL_THRESHOLD[symbol]);
+    const threshold = ROLL_THRESHOLD[symbol];
+    if (threshold === undefined)
+      throw new Error(
+        `No roll threshold measured for ${symbol}. This script reproduces the MES/MNQ ` +
+          `feed comparison; a threshold is a measured stop-distance figure, not a default.`
+      );
+    const days = byDay(rows, (sec) => nyMeta(sec).dateKey, threshold);
     const seams = rollWindows(days);
     const clean = days.filter((d) => !d.rollAffected);
     const cleanMean = clean.length

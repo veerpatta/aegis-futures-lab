@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import type { Bar } from "@/lib/types";
-import type { FeedSymbol } from "@/lib/market/contracts";
+import { FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import {
   fetchEvents,
   fetchHistory,
@@ -52,10 +52,9 @@ const DataContext = createContext<DataContextValue | null>(null);
 const EMPTY: FeedState = { status: "idle", bars: [] };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [history, setHistory] = useState<Record<FeedSymbol, FeedState>>({
-    MES: EMPTY,
-    MNQ: EMPTY,
-  });
+  const [history, setHistory] = useState<Record<FeedSymbol, FeedState>>(
+    () => Object.fromEntries(FEED_SYMBOLS.map((s) => [s, EMPTY])) as Record<FeedSymbol, FeedState>
+  );
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventsSource, setEventsSource] = useState<string | null>(null);
   const [imported, setImported] = useState<ImportedSeries | null>(null);
@@ -65,7 +64,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const loadHistory = useCallback(() => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    (["MES", "MNQ"] as FeedSymbol[]).forEach((symbol) => {
+    FEED_SYMBOLS.forEach((symbol) => {
       setHistory((h) => ({ ...h, [symbol]: { ...h[symbol], status: "loading" } }));
       fetchHistory(symbol)
         .then((payload: HistoryPayload) => {

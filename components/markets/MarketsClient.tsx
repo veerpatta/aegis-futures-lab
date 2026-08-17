@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { getSupabase, type ZoneRow } from "@/lib/supabase/client";
-import { CONTRACT_LABELS, type FeedSymbol } from "@/lib/market/contracts";
+import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
 import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
@@ -38,6 +38,8 @@ const TIMEFRAMES = [
 const SHORT_NAME: Record<FeedSymbol, string> = {
   MES: "S&P 500 micro",
   MNQ: "Nasdaq micro",
+  MGC: "Gold micro",
+  SI: "Silver",
 };
 
 /* The 100×30 sparkline on the secondary contract row. */
@@ -73,10 +75,13 @@ function MiniSpark({ closes, up }: { closes: number[]; up: boolean }) {
 export default function MarketsClient() {
   const data = useData();
   const { zone } = useZone();
-  const [quotes, setQuotes] = useState<Record<FeedSymbol, QuoteState>>({
-    MES: { status: "loading" },
-    MNQ: { status: "loading" },
-  });
+  /* Built from FEED_SYMBOLS so a newly fetchable instrument cannot be
+     half-added: the map and the union can no longer disagree. */
+  const [quotes, setQuotes] = useState<Record<FeedSymbol, QuoteState>>(() =>
+    Object.fromEntries(
+      FEED_SYMBOLS.map((s) => [s, { status: "loading" } as QuoteState])
+    ) as Record<FeedSymbol, QuoteState>
+  );
   const [chartSymbol, setChartSymbol] = useState<FeedSymbol>("MES");
   const [tf, setTf] = useState(5);
   /* The hero opens on the design's line chart; candles are one tap away on the

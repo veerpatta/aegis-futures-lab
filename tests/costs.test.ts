@@ -121,18 +121,23 @@ describe("contract specs", () => {
     }
   });
 
-  it("agrees with POINT_VALUES for the tradable symbols", () => {
-    for (const [symbol, pointValue] of Object.entries(POINT_VALUES)) {
-      expect(specFor(symbol).pointValue).toBe(pointValue);
-    }
+  /* POINT_VALUES is now DERIVED from these specs, so iterating it against
+     specFor would be tautological. The literals live here instead — a second
+     source that cannot be shipped half-updated, because a wrong number fails
+     the suite rather than quietly repricing an instrument. */
+  it("prices every fetchable symbol at the figure the app was built on", () => {
+    expect(POINT_VALUES.MES).toBe(5);
+    expect(POINT_VALUES.MNQ).toBe(2);
+    expect(POINT_VALUES.MGC).toBe(10);
+    expect(POINT_VALUES.SI).toBe(5000);
   });
 
-  it("only MES and MNQ are tradable, and only they are verified", () => {
+  it("tradable is exactly MES, MNQ and MGC — silver is fetched but never sized", () => {
     const tradable = Object.values(CONTRACT_SPECS)
       .filter((s) => s.tradable)
       .map((s) => s.symbol)
       .sort();
-    expect(tradable).toEqual(["MES", "MNQ"]);
+    expect(tradable).toEqual(["MES", "MGC", "MNQ"]);
     for (const spec of Object.values(CONTRACT_SPECS)) {
       // An unverified spec must never be tradable. The converse is allowed:
       // a verified spec may still lack a data feed.
@@ -141,11 +146,31 @@ describe("contract specs", () => {
     }
   });
 
-  it("refuses to size a non-tradable instrument", () => {
-    expect(() => assertTradable("MGC")).toThrow(/not tradable/);
+  /* The role is what makes "never traded" legible. SI is watched on purpose;
+     SIL is simply unused and carries its own lock against confirmation duty. */
+  it("gives every symbol a role, and only tradable roles are tradable", () => {
+    expect(CONTRACT_SPECS.SI.role).toBe("confirmation");
+    expect(CONTRACT_SPECS.SIL.role).toBe("reference");
+    for (const spec of Object.values(CONTRACT_SPECS)) {
+      expect(spec.tradable).toBe(spec.role === "tradable");
+    }
+  });
+
+  it("MGC's citation admits it is empirical, not a CME page", () => {
+    /* The file's rule is "do not flip either flag without attaching a citation
+       to source". CME was unreachable from the build environment, so the tick
+       size was measured from real prices instead. The point of asserting this
+       is that the NEXT reader is told which kind of evidence they have. */
+    const src = CONTRACT_SPECS.MGC.source;
+    expect(src).toMatch(/MEASURED/);
+    expect(src).toMatch(/NOT a CME contract page/);
+  });
+
+  it("still refuses to size silver, in either contract size", () => {
     expect(() => assertTradable("SIL")).toThrow(/not tradable/);
     expect(() => assertTradable("SI")).toThrow(/not tradable/);
     expect(assertTradable("MES").symbol).toBe("MES");
+    expect(assertTradable("MGC").symbol).toBe("MGC");
   });
 
   it("throws on an unknown symbol rather than defaulting", () => {

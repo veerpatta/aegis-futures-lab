@@ -10,13 +10,21 @@
  *     published. Their tick sizes follow from the same arithmetic
  *     (tickValue / tickSize === pointValue).
  *
- *   - MGC, SIL and SI are NOT tradable in this application. There is no gold
- *     or silver data feed, no FeedSymbol entry, and no measured result. Their
- *     figures are transcribed from the research brief and have not been
- *     checked against a CME contract page. They ship `verified: false` and
- *     `tradable: false`, and tests/costs.test.ts asserts a non-tradable symbol
- *     cannot reach the engine. Do not flip either flag without attaching a
- *     citation to `source`.
+ *   - MGC became tradable on 2026-08-17 when the gold demand/supply stream was
+ *     built. Its citation is EMPIRICAL rather than a CME contract page, and the
+ *     `source` string says so in as many words — cmegroup.com refused every
+ *     connection from the build environment, so rather than imply a spec sheet
+ *     had been read, the tick size was MEASURED from 23,136 real MGC=F prices
+ *     (minimum observed increment 0.0996) and cross-checked against the
+ *     tickValue/tickSize === pointValue invariant. Replace it with a CME
+ *     citation when one can be obtained.
+ *
+ *   - SI and SIL remain NOT tradable, and that is now a `role` rather than an
+ *     absence. SI is `confirmation`: fetched on purpose, never sized. SIL is
+ *     `reference` and carries its own lock (below). Stating the role means
+ *     "SI has no measured result" reads as intentional rather than unfinished.
+ *
+ * Do not flip `tradable` or `verified` without attaching a citation to `source`.
  *
  * The invariant tickValue / tickSize === pointValue holds for every row and is
  * asserted in tests — it is what catches a transcription typo, which is the
@@ -33,6 +41,10 @@ export interface ContractSpec {
   tickValue: number;
   /** Dollar value of one full point, for one contract. */
   pointValue: number;
+  /** What this symbol is FOR. Distinct from `tradable` because "never traded"
+      has two very different causes: a series we watch on purpose, and a series
+      we simply do not use. */
+  role: "tradable" | "confirmation" | "reference";
   /** Whether this application can take a position in it. */
   tradable: boolean;
   /** Whether the numbers above have been checked against a primary source. */
@@ -44,6 +56,15 @@ export interface ContractSpec {
 const DERIVED_FROM_REPO =
   "derived from POINT_VALUES in lib/market/contracts.ts, the basis of every " +
   "measured result in this repo; tick size follows from tickValue/tickSize === pointValue";
+
+const MGC_EMPIRICAL =
+  "tick size MEASURED 2026-08-17 from 23,136 MGC=F 5-minute prices (minimum " +
+  "observed increment 0.0996 -> 0.1); instrument identified by the vendor as " +
+  "\"Micro Gold Futures\"; contract unit 10 troy oz and tickValue $1 follow " +
+  "from the tickValue/tickSize === pointValue invariant. NOT a CME contract " +
+  "page: cmegroup.com refused every connection from the build environment " +
+  "(ECONNRESET) and its product API returned no metals rows. Replace with a " +
+  "CME citation when one can be obtained.";
 
 const FROM_BRIEF_UNVERIFIED =
   "transcribed from the research brief 2026-07-31; NOT checked against a CME " +
@@ -58,6 +79,7 @@ export const CONTRACT_SPECS: Record<string, ContractSpec> = {
     tickSize: 0.25,
     tickValue: 1.25,
     pointValue: 5,
+    role: "tradable",
     tradable: true,
     verified: true,
     source: DERIVED_FROM_REPO,
@@ -69,6 +91,7 @@ export const CONTRACT_SPECS: Record<string, ContractSpec> = {
     tickSize: 0.25,
     tickValue: 0.5,
     pointValue: 2,
+    role: "tradable",
     tradable: true,
     verified: true,
     source: DERIVED_FROM_REPO,
@@ -80,9 +103,10 @@ export const CONTRACT_SPECS: Record<string, ContractSpec> = {
     tickSize: 0.1,
     tickValue: 1,
     pointValue: 10,
-    tradable: false,
-    verified: false,
-    source: FROM_BRIEF_UNVERIFIED,
+    role: "tradable",
+    tradable: true,
+    verified: true,
+    source: MGC_EMPIRICAL,
   },
   SIL: {
     symbol: "SIL",
@@ -91,6 +115,7 @@ export const CONTRACT_SPECS: Record<string, ContractSpec> = {
     tickSize: 0.005,
     tickValue: 5,
     pointValue: 1000,
+    role: "reference",
     tradable: false,
     verified: false,
     source:
@@ -105,6 +130,11 @@ export const CONTRACT_SPECS: Record<string, ContractSpec> = {
     tickSize: 0.005,
     tickValue: 25,
     pointValue: 5000,
+    /* Fetched on purpose: the gold stream reads silver's zone structure to
+       confirm an entry. Never sized — at $5,000/point a stray fill here would
+       be a 500x error, not a 10x one, which is why the engine throws rather
+       than skips on an untradable symbol. */
+    role: "confirmation",
     tradable: false,
     verified: false,
     source: FROM_BRIEF_UNVERIFIED,
