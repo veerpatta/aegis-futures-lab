@@ -17,6 +17,7 @@ import { Badge, DataTable, Panel } from "@/components/ui";
 import {
   DAILY_FUNNEL_STAT_KEY,
   summarizeDailyFunnel,
+  parseDailyFunnel,
   type DailyFunnelPayload,
 } from "@/lib/signals/daily-funnel";
 import styles from "./home.module.css";
@@ -47,7 +48,10 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error || !data?.length) return setPayload(null);
-        setPayload(data[0].payload as DailyFunnelPayload);
+        /* Parsed, not cast. A bare `as DailyFunnelPayload` on a half-written
+           row made summarizeDailyFunnel throw on Object.values(payload.bars),
+           which with no error boundary took the whole dashboard down. */
+        setPayload(parseDailyFunnel(data[0].payload));
       });
     return () => {
       cancelled = true;

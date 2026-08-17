@@ -89,6 +89,15 @@ type State =
 const MIN_CELL = 10;
 const WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
+/* jsonb arrives as `unknown`. This is deliberately a shape check and not a
+   validator: it only promises the value is a plain object, so the optional
+   chaining at each read site is still doing the real work. That split is on
+   purpose — writing five full parsers for five shapes the learn job may extend
+   would rot, whereas "object or nothing, then chain" cannot. */
+function asPayload<T>(v: unknown): T | undefined {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as T) : undefined;
+}
+
 function cellNode(c: Cell | undefined, key: string) {
   if (!c) return <span key={key} className={styles.collecting}>—</span>;
   if (c.insufficient)
@@ -223,11 +232,18 @@ export default function BrainClient() {
     );
 
   const { latest } = state;
-  const cal = latest.get("score_calibration")?.payload as ScoreCal | undefined;
-  const ledger = latest.get("condition_ledger")?.payload as ConditionLedger | undefined;
-  const gate = latest.get("gate_costs")?.payload as GateCosts | undefined;
-  const fill = latest.get("fill_reality")?.payload as FillReality | undefined;
-  const shadow = latest.get("shadow_scoreboard")?.payload as ShadowScoreboard | undefined;
+  /* learned_stats.payload is jsonb and typed `unknown`. `asPayload` refuses
+     anything that is not a plain object, so a null/string/array row reads as
+     "no data" instead of throwing one level down. The nested reads below use
+     optional chaining for the same reason: the old guards were
+     `!cal || cal.real.deciles.length === 0`, which survives a MISSING payload
+     and throws on a PRESENT one whose shape is short — the likelier row, since
+     the learn job writes these in pieces. */
+  const cal = asPayload<ScoreCal>(latest.get("score_calibration")?.payload);
+  const ledger = asPayload<ConditionLedger>(latest.get("condition_ledger")?.payload);
+  const gate = asPayload<GateCosts>(latest.get("gate_costs")?.payload);
+  const fill = asPayload<FillReality>(latest.get("fill_reality")?.payload);
+  const shadow = asPayload<ShadowScoreboard>(latest.get("shadow_scoreboard")?.payload);
   const latestRun = learningRuns[0];
   const latestDaily = learningRuns.find((run) => run.cadence === "daily");
   const latestWeekly = learningRuns.find((run) => run.cadence === "weekly");
@@ -354,7 +370,7 @@ export default function BrainClient() {
           rate the bot actually got in each — real signals first, then the same view including the
           silent shadow strategies for more samples.
         </p>
-        {!cal || cal.real.deciles.length === 0 ? (
+        {!cal?.real?.deciles?.length ? (
           <p className={styles.collecting}>Collecting — not enough scored, closed signals yet.</p>
         ) : (
           <>
@@ -364,7 +380,7 @@ export default function BrainClient() {
               rows={cal.real.deciles.map((d) => decileRow(d))}
               empty="collecting"
             />
-            {cal.inclusive.deciles.length > 0 && (
+            {!!cal.inclusive?.deciles?.length && (
               <>
                 <h3 className={styles.subhead}>Including shadow auditions ({cal.inclusive.total} scored & closed)</h3>
                 <DataTable
@@ -396,7 +412,7 @@ export default function BrainClient() {
           over the recent bar archive, this is how many setups each gate turned away — the higher the
           count, the more that filter is shaping what you see. {gate?.note}
         </p>
-        {!gate || gate.gates.length === 0 ? (
+        {!gate?.gates?.length ? (
           <p className={styles.collecting}>Collecting — no archived bars in the window yet.</p>
         ) : (
           <DataTable
@@ -414,7 +430,7 @@ export default function BrainClient() {
           or doubtful. If the doubtful share drifts up over the weeks, the market is telling the bot
           its fill assumptions are getting optimistic.
         </p>
-        {!fill || fill.weeks.length === 0 ? (
+        {!fill?.weeks?.length ? (
           <p className={styles.collecting}>Collecting — no closed signals yet.</p>
         ) : (
           <DataTable
@@ -440,7 +456,7 @@ export default function BrainClient() {
           <i>no target defined</i> instead of a win rate — without a target there is nothing to
           compare it against. <b>ema-cross was retired on 2026-07-25</b> (2 profitable of 28).
         </p>
-        {!shadow || shadow.streams.length === 0 ? (
+        {!shadow?.streams?.length ? (
           <p className={styles.collecting}>No shadow rows yet — they appear as the engine runs.</p>
         ) : (
           <DataTable

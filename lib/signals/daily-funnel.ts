@@ -41,6 +41,73 @@ export interface DailyFunnelPayload {
 
 export const DAILY_FUNNEL_STAT_KEY = "daily_funnel";
 
+/* ── Reading the payload back ─────────────────────────────────────────────
+   `learned_stats.payload` is typed `unknown` because it is jsonb, and Home
+   used to reach it with a bare `payload as DailyFunnelPayload`. A cast is not
+   a check: `Object.values(payload.bars)` on a row missing `bars` throws
+   "Cannot convert undefined or null to object", and with no error boundary
+   anywhere that TypeError blanked the entire dashboard.
+
+   This is not a hypothetical row. The writer in run-live.ts is deliberately
+   wrapped in a swallow-everything try/catch marked "must never fail a signal
+   run", so a partially-written payload is the DESIGNED failure mode of the
+   producer — the consumer just never accounted for it.
+
+   Same shape as lib/signals/context.ts, which is the one place in the app
+   that already read jsonb defensively. Missing fields become their empty
+   values rather than throwing, so a half-written row degrades to a quiet
+   panel instead of taking the page with it. */
+
+function numberRecord(v: unknown): Record<string, number> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof raw === "number" && Number.isFinite(raw)) out[k] = raw;
+  }
+  return out;
+}
+
+function parseStreams(v: unknown): DailyFunnelPayload["streams"] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const s = raw as Record<string, unknown>;
+    const status = s.status;
+    return [
+      {
+        key: typeof s.key === "string" ? s.key : "",
+        label: typeof s.label === "string" ? s.label : "",
+        tier: s.tier === "A" ? ("A" as const) : ("B" as const),
+        status:
+          status === "benched" || status === "stale-data" || status === "active"
+            ? status
+            : ("active" as const),
+        signalsToday: typeof s.signalsToday === "number" ? s.signalsToday : 0,
+      },
+    ];
+  });
+}
+
+/** Null when the row is absent or too malformed to mean anything. */
+export function parseDailyFunnel(raw: unknown): DailyFunnelPayload | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  /* dateKey is the one field with no sensible default: without it the panel
+     cannot tell today's funnel from an old one, which is the distinction the
+     "Today:" headline depends on. */
+  if (typeof p.dateKey !== "string" || !p.dateKey) return null;
+  return {
+    dateKey: p.dateKey,
+    computedAt: typeof p.computedAt === "string" ? p.computedAt : "",
+    bars: numberRecord(p.bars),
+    funnel: numberRecord(p.funnel),
+    streams: parseStreams(p.streams),
+    staleData: p.staleData === true,
+    worstBarAgeMin: typeof p.worstBarAgeMin === "number" ? p.worstBarAgeMin : 0,
+    staleRowsFlagged: typeof p.staleRowsFlagged === "number" ? p.staleRowsFlagged : undefined,
+  };
+}
+
 /* Plain-language names for the gates a trader actually cares about. Deliberately
    fewer and blunter than FUNNEL_LABELS: this is the "is it broken?" answer, not
    the Lab's diagnostic table. */

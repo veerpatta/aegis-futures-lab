@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DAILY_FUNNEL_STAT_KEY,
+  parseDailyFunnel,
   summarizeDailyFunnel,
   type DailyFunnelPayload,
 } from "@/lib/signals/daily-funnel";
@@ -146,5 +147,76 @@ describe("stale feed vs stale rows are different facts", () => {
     const s = summarizeDailyFunnel(payload({ staleData: true, worstBarAgeMin: 104 }));
     expect(s.sentence).toContain("the price feed is behind");
     expect(s.sentence).not.toContain("flagged");
+  });
+});
+
+/* ── Reading the row back ────────────────────────────────────────────────
+   learned_stats.payload is jsonb typed `unknown`, and Home used to reach it
+   with a bare cast. The rows these tests feed in are not hypothetical: the
+   writer in run-live.ts is wrapped in a swallow-everything try/catch marked
+   "must never fail a signal run", so a partial payload is the producer's
+   designed failure mode. With no error boundary in the app, the resulting
+   TypeError blanked the whole dashboard. */
+
+describe("parseDailyFunnel", () => {
+  it("passes a well-formed payload through intact", () => {
+    const p = payload({ bars: { MES: 10, MNQ: 12 } });
+    const parsed = parseDailyFunnel(JSON.parse(JSON.stringify(p)));
+    expect(parsed).not.toBeNull();
+    expect(parsed!.dateKey).toBe("2026-07-24");
+    expect(parsed!.bars).toEqual({ MES: 10, MNQ: 12 });
+    expect(parsed!.streams).toHaveLength(2);
+  });
+
+  it("rejects rows that cannot mean anything", () => {
+    for (const junk of [null, undefined, 42, "a string", [], {}, { dateKey: "" }]) {
+      expect(parseDailyFunnel(junk)).toBeNull();
+    }
+  });
+
+  it("survives the row that used to blank the dashboard", () => {
+    /* `bars` missing entirely. Object.values(undefined) throws
+       "Cannot convert undefined or null to object". */
+    const parsed = parseDailyFunnel({ dateKey: "2026-07-24" });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.bars).toEqual({});
+    expect(parsed!.streams).toEqual([]);
+    // And the summariser must then produce a sentence rather than throw.
+    expect(() => summarizeDailyFunnel(parsed)).not.toThrow();
+    expect(summarizeDailyFunnel(parsed).barsChecked).toBe(0);
+  });
+
+  it("drops non-numeric counts instead of summing them into NaN", () => {
+    const parsed = parseDailyFunnel({
+      dateKey: "d",
+      bars: { MES: 10, MNQ: "lots", NQ: null },
+      funnel: { noTouch: 3, hours: undefined },
+    });
+    expect(parsed!.bars).toEqual({ MES: 10 });
+    expect(parsed!.funnel).toEqual({ noTouch: 3 });
+    expect(summarizeDailyFunnel(parsed).barsChecked).toBe(10);
+  });
+
+  it("drops malformed stream entries and keeps the good ones", () => {
+    const parsed = parseDailyFunnel({
+      dateKey: "d",
+      streams: [
+        null,
+        "nonsense",
+        { key: "B:x", label: "x", tier: "B", status: "benched", signalsToday: 2 },
+        { key: "A", tier: "junk", status: "junk" },
+      ],
+    });
+    expect(parsed!.streams).toHaveLength(2);
+    expect(parsed!.streams[0].status).toBe("benched");
+    // Unknown tier/status fall back rather than leaking an invalid union value.
+    expect(parsed!.streams[1].tier).toBe("B");
+    expect(parsed!.streams[1].status).toBe("active");
+    expect(parsed!.streams[1].signalsToday).toBe(0);
+  });
+
+  it("treats a non-boolean staleData as not stale", () => {
+    expect(parseDailyFunnel({ dateKey: "d", staleData: "yes" })!.staleData).toBe(false);
+    expect(parseDailyFunnel({ dateKey: "d", staleData: true })!.staleData).toBe(true);
   });
 });
