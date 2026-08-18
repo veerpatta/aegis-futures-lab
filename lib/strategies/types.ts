@@ -149,6 +149,15 @@ export interface ExecutionConfig {
      Turning this on makes results WORSE, which is the point: look-ahead
      flatters, and tier A already sits at the 0.0th percentile with it. */
   restingLimitOrders?: boolean;
+  /* Symbols this run may take a position in. ABSENT = no check = legacy, which
+     is what keeps the parity oracles and the synthetic "TEST"-series fixtures
+     working unchanged.
+
+     Present, the engine THROWS on a signal for anything outside it — not a
+     skip-note. A strategy emitting a signal on its confirmation series is a
+     bug, and silver at $5,000/point would turn that bug into a book nobody
+     could reconcile. A red run is the cheaper outcome. */
+  tradableSymbols?: string[];
 }
 
 export interface ReadoutRow {

@@ -288,6 +288,15 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   /* Derive qty/target from the actual fill and build the position.
      Returns null (with a riskUnfit note) when sizing yields no contracts. */
   const tryOpen = (sig: EntrySignal, bar: Bar, entry: number): OpenPosition | null => {
+    /* Before any sizing arithmetic. A confirmation-only series must never
+       reach a fill, and the failure has to be loud: silver is $5,000/point,
+       so a silently-taken position there would not look like a small error. */
+    if (execution.tradableSymbols && !execution.tradableSymbols.includes(sig.symbol))
+      throw new Error(
+        `Refusing to open ${sig.symbol}: not in tradableSymbols ` +
+          `(${execution.tradableSymbols.join(", ")}). A signal on a confirmation-only ` +
+          `series is a strategy bug, not a trade.`
+      );
     const point = pointValueOf(sig.symbol);
     /* A fixed stop is measured from the ACTUAL fill, not the intended entry —
        the strategy emits its signal before it knows where it filled, and a
