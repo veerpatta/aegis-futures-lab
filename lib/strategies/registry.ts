@@ -7,6 +7,7 @@ import { vwapReversion } from "./vwap-reversion";
 import { bollingerBreakout } from "./bollinger-breakout";
 import { orbRelVol } from "./orb-relvol";
 import { turnOfMonth } from "./turn-of-month";
+import { goldSilverZone } from "./gold-silver-zone";
 
 export const STRATEGIES: Strategy<unknown>[] = [
   zoneV5,
@@ -20,6 +21,11 @@ export const STRATEGIES: Strategy<unknown>[] = [
   // lab's audition set. Each carries its evidence status in its own blurb.
   orbRelVol,
   turnOfMonth,
+  /* Gold zones with silver confirmation. Registered so it runs through the
+     same engine, Lab and diagnostics as everything else. UNMEASURED until the
+     random-entry benchmark lands — its blurb and TUNING_BASELINE status say so
+     rather than leaving a reader to assume. */
+  goldSilverZone,
 ] as Strategy<unknown>[];
 
 /* Strategies that exist to be TESTED rather than traded. The distinction is
