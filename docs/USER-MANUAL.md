@@ -162,6 +162,34 @@ trades.
 The point of the labels: over time, watch **which tier actually makes money** in the
 Performance panel, and weight your attention accordingly.
 
+### Ideas in the Lab that are not traded
+
+The Strategy Lab lists more ideas than the bot actually runs. Some carry an amber
+**UNMEASURED** tag on their card. That tag means exactly one thing: the idea has never
+been tested against random entries, so nobody knows yet whether it is better than a coin
+flip.
+
+An unmeasured idea is **not** a losing idea. It is an untested one. That is why the tag is
+amber and not red.
+
+You can open any of them in the Lab and backtest them like anything else. What they will
+never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
+the live feed until it has beaten random entries on years of data.
+
+**Gold zones, silver confirmed** is the newest of these. It buys gold demand zones and
+sells gold supply zones, but it waits for silver to arrive at its matching zone first — the
+idea being that a move both metals agree on is worth more than a move only one of them
+makes. It is strict in New York and more relaxed in Asia and London, and it uses a fixed
+13-point stop and 17-point target on one contract.
+
+Two things to know about it:
+
+- **Silver is watched, never traded.** The app cannot take a position in silver at all. If
+  you run this in the Lab you will see silver on the instrument line with zero trades next
+  to it, and that is correct rather than a fault.
+- **It is not live.** It has not been through the promotion gate, so it runs nowhere except
+  the Lab.
+
 ### When the bot benches a strategy (circuit breakers)
 
 The bot watches how each stream is doing. When a stream's recent results slump — profit
@@ -433,6 +461,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-08-17. If the app has changed since, the
+*Manual version: matches the app as of 2026-08-21. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

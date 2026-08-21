@@ -6,7 +6,7 @@ import { getSupabase, type ZoneRow } from "@/lib/supabase/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
-import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
+import { STRATEGIES, strategyById, isUnmeasured } from "@/lib/strategies/registry";
 import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
 import { points } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
@@ -434,7 +434,13 @@ export default function MarketsClient() {
                 label="Strategy"
                 value={readoutStrategy}
                 onChange={setReadoutStrategy}
-                options={STRATEGIES.map((s) => ({ value: s.id, label: s.name }))}
+                options={STRATEGIES.map((s) => ({
+                  value: s.id,
+                  /* A dropdown cannot carry a colour chip, so the standing rides
+                     in the label. Silence here would let an unmeasured strategy
+                     read exactly like a measured one. */
+                  label: isUnmeasured(s.id) ? `${s.name} · unmeasured` : s.name,
+                }))}
               />
             </div>
             <div className={styles.readout}>

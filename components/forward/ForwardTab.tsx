@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
 import type { ParamValues } from "@/lib/strategies/types";
-import { strategyById } from "@/lib/strategies/registry";
+import { strategyById, feedsFor, tradableFeedsFor } from "@/lib/strategies/registry";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { loadStored, saveStored, removeStored, KEYS } from "@/lib/data/storage";
 import { useStoredState, useStoredValue } from "@/lib/data/useStored";
@@ -101,8 +101,10 @@ export default function ForwardTab({
     if (!stored || !feedsReady) return;
     try {
       const strategy = strategyById(stored.strategyId);
-      const wanted: FeedSymbol[] =
-        strategy.symbolMode === "multi" ? ["MES", "MNQ"] : ["MES", "MNQ"];
+      /* Ask the strategy. Both arms of the ternary this replaces returned the
+         same hardcoded pair, so a gold strategy was handed S&P and Nasdaq bars
+         and silently produced nothing. */
+      const wanted: FeedSymbol[] = feedsFor(strategy);
       const series = Object.fromEntries(wanted.map((s) => [s, data.history[s].bars]));
       const res = await runBacktestAsync({
         strategyId: stored.strategyId,
@@ -113,6 +115,7 @@ export default function ForwardTab({
           slippage: stored.execution.slippage,
           maxRisk: stored.execution.maxRisk,
           sizing: "risk",
+          tradableSymbols: tradableFeedsFor(strategy),
           fillModel: stored.execution.limitFills !== false ? "limit" : "nextOpen", // default limit for pre-upgrade stored runs
         },
         locks: stored.execution.locksEnabled

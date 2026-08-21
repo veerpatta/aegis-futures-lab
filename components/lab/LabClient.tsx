@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
+import {
+  STRATEGIES,
+  strategyById,
+  feedsFor,
+  tradableFeedsFor,
+  isUnmeasured,
+  UNMEASURED_LABEL,
+} from "@/lib/strategies/registry";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
@@ -19,7 +26,10 @@ import RiskCalculator from "./RiskCalculator";
 import ForwardTab from "@/components/forward/ForwardTab";
 import styles from "./lab.module.css";
 
-type SymbolChoice = "both" | "MES" | "MNQ" | "csv";
+/* Any fetchable symbol, not just the legacy index pair. The Lab used to hard
+   code "MES" | "MNQ" here, which is why a gold strategy could be selected but
+   never fed gold. */
+type SymbolChoice = "both" | FeedSymbol | "csv";
 type WindowChoice = "30" | "40" | "60" | "full";
 
 export default function LabClient() {
@@ -37,6 +47,10 @@ export default function LabClient() {
   const [strategyId, setStrategyId] = useState(initialStrategy);
   const strategy = useMemo(() => strategyById(strategyId), [strategyId]);
   const defaults = useMemo(() => defaultParams(strategy), [strategy]);
+  /* What this strategy actually runs on, and which of those it may size. Both
+     come from the strategy/spec tables so the picker cannot drift from them. */
+  const feeds = useMemo(() => feedsFor(strategy), [strategy]);
+  const tradableFeeds = useMemo(() => tradableFeedsFor(strategy), [strategy]);
   const [params, setParams] = useState<ParamValues>(() =>
     decodeParams(searchParams.get("p"), defaults)
   );
@@ -73,8 +87,15 @@ export default function LabClient() {
   }, [strategyId, params, symbolChoice, windowChoice, defaults, pathname, router]);
 
   const pickStrategy = (id: string) => {
+    const next = strategyById(id);
     setStrategyId(id);
-    setParams(defaultParams(strategyById(id)));
+    setParams(defaultParams(next));
+    /* A per-symbol choice from the previous strategy may not exist on this one
+       — switching from MES to the gold stream must not leave "MES only" set,
+       which would hand gold the wrong market all over again. */
+    setSymbolChoice((cur) =>
+      cur === "both" || cur === "csv" || feedsFor(next).includes(cur) ? cur : "both"
+    );
     setResult(null);
     setError(null);
   };
@@ -93,7 +114,7 @@ export default function LabClient() {
         isLive: false,
       };
     }
-    const wanted: FeedSymbol[] = symbolChoice === "both" ? ["MES", "MNQ"] : [symbolChoice];
+    const wanted: FeedSymbol[] = symbolChoice === "both" ? feeds : [symbolChoice];
     if (!wanted.every(feedReady)) return null;
     return {
       series: Object.fromEntries(wanted.map((s) => [s, data.history[s].bars])),
@@ -101,7 +122,7 @@ export default function LabClient() {
       isLive: true,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbolChoice, data.history, data.imported]);
+  }, [symbolChoice, feeds, data.history, data.imported]);
 
   const run = async () => {
     const picked = seriesForChoice();
@@ -125,6 +146,9 @@ export default function LabClient() {
           maxRisk: execution.maxRisk,
           sizing: "risk",
           fillModel: execution.limitFills ? "limit" : "nextOpen",
+          /* Arms the engine guard: a strategy that emits a signal on its
+             confirmation series is a bug, and silver is never sizeable. */
+          tradableSymbols: tradableFeedsFor(strategy),
         },
         locks: execution.locksEnabled
           ? {
@@ -157,7 +181,7 @@ export default function LabClient() {
       ? data.imported
         ? `${data.imported.bars.length.toLocaleString()} imported bars`
         : "No CSV imported yet — load one on the Data page"
-      : (["MES", "MNQ"] as FeedSymbol[])
+      : feeds
           .filter((s) => symbolChoice === "both" || symbolChoice === s)
           .map((s) => {
             const st = data.history[s];
@@ -187,6 +211,7 @@ export default function LabClient() {
             <span className={styles.cardHead}>
               <span className={styles.cardName}>{s.name}</span>
               {s.flagship && <Badge tone="green">FLAGSHIP</Badge>}
+              {isUnmeasured(s.id) && <Badge tone="amber">{UNMEASURED_LABEL}</Badge>}
             </span>
             <span className={styles.cardBlurb}>{s.blurb}</span>
           </button>
@@ -219,9 +244,17 @@ export default function LabClient() {
                   value={symbolChoice}
                   onChange={(v) => setSymbolChoice(v as SymbolChoice)}
                   options={[
-                    { value: "both", label: "MES + MNQ (portfolio)" },
-                    { value: "MES", label: "MES only" },
-                    { value: "MNQ", label: "MNQ only" },
+                    {
+                      value: "both",
+                      label: `${feeds.join(" + ")}${
+                        tradableFeeds.length < feeds.length
+                          ? " (with confirmation)"
+                          : " (portfolio)"
+                      }`,
+                    },
+                    /* Only tradable legs get a solo option. "SI only" would be a
+                       run that cannot open a position by construction. */
+                    ...tradableFeeds.map((s) => ({ value: s, label: `${s} only` })),
                     { value: "csv", label: "Imported CSV", disabled: !data.imported },
                   ]}
                 />

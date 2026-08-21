@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { YAHOO_SYMBOLS, isFeedSymbol } from "@/lib/market/contracts";
+import { YAHOO_SYMBOLS, isFeedSymbol, FEED_SYMBOLS } from "@/lib/market/contracts";
 import { fetchYahooBars } from "@/lib/data/yahoo";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const symbol = String(req.nextUrl.searchParams.get("symbol") || "MES").toUpperCase();
   if (!isFeedSymbol(symbol)) {
-    return NextResponse.json({ error: "Supported symbols: MES, MNQ" }, { status: 400 });
+    /* Derived from the union rather than restated. MGC and SI have been
+       fetchable since the metals stream landed; this string still said
+       "MES, MNQ", which would send a reader hunting for a block that the
+       guard above does not actually impose. */
+    return NextResponse.json(
+      { error: `Supported symbols: ${FEED_SYMBOLS.join(", ")}` },
+      { status: 400 }
+    );
   }
   try {
     // Keep the full ~23h CME globex session so the zone engine sees real

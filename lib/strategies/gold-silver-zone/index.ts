@@ -78,6 +78,10 @@ export const goldSilverZone: Strategy<Ctx> = {
     "matching zone first. Fixed 13-point stop and 17-point target on one contract. Strict in " +
     "New York, flexible in Asia and London. Silver is watched, never traded.",
   symbolMode: "multi",
+  /* Gold is the traded leg, silver the confirmation leg. specs.ts role-locks SI
+     to `confirmation`, so `tradableFeedsFor` derives the engine guard from this
+     list rather than repeating the decision. */
+  feeds: [GOLD, SILVER],
   params: [
     {
       key: "stopPoints",
@@ -192,10 +196,16 @@ export const goldSilverZone: Strategy<Ctx> = {
   },
 
   onSnapshot(ctx, snap: Snapshot, params: ParamValues, note: SkipNote): EntrySignal[] {
+    /* Both of these used to be bare `return []`, ABOVE the "evaluated" note.
+       Run this strategy on a series that has no gold in it and the funnel came
+       back completely empty — no trades and no reason, which reads as "nothing
+       set up today" rather than "you fed it the wrong market". */
     const gold = snap.bySymbol[GOLD];
-    if (!gold) return [];
     const goldStack = ctx.stacks[GOLD];
-    if (!goldStack) return [];
+    if (!gold || !goldStack) {
+      note("noGoldSeries", GOLD);
+      return [];
+    }
 
     const bar = gold.bars[gold.index];
     if (!bar) return [];

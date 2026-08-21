@@ -23,6 +23,7 @@ export const FUNNEL_LABELS: Record<string, string> = {
   nyNoConfirm: "New York, no matching silver zone, slow approach",
   staleConfirm: "Silver reached its zone too long ago to count",
   noConfirmSeries: "Silver data missing, cannot confirm",
+  noGoldSeries: "Gold data missing — this run has no gold in it",
   shallowZone: "Price has not travelled far enough into the zone",
   news: "News lockout",
   lock: "Discipline lock",

@@ -1,4 +1,6 @@
 import type { Strategy } from "./types";
+import type { FeedSymbol } from "@/lib/market/contracts";
+import { specFor } from "@/lib/costs/specs";
 import { zoneV5 } from "./zone-v5";
 import { emaCross } from "./ema-cross";
 import { rsiReversion } from "./rsi-reversion";
@@ -35,8 +37,44 @@ export const PHASE4_HYPOTHESES = new Set(["orb-relvol", "turn-of-month"]);
 
 export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
 
+/* Strategies with NO measured result behind them. Broader than
+   PHASE4_HYPOTHESES: gold is not a Phase 4 hypothesis, but it has never been
+   run against the random-entry benchmark either, so displaying it with the
+   same standing as a measured stream is the same lie.
+
+   The comment above PHASE4_HYPOTHESES called that distinction "load-bearing
+   for the UI" while nothing outside tests ever read it. This set is read by
+   the Lab gallery, Compare and Markets, so the claim is now true. */
+export const UNMEASURED: ReadonlySet<string> = new Set([
+  ...PHASE4_HYPOTHESES,
+  "gold-silver-zone",
+]);
+
+export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
+
+/* Design language §6: insufficient evidence is AMBER, never red — an unproven
+   strategy is not a losing one, and the two must not look alike. */
+export const UNMEASURED_LABEL = "UNMEASURED";
+
 export function strategyById(id: string): Strategy<unknown> {
   const s = STRATEGIES.find((x) => x.id === id);
   if (!s) throw new Error(`Unknown strategy: ${id}`);
   return s;
+}
+
+/* The instruments a strategy runs on. The fallback is the pair every strategy
+   written before the metals stream assumed; making it explicit here means the
+   UI asks the strategy instead of hardcoding "MES"/"MNQ" a fourth time. */
+export const LEGACY_FEEDS: readonly FeedSymbol[] = ["MES", "MNQ"] as const;
+
+export function feedsFor(s: Strategy<unknown>): FeedSymbol[] {
+  return [...(s.feeds ?? LEGACY_FEEDS)];
+}
+
+/* The subset of a strategy's feeds it may actually take a position in, read
+   from ContractSpec.tradable rather than restated. This is what populates
+   ExecutionConfig.tradableSymbols, so the engine's throw-on-untradable guard
+   is armed from the same table that says silver is confirmation-only. */
+export function tradableFeedsFor(s: Strategy<unknown>): FeedSymbol[] {
+  return feedsFor(s).filter((x) => specFor(x).tradable);
 }

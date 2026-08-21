@@ -96,6 +96,44 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
+        <h2>Ideas in the Lab that are not traded</h2>
+        <p>
+          The Strategy Lab lists more ideas than the bot actually runs. Some carry an amber{" "}
+          <b>UNMEASURED</b> tag on their card. That tag means exactly one thing: the idea has never
+          been tested against random entries, so nobody knows yet whether it is better than a coin
+          flip.
+        </p>
+        <p>
+          An unmeasured idea is <b>not</b> a losing idea. It is an untested one. That is why the tag
+          is amber and not red.
+        </p>
+        <p>
+          You can open any of them in the Lab and backtest them like anything else. What they will
+          never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
+          the live feed until it has beaten random entries on years of data.
+        </p>
+        <p>
+          <b>Gold zones, silver confirmed</b> is the newest of these. It buys gold demand zones and
+          sells gold supply zones, but it waits for silver to arrive at its matching zone first —
+          the idea being that a move both metals agree on is worth more than a move only one of them
+          makes. It is strict in New York and more relaxed in Asia and London, and it uses a fixed
+          13-point stop and 17-point target on one contract.
+        </p>
+        <dl className={styles.dl}>
+          <dt>Silver is watched, never traded</dt>
+          <dd>
+            The app cannot take a position in silver at all. If you run this in the Lab you will see
+            silver on the instrument line with zero trades next to it, and that is correct rather
+            than a fault.
+          </dd>
+          <dt>It is not live</dt>
+          <dd>
+            It has not been through the promotion gate, so it runs nowhere except the Lab.
+          </dd>
+        </dl>
+      </section>
+
+      <section className={styles.card}>
         <h2>How to read a number here</h2>
         <p>
           Every percentage and profit factor in this app comes with two extra pieces of
@@ -749,7 +787,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-08-17. A printable version of this guide lives in the project
+        Matches the app as of 2026-08-21. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

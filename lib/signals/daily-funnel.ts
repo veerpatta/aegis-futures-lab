@@ -128,6 +128,7 @@ const PLAIN: Record<string, string> = {
   nyNoConfirm: "New York, no matching silver zone, slow approach",
   staleConfirm: "silver reached its zone too long ago to count",
   noConfirmSeries: "silver data missing, so the setup cannot be confirmed",
+  noGoldSeries: "gold data missing, so there was nothing to evaluate",
   shallowZone: "price has not travelled far enough into the zone",
   invalidFill: "price gapped straight through the entry",
   noConfirm: "no confirmation candle",

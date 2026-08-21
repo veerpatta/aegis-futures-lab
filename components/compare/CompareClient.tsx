@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { STRATEGIES, strategyById } from "@/lib/strategies/registry";
+import { STRATEGIES, strategyById, isUnmeasured } from "@/lib/strategies/registry";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
@@ -287,7 +287,13 @@ export default function CompareClient() {
                   label="Strategy"
                   value={slot.strategyId}
                   onChange={(v) => setSlotStrategy(i, v)}
-                  options={STRATEGIES.map((s) => ({ value: s.id, label: s.name }))}
+                  options={STRATEGIES.map((s) => ({
+                  value: s.id,
+                  /* A dropdown cannot carry a colour chip, so the standing rides
+                     in the label. Silence here would let an unmeasured strategy
+                     read exactly like a measured one. */
+                  label: isUnmeasured(s.id) ? `${s.name} · unmeasured` : s.name,
+                }))}
                 />
               </div>
               <input

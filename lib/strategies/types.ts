@@ -1,5 +1,6 @@
 import type { FrictionSpec } from "@/lib/costs/model";
 import type { Bar } from "@/lib/types";
+import type { FeedSymbol } from "@/lib/market/contracts";
 
 /* The strategy contract: heavy precompute happens once in prepare(); after
    that onSnapshot() must be a pure function of the visible bars and the
@@ -177,6 +178,12 @@ export interface Strategy<Ctx = unknown> {
   blurb: string; // plain-English rules shown on the gallery card
   flagship?: boolean;
   symbolMode: "single" | "multi";
+  /* The feed symbols this strategy operates on. ABSENT MEANS THE LEGACY PAIR,
+     ["MES", "MNQ"], because every strategy written before the metals stream
+     assumed it and the UI hardcoded it in three places. Declaring it here is
+     what lets the Lab offer the right instruments instead of offering MES to a
+     gold strategy and silently running it on the wrong market. */
+  feeds?: FeedSymbol[];
   params: ParamDef[];
   prepare(series: Record<string, Bar[]>, params: ParamValues, execution: ExecutionConfig): Ctx;
   onSnapshot(ctx: Ctx, snap: Snapshot, params: ParamValues, note: SkipNote): EntrySignal[];
