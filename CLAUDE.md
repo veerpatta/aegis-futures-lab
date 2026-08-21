@@ -69,6 +69,27 @@ short sentences. The reader knows trading but not software. Always keep the
   the losing baseline in `research_baselines` is the control for everything after.
   New ideas go through `/diagnostics` and the promotion gate
   (`lib/validation/promotionGate.ts`), never straight to a tier.
+- A FOURTH thing is refuted, and it is a candidate rather than a stream:
+  gold-silver-zone, measured 2026-08-21 in
+  `docs/research/2026-08-21-gold-benchmark.md`. 0 of 9 symbol-years beat
+  matched random entries; the full sample sits at the 53.8th percentile on
+  1,782 trades. It is NOT anti-predictive (no cell below the 5th) and NOT a
+  costs story (gross −$15,056), and the rho 0.735 correlation premise still
+  holds — what fails is the inference built on it. It was measured WITHOUT
+  being promoted, by `scripts/diag/gold-benchmark.ts`, because a candidate
+  that must reach a tier before it can be benchmarked makes the gate
+  unfalsifiable. Same rule as the other three: do not tune it.
+- Strategy standing is a THREE-state fact in `lib/strategies/registry.ts`:
+  `standingOf(id)` returns measured | unmeasured | refuted, and the Lab,
+  Compare and Markets all read it. UNMEASURED is amber and REFUTED is red on
+  purpose — "nobody has looked" and "we looked, and it is a coin flip" are
+  different claims. Before this landed, `isHypothesis` was called
+  "load-bearing for the UI" while only tests ever read it.
+- A strategy DECLARES the feeds it runs on (`Strategy.feeds`, absent meaning
+  the legacy `["MES","MNQ"]`); the UI asks rather than hardcoding the pair.
+  `tradableFeedsFor()` derives `ExecutionConfig.tradableSymbols` from
+  `ContractSpec.tradable`, so the engine guard cannot disagree with the table
+  that role-locks silver to confirmation.
 - Visual work follows `docs/design-language.md` — derived from the code, not
   invented. Two rules there are honesty rules, not style: insufficient evidence
   renders AMBER (never red — too little data is not a loss), and no rate renders
