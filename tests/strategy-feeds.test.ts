@@ -4,8 +4,15 @@ import {
   feedsFor,
   tradableFeedsFor,
   isUnmeasured,
+  isRefutedStrategy,
+  standingOf,
   strategyById,
 } from "@/lib/strategies/registry";
+import {
+  REFUTED_STREAM_EVIDENCE,
+  GATE,
+  evaluatePromotion,
+} from "@/lib/validation/promotionGate";
 import { goldSilverZone, GOLD, SILVER } from "@/lib/strategies/gold-silver-zone";
 import { specFor } from "@/lib/costs/specs";
 import type { SkipNote } from "@/lib/strategies/types";
@@ -54,8 +61,26 @@ describe("tradableFeedsFor", () => {
 });
 
 describe("evidence standing is readable by the UI", () => {
-  it("marks gold unmeasured — it has never met the random-entry benchmark", () => {
-    expect(isUnmeasured("gold-silver-zone")).toBe(true);
+  /* Gold was UNMEASURED until 2026-08-21, when gold-benchmark.ts put it at the
+     53.8th percentile of matched random entries across 0-of-9 winning cells.
+     "Never tested" and "tested and refuted" are different claims; the badge
+     moved, and this pins that it moved rather than merely being dropped. */
+  it("marks gold refuted, not unmeasured — the benchmark has now run", () => {
+    expect(isRefutedStrategy("gold-silver-zone")).toBe(true);
+    expect(isUnmeasured("gold-silver-zone")).toBe(false);
+    expect(standingOf("gold-silver-zone")).toBe("refuted");
+  });
+
+  it("keeps the two states disjoint, so nothing carries both badges", () => {
+    for (const s of STRATEGIES)
+      expect(isUnmeasured(s.id) && isRefutedStrategy(s.id)).toBe(false);
+  });
+
+  it("gives the refuted strategy real gate evidence to be refused on", () => {
+    const ev = REFUTED_STREAM_EVIDENCE["gold-silver-zone"];
+    expect(ev).toBeDefined();
+    expect(ev.randomEntryPercentile).toBeLessThan(GATE.randomEntryPercentile);
+    expect(evaluatePromotion(ev).promote).toBe(false);
   });
 
   it("still marks the Phase 4 hypotheses unmeasured", () => {

@@ -187,4 +187,16 @@ export const REFUTED_STREAM_EVIDENCE: Record<string, PromotionEvidence> = {
   A: { randomEntryPercentile: 0.0, oosNetExpectancy: -48.36, trades: 1180 },
   "B:MES": { randomEntryPercentile: 35.2, oosNetExpectancy: -25.75, trades: 2641 },
   "B:MNQ": { randomEntryPercentile: 65.2, oosNetExpectancy: -10.54, trades: 2731 },
+  /* The gold candidate, measured 2026-08-21 by scripts/diag/gold-benchmark.ts
+     over seven years of Databento MGC. It is NOT a live stream and never was —
+     it is here because the gate refusing a candidate BEFORE promotion is the
+     case the gate exists for, and because a candidate with a measured result
+     must stop being displayed as merely untested. 0 of 9 symbol-years beat
+     matched random entries; the full sample sits at the 53.8th percentile,
+     which is the middle of the null rather than the wrong end of it. */
+  "gold-silver-zone": {
+    randomEntryPercentile: 53.8,
+    oosNetExpectancy: -10.85,
+    trades: 1782,
+  },
 };

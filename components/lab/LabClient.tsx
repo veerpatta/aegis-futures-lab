@@ -8,7 +8,9 @@ import {
   feedsFor,
   tradableFeedsFor,
   isUnmeasured,
+  isRefutedStrategy,
   UNMEASURED_LABEL,
+  REFUTED_LABEL,
 } from "@/lib/strategies/registry";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { runBacktestAsync } from "@/lib/backtest/client";
@@ -212,6 +214,7 @@ export default function LabClient() {
               <span className={styles.cardName}>{s.name}</span>
               {s.flagship && <Badge tone="green">FLAGSHIP</Badge>}
               {isUnmeasured(s.id) && <Badge tone="amber">{UNMEASURED_LABEL}</Badge>}
+              {isRefutedStrategy(s.id) && <Badge tone="red">{REFUTED_LABEL}</Badge>}
             </span>
             <span className={styles.cardBlurb}>{s.blurb}</span>
           </button>

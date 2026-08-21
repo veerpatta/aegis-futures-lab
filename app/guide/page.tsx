@@ -98,26 +98,43 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>Ideas in the Lab that are not traded</h2>
         <p>
-          The Strategy Lab lists more ideas than the bot actually runs. Some carry an amber{" "}
-          <b>UNMEASURED</b> tag on their card. That tag means exactly one thing: the idea has never
-          been tested against random entries, so nobody knows yet whether it is better than a coin
-          flip.
+          The Strategy Lab lists more ideas than the bot actually runs. Their cards carry a tag, and
+          there are two of them.
         </p>
-        <p>
-          An unmeasured idea is <b>not</b> a losing idea. It is an untested one. That is why the tag
-          is amber and not red.
-        </p>
+        <dl className={styles.dl}>
+          <dt>UNMEASURED (amber)</dt>
+          <dd>
+            The idea has never been tested against random entries, so nobody knows yet whether it is
+            better than a coin flip. An unmeasured idea is <b>not</b> a losing idea — it is an
+            untested one, which is why the tag is amber rather than red.
+          </dd>
+          <dt>REFUTED (red)</dt>
+          <dd>
+            The idea <i>has</i> been tested, and it did not beat random entries.
+          </dd>
+        </dl>
         <p>
           You can open any of them in the Lab and backtest them like anything else. What they will
           never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
           the live feed until it has beaten random entries on years of data.
         </p>
         <p>
-          <b>Gold zones, silver confirmed</b> is the newest of these. It buys gold demand zones and
-          sells gold supply zones, but it waits for silver to arrive at its matching zone first —
-          the idea being that a move both metals agree on is worth more than a move only one of them
-          makes. It is strict in New York and more relaxed in Asia and London, and it uses a fixed
-          13-point stop and 17-point target on one contract.
+          <b>Gold zones, silver confirmed</b> is the newest of these, and as of 21 August 2026 it is{" "}
+          <b>refuted</b>. It buys gold demand zones and sells gold supply zones, but it waits for
+          silver to arrive at its matching zone first — the idea being that a move both metals agree
+          on is worth more than a move only one of them makes.
+        </p>
+        <p>
+          It was tested over seven years of gold data, one year at a time. It did not beat random
+          entries in a single one of those years. Its results sit in the middle of what you would
+          get by opening trades at random times, which is the plainest way of saying the rule is not
+          telling you anything.
+        </p>
+        <p>
+          Worth being precise about what that does and does not mean. Gold and silver really do move
+          together — that part was checked first and held up. What failed is the next step: knowing
+          that silver has arrived at its zone does not tell you where gold goes next. And it is not
+          losing because of costs. Switch the costs off and it still loses.
         </p>
         <dl className={styles.dl}>
           <dt>Silver is watched, never traded</dt>
@@ -126,9 +143,11 @@ export default function GuidePage() {
             silver on the instrument line with zero trades next to it, and that is correct rather
             than a fault.
           </dd>
-          <dt>It is not live</dt>
+          <dt>It is not live, and will not be tuned</dt>
           <dd>
-            It has not been through the promotion gate, so it runs nowhere except the Lab.
+            A setup that does not beat a coin flip does not get adjusted until it looks better on the
+            same data that just refuted it. That is how you fool yourself, and this app has a rule
+            against it.
           </dd>
         </dl>
       </section>

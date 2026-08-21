@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { STRATEGIES, strategyById, isUnmeasured } from "@/lib/strategies/registry";
+import { STRATEGIES, strategyById, standingOf } from "@/lib/strategies/registry";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
@@ -292,7 +292,8 @@ export default function CompareClient() {
                   /* A dropdown cannot carry a colour chip, so the standing rides
                      in the label. Silence here would let an unmeasured strategy
                      read exactly like a measured one. */
-                  label: isUnmeasured(s.id) ? `${s.name} · unmeasured` : s.name,
+                  label:
+                    standingOf(s.id) === "measured" ? s.name : `${s.name} · ${standingOf(s.id)}`,
                 }))}
                 />
               </div>

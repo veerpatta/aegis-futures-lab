@@ -45,16 +45,35 @@ export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
    The comment above PHASE4_HYPOTHESES called that distinction "load-bearing
    for the UI" while nothing outside tests ever read it. This set is read by
    the Lab gallery, Compare and Markets, so the claim is now true. */
-export const UNMEASURED: ReadonlySet<string> = new Set([
-  ...PHASE4_HYPOTHESES,
-  "gold-silver-zone",
-]);
+export const UNMEASURED: ReadonlySet<string> = new Set([...PHASE4_HYPOTHESES]);
 
 export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
 
+/* Strategies that HAVE been measured and did not beat matched random entries.
+   Gold moved here from UNMEASURED on 2026-08-21, when the benchmark it had
+   been waiting for finally ran: 0 of 9 symbol-years cleared the bar.
+
+   Keeping it amber after that would be the same misrepresentation in the other
+   direction — "we simply have not looked yet" is a very different claim from
+   "we looked, and it is a coin flip". lib/stats.ts already treats REFUTED as
+   the state that outranks every other for exactly this reason. */
+export const REFUTED: ReadonlySet<string> = new Set(["gold-silver-zone"]);
+
+export const isRefutedStrategy = (id: string): boolean => REFUTED.has(id);
+
 /* Design language §6: insufficient evidence is AMBER, never red — an unproven
-   strategy is not a losing one, and the two must not look alike. */
+   strategy is not a losing one. A REFUTED one has been proven not to work, and
+   the app already renders that state red (LiveVsTuning.tsx). */
 export const UNMEASURED_LABEL = "UNMEASURED";
+export const REFUTED_LABEL = "REFUTED";
+
+export type Standing = "measured" | "unmeasured" | "refuted";
+
+export function standingOf(id: string): Standing {
+  if (isRefutedStrategy(id)) return "refuted";
+  if (isUnmeasured(id)) return "unmeasured";
+  return "measured";
+}
 
 export function strategyById(id: string): Strategy<unknown> {
   const s = STRATEGIES.find((x) => x.id === id);

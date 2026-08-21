@@ -59,7 +59,10 @@ function GateAgainstIncumbents() {
   });
 
   return (
-    <Panel title="The promotion gate, applied to the live streams" hint="nothing reaches paper without clearing every check">
+    <Panel
+      title="The promotion gate, applied to the live streams and the gold candidate"
+      hint="nothing reaches paper without clearing every check"
+    >
       <DataTable
         columns={["Stream", "Random-entry pct", "Net expectancy", "Trades", "Verdict", "Failed checks"]}
         rows={rows}
