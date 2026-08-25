@@ -37,27 +37,27 @@ export const PHASE4_HYPOTHESES = new Set(["orb-relvol", "turn-of-month"]);
 
 export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
 
-/* Strategies with NO measured result behind them. Broader than
-   PHASE4_HYPOTHESES: gold is not a Phase 4 hypothesis, but it has never been
-   run against the random-entry benchmark either, so displaying it with the
-   same standing as a measured stream is the same lie.
-
-   The comment above PHASE4_HYPOTHESES called that distinction "load-bearing
-   for the UI" while nothing outside tests ever read it. This set is read by
-   the Lab gallery, Compare and Markets, so the claim is now true. */
-export const UNMEASURED: ReadonlySet<string> = new Set([...PHASE4_HYPOTHESES]);
+/* Strategies with NO measured result behind them. The set is intentionally
+   empty after the 2026-08-25 Phase 4 benchmark: both registered hypotheses now
+   have a measured result and belong in REFUTED, not amber limbo. */
+export const UNMEASURED: ReadonlySet<string> = new Set<string>();
 
 export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
 
-/* Strategies that HAVE been measured and did not beat matched random entries.
-   Gold moved here from UNMEASURED on 2026-08-21, when the benchmark it had
-   been waiting for finally ran: 0 of 9 symbol-years cleared the bar.
+/* Strategies that HAVE been measured and did not clear the promotion gate.
+   Gold moved here on 2026-08-21 (0 of 9 symbol-years beat the bar). ORB +
+   relative volume and turn-of-month joined it on 2026-08-25: 0 of 12
+   candidate/symbol runs cleared every preregistered gate.
 
    Keeping it amber after that would be the same misrepresentation in the other
    direction — "we simply have not looked yet" is a very different claim from
    "we looked, and it is a coin flip". lib/stats.ts already treats REFUTED as
    the state that outranks every other for exactly this reason. */
-export const REFUTED: ReadonlySet<string> = new Set(["gold-silver-zone"]);
+export const REFUTED: ReadonlySet<string> = new Set([
+  "gold-silver-zone",
+  "orb-relvol",
+  "turn-of-month",
+]);
 
 export const isRefutedStrategy = (id: string): boolean => REFUTED.has(id);
 

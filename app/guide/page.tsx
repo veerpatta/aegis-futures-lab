@@ -115,6 +115,14 @@ export default function GuidePage() {
           </dd>
         </dl>
         <p>
+          <b>The two Phase 4 replacement candidates are now refuted too.</b> On 25 August 2026,
+          opening-range breakout with relative volume and the intraday turn-of-month rule were run
+          as six preregistered configurations on both MES and MNQ. None of the 12 measured runs
+          cleared every promotion check. The least-bad run made $510 on MNQ, but still failed the
+          random-entry, deflated-Sharpe, t-statistic, PBO and fold-survival checks. They remain in
+          the Lab and Diagnostics for audit; neither can replace a paused stream.
+        </p>
+        <p>
           You can open any of them in the Lab and backtest them like anything else. What they will
           never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
           the live feed until it has beaten random entries on years of data.
@@ -527,8 +535,9 @@ export default function GuidePage() {
         <p className={styles.note}>
           Paused streams show up in their own <b>Paused streams</b> box on the Signals page and a
           <b>RESEARCH MODE</b> note on Home, with the date they were benched and how their practice
-          run is recovering. Research mode means exactly what it says: no unmeasured candidate is
-          presented as the replacement while the benchmark is unfinished.
+          run is recovering. Research mode means exactly what it says: no candidate is presented
+          as the replacement unless its completed benchmark clears every promotion check. The
+          current Phase 4 candidates were measured and refuted, so no replacement is active.
           The weekly digest keeps their practice out of the headline numbers too and reports it on
           its own line. Every bench and every return is recorded and sent to Telegram, so nothing
           happens silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,

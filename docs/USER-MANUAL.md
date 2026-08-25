@@ -202,6 +202,13 @@ Two more things to know:
   get adjusted until it looks better on the same data that just refuted it. That is how you
   fool yourself, and this app has a rule against it.
 
+The two Phase 4 replacement candidates are now **refuted** too. On 25 August 2026,
+opening-range breakout with relative volume and the intraday turn-of-month rule were run as
+six preregistered configurations on both MES and MNQ. None of the 12 measured runs cleared
+every promotion check. The least-bad run made $510 on MNQ, but still failed the random-entry,
+deflated-Sharpe, t-statistic, PBO and fold-survival checks. Both ideas remain visible in Lab
+and Diagnostics for audit; neither can replace a paused stream.
+
 ### When the bot benches a strategy (circuit breakers)
 
 The bot watches how each stream is doing. When a stream's recent results slump — profit
@@ -215,8 +222,9 @@ practice out of the headline numbers and reports it on its own line. Every bench
 is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
 to trade — and it is paper only.
 
-Research mode means exactly what it says: no unmeasured candidate is presented as the
-replacement while its benchmark is unfinished.
+Research mode means exactly what it says: no candidate is presented as the replacement
+unless its completed benchmark clears every promotion check. The current Phase 4 candidates
+were measured and refuted, so no replacement is active.
 
 ### What each idea tells you at a glance
 

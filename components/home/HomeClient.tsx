@@ -602,8 +602,8 @@ export default function HomeClient() {
         <section className={styles.card} aria-label="Replacement research" style={{ padding: "12px 16px" }}>
           <div className={styles.cellSub} style={{ display: "block", marginBottom: 8 }}>
             <Badge tone="amber">RESEARCH MODE</Badge>{" "}
-            <b>No unmeasured strategy is treated as the replacement.</b> Candidates stay in the
-            diagnostics lab until they beat matched-random entries and clear the promotion gate. {" "}
+            <b>No candidate currently clears the replacement gate.</b> Measured failures stay in
+            the diagnostics lab and cannot enter paper trading. {" "}
             <Link href="/diagnostics">View evidence →</Link>
           </div>
           {pausedStreams.map((p) => (

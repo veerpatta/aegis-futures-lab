@@ -83,9 +83,13 @@ describe("evidence standing is readable by the UI", () => {
     expect(evaluatePromotion(ev).promote).toBe(false);
   });
 
-  it("still marks the Phase 4 hypotheses unmeasured", () => {
-    expect(isUnmeasured("orb-relvol")).toBe(true);
-    expect(isUnmeasured("turn-of-month")).toBe(true);
+  it("marks both measured Phase 4 hypotheses refuted", () => {
+    expect(isUnmeasured("orb-relvol")).toBe(false);
+    expect(isUnmeasured("turn-of-month")).toBe(false);
+    expect(isRefutedStrategy("orb-relvol")).toBe(true);
+    expect(isRefutedStrategy("turn-of-month")).toBe(true);
+    expect(standingOf("orb-relvol")).toBe("refuted");
+    expect(standingOf("turn-of-month")).toBe("refuted");
   });
 
   it("does not smear the label onto measured streams", () => {

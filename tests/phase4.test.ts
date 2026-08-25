@@ -211,9 +211,9 @@ describe("orb-relvol", () => {
     expect(PHASE4_HYPOTHESES.size).toBe(2);
   });
 
-  it("says in its own blurb that it is untested", () => {
+  it("says in its own blurb that the measured result is refuted", () => {
     for (const id of PHASE4_HYPOTHESES) {
-      expect(strategyById(id).blurb.toLowerCase()).toContain("untested");
+      expect(strategyById(id).blurb.toLowerCase()).toContain("refuted");
     }
   });
 });
