@@ -67,6 +67,9 @@ const ITERATIONS = Number(arg("--iterations", "500"));
 const OUT = arg("--out", "docs/research/phase4-hypotheses.json");
 const PRINT_SQL = process.argv.includes("--sql");
 const SQL_ONLY = process.argv.includes("--sql-only");
+const ONLY_TRIAL = arg("--trial", "");
+const ONLY_SYMBOL = arg("--symbol", "");
+const CELL_MODE = Boolean(ONLY_TRIAL || ONLY_SYMBOL);
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -204,7 +207,16 @@ const num = (v: number | null | undefined, dp = 3) =>
 async function main() {
   console.log(`\nPhase 4 hypotheses — source=${BAR_SOURCE}, iterations=${ITERATIONS}\n`);
 
-  const specs = grid();
+  const allSpecs = grid();
+  const specs = ONLY_TRIAL ? allSpecs.filter((spec) => spec.key === ONLY_TRIAL) : allSpecs;
+  const symbols = ONLY_SYMBOL
+    ? SYMBOLS.filter((symbol) => symbol === ONLY_SYMBOL)
+    : SYMBOLS;
+  if (CELL_MODE && (!ONLY_TRIAL || !ONLY_SYMBOL || specs.length !== 1 || symbols.length !== 1)) {
+    throw new Error(
+      "Cell mode requires one valid --trial and one valid --symbol (MES or MNQ).",
+    );
+  }
   if (PRINT_SQL || SQL_ONLY) {
     console.log("\n-- Register these BEFORE running the benchmark.\n");
     console.log(registrationSql(specs));
@@ -217,7 +229,7 @@ async function main() {
   );
 
   const bySymbol = new Map<FeedSymbol, Bar[]>();
-  for (const s of SYMBOLS) {
+  for (const s of symbols) {
     bySymbol.set(s, await archiveBars(s));
     console.log(`  loaded ${s}: ${bySymbol.get(s)!.length.toLocaleString()} bars`);
   }
@@ -227,7 +239,7 @@ async function main() {
      drift is overnight, a flat-by-close system cannot reach it, and "no entry
      edge" was the wrong diagnosis all along. */
   console.log("\n── Overnight vs intraday drift ──");
-  const overnight = SYMBOLS.map((s) => {
+  const overnight = symbols.map((s) => {
     const split = overnightSplit(bySymbol.get(s)!);
     console.log(`  ${describeOvernight(split, s)}`);
     return { symbol: s, ...split };
@@ -246,7 +258,7 @@ async function main() {
   }[] = [];
 
   for (const spec of specs) {
-    for (const symbol of SYMBOLS) {
+    for (const symbol of symbols) {
       const bars = bySymbol.get(symbol)!;
       const gn = await runGrossNet(requestFor(spec, symbol, bars), executeRun, LEGACY_MODEL);
       const trades = gn.net.trades;
@@ -330,6 +342,34 @@ async function main() {
           `pct ${percentile === null ? " n/a" : percentile.toFixed(1).padStart(5)}`,
       );
     }
+  }
+
+  /* GitHub's standard runner cannot finish all twelve 500-draw cells in one
+     two-hour job. Cell mode changes scheduling only: each matrix worker writes
+     the raw observations needed by the single strict aggregator. The random
+     seeds, execution engine and promotion rules are identical to serial mode. */
+  if (CELL_MODE) {
+    const payload = {
+      kind: "phase4-cell",
+      generatedFrom: "scripts/diag/phase4.ts",
+      measuredAt: new Date().toISOString(),
+      barSource: BAR_SOURCE,
+      iterations: ITERATIONS,
+      candidateTrials: allSpecs.length,
+      totalTrials,
+      overnight,
+      result: results[0],
+      measurement: {
+        rMultiples: measurements[0].rMultiples,
+        pnl: measurements[0].pnl,
+        intervals: measurements[0].intervals,
+        dailyR: Object.fromEntries(measurements[0].dailyR),
+      },
+    };
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, JSON.stringify(payload));
+    console.log(`\nWrote cell evidence ${OUT}`);
+    return;
   }
 
   /* Trial-count-aware significance over every preregistered configuration. */

@@ -10,6 +10,7 @@ on:
   pull_request:
     paths:
       - "scripts/diag/phase4.ts"
+      - "scripts/diag/phase4-aggregate.ts"
       - "lib/strategies/orb-relvol.ts"
       - "lib/strategies/turn-of-month.ts"
       - "lib/validation/**"
@@ -23,10 +24,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  benchmark:
-    name: Seven-year replacement benchmark
+  cell:
+    name: ${{ matrix.trial }} · ${{ matrix.symbol }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        trial:
+          - orb-relvol-1.2
+          - orb-relvol-1.5
+          - orb-relvol-2
+          - turn-of-month-1-3
+          - turn-of-month-1-1
+          - turn-of-month-4-4
+        symbol: [MES, MNQ]
     env:
       BAR_SOURCE: databento
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -38,13 +50,42 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Verify preregistration and run evidence gates
+      - name: Verify preregistration and run matched-random cell
         run: >-
           node --import tsx scripts/diag/phase4.ts
           --iterations "${{ inputs.iterations || '500' }}"
+          --trial "${{ matrix.trial }}"
+          --symbol "${{ matrix.symbol }}"
+          --out artifacts/cell.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase4-cell-${{ matrix.trial }}-${{ matrix.symbol }}
+          path: artifacts/cell.json
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: Aggregate promotion evidence
+    needs: cell
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: phase4-cell-*
+          path: artifacts/cells
+      - name: Aggregate evidence gates
+        run: >-
+          node --import tsx scripts/diag/phase4-aggregate.ts
+          --input artifacts/cells
           --out artifacts/phase4-hypotheses.json
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: phase4-replacement-evidence
           path: artifacts/phase4-hypotheses.json
