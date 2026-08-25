@@ -33,9 +33,10 @@ export function isLiveSignal(signalTs: string): boolean {
   return nyMeta(Math.floor(new Date(signalTs).getTime() / 1000)).dateKey >= GO_LIVE_DATE;
 }
 
-/** Keep only the rows that were live. Anything measuring the bot's PERFORMANCE
-    must go through this; a feed that merely lists what the engine knows need
-    not, as long as it does not add the rows up. */
-export function liveOnly<T extends { signal_ts: string }>(signals: T[]): T[] {
-  return signals.filter((s) => isLiveSignal(s.signal_ts));
+/** Keep only rows that were genuinely live and still reproduce inside the
+    mirror window. Anything measuring the bot's PERFORMANCE must go through
+    this; a feed that merely lists audit history need not, as long as it does
+    not add the rows up. */
+export function liveOnly<T extends { signal_ts: string; orphaned?: boolean }>(signals: T[]): T[] {
+  return signals.filter((s) => isLiveSignal(s.signal_ts) && !s.orphaned);
 }

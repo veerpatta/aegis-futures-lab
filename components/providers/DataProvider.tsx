@@ -37,6 +37,8 @@ export interface ImportedSeries {
 
 interface DataContextValue {
   history: Record<FeedSymbol, FeedState>;
+  /** Load only the feeds the mounted surface needs. Concurrent callers dedupe per symbol. */
+  ensureHistory: (symbols: readonly FeedSymbol[]) => void;
   reloadHistory: () => void;
   events: CalendarEvent[];
   eventsSource: string | null;
@@ -59,15 +61,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [eventsSource, setEventsSource] = useState<string | null>(null);
   const [imported, setImported] = useState<ImportedSeries | null>(null);
   const [replayCutoff, setReplayCutoff] = useState<number | null>(null);
-  const loadingRef = useRef(false);
+  const requestedRef = useRef<Set<FeedSymbol>>(new Set());
+  const inFlightRef = useRef<Partial<Record<FeedSymbol, Promise<void>>>>({});
+  const statusRef = useRef<Record<FeedSymbol, FeedState["status"]>>(
+    Object.fromEntries(FEED_SYMBOLS.map((symbol) => [symbol, "idle"])) as Record<
+      FeedSymbol,
+      FeedState["status"]
+    >
+  );
 
-  const loadHistory = useCallback(() => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    FEED_SYMBOLS.forEach((symbol) => {
+  const loadSymbols = useCallback((symbols: readonly FeedSymbol[], force = false) => {
+    for (const symbol of new Set(symbols)) {
+      requestedRef.current.add(symbol);
+      if (inFlightRef.current[symbol]) continue;
+      if (!force && statusRef.current[symbol] === "ready") continue;
+      statusRef.current[symbol] = "loading";
       setHistory((h) => ({ ...h, [symbol]: { ...h[symbol], status: "loading" } }));
-      fetchHistory(symbol)
+      const request = fetchHistory(symbol)
         .then((payload: HistoryPayload) => {
+          statusRef.current[symbol] = "ready";
           setHistory((h) => ({
             ...h,
             [symbol]: {
@@ -80,33 +92,46 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           }));
         })
         .catch((error: Error) => {
+          statusRef.current[symbol] = "error";
           setHistory((h) => ({
             ...h,
             [symbol]: { status: "error", bars: [], error: error.message },
           }));
+        })
+        .finally(() => {
+          delete inFlightRef.current[symbol];
         });
-    });
-    loadingRef.current = false;
+      inFlightRef.current[symbol] = request;
+    }
   }, []);
 
+  const ensureHistory = useCallback(
+    (symbols: readonly FeedSymbol[]) => loadSymbols(symbols),
+    [loadSymbols]
+  );
+
+  const reloadHistory = useCallback(() => {
+    loadSymbols([...requestedRef.current], true);
+  }, [loadSymbols]);
+
   useEffect(() => {
-    loadHistory();
     fetchEvents()
       .then((p) => {
         setEvents(p.events);
         setEventsSource(p.source);
       })
       .catch(() => setEventsSource(null));
-    const id = setInterval(loadHistory, 15 * 60 * 1000);
+    const id = setInterval(reloadHistory, 15 * 60 * 1000);
     return () => clearInterval(id);
-  }, [loadHistory]);
+  }, [reloadHistory]);
 
   const newsTimes = useMemo(() => eventTimesSec(events), [events]);
 
   const value = useMemo(
     () => ({
       history,
-      reloadHistory: loadHistory,
+      ensureHistory,
+      reloadHistory,
       events,
       eventsSource,
       newsTimes,
@@ -115,7 +140,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       replayCutoff,
       setReplayCutoff,
     }),
-    [history, loadHistory, events, eventsSource, newsTimes, imported, replayCutoff]
+    [history, ensureHistory, reloadHistory, events, eventsSource, newsTimes, imported, replayCutoff]
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

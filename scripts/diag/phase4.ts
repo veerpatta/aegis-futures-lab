@@ -56,6 +56,7 @@ import { evaluatePromotion, type PromotionEvidence } from "@/lib/validation/prom
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL } from "@/scripts/engine/tiers";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { strategyById } from "@/lib/strategies/registry";
+import { nyMeta } from "@/lib/time/ny";
 
 const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 const arg = (flag: string, fallback: string) => {
@@ -65,6 +66,10 @@ const arg = (flag: string, fallback: string) => {
 const ITERATIONS = Number(arg("--iterations", "500"));
 const OUT = arg("--out", "docs/research/phase4-hypotheses.json");
 const PRINT_SQL = process.argv.includes("--sql");
+const SQL_ONLY = process.argv.includes("--sql-only");
+const ONLY_TRIAL = arg("--trial", "");
+const ONLY_SYMBOL = arg("--symbol", "");
+const CELL_MODE = Boolean(ONLY_TRIAL || ONLY_SYMBOL);
 
 const supabase = createClient(
   process.env.SUPABASE_URL || SUPABASE_URL,
@@ -84,6 +89,14 @@ interface TrialSpec {
   prediction: string;
   params: ParamValues;
 }
+
+const DECISION_RULE =
+  "Eligible for paper only if every promotion check passes: matched-random percentile >=95, " +
+  "deflated Sharpe >0.95 after the full logged-trial correction, t-statistic >3, PBO <0.5, " +
+  "positive net expectancy across purged out-of-sample folds, CV fold survival >=0.6, and " +
+  "at least 150 closed trades. Any failure or missing measurement blocks promotion.";
+
+const configHash = (spec: TrialSpec) => `phase4-${spec.key}-${BAR_SOURCE}`;
 
 function grid(): TrialSpec[] {
   const orbBase = defaultParams(strategyById("orb-relvol"));
@@ -129,17 +142,52 @@ async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
   return alignArchiveSlice(await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));
 }
 
-/** Trials already logged. The DSR hurdle is built from this, not a constant. */
-async function loggedTrialCount(): Promise<number> {
-  const { count, error } = await supabase
-    .from("research_trials")
-    .select("*", { count: "exact", head: true });
-  if (error) {
-    // Loud, not silent: a hurdle computed from an unknown trial count is not a
-    // hurdle, and defaulting to 1 would make every candidate look better.
-    throw new Error(`Cannot read the trial registry, so DSR cannot be honest: ${error.message}`);
+function registrationSql(specs: TrialSpec[]): string {
+  const esc = (text: string) => text.replace(/'/g, "''");
+  return specs
+    .map(
+      (spec) =>
+        `insert into public.research_trials (trial_key, hypothesis, prediction, decision_rule, config_hash, params, dataset, status)\n` +
+        `values ('${spec.key}', '${esc(spec.hypothesis)}', '${esc(spec.prediction)}',\n` +
+        `  '${esc(DECISION_RULE)}',\n` +
+        `  '${configHash(spec)}', '${esc(JSON.stringify(spec.params))}'::jsonb,\n` +
+        `  '{"source":"${BAR_SOURCE}","symbols":["MES","MNQ"]}'::jsonb, 'registered')\n` +
+        `on conflict (config_hash) do nothing;`,
+    )
+    .join("\n");
+}
+
+/** Verify preregistration before loading a single bar or computing a result. */
+async function verifyTrialRegistry(specs: TrialSpec[]): Promise<number> {
+  const [{ data, error }, counted] = await Promise.all([
+    supabase
+      .from("research_trials")
+      .select("trial_key, config_hash, status, outcome")
+      .in("config_hash", specs.map(configHash)),
+    supabase.from("research_trials").select("*", { count: "exact", head: true }),
+  ]);
+  if (error || counted.error) {
+    throw new Error(
+      `Cannot read the trial registry, so DSR cannot be honest: ${(error ?? counted.error)?.message}`,
+    );
   }
-  return count ?? 0;
+  const registered = new Set((data ?? []).map((row) => String(row.config_hash)));
+  const missing = specs.filter((spec) => !registered.has(configHash(spec)));
+  if (missing.length) {
+    throw new Error(
+      `${missing.length} Phase 4 trial(s) are not preregistered. Run with --sql-only, ` +
+        "write those rows, then start the benchmark. Results are intentionally blocked until then.",
+    );
+  }
+  const completed = (data ?? []).filter((row) => row.outcome !== null);
+  if (completed.length) {
+    throw new Error(
+      String(completed.length) +
+        " Phase 4 trial(s) already have a write-once outcome. Re-running them " +
+        "requires new config hashes and new trial registrations.",
+    );
+  }
+  return counted.count ?? 0;
 }
 
 const requestFor = (spec: TrialSpec, symbol: FeedSymbol, bars: Bar[]): RunRequest => ({
@@ -159,8 +207,29 @@ const num = (v: number | null | undefined, dp = 3) =>
 async function main() {
   console.log(`\nPhase 4 hypotheses — source=${BAR_SOURCE}, iterations=${ITERATIONS}\n`);
 
+  const allSpecs = grid();
+  const specs = ONLY_TRIAL ? allSpecs.filter((spec) => spec.key === ONLY_TRIAL) : allSpecs;
+  const symbols = ONLY_SYMBOL
+    ? SYMBOLS.filter((symbol) => symbol === ONLY_SYMBOL)
+    : SYMBOLS;
+  if (CELL_MODE && (!ONLY_TRIAL || !ONLY_SYMBOL || specs.length !== 1 || symbols.length !== 1)) {
+    throw new Error(
+      "Cell mode requires one valid --trial and one valid --symbol (MES or MNQ).",
+    );
+  }
+  if (PRINT_SQL || SQL_ONLY) {
+    console.log("\n-- Register these BEFORE running the benchmark.\n");
+    console.log(registrationSql(specs));
+  }
+  if (SQL_ONLY) return;
+
+  const totalTrials = await verifyTrialRegistry(specs);
+  console.log(
+    `  verified ${specs.length} preregistered configurations; ${totalTrials} total logged trials`,
+  );
+
   const bySymbol = new Map<FeedSymbol, Bar[]>();
-  for (const s of SYMBOLS) {
+  for (const s of symbols) {
     bySymbol.set(s, await archiveBars(s));
     console.log(`  loaded ${s}: ${bySymbol.get(s)!.length.toLocaleString()} bars`);
   }
@@ -170,44 +239,26 @@ async function main() {
      drift is overnight, a flat-by-close system cannot reach it, and "no entry
      edge" was the wrong diagnosis all along. */
   console.log("\n── Overnight vs intraday drift ──");
-  const overnight = SYMBOLS.map((s) => {
+  const overnight = symbols.map((s) => {
     const split = overnightSplit(bySymbol.get(s)!);
     console.log(`  ${describeOvernight(split, s)}`);
     return { symbol: s, ...split };
   });
 
-  const specs = grid();
-  const priorTrials = await loggedTrialCount();
-  console.log(
-    `\n── ${specs.length} trials to run; ${priorTrials} already in the registry ──`,
-  );
-
-  if (PRINT_SQL) {
-    console.log("\n-- Register these BEFORE reading any result below.");
-    for (const s of specs) {
-      const esc = (t: string) => t.replace(/'/g, "''");
-      console.log(
-        `insert into public.research_trials (trial_key, hypothesis, prediction, decision_rule, config_hash, params, dataset, status)\n` +
-          `values ('${s.key}', '${esc(s.hypothesis)}', '${esc(s.prediction)}',\n` +
-          `  'Clears the promotion gate (>=95th percentile vs matched random entries, DSR>0.95, t>3, positive net OOS expectancy) => the hypothesis has support on this data. Anything less => it does not, and is not promoted.',\n` +
-          `  'phase4-${s.key}-${BAR_SOURCE}', '${esc(JSON.stringify(s.params))}'::jsonb,\n` +
-          `  '{"source":"${BAR_SOURCE}","symbols":["MES","MNQ"]}'::jsonb, 'running')\n` +
-          `on conflict (config_hash) do nothing;`,
-      );
-    }
-  }
+  console.log(`\n── ${specs.length} preregistered trials to run ──`);
 
   const rows: Record<string, unknown>[] = [];
   const results: Record<string, unknown>[] = [];
   const perTrialSharpes: number[] = [];
-  const returnsMatrix: number[][] = [];
-  /* Trade INTERVALS per candidate, for purged CV. A trade is not a point in
-     time — it opens at t0 and its outcome is only known at t1 — and that
-     interval is exactly what the purge needs to detect overlap. */
-  const intervals: { t0: number; t1: number }[][] = [];
+  const measurements: {
+    rMultiples: number[];
+    pnl: number[];
+    intervals: { t0: number; t1: number }[];
+    dailyR: Map<string, number>;
+  }[] = [];
 
   for (const spec of specs) {
-    for (const symbol of SYMBOLS) {
+    for (const symbol of symbols) {
       const bars = bySymbol.get(symbol)!;
       const gn = await runGrossNet(requestFor(spec, symbol, bars), executeRun, LEGACY_MODEL);
       const trades = gn.net.trades;
@@ -244,16 +295,18 @@ async function main() {
         void verdictFor(nullRes);
       }
 
-      if (rMultiples.length) {
-        returnsMatrix.push(rMultiples);
-        intervals.push(trades.map((t) => ({ t0: t.entryTime, t1: t.exitTime })));
+      const ordered = [...trades].sort((a, b) => a.entryTime - b.entryTime);
+      const dailyR = new Map<string, number>();
+      for (const trade of ordered) {
+        const day = nyMeta(trade.entryTime).dateKey;
+        dailyR.set(day, (dailyR.get(day) ?? 0) + trade.rMultiple);
       }
-
-      const evidence: PromotionEvidence = {
-        randomEntryPercentile: percentile,
-        oosNetExpectancy: trades.length ? s.net / trades.length : null,
-        trades: trades.length,
-      };
+      measurements.push({
+        rMultiples: ordered.map((trade) => trade.rMultiple),
+        pnl: ordered.map((trade) => trade.pnl),
+        intervals: ordered.map((trade) => ({ t0: trade.entryTime, t1: trade.exitTime })),
+        dailyR,
+      });
 
       rows.push({
         trial: spec.key,
@@ -282,7 +335,6 @@ async function main() {
         pf: s.pf,
         randomEntryPercentile: percentile,
         realisedNRatio,
-        gate: evaluatePromotion(evidence),
       });
       console.log(
         `  ${spec.key.padEnd(24)} ${symbol}  n=${String(s.n).padStart(4)}  ` +
@@ -292,39 +344,98 @@ async function main() {
     }
   }
 
-  /* Trial-count-aware significance, over the pooled candidate set. */
-  const totalTrials = priorTrials + specs.length;
-  const dispersion = trialSharpeDispersion(perTrialSharpes.filter(Number.isFinite));
-  const best = results.reduce(
-    (b, r) => ((r.avgR as number) > ((b?.avgR as number) ?? -Infinity) ? r : b),
-    results[0],
-  );
-  const bestReturns = returnsMatrix[results.indexOf(best)] ?? [];
-  const dsr = bestReturns.length > 2 ? deflatedSharpe(bestReturns, totalTrials, dispersion) : null;
+  /* GitHub's standard runner cannot finish all twelve 500-draw cells in one
+     two-hour job. Cell mode changes scheduling only: each matrix worker writes
+     the raw observations needed by the single strict aggregator. The random
+     seeds, execution engine and promotion rules are identical to serial mode. */
+  if (CELL_MODE) {
+    const payload = {
+      kind: "phase4-cell",
+      generatedFrom: "scripts/diag/phase4.ts",
+      measuredAt: new Date().toISOString(),
+      barSource: BAR_SOURCE,
+      iterations: ITERATIONS,
+      candidateTrials: allSpecs.length,
+      totalTrials,
+      overnight,
+      result: results[0],
+      measurement: {
+        rMultiples: measurements[0].rMultiples,
+        pnl: measurements[0].pnl,
+        intervals: measurements[0].intervals,
+        dailyR: Object.fromEntries(measurements[0].dailyR),
+      },
+    };
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, JSON.stringify(payload));
+    console.log(`\nWrote cell evidence ${OUT}`);
+    return;
+  }
 
-  // PBO needs every configuration measured over the same observations.
-  const width = Math.min(...returnsMatrix.map((r) => r.length));
-  const aligned = returnsMatrix.filter((r) => r.length >= width).map((r) => r.slice(0, width));
+  /* Trial-count-aware significance over every preregistered configuration. */
+  const dispersion = trialSharpeDispersion(perTrialSharpes.filter(Number.isFinite));
+
+  // PBO needs identical observations. Align on the shared trading-day
+  // calendar, not the first N trades (which occur on different dates).
+  const days = [...new Set(measurements.flatMap((m) => [...m.dailyR.keys()]))].sort();
+  const aligned = measurements.map((m) => days.map((day) => m.dailyR.get(day) ?? 0));
   const pbo =
-    aligned.length >= 2 && width >= 64
+    aligned.length >= 2 && days.length >= 64
       ? probabilityOfBacktestOverfitting(aligned, { splits: 8 })
       : null;
 
-  /* Purged, embargoed CV over the best candidate's own trade intervals. What
-     it reports is how much of the sample has to be DISCARDED to keep training
-     and test from overlapping — on a strategy that trades all day, that share
-     is large, and it is the honest cost of measuring without leakage. */
-  const bestIntervals = intervals[results.indexOf(best)] ?? [];
-  const folds = combinatorialPurgedCv([...bestIntervals].sort((a, b) => a.t0 - b.t0), 6, 2);
-  const cv = summariseFolds(folds, bestIntervals.length);
+  results.forEach((result, index) => {
+    const measured = measurements[index];
+    const deflated =
+      measured.rMultiples.length > 2
+        ? deflatedSharpe(measured.rMultiples, totalTrials, dispersion)
+        : null;
+    const folds = combinatorialPurgedCv(measured.intervals, 6, 2);
+    const foldExpectancy = folds
+      .map((fold) =>
+        fold.test.length
+          ? fold.test.reduce((sum, i) => sum + measured.pnl[i], 0) / fold.test.length
+          : NaN,
+      )
+      .filter(Number.isFinite);
+    const oosNetExpectancy = foldExpectancy.length
+      ? foldExpectancy.reduce((sum, value) => sum + value, 0) / foldExpectancy.length
+      : null;
+    const cvFoldSurvival = foldExpectancy.length
+      ? foldExpectancy.filter((value) => value > 0).length / foldExpectancy.length
+      : null;
+    const evidence: PromotionEvidence = {
+      randomEntryPercentile: result.randomEntryPercentile as number | null,
+      deflated,
+      pbo,
+      oosNetExpectancy,
+      cvFoldSurvival,
+      trades: result.trades as number,
+    };
+    Object.assign(result, {
+      deflatedSharpe: deflated,
+      pbo,
+      oosNetExpectancy,
+      cvFoldSurvival,
+      cvSummary: summariseFolds(folds, measured.intervals.length),
+      gate: evaluatePromotion(evidence),
+    });
+  });
+
+  const best = results.reduce(
+    (winner, result) =>
+      (result.avgR as number) > ((winner?.avgR as number) ?? -Infinity) ? result : winner,
+    results[0],
+  );
+  const bestDsr = best.deflatedSharpe as ReturnType<typeof deflatedSharpe> | null;
 
   console.log("\n── Trials ──");
   console.table(rows);
   console.log(
-    `\nTrial count for the DSR hurdle: ${totalTrials} (${priorTrials} prior + ${specs.length} new). ` +
+    `\nTrial count for the DSR hurdle: ${totalTrials} total preregistered trials. ` +
       `Trial Sharpe dispersion ${num(dispersion)}.`,
   );
-  if (dsr) console.log(`Best candidate: DSR ${num(dsr.dsr)}, t=${num(dsr.tStat, 2)}, significant=${dsr.significant}`);
+  if (bestDsr) console.log(`Best candidate: DSR ${num(bestDsr.dsr)}, t=${num(bestDsr.tStat, 2)}, significant=${bestDsr.significant}`);
   if (pbo) console.log(`PBO across ${aligned.length} configurations: ${(pbo.pbo * 100).toFixed(1)}%`);
 
   const promoted = results.filter((r) => (r.gate as { promote: boolean }).promote);
@@ -335,14 +446,16 @@ async function main() {
     measuredAt: new Date().toISOString(),
     barSource: BAR_SOURCE,
     iterations: ITERATIONS,
-    priorTrials,
+    priorTrials: Math.max(0, totalTrials - specs.length),
+    candidateTrials: specs.length,
     totalTrials,
     trialSharpeDispersion: dispersion,
     overnight,
     trials: results,
-    deflatedSharpe: dsr,
+    bestTrial: best.trial,
+    deflatedSharpe: bestDsr,
     pbo,
-    cvSummary: cv,
+    cvSummary: best.cvSummary,
     notTested: [
       {
         candidate: "Time-series momentum (Moskowitz, Ooi & Pedersen 2012)",

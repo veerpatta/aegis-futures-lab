@@ -22,11 +22,11 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>What this app is</h2>
         <p>
-          Aegis watches the two micro futures markets — <b>MES</b> (S&amp;P 500) and <b>MNQ</b>
-          (Nasdaq) — and posts <b>practice trade ideas</b> two to three times a day using the
-          demand-and-supply strategy this lab was built around. Every idea is tracked to its result
-          (target hit, stop hit, or closed flat) so you can judge the strategy on evidence, not
-          memory.
+          Aegis watches micro index futures and keeps an evidence-first record of simulated
+          strategies. When an eligible paper stream is active it posts <b>practice trade ideas</b>
+          and tracks every result; when the evidence benches those streams, Home says{" "}
+          <b>RESEARCH MODE</b> instead of quietly substituting an untested strategy. The point is
+          to judge every idea on evidence, not memory.
         </p>
         <div className={styles.warn}>
           <b>Nothing here touches real money.</b> There is no broker connection, prices are
@@ -81,13 +81,14 @@ export default function GuidePage() {
         <p>
           <span className={styles.tierA}>TIER A</span>&nbsp; The classic zone setup: price
           returning to a fresh daily or 4-hour demand/supply zone with everything lined up. These
-          are <b>rare</b> — sometimes none for days — but they are the highest-conviction trades
-          the strategy knows.
+          are <b>rare</b> — sometimes none for days. &ldquo;Tier A&rdquo; describes the setup&apos;s
+          selectivity, not proof that it has an edge; Diagnostics records the measured verdict.
         </p>
         <p>
           <span className={styles.tierB}>TIER B</span>&nbsp; The daily bread-and-butter: a
           mean-reversion setup that fades short-term exhaustion, capped at two trades per market
-          per day and shut off after two losses. These keep the feed active every day.
+          per day and shut off after two losses. A breaker can bench it when recent paper results
+          deteriorate, so an empty feed can be the correct safety state.
         </p>
         <p className={styles.note}>
           The whole point of the labels: over time, watch <b>which tier actually makes money</b>{" "}
@@ -113,6 +114,14 @@ export default function GuidePage() {
             The idea <i>has</i> been tested, and it did not beat random entries.
           </dd>
         </dl>
+        <p>
+          <b>The two Phase 4 replacement candidates are now refuted too.</b> On 25 August 2026,
+          opening-range breakout with relative volume and the intraday turn-of-month rule were run
+          as six preregistered configurations on both MES and MNQ. None of the 12 measured runs
+          cleared every promotion check. The least-bad run made $510 on MNQ, but still failed the
+          random-entry, deflated-Sharpe, t-statistic, PBO and fold-survival checks. They remain in
+          the Lab and Diagnostics for audit; neither can replace a paused stream.
+        </p>
         <p>
           You can open any of them in the Lab and backtest them like anything else. What they will
           never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
@@ -344,6 +353,14 @@ export default function GuidePage() {
             and never used to teach the model. You will find them in their own{" "}
             <b>Excluded: stale data</b> box on the Signals page.
           </dd>
+          <dt>Revised-away signal</dt>
+          <dd>
+            The data vendor occasionally corrects a bar inside the seven-day reconciliation
+            window. If the deterministic rerun no longer produces an older row, the engine keeps
+            it for traceability but marks it <b>REVISED</b>. It is removed from performance,
+            breakers, alerts and model training, and remains visible in the{" "}
+            <b>Excluded: revised-away signals</b> box on Signals.
+          </dd>
           <dt>Marginal / doubtful fill</dt>
           <dd>
             An honesty check on the entry itself. The simulation assumes a resting order fills the
@@ -380,7 +397,9 @@ export default function GuidePage() {
           <dd>
             Delayed charts, live strategy readout, and the news calendar — each week&apos;s
             high-impact U.S. events from a free live feed, backed by the official BLS and Fed
-            schedules when the feed is down.
+            schedules when the feed is down. The readout loads the selected strategy&apos;s actual
+            instruments — including gold and its silver confirmation feed — rather than always
+            substituting MES and MNQ.
           </dd>
           <dt>Journal</dt>
           <dd>
@@ -515,7 +534,10 @@ export default function GuidePage() {
         </p>
         <p className={styles.note}>
           Paused streams show up in their own <b>Paused streams</b> box on the Signals page and a
-          note on Home, with the date they were benched and how their practice run is recovering.
+          <b>RESEARCH MODE</b> note on Home, with the date they were benched and how their practice
+          run is recovering. Research mode means exactly what it says: no candidate is presented
+          as the replacement unless its completed benchmark clears every promotion check. The
+          current Phase 4 candidates were measured and refuted, so no replacement is active.
           The weekly digest keeps their practice out of the headline numbers too and reports it on
           its own line. Every bench and every return is recorded and sent to Telegram, so nothing
           happens silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
@@ -806,7 +828,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-08-21. A printable version of this guide lives in the project
+        Matches the app as of 2026-08-25. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

@@ -64,16 +64,21 @@ export default function ForwardTab({
     () => loadStored<LegacyAgentState>(KEYS.legacyAgent),
     null
   );
+  const strategy = strategyById(stored?.strategyId ?? strategyId);
+  const wantedFeeds = useMemo(() => feedsFor(strategy), [strategy]);
 
-  const feedsReady =
-    data.history.MES.status === "ready" && data.history.MNQ.status === "ready";
+  useEffect(() => {
+    data.ensureHistory(wantedFeeds);
+  }, [data.ensureHistory, wantedFeeds]);
+
+  const feedsReady = wantedFeeds.every((symbol) => data.history[symbol].status === "ready");
 
   const lastBarTime = useMemo(() => {
-    const times = (["MES", "MNQ"] as FeedSymbol[])
+    const times = wantedFeeds
       .map((s) => data.history[s].bars.at(-1)?.time ?? 0)
       .filter(Boolean);
     return times.length ? Math.min(...times) : 0;
-  }, [data.history]);
+  }, [data.history, wantedFeeds]);
 
   const dataAgeMin = lastBarTime ? Math.round((Date.now() / 1000 - lastBarTime) / 60) : null;
 
@@ -141,15 +146,14 @@ export default function ForwardTab({
   }, [stored, feedsReady, data.history, data.newsTimes]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
     const id = setInterval(() => {
       data.reloadHistory();
-      refresh();
+      void refresh();
     }, 60_000);
     return () => clearInterval(id);
-  }, [refresh, data]);
+  }, [refresh, data.reloadHistory]);
 
-  const strategy = strategyById(stored?.strategyId ?? strategyId);
   const m = result?.metrics;
 
   const checklist: { label: string; ok: boolean | null; detail: string }[] = [
@@ -158,7 +162,7 @@ export default function ForwardTab({
       ok: feedsReady ? (dataAgeMin !== null && dataAgeMin < 20 ? true : null) : false,
       detail: feedsReady
         ? `last completed bar ${dataAgeMin} min ago${dataAgeMin !== null && dataAgeMin >= 20 ? " — market likely closed or feed stale" : ""}`
-        : "waiting for MES/MNQ history",
+        : `waiting for ${wantedFeeds.join("/")} history`,
     },
     {
       label: "News lockout",

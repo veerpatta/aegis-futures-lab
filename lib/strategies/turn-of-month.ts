@@ -108,7 +108,7 @@ export const turnOfMonth: Strategy<Ctx> = {
   id: "turn-of-month",
   name: "Turn of the month",
   blurb:
-    "Phase 4 hypothesis, untested. Buy the open on the last trading days of the month and the first of the next, flat by the close. The published effect is a multi-day, overnight-inclusive one; this engine can only test its intraday component.",
+    "Phase 4 hypothesis, measured and refuted on 25 August 2026. Its six MES/MNQ runs did not clear the full promotion gate; the published multi-day effect does not become a safe intraday replacement in this flat-by-close engine.",
   symbolMode: "single",
   params: [
     {

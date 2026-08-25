@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { executeRun, type RunRequest } from "@/lib/backtest/run";
 import { strategyById, isHypothesis, PHASE4_HYPOTHESES } from "@/lib/strategies/registry";
@@ -210,9 +211,9 @@ describe("orb-relvol", () => {
     expect(PHASE4_HYPOTHESES.size).toBe(2);
   });
 
-  it("says in its own blurb that it is untested", () => {
+  it("says in its own blurb that the measured result is refuted", () => {
     for (const id of PHASE4_HYPOTHESES) {
-      expect(strategyById(id).blurb.toLowerCase()).toContain("untested");
+      expect(strategyById(id).blurb.toLowerCase()).toContain("refuted");
     }
   });
 });
@@ -280,5 +281,39 @@ describe("overnight decomposition", () => {
 
   it("returns a zero-session result rather than throwing on empty input", () => {
     expect(overnightSplit([], { iterations: 10 }).sessions).toBe(0);
+  });
+});
+
+describe("Phase 4 CI sharding", () => {
+  const workflow = readFileSync(".github/workflows/phase4-research.yml", "utf8");
+  const runner = readFileSync("scripts/diag/phase4.ts", "utf8");
+  const aggregator = readFileSync("scripts/diag/phase4-aggregate.ts", "utf8");
+
+  it("runs every preregistered trial on both symbols as independent cells", () => {
+    for (const trial of [
+      "orb-relvol-1.2",
+      "orb-relvol-1.5",
+      "orb-relvol-2",
+      "turn-of-month-1-3",
+      "turn-of-month-1-1",
+      "turn-of-month-4-4",
+    ]) {
+      expect(workflow).toContain(`- ${trial}`);
+    }
+    expect(workflow).toContain("symbol: [MES, MNQ]");
+    expect(workflow).toContain('--trial "${{ matrix.trial }}"');
+    expect(workflow).toContain('--symbol "${{ matrix.symbol }}"');
+    expect(runner).toContain('kind: "phase4-cell"');
+  });
+
+  it("keeps artifacts separate and refuses incomplete aggregation", () => {
+    expect(workflow).not.toContain("merge-multiple: true");
+    expect(workflow).toContain("scripts/diag/phase4-aggregate.ts");
+    expect(aggregator).toContain("Expected 12 Phase 4 cell files");
+    expect(aggregator).toContain(
+      "Every preregistered configuration must have one MES and one MNQ cell",
+    );
+    expect(aggregator).toContain("probabilityOfBacktestOverfitting");
+    expect(aggregator).toContain("evaluatePromotion(evidence)");
   });
 });

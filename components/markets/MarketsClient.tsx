@@ -6,7 +6,7 @@ import { getSupabase, type ZoneRow } from "@/lib/supabase/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
-import { STRATEGIES, strategyById, standingOf } from "@/lib/strategies/registry";
+import { STRATEGIES, feedsFor, strategyById, standingOf } from "@/lib/strategies/registry";
 import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
 import { points } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
@@ -88,6 +88,8 @@ export default function MarketsClient() {
      same card rather than a second chart further down the page. */
   const [chartStyle, setChartStyle] = useState<"line" | "candles">("line");
   const [readoutStrategy, setReadoutStrategy] = useState("zone-v5");
+  const selectedStrategy = useMemo(() => strategyById(readoutStrategy), [readoutStrategy]);
+  const readoutFeeds = useMemo(() => feedsFor(selectedStrategy), [selectedStrategy]);
   const [zones, setZones] = useState<ZoneRow[]>([]);
   /* null until mounted — the session countdown must not render on the server. */
   const [tick, setTick] = useState<number | null>(null);
@@ -97,6 +99,10 @@ export default function MarketsClient() {
     const id = setInterval(() => setTick(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    data.ensureHistory([chartSymbol, ...readoutFeeds]);
+  }, [chartSymbol, readoutFeeds, data.ensureHistory]);
 
   useEffect(() => {
     getSupabase()
@@ -139,10 +145,11 @@ export default function MarketsClient() {
   }, [data.history, chartSymbol, tf]);
 
   const readoutRows: ReadoutRow[] = useMemo(() => {
-    if (data.history.MES.status !== "ready" || data.history.MNQ.status !== "ready") return [];
-    const strategy = strategyById(readoutStrategy);
+    if (!readoutFeeds.every((symbol) => data.history[symbol].status === "ready")) return [];
     try {
-      const series = { MES: data.history.MES.bars, MNQ: data.history.MNQ.bars };
+      const series = Object.fromEntries(
+        readoutFeeds.map((symbol) => [symbol, data.history[symbol].bars])
+      );
       const cutoff = data.replayCutoff;
       const visible = Object.fromEntries(
         Object.entries(series).map(([s, bars]) => {
@@ -151,8 +158,8 @@ export default function MarketsClient() {
         })
       );
       if (Object.values(visible).some((b) => b.length < 30)) return [];
-      const params = defaultParams(strategy);
-      const ctx = strategy.prepare(visible, params, {
+      const params = defaultParams(selectedStrategy);
+      const ctx = selectedStrategy.prepare(visible, params, {
         cost: 2.4,
         slippage: 0.25,
         maxRisk: 160,
@@ -164,11 +171,11 @@ export default function MarketsClient() {
           Object.entries(visible).map(([s, bars]) => [s, { bars, index: bars.length - 1 }])
         ),
       };
-      return strategy.liveReadout?.(ctx, snap, params) ?? [];
+      return selectedStrategy.liveReadout?.(ctx, snap, params) ?? [];
     } catch {
       return [];
     }
-  }, [data.history, readoutStrategy, data.replayCutoff]);
+  }, [data.history, selectedStrategy, readoutFeeds, data.replayCutoff]);
 
   /* Zones nearest the delayed price, for the "near price" card. */
   const nearZones = useMemo(() => {
@@ -454,8 +461,8 @@ export default function MarketsClient() {
                 ))
               ) : (
                 <span className={styles.note}>
-                  Waiting for both feeds — the readout runs the selected strategy on the latest
-                  completed bars with default parameters.
+                  Waiting for {readoutFeeds.join(" + ")} — the readout runs the selected strategy
+                  on the latest completed bars with default parameters.
                 </span>
               )}
             </div>

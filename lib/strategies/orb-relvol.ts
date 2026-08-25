@@ -117,7 +117,7 @@ export const orbRelVol: Strategy<Ctx> = {
   id: "orb-relvol",
   name: "Opening Range Breakout + relative volume",
   blurb:
-    "Phase 4 hypothesis, untested. Mark the opening range, then take the first breakout ONLY on sessions whose volume is running unusually high for the time of day. The volume filter is the claim; the breakout on its own is known to be weak.",
+    "Phase 4 hypothesis, measured and refuted on 25 August 2026. Across six MES/MNQ runs, no relative-volume threshold cleared every promotion gate; it remains available for audit in the Lab but cannot enter paper trading.",
   symbolMode: "single",
   params: [
     {

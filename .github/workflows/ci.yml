@@ -40,6 +40,9 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   bot-branches:
     if: github.event_name != 'pull_request'

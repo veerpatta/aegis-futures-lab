@@ -206,7 +206,7 @@ export async function applyBreakers(
       // RSI and a promoted shadow on the same symbol don't mix (finding 8).
       let q = supabase
         .from("signals")
-        .select("pnl_usd, fill_confidence, signal_ts")
+        .select("pnl_usd, fill_confidence, signal_ts, orphaned")
         .not("pnl_usd", "is", null)
         .order("signal_ts", { ascending: false })
         .range(0, 199);

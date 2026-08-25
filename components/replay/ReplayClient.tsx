@@ -55,6 +55,10 @@ export default function ReplayClient() {
     (s) => data.history[s].status === "error"
   );
 
+  useEffect(() => {
+    data.ensureHistory(["MES", "MNQ"]);
+  }, [data.ensureHistory]);
+
   const [run, setRun] = useState<{ result: BacktestResult; series: Record<string, Bar[]> } | null>(
     null
   );

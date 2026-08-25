@@ -49,7 +49,7 @@ import { countLosses, countWins, expectancy, fmtPf, profitFactor, rateReadout } 
 import { loadJournal, type JournalTrade } from "@/lib/journal";
 import { useStoredValue } from "@/lib/data/useStored";
 import { disciplineDays, disciplineStreak } from "@/lib/journal/discipline";
-import { Rate, SampleNote } from "@/components/ui";
+import { Badge, Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
 import { liveOnly } from "@/lib/signals/live";
 import styles from "./home.module.css";
@@ -382,7 +382,7 @@ export default function HomeClient() {
      the engine could not actually have seen. Both stay visible in their
      drawers on Signals. */
   const signals = useMemo(
-    () => (ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
+    () => liveOnly(ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
     [ready]
   );
   /* Item 2.8 — the nightly condition ledger, fetched once for every card. */
@@ -395,7 +395,7 @@ export default function HomeClient() {
     const out: { stream: string; since: string; recoveryPf: number | null; n: number }[] = [];
     for (const [stream, p] of latest) {
       if (p.action !== "paused") continue;
-      const recent = ready.signals
+      const recent = liveOnly(ready.signals)
         .filter(
           (s) =>
             s.suppressed &&
@@ -599,7 +599,13 @@ export default function HomeClient() {
       )}
 
       {pausedStreams.length > 0 && (
-        <section className={styles.card} aria-label="Paused streams" style={{ padding: "12px 16px" }}>
+        <section className={styles.card} aria-label="Replacement research" style={{ padding: "12px 16px" }}>
+          <div className={styles.cellSub} style={{ display: "block", marginBottom: 8 }}>
+            <Badge tone="amber">RESEARCH MODE</Badge>{" "}
+            <b>No candidate currently clears the replacement gate.</b> Measured failures stay in
+            the diagnostics lab and cannot enter paper trading. {" "}
+            <Link href="/diagnostics">View evidence →</Link>
+          </div>
           {pausedStreams.map((p) => (
             <div key={p.stream} className={styles.cellSub} style={{ display: "block", marginBottom: 2 }}>
               <span className={styles.warn}>⏸︎ {streamLabel(p.stream)} paused by the breaker</span>{" "}
