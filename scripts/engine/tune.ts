@@ -156,12 +156,12 @@ async function main() {
   try {
     const { data: allRows, error } = await supabase
       .from("signals")
-      .select("pnl_usd, vix_bucket, signal_ts");
+      .select("pnl_usd, vix_bucket, signal_ts, orphaned");
     if (error) throw new Error(error.message);
     /* liveOnly, and note this read has NO time window at all — "all-time"
        here means every row in the table, which includes the six days the
        first engine pass wrote retroactively. See lib/signals/live.ts. */
-    const data = liveOnly((allRows ?? []) as { pnl_usd: number | null; vix_bucket: string | null; signal_ts: string }[]);
+    const data = liveOnly((allRows ?? []) as { pnl_usd: number | null; vix_bucket: string | null; signal_ts: string; orphaned?: boolean }[]);
     const pnlsFor = (bucket: string) =>
       (data ?? [])
         .filter((r) => r.vix_bucket === bucket && r.pnl_usd !== null)

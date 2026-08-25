@@ -9,10 +9,11 @@ This manual is also available inside the app on the **Guide** page.
 
 ## 1. What this app is
 
-Aegis watches the two micro futures markets — **MES** (Micro E-mini S&P 500) and **MNQ**
-(Micro E-mini Nasdaq-100) — and posts **practice trade ideas** two to three times a day
-using a demand-and-supply zone strategy. Every idea is tracked to its result (target hit,
-stop hit, or closed flat), so you can judge the strategy on evidence instead of memory.
+Aegis watches micro index futures and keeps an evidence-first record of simulated
+strategies. When an eligible paper stream is active it posts **practice trade ideas** and
+tracks every result. When the evidence benches those streams, Home says **RESEARCH MODE**
+instead of quietly substituting an untested strategy. The point is to judge every idea on
+evidence instead of memory.
 
 > **Nothing here touches real money.** There is no broker connection, prices are delayed
 > 10–15 minutes, and trade ideas appear 5–15 minutes after the setup happens. Use the app
@@ -154,10 +155,11 @@ trades.
 
 - **TIER A** — the classic zone setup: price returning to a fresh Daily or 4-hour
   demand/supply zone with everything lined up. These are **rare** (sometimes none for
-  days) but they are the highest-conviction trades the strategy knows.
-- **TIER B** — the daily bread-and-butter: a mean-reversion setup that fades short-term
-  exhaustion, capped at two trades per market per day and shut off after two losses.
-  These keep the feed active every day.
+  days). The label describes selectivity, not proof of edge; Diagnostics records the
+  measured verdict.
+- **TIER B** — a mean-reversion setup that fades short-term exhaustion, capped at two
+  trades per market per day and shut off after two losses. A breaker can bench it when
+  recent paper results deteriorate, so an empty feed can be the correct safety state.
 
 The point of the labels: over time, watch **which tier actually makes money** in the
 Performance panel, and weight your attention accordingly.
@@ -208,10 +210,13 @@ showing its ideas and stops counting them in the headline numbers, but keeps sim
 them silently. When the silent practice recovers (profit factor 1.1 or better over the
 next 15), the bot returns the stream to the game on its own, waiting at least three
 trading days between changes so it never flip-flops. Paused streams appear in their own
-**Paused streams** box on Signals and a note on Home; the weekly digest also keeps their
+**Paused streams** box on Signals and a **RESEARCH MODE** note on Home; the weekly digest also keeps their
 practice out of the headline numbers and reports it on its own line. Every bench and return
 is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
 to trade — and it is paper only.
+
+Research mode means exactly what it says: no unmeasured candidate is presented as the
+replacement while its benchmark is unfinished.
 
 ### What each idea tells you at a glance
 
@@ -273,6 +278,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 | P&L | Simulated dollars for the position size the engine chose (risking about $160 per trade), commissions already subtracted. |
 | Regime | What kind of market the idea was born into: trending or ranging, quiet or volatile (e.g. **TR·HV** = trending, high volatility). It never changes the ideas — it is a label, so the Performance panel can show which conditions the strategy actually earns in. |
 | Stale data | The feed is delayed 10–15 minutes by design, but sometimes it stalls for far longer. If the newest bar is more than **30 minutes** old when the bot runs, any idea it works out describes a market that has already moved on. Those ideas are still recorded — hiding them would hide the outage — but they are marked **STALE DATA**, kept out of every score, never sent to Telegram, and never used to teach the model. They appear in their own **Excluded: stale data** box on Signals. |
+| Revised-away signal | The data vendor corrected a bar inside the seven-day reconciliation window and the deterministic rerun no longer produced the older row. It is kept for traceability, marked **REVISED**, removed from performance, breakers, alerts and model training, and shown in **Excluded: revised-away signals** on Signals. |
 | Marginal / doubtful fill | An honesty check on the entry. The simulation assumes a resting order fills when price touches the entry level — in a real market a touch is often not enough. No chip = price traded cleanly through the level. **MARGINAL FILL** (amber) = price barely reached it but came back later. **DOUBTFUL FILL** (red) = price only kissed the level once; a real order likely never filled, so treat that idea's profit as imaginary. Every performance number is also restated "excluding doubtful fills". |
 
 ## 5. What each page does
@@ -281,7 +287,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 |---|---|
 | **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
 | **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
-| **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. |
+| **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. The readout loads the selected strategy's actual instruments, including gold and its silver confirmation feed, rather than substituting MES and MNQ. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
 | **Strategy Lab** | The workshop (advanced, optional). Change strategy settings and run backtests. |
 | **Compare / Data** | More of the workshop — compare variants, load your own CSV history. Both sit under **More** in the side menu on a computer. The Data page also shows the app's own price archive (its five-minute history saved to the cloud daily, growing past the feed's 60-day limit) and the **Shadow lab**: four extra strategies auditioning silently on live data. Shadow results are **not signals** and never alert; a stream earns promotion interest only after ≥60 finished trades, PF ≥ 1.2, and profits in two different market regimes. |
@@ -471,6 +477,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-08-21. If the app has changed since, the
+*Manual version: matches the app as of 2026-08-25. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

@@ -33,7 +33,7 @@ async function main() {
 
   const { data: signals, error: sigErr } = await supabase
     .from("signals")
-    .select("id,tier,symbol,regime,fill_confidence,win_prob,model_veto,stale_data,status,exit_ts,pnl_usd,signal_ts")
+    .select("id,tier,symbol,regime,fill_confidence,win_prob,model_veto,stale_data,orphaned,status,exit_ts,pnl_usd,signal_ts")
     .not("exit_ts", "is", null)
     .gte("exit_ts", since24h)
     .order("exit_ts", { ascending: true });
@@ -85,7 +85,7 @@ async function main() {
   // Rolling PF over last 20 closed signals per stream (tier+symbol), real signals only.
   const { data: recentAll, error: recentErr } = await supabase
     .from("signals")
-    .select("id,tier,symbol,status,exit_ts,pnl_usd,signal_ts")
+    .select("id,tier,symbol,status,exit_ts,pnl_usd,orphaned,signal_ts")
     .not("exit_ts", "is", null)
     .order("exit_ts", { ascending: false })
     .limit(500);

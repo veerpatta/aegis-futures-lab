@@ -175,11 +175,11 @@ const CHROME_CANDIDATES = [
 
 const chrome = CHROME_CANDIDATES.find((p) => existsSync(p));
 if (!chrome) {
-  console.error(
-    "No Chrome/Edge binary found. Set CHROME_PATH to one and re-run:\n  " +
-      CHROME_CANDIDATES.join("\n  ")
-  );
-  process.exit(1);
+  console.log("No Chrome/Edge binary found; using the ReportLab fallback.");
+  execFileSync(process.env.PYTHON || "python3", [join(repoRoot, "scripts/docs/build-manual-pdf.py")], {
+    stdio: "inherit",
+  });
+  process.exit(0);
 }
 
 const html = `<!doctype html>

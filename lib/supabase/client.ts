@@ -64,6 +64,9 @@ export interface SignalRow {
      signal cards (item 2.8). Optional — absent on rows written before Ring 1b. */
   win_prob?: number | null;
   model_veto?: boolean;
+  /* A later deterministic mirror recompute no longer emitted this row after a
+     vendor bar revision. Kept for audit; excluded by liveOnly(). */
+  orphaned?: boolean;
 }
 
 /* bot_policy: append-only audit of automatic policy actions (breaker pauses/

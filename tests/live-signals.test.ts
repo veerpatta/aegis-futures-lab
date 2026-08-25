@@ -64,6 +64,14 @@ describe("liveOnly", () => {
   it("returns an empty list rather than throwing on no input", () => {
     expect(liveOnly([])).toEqual([]);
   });
+
+  it("keeps revised-away rows for audit but excludes them from live performance", () => {
+    const rows = [
+      { ...row("2026-07-30T14:00:00Z", 50), orphaned: false },
+      { ...row("2026-07-30T15:00:00Z", 900), orphaned: true },
+    ];
+    expect(liveOnly(rows)).toEqual([rows[0]]);
+  });
 });
 
 /* ── The structural guard ─────────────────────────────────────────────────
@@ -135,6 +143,17 @@ describe("every signals reader is classified", () => {
     const src = readFileSync(join(process.cwd(), path), "utf8");
     expect(readsSignals(src), `${path} no longer reads signals — update this guard`).toBe(true);
     expect(src, `${path} aggregates signals without liveOnly`).toMatch(/\bliveOnly\s*\(/);
+  });
+
+  it.each([
+    "scripts/diag/nightly-research.ts",
+    "scripts/engine/breakers.ts",
+    "scripts/engine/digest.ts",
+    "scripts/engine/learn.ts",
+    "scripts/engine/tune.ts",
+  ])("%s selects the orphan marker before filtering", (path) => {
+    const src = readFileSync(join(process.cwd(), path), "utf8");
+    expect(src, `${path} cannot exclude revised-away rows it did not select`).toContain("orphaned");
   });
 
   it("keeps a stated reason for every exemption", () => {

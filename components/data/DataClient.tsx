@@ -27,6 +27,10 @@ export default function DataClient() {
     { strategy: string; symbol: string; report: PromotionReport }[] | null
   >(null);
 
+  useEffect(() => {
+    data.ensureHistory(["MES", "MNQ"]);
+  }, [data.ensureHistory]);
+
   /* Shadow lab scoreboard — strategies auditioning on live data. Read-only,
      best effort; these rows are never signals. */
   useEffect(() => {

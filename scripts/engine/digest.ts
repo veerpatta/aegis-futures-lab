@@ -221,7 +221,7 @@ async function main() {
   // ── Signals ──
   const { data: sigData, error: sigErr } = await supabase
     .from("signals")
-    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, suppressed, stale_data, signal_ts")
+    .select("tier, symbol, status, pnl_usd, regime, fill_confidence, vix_bucket, model_veto, suppressed, stale_data, orphaned, signal_ts")
     .gte("signal_ts", fromIso)
     .order("signal_ts", { ascending: true });
   if (sigErr) throw new Error(`signals read: ${sigErr.message}`);

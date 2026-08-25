@@ -194,8 +194,10 @@ export default function HypothesisBoard({ report }: { report: Phase4Report | nul
           Every row is a separate <strong>trial</strong>, and every trial raises the bar for all the
           others: the deflated-Sharpe hurdle is built from{" "}
           {report.totalTrials.toLocaleString()} logged trials ({report.priorTrials} prior +{" "}
-          {report.trials.length} here), read from the registry rather than chosen. Three
-          relative-volume thresholds is three trials, not one.
+          {report.candidateTrials} candidate configurations here), read from the registry rather
+          than chosen. Each configuration is reported for both symbols, so the table has{" "}
+          {report.trials.length} measured runs. Three relative-volume thresholds is three trials,
+          not one.
         </p>
       </Panel>
 

@@ -124,6 +124,8 @@ export interface HypothesisTrial {
   pf: number;
   randomEntryPercentile: number | null;
   realisedNRatio: number | null;
+  oosNetExpectancy: number | null;
+  cvFoldSurvival: number | null;
   gate: {
     promote: boolean;
     failed: string[];
@@ -144,6 +146,7 @@ export interface Phase4Report {
   barSource: string;
   iterations: number;
   priorTrials: number;
+  candidateTrials: number;
   totalTrials: number;
   trialSharpeDispersion: number;
   overnight: OvernightRow[];

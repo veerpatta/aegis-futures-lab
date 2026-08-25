@@ -69,6 +69,11 @@ export default function LabClient() {
   const [resultSeries, setResultSeries] = useState<Record<string, Bar[]>>({});
   const [lastReq, setLastReq] = useState<RunRequest | null>(null);
 
+  useEffect(() => {
+    if (symbolChoice === "csv") return;
+    data.ensureHistory(symbolChoice === "both" ? feeds : [symbolChoice]);
+  }, [data.ensureHistory, feeds, symbolChoice]);
+
   // Reflect the shareable bits into the URL (debounced replace).
   const urlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

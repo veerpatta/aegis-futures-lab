@@ -84,6 +84,7 @@ interface SignalRow {
   stale_data: boolean;
   win_prob: number | null;
   model_veto: boolean;
+  orphaned: boolean;
   updated_at: string;
 }
 
@@ -232,6 +233,7 @@ function rowFromTrade(tier: "A" | "B", label: string, t: Trade): SignalRow {
     stale_data: false, // stamped by the caller (lib/signals/freshness.ts)
     win_prob: null, // stamped by the caller (model.ts)
     model_veto: false, // stamped by the caller (model.ts)
+    orphaned: false, // current recompute emitted it; clears any earlier orphan mark
     updated_at: new Date().toISOString(),
   };
 }
@@ -267,6 +269,7 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
     stale_data: false, // stamped by the caller (lib/signals/freshness.ts)
     win_prob: null, // stamped by the caller (model.ts)
     model_veto: false, // stamped by the caller (model.ts)
+    orphaned: false, // current recompute emitted it; clears any earlier orphan mark
     updated_at: new Date().toISOString(),
   };
 }
@@ -630,7 +633,7 @@ async function main() {
     }
   }
 
-  /* 1b) Orphan check.
+  /* 1b) Orphan reconciliation.
      Zones get an explicit prune-before-upsert (see below). `signals` never
      has: the run upserts and never deletes, and the file header's claim that
      "re-running with the same data writes the same rows" holds only while the
@@ -641,23 +644,29 @@ async function main() {
      behind with a stale status and P&L, counted forever by liveOnly(),
      promotionReport, the digest and the debrief.
 
-     This REPORTS rather than deletes, deliberately. Deleting would make the
-     engine destroy live history every time the vendor revised a bar, and the
-     signals table is the record the whole app is judged on — a wrong row that
-     is visible is recoverable, a right row that was deleted is not. The count
-     lands in the heartbeat so the drift is measurable before anyone decides
-     what the reconciliation policy should be. */
+     Rows are never deleted: the engine marks them orphaned so the audit trail
+     survives, while liveOnly() keeps their stale result out of performance,
+     breakers, learning and the digest. If a later recompute emits the key
+     again, the normal upsert above clears orphaned back to false. */
   try {
     const mirrored = new Set(signals.map((s) => s.dedupe_key));
     const { data, error } = await supabase
       .from("signals")
-      .select("dedupe_key")
+      .select("dedupe_key, orphaned")
       .gte("signal_ts", iso(cutoff));
     if (error) throw new Error(error.message);
     const orphans = (data ?? []).filter((r) => !mirrored.has(r.dedupe_key as string));
     if (orphans.length) {
+      const keys = orphans.map((r) => r.dedupe_key as string);
+      for (let i = 0; i < keys.length; i += 200) {
+        const { error: markError } = await supabase
+          .from("signals")
+          .update({ orphaned: true })
+          .in("dedupe_key", keys.slice(i, i + 200));
+        if (markError) throw new Error(markError.message);
+      }
       warnings.push(
-        `${orphans.length} signal row(s) inside the mirror window no longer match a computed trade`
+        `${orphans.length} revised-away signal row(s) reconciled as orphaned`
       );
       console.log(`orphans: ${orphans.length} (e.g. ${orphans.slice(0, 3).map((o) => o.dedupe_key).join(", ")})`);
     }

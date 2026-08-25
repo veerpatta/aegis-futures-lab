@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { STRATEGIES, strategyById, standingOf } from "@/lib/strategies/registry";
+import {
+  STRATEGIES,
+  feedsFor,
+  strategyById,
+  standingOf,
+  tradableFeedsFor,
+} from "@/lib/strategies/registry";
 import { defaultParams, type ParamValues } from "@/lib/strategies/types";
 import { runBacktestAsync } from "@/lib/backtest/client";
 import type { BacktestResult } from "@/lib/backtest/engine";
@@ -103,8 +109,18 @@ export default function CompareClient() {
     };
   }, [slots, symbolChoice, windowChoice, pathname, router]);
 
-  const wanted: FeedSymbol[] = symbolChoice === "both" ? ["MES", "MNQ"] : [symbolChoice];
+  const feedsForSlot = (slot: Slot): FeedSymbol[] => {
+    const required = feedsFor(strategyById(slot.strategyId));
+    return symbolChoice !== "both" && required.includes(symbolChoice)
+      ? [symbolChoice]
+      : required;
+  };
+  const wanted = [...new Set(slots.flatMap(feedsForSlot))];
   const dataReady = wanted.every((s) => data.history[s].status === "ready");
+
+  useEffect(() => {
+    data.ensureHistory(wanted);
+  }, [data.ensureHistory, wanted.join("|")]);
 
   const updateSlot = (i: number, patch: Partial<Slot>) =>
     setSlots((all) => all.map((s, j) => (j === i ? { ...s, ...patch } : s)));
@@ -132,15 +148,17 @@ export default function CompareClient() {
   const runAll = async () => {
     if (!dataReady) return;
     setRunning(true);
-    const series = Object.fromEntries(wanted.map((s) => [s, data.history[s].bars]));
-    const pointValues = Object.fromEntries(wanted.map((s) => [s, POINT_VALUES[s]]));
-    const lastTimes = Object.values(series).map((b) => b[b.length - 1].time);
-    const toTime = Math.min(...lastTimes);
-    const window = { fromTime: toTime - Number(windowChoice) * 86400, toTime };
     setResults(slots.map(() => ({ status: "idle" })));
     for (let i = 0; i < slots.length; i++) {
       setResults((r) => r.map((x, j) => (j === i ? { status: "running" } : x)));
       try {
+        const strategy = strategyById(slots[i].strategyId);
+        const slotFeeds = feedsForSlot(slots[i]);
+        const series = Object.fromEntries(slotFeeds.map((s) => [s, data.history[s].bars]));
+        const pointValues = Object.fromEntries(slotFeeds.map((s) => [s, POINT_VALUES[s]]));
+        const lastTimes = Object.values(series).map((bars) => bars[bars.length - 1].time);
+        const toTime = Math.min(...lastTimes);
+        const window = { fromTime: toTime - Number(windowChoice) * 86400, toTime };
         const result = await runBacktestAsync({
           strategyId: slots[i].strategyId,
           params: slots[i].params,
@@ -150,6 +168,7 @@ export default function CompareClient() {
             slippage: DEFAULT_EXECUTION.slippage,
             maxRisk: DEFAULT_EXECUTION.maxRisk,
             sizing: "risk",
+            tradableSymbols: tradableFeedsFor(strategy),
             fillModel: DEFAULT_EXECUTION.limitFills ? "limit" : "nextOpen",
           },
           locks: {
@@ -324,11 +343,11 @@ export default function CompareClient() {
 
       <div className={styles.runRow}>
         <SelectField
-          label="Instruments (all runs)"
+          label="Index filter (where supported)"
           value={symbolChoice}
           onChange={(v) => setSymbolChoice(v as "both" | "MES" | "MNQ")}
           options={[
-            { value: "both", label: "MES + MNQ (portfolio)" },
+            { value: "both", label: "Use each strategy's feeds" },
             { value: "MES", label: "MES only" },
             { value: "MNQ", label: "MNQ only" },
           ]}

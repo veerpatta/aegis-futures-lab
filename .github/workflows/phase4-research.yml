@@ -1,0 +1,52 @@
+name: Phase 4 replacement research
+
+on:
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Matched-random iterations per symbol/configuration
+        required: false
+        default: "500"
+  pull_request:
+    paths:
+      - "scripts/diag/phase4.ts"
+      - "lib/strategies/orb-relvol.ts"
+      - "lib/strategies/turn-of-month.ts"
+      - "lib/validation/**"
+      - ".github/workflows/phase4-research.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Seven-year replacement benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BAR_SOURCE: databento
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify preregistration and run evidence gates
+        run: >-
+          node --import tsx scripts/diag/phase4.ts
+          --iterations "${{ inputs.iterations || '500' }}"
+          --out artifacts/phase4-hypotheses.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase4-replacement-evidence
+          path: artifacts/phase4-hypotheses.json
+          if-no-files-found: error
+          retention-days: 30

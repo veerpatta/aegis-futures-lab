@@ -159,7 +159,14 @@ function Sparkline({ values }: { values: number[] }) {
 type State =
   | { status: "loading" }
   | { status: "error"; error: string }
-  | { status: "ready"; signals: SignalRow[]; zones: ZoneRow[]; runs: EngineRunRow[]; policy: BotPolicyRow[] };
+  | {
+      status: "ready";
+      signals: SignalRow[];
+      orphaned: SignalRow[];
+      zones: ZoneRow[];
+      runs: EngineRunRow[];
+      policy: BotPolicyRow[];
+    };
 
 export default function SignalsClient() {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -215,13 +222,15 @@ export default function SignalsClient() {
       ]);
       const err = signals.error || zones.error || runs.error;
       if (err) throw new Error(err.message);
+      const allSignals = (signals.data ?? []) as SignalRow[];
       setState({
         status: "ready",
         /* liveOnly at the read boundary: the performance panel below sums
            these, and the engine's first pass mirrored a trailing seven days,
            so the earliest rows are sessions that finished before the bot
            existed. See lib/signals/live.ts. */
-        signals: liveOnly((signals.data ?? []) as SignalRow[]),
+        signals: liveOnly(allSignals),
+        orphaned: allSignals.filter((signal) => signal.orphaned),
         zones: (zones.data ?? []) as ZoneRow[],
         runs: (runs.data ?? []) as EngineRunRow[],
         policy: (policy.data ?? []) as BotPolicyRow[],
@@ -703,6 +712,31 @@ export default function SignalsClient() {
             rows={staleRows.map((s) => [
               fmtStamp(s.signal_ts, zone),
               <span key="t"><Badge tone="amber">{STALE_LABEL}</Badge> {s.tier}</span>,
+              s.symbol,
+              s.direction.toUpperCase(),
+              statusBadge(s.status),
+              <span key="p" className="num">{s.pnl_usd === null ? "—" : money(s.pnl_usd)}</span>,
+            ])}
+            empty="none"
+          />
+        </Panel>
+      )}
+
+      {ready && ready.orphaned.length > 0 && (
+        <Panel
+          title="Excluded: revised-away signals"
+          hint="kept as an audit record — no longer emitted by the latest mirror recompute"
+        >
+          <p className={styles.emptyNote} style={{ marginBottom: 10 }}>
+            The delayed data vendor revised bars inside the seven-day reconciliation window. The
+            engine retained these earlier rows for traceability, but removes their stale results
+            from performance, breaker decisions, alerts and model training.
+          </p>
+          <DataTable
+            columns={["When", "Tier", "Symbol", "Direction", "Old result", "Old P&L"]}
+            rows={ready.orphaned.map((s) => [
+              fmtStamp(s.signal_ts, zone),
+              <span key="t"><Badge tone="amber">REVISED</Badge> {s.tier}</span>,
               s.symbol,
               s.direction.toUpperCase(),
               statusBadge(s.status),

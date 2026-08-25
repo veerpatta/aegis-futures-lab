@@ -219,7 +219,7 @@ async function main() {
   const signals = liveOnly(
     await fetchAll<SignalRow>(
       "signals",
-      "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price"
+      "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price, orphaned"
     )
   );
   const quality = dataQualityReport(signals);
