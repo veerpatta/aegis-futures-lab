@@ -168,10 +168,7 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
           </div>
           {s.refutedBy && (
             <div className={`${styles.gapMeta} ${styles.dim}`}>
-              this stream was tested on data it was not tuned on and <b>lost money</b>. It keeps
-              running on paper so the number keeps updating, but the band it used to advertise (PF{" "}
-              {s.pfBand[0].toFixed(2)}–{s.pfBand[1].toFixed(2)}) came from a far smaller sample and
-              did not hold. Do not trade it.
+              advertised tuned band (PF {s.pfBand[0].toFixed(2)}–{s.pfBand[1].toFixed(2)}) failed out-of-sample testing
             </div>
           )}
           {s.clustered && !s.refutedBy && (
@@ -182,6 +179,9 @@ export default function LiveVsTuning({ signals }: { signals: SignalRow[] }) {
           )}
         </div>
       ))}
+      <div className={styles.refutedCallout}>
+        These streams were measured out-of-sample on 7 years of data and refuted — advertised tuning bands did not hold. Paper simulation runs for continuous research tracking only.
+      </div>
       <span className={styles.note}>
         since {GO_LIVE_DATE} · paper results · a red stream means &ldquo;stop trusting it&rdquo;,
         never &ldquo;trade harder&rdquo;

@@ -69,6 +69,40 @@
   font-weight: 700;
 }
 
+.symToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-inset);
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+
+.symPill {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.symPill:hover {
+  color: var(--text);
+}
+
+.symOn {
+  background: var(--bg-elevated);
+  color: var(--green);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
 .heroSub {
   font-size: 11px;
   color: var(--text-faint);

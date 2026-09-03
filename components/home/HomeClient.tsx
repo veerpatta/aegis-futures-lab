@@ -533,6 +533,10 @@ export default function HomeClient() {
   };
   const entryPct = railPct(live?.entry_price ?? null);
   const pricePct = railPct(livePrice);
+  const isPastStop =
+    live !== null &&
+    livePrice !== null &&
+    (live.direction === "long" ? livePrice < live.stop_price : livePrice > live.stop_price);
 
   /* "Updated", not "last check": this is when the APP last re-read the tables.
      The bot's own last check is a different moment and is reported by its own
@@ -755,7 +759,9 @@ export default function HomeClient() {
                     <span className={styles.railEntry} style={{ left: `${entryPct}%` }} aria-hidden />
                     {pricePct !== null && (
                       <span
-                        className={styles.railPrice}
+                        className={`${styles.railPrice} ${
+                          liveOpen !== null && liveOpen < 0 ? styles.railPriceBad : ""
+                        }`}
                         style={{ left: `${pricePct}%` }}
                         aria-hidden
                       />
@@ -775,6 +781,11 @@ export default function HomeClient() {
                       <span className={styles.railWord}>target</span>
                     </span>
                   </div>
+                  {isPastStop && (
+                    <span className={styles.railPastStop}>
+                      Price past stop · awaiting flat close
+                    </span>
+                  )}
                   {pricePct === null && (
                     <span className={styles.railNote}>
                       Waiting on the delayed quote to place the marker.

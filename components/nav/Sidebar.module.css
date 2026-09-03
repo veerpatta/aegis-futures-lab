@@ -23,8 +23,9 @@
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--green), #128a68);
+  border-radius: var(--radius-icon);
+  background: linear-gradient(140deg, var(--green), #0f7f60);
+  box-shadow: 0 4px 14px rgba(45, 212, 160, 0.22);
   color: #04110c;
   font-size: 16px;
   font-weight: 700;

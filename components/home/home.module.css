@@ -531,6 +531,21 @@
   transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.railPriceBad {
+  border-color: var(--red);
+  box-shadow:
+    0 0 0 4px rgba(255, 107, 122, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.railPastStop {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--red);
+}
+
 .railLabels {
   display: flex;
   justify-content: space-between;
@@ -1246,6 +1261,17 @@
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-dim);
+}
+
+.refutedCallout {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
 }
 
 /* ── "Why no signal today?" panel (WhyNoSignal.tsx, item 2.7) ────────────── */

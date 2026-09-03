@@ -67,6 +67,12 @@
   .layout {
     grid-template-columns: 1fr;
   }
+  .configCol {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
 }
 
 .configCol {
@@ -74,6 +80,11 @@
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
+  position: sticky;
+  top: calc(var(--appbar-h) + var(--space-3));
+  max-height: calc(100vh - var(--appbar-h) - var(--space-5));
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .resultsCol {

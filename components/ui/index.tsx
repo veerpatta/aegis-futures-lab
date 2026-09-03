@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useId } from "react";
 import { PREVIEW_NOTE, sampleVerdict, type RateReadout } from "@/lib/stats";
 import styles from "./ui.module.css";
 
@@ -203,6 +203,8 @@ export function NumberField({
     const s = step ?? 1;
     emit(Number((value + dir * s).toFixed(6)));
   };
+  const fieldId = useId();
+  const fieldName = label.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 
   if (slider && min !== undefined && max !== undefined) {
     return (
@@ -211,6 +213,8 @@ export function NumberField({
           {label}
           <span className={styles.fieldValue}>
             <input
+              id={fieldId}
+              name={`${fieldName}_num`}
               type="number"
               className={styles.inputCompact}
               min={min}
@@ -233,6 +237,8 @@ export function NumberField({
             −
           </button>
           <input
+            id={`${fieldId}-range`}
+            name={fieldName}
             type="range"
             className={styles.range}
             min={min}
@@ -257,7 +263,7 @@ export function NumberField({
   }
 
   return (
-    <label className={styles.field}>
+    <label className={styles.field} htmlFor={fieldId}>
       <span className={styles.fieldLabel}>
         {label}
         <span className={styles.fieldValue}>
@@ -266,6 +272,8 @@ export function NumberField({
         </span>
       </span>
       <input
+        id={fieldId}
+        name={fieldName}
         type="number"
         className={styles.input}
         min={min}
@@ -292,10 +300,12 @@ export function SelectField({
   options: { value: string; label: string; disabled?: boolean }[];
   help?: string;
 }) {
+  const selectId = useId();
+  const selectName = label.toLowerCase().replace(/[^a-z0-9]+/g, "_");
   return (
-    <label className={styles.field}>
+    <label className={styles.field} htmlFor={selectId}>
       <span className={styles.fieldLabel}>{label}</span>
-      <select className={styles.select} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select id={selectId} name={selectName} className={styles.select} value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
           <option key={o.value} value={o.value} disabled={o.disabled}>
             {o.label}
@@ -318,10 +328,12 @@ export function ToggleField({
   onChange: (v: boolean) => void;
   help?: string;
 }) {
+  const toggleId = useId();
+  const toggleName = label.toLowerCase().replace(/[^a-z0-9]+/g, "_");
   return (
     <div className={styles.field}>
-      <label className={styles.toggleRow}>
-        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      <label className={styles.toggleRow} htmlFor={toggleId}>
+        <input id={toggleId} name={toggleName} type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
         {label}
       </label>
       {help && <span className={styles.fieldHelp}>{help}</span>}

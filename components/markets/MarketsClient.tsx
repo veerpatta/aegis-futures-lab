@@ -258,7 +258,19 @@ export default function MarketsClient() {
           <section className={styles.hero} aria-label={`${chartSymbol} price`}>
             <div className={styles.heroHead}>
               <div className={styles.heroName}>
-                <b className={styles.heroSym}>{chartSymbol}</b>
+                <div className={styles.symToggle} role="group" aria-label="Select symbol">
+                  {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={s === chartSymbol ? `${styles.symPill} ${styles.symOn}` : styles.symPill}
+                      aria-pressed={s === chartSymbol}
+                      onClick={() => setChartSymbol(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
                 <span className={styles.heroSub}>
                   {SHORT_NAME[chartSymbol]}
                   {heroQuote && (

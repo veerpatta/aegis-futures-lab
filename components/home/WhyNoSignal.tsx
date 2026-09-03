@@ -30,8 +30,14 @@ const STATUS_TONE: Record<DailyFunnelPayload["streams"][number]["status"], "gree
 
 const STATUS_TEXT = {
   active: "running",
-  benched: "benched by the breaker",
-  "stale-data": "stale price feed",
+  benched: "benched",
+  "stale-data": "stale feed",
+} as const;
+
+const STATUS_DETAIL = {
+  active: "Strategy is active and scanning",
+  benched: "Benched by circuit breaker after drawdown",
+  "stale-data": "Delayed or stale price feed",
 } as const;
 
 export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
@@ -110,9 +116,11 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
               <span key="s">
                 {s.tier === "A" ? "Zone setups" : "Daily flow"} · {s.label}
               </span>,
-              <Badge key="b" tone={STATUS_TONE[s.status]}>
-                {STATUS_TEXT[s.status]}
-              </Badge>,
+              <span key="b" title={STATUS_DETAIL[s.status]}>
+                <Badge tone={STATUS_TONE[s.status]}>
+                  {STATUS_TEXT[s.status]}
+                </Badge>
+              </span>,
               <span key="n" className="num">
                 {s.signalsToday}
               </span>,

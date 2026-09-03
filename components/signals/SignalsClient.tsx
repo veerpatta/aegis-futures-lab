@@ -6,7 +6,7 @@
    countdown to the next engine pass, and today's pace toward the 2-3
    signals/day target, over a tape of the trading day. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   getSupabase,
@@ -18,6 +18,7 @@ import {
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { STALE_BAR_AGE_MIN, STALE_LABEL } from "@/lib/signals/freshness";
 import SignalContext, { useConditionLedger } from "./SignalContext";
+import { describeSetup, describeWinProb } from "@/lib/signals/context";
 import SignalCards, { type Segment } from "./SignalCards";
 import SignalSheet from "./SignalSheet";
 import { fetchMarket } from "@/lib/data/fetch";
@@ -770,47 +771,93 @@ export default function SignalsClient() {
               : "No signals in this view yet — the engine writes them as setups trigger."}
           </div>
         )}
-        {days.map(([key, day]) => (
-          <div key={key} className={styles.dayGroup}>
-            <div className={styles.dayHead}>
-              <span className={styles.dayLabel}>{day.label}</span>
-              <span className={styles.dayMeta}>
-                {day.rows.length} signal{day.rows.length === 1 ? "" : "s"}
-                {day.open > 0 && ` · ${day.open} open`}
-              </span>
-              <span className={`${styles.dayNet} num ${day.net >= 0 ? styles.good : styles.bad}`}>
-                {money(day.net)}
-              </span>
-            </div>
-            <DataTable
-              columns={[`Time (${ZONE_ABBR[zone]})`, "Tier", "Symbol", "Side", "Entry", "Stop", "Target", "R:R", "Status", "P&L", "Regime", "Setup & context"]}
-              rows={day.rows.map((s) => [
-                <span key="t" className="num">{fmtTime(s.signal_ts, zone)}</span>,
-                <Badge key="b" tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge>,
-                s.symbol,
-                s.direction === "long" ? "LONG" : "SHORT",
-                s.entry_price.toFixed(2),
-                s.stop_price.toFixed(2),
-                s.target_price?.toFixed(2) ?? "—",
-                s.rr?.toFixed(1) ?? "—",
-                <span key="s">
-                  {statusBadge(s.status)} {fillChip(s.fill_confidence)}
-                </span>,
-                s.pnl_usd === null ? (
-                  "—"
-                ) : (
-                  <span key="p" className={s.pnl_usd >= 0 ? styles.good : styles.bad}>{money(s.pnl_usd)}</span>
-                ),
-                regimeBadge(s.regime),
-                /* Item 2.8 — setup, what invalidates it, the matching
-                   condition-ledger cell (always with its n) and the model's
-                   win probability, without a click. */
-                <SignalContext key="ctx" signal={s} ledger={ledger} />,
-              ])}
-              mobileCards={{ titleIndexes: [1, 2, 3, 8], hideIndexes: [10] }}
-            />
+        {days.length > 0 && (
+          <div className={styles.blotterWrap}>
+            <table className={styles.blotterTable}>
+              <thead>
+                <tr>
+                  <th>Time ({ZONE_ABBR[zone]})</th>
+                  <th>Tier</th>
+                  <th>Symbol</th>
+                  <th>Side</th>
+                  <th>Entry</th>
+                  <th>Stop</th>
+                  <th>Target</th>
+                  <th>R:R</th>
+                  <th>Status</th>
+                  <th>P&amp;L</th>
+                  <th>Regime</th>
+                  <th>Setup &amp; Context</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map(([key, day]) => (
+                  <Fragment key={key}>
+                    <tr className={styles.dayDividerRow}>
+                      <td colSpan={12}>
+                        <div className={styles.dayDividerContent}>
+                          <span className={styles.dayLabel}>{day.label}</span>
+                          <span className={styles.dayMeta}>
+                            {day.rows.length} signal{day.rows.length === 1 ? "" : "s"}
+                            {day.open > 0 && ` · ${day.open} open`}
+                          </span>
+                          <span className={`${styles.dayNet} num ${day.net >= 0 ? styles.good : styles.bad}`}>
+                            {money(day.net)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {day.rows.map((s) => (
+                      <tr
+                        key={s.id}
+                        className={styles.blotterRow}
+                        onClick={() => setSheet(s)}
+                        tabIndex={0}
+                        role="button"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSheet(s);
+                          }
+                        }}
+                        title="Click to view trade details and chart"
+                      >
+                        <td><span className="num">{fmtTime(s.signal_ts, zone)}</span></td>
+                        <td><Badge tone={s.tier === "A" ? "blue" : "amber"}>{s.tier}</Badge></td>
+                        <td><b className={styles.symCell}>{s.symbol}</b></td>
+                        <td><span className={s.direction === "long" ? styles.sideBuy : styles.sideSell}>{s.direction === "long" ? "LONG" : "SHORT"}</span></td>
+                        <td><span className="num">{s.entry_price.toFixed(2)}</span></td>
+                        <td><span className="num">{s.stop_price.toFixed(2)}</span></td>
+                        <td><span className="num">{s.target_price?.toFixed(2) ?? "—"}</span></td>
+                        <td><span className="num">{s.rr?.toFixed(1) ?? "—"}</span></td>
+                        <td>
+                          <span className={styles.statusWrap}>
+                            {statusBadge(s.status)} {fillChip(s.fill_confidence)}
+                          </span>
+                        </td>
+                        <td>
+                          {s.pnl_usd === null ? (
+                            <span className={styles.dim}>—</span>
+                          ) : (
+                            <span className={`num ${s.pnl_usd >= 0 ? styles.good : styles.bad}`}>{money(s.pnl_usd)}</span>
+                          )}
+                        </td>
+                        <td>{regimeBadge(s.regime)}</td>
+                        <td className={styles.setupCell}>
+                          <div className={styles.setupTitle}>{describeSetup(s)}</div>
+                          <div className={styles.setupSub}>
+                            {s.score !== null ? `score ${s.score} · ` : ""}
+                            {describeWinProb(s)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
+        )}
       </Panel>
 
       {/* ── Zones ── */}

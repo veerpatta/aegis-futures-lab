@@ -102,7 +102,7 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
             </span>
           </div>
           <div className={styles.heroFigure}>
-            <span className={`${styles.heroBig} ${styles.toneDim}`}>{verdict.headline}</span>
+            <span className={`${styles.heroHeadline} ${styles.toneDim}`}>{verdict.headline}</span>
             <span className={styles.heroLabel}>{verdict.detail}</span>
           </div>
         </div>

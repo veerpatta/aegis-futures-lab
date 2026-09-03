@@ -1,6 +1,6 @@
 .note {
   font-size: 13px;
-  color: var(--dim, #8a94a6);
+  color: var(--text-dim);
   line-height: 1.5;
   margin: 0 0 12px;
 }
@@ -21,19 +21,19 @@
 }
 
 .dim {
-  color: var(--dim, #8a94a6);
+  color: var(--text-dim);
 }
 
 .good {
-  color: var(--green, #21ba72);
+  color: var(--green);
 }
 
 .bad {
-  color: var(--red, #e5484d);
+  color: var(--red);
 }
 
 .collecting {
-  color: var(--dim, #8a94a6);
+  color: var(--text-dim);
   font-style: italic;
 }
 
