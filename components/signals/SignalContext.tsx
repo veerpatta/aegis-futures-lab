@@ -12,7 +12,7 @@
    renders a bare percentage. */
 
 import { useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase/client";
+import { getNeon } from "@/lib/neon/client";
 import {
   describeCell,
   describeInvalidation,
@@ -29,7 +29,7 @@ import styles from "./signals.module.css";
 let ledgerPromise: Promise<ConditionLedger | null> | null = null;
 function loadLedger(): Promise<ConditionLedger | null> {
   ledgerPromise ??= Promise.resolve(
-    getSupabase()
+    getNeon()
       .from("learned_stats")
       .select("payload")
       .eq("stat_key", "condition_ledger")

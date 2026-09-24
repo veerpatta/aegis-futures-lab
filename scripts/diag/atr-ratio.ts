@@ -8,12 +8,11 @@
 
    Read-only. Run with: npx tsx scripts/diag/atr-ratio.ts */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { atr } from "@/lib/indicators/index";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { inNySession } from "@/lib/time/ny";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { parseBarSource } from "@/lib/data/source";
 
 /* Which feed to measure. Defaults to yahoo so the documented numbers keep
@@ -25,11 +24,7 @@ const PAGE = 1000;
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
 const ATR_LEN = 14; // same length rsi-reversion uses
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 async function allBars(symbol: FeedSymbol): Promise<Bar[]> {
   const out: Bar[] = [];

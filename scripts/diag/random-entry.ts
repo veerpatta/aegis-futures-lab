@@ -29,7 +29,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun, type RunRequest } from "@/lib/backtest/run";
 import { runGrossNet } from "@/lib/backtest/grossNet";
@@ -38,7 +38,6 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { fetchArchiveBars } from "@/lib/data/archive";
 import { parseBarSource } from "@/lib/data/source";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { nyMeta } from "@/lib/time/ny";
 import { LEGACY_MODEL, frictionDollarsPerContract } from "@/lib/costs";
 import { stableHash } from "@/scripts/engine/learning-audit";
@@ -112,11 +111,7 @@ const OUT = arg("--out", "docs/research/phase1-random-entry.json");
  * a gross result is never a performance claim, because nobody trades gross. */
 const GROSS_ONLY = process.argv.includes("--gross");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } },
-);
+const supabase = createClient();
 
 async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
   return alignArchiveSlice(await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));

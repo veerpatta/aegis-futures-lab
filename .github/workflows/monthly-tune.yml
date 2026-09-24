@@ -52,6 +52,8 @@ jobs:
       - name: Honest tune — expanding walk-forward, held-out month, Monte Carlo
         if: steps.guard.outputs.run == 'true'
         run: npx tsx scripts/engine/tune.ts > body.md
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       - name: Post the tune as an issue
         if: steps.guard.outputs.run == 'true'
         env:

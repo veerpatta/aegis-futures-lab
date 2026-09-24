@@ -6,12 +6,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  getSupabase,
+  getNeon,
   type LearnedStatsRow,
   type LearningRunRow,
   type ModelRegistryRow,
   type PromotionDecisionRow,
-} from "@/lib/supabase/client";
+} from "@/lib/neon/client";
 import { Badge, DataTable, Kpi, Panel, SampleNote } from "@/components/ui";
 import { money } from "@/lib/format";
 import { MIN_JUDGED_N, PREVIEW_NOTE, fmtPf } from "@/lib/stats";
@@ -125,7 +125,7 @@ export default function BrainClient() {
 
   useEffect(() => {
     // Win-probability model history — best effort; absent before it trains.
-    getSupabase()
+    getNeon()
       .from("model_registry")
       .select("*")
       .order("trained_at", { ascending: false })
@@ -135,7 +135,7 @@ export default function BrainClient() {
 
   useEffect(() => {
     let active = true;
-    const supabase = getSupabase();
+    const supabase = getNeon();
     void Promise.all([
       supabase.from("learning_runs").select("*").order("started_at", { ascending: false }).limit(14),
       supabase
@@ -156,7 +156,7 @@ export default function BrainClient() {
   }, []);
 
   useEffect(() => {
-    getSupabase()
+    getNeon()
       .from("learned_stats")
       .select("*")
       .order("date_key", { ascending: false })

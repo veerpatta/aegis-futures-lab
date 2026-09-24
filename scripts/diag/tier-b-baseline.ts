@@ -24,14 +24,13 @@
      npx tsx scripts/diag/tier-b-baseline.ts
      BAR_SOURCE=databento npx tsx scripts/diag/tier-b-baseline.ts */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { dropSeamSessions } from "@/lib/data/feed-delta";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { nyMeta } from "@/lib/time/ny";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { parseBarSource } from "@/lib/data/source";
 import { fetchArchiveBars } from "@/lib/data/archive";
 import {
@@ -49,11 +48,7 @@ const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 const PAGE = 1000;
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 /* Day-align even though rsi-reversion builds no multi-day frame: the archive
    read is the same shape as every other, and a reader that skips the trim on

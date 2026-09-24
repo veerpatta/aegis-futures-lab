@@ -23,13 +23,12 @@
 
    Read-only: the archive read uses the publishable key (public SELECT). */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { nyMeta } from "@/lib/time/ny";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fetchYahooBars } from "./data";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { parseBarSource } from "@/lib/data/source";
@@ -40,11 +39,7 @@ const asMarkdown = process.argv.includes("--markdown");
 const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
 async function archiveAllBars(symbol: FeedSymbol): Promise<Bar[]> {
-  const supabase = createClient(
-    process.env.SUPABASE_URL || SUPABASE_URL,
-    process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-    { auth: { persistSession: false } }
-  );
+  const supabase = createClient();
   const bars = await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE });
   // The archive's own oldest bar is mid-session, so the tuning numbers were
   // exposed to the same truncated-first-day defect (lib/data/window.ts).

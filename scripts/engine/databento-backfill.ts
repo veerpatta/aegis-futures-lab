@@ -90,8 +90,7 @@ const SYMBOLS: readonly string[] = (() => {
 const FREE_CREDIT_USD = 125;
 
 /* ── Storage projection ───────────────────────────────────────────────────
-   On a free-tier Supabase project the binding constraint is NOT the dollar
-   cost — it is the 500 MB database ceiling. get_billable_size reports the
+   On a free Neon project the storage limit is 0.5 GB. get_billable_size reports the
    size of the ONE-MINUTE download; what actually lands in bars_5m is the
    five-minute aggregate, roughly a fifth of the rows. So the download size
    badly overstates the storage impact and cannot be used for this.
@@ -101,9 +100,7 @@ const FREE_CREDIT_USD = 125;
    covering 2026-05-12 → 2026-07-30 for two symbols). */
 const MEASURED_BYTES_PER_ROW = 176.5;
 const BARS_PER_TRADING_DAY = 270; // ~22.5h of Globex at 5m, per symbol
-const SUPABASE_FREE_TIER_BYTES = 500e6;
-/** Current database total, measured the same day, for headroom arithmetic. */
-const CURRENT_DB_BYTES = 17e6;
+const NEON_FREE_TIER_BYTES = 500e6;
 
 function projectStorage(start: string, end: string, symbols: number) {
   const days = (Date.parse(end) - Date.parse(start)) / 86_400_000;
@@ -238,6 +235,17 @@ const fmtBytes = (v: number) =>
 
 async function estimate(): Promise<void> {
   const key = loadApiKey();
+  const databaseUrl = new URL(loadSecret("DATABASE_URL", "<Neon pooled database URL>"));
+  databaseUrl.searchParams.set("sslmode", "verify-full");
+  const { Client } = await import("pg");
+  const database = new Client({ connectionString: databaseUrl.toString() });
+  await database.connect();
+  let currentDbBytes: number;
+  try {
+    currentDbBytes = Number((await database.query("SELECT pg_database_size(current_database()) AS bytes")).rows[0].bytes);
+  } finally {
+    await database.end();
+  }
   console.log(
     `Databento cost estimate — ${DATASET} ${SCHEMA}, stype_in=${STYPE_IN}, ` +
       `symbols ${SYMBOLS.join(" + ")}`
@@ -262,14 +270,14 @@ async function estimate(): Promise<void> {
     }
     rows.push({ label: w.label, cost, bytes, note });
     const store = projectStorage(w.start, w.end, SYMBOLS.length);
-    const dbAfter = CURRENT_DB_BYTES + store.bytes;
+    const dbAfter = currentDbBytes + store.bytes;
     console.log(
       `${w.label.padEnd(14)} ${w.start} → ${w.end}  ` +
         `${cost === null ? "cost —" : fmtUsd(cost).padEnd(9)} ` +
         `dl ${(bytes === null ? "—" : fmtBytes(bytes)).padEnd(9)} ` +
         `store ~${fmtBytes(store.bytes).padEnd(8)} ` +
-        `db→${fmtBytes(dbAfter)} of ${fmtBytes(SUPABASE_FREE_TIER_BYTES)}` +
-        `${dbAfter > SUPABASE_FREE_TIER_BYTES ? "  ⚠ OVER FREE TIER" : ""}`
+        `db→${fmtBytes(dbAfter)} of ${fmtBytes(NEON_FREE_TIER_BYTES)}` +
+        `${dbAfter > NEON_FREE_TIER_BYTES ? "  ⚠ OVER FREE TIER" : ""}`
     );
     console.log(`${"".padEnd(14)} ${note}\n`);
   }
@@ -289,7 +297,7 @@ async function estimate(): Promise<void> {
   console.log(
     "\n'dl' is the one-minute download get_billable_size reports; 'store' is the\n" +
       "five-minute aggregate that actually lands in bars_5m, projected from the\n" +
-      `live table's measured ${MEASURED_BYTES_PER_ROW} bytes/row. On a free-tier project the 500 MB\n` +
+      `live table's measured ${MEASURED_BYTES_PER_ROW} bytes/row. On a free Neon project the 0.5 GB\n` +
       "database ceiling binds long before the $125 credit does, so read the db\n" +
       "column, not the dollar column, when choosing."
   );
@@ -384,10 +392,9 @@ async function run(windowLabel: string): Promise<void> {
   if (!w) throw new Error(`Unknown window "${windowLabel}". Known: ${WINDOWS.map((x) => x.label).join(", ")}`);
 
   const key = loadApiKey();
-  const supabaseUrl = loadSecret("SUPABASE_URL", "https://<ref>.supabase.co");
-  const supabaseKey = loadSecret("SUPABASE_KEY", "<service-role key>");
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  loadSecret("DATABASE_URL", "<Neon pooled database URL>");
+  const { createClient } = await import("@/lib/neon/server");
+  const supabase = createClient();
 
   // Fail before spending anything if the schema is not ready. Without the
   // source column every row would land in the yahoo namespace and overwrite
@@ -397,7 +404,7 @@ async function run(windowLabel: string): Promise<void> {
     if (error)
       throw new Error(
         `bars_5m has no usable "source" column (${error.message}).\n` +
-          "Apply supabase/migrations/20260730105000_bars_5m_source.sql first — " +
+          "Apply db/neon-schema.sql first — " +
           "without it this backfill would overwrite the Yahoo history."
       );
   }

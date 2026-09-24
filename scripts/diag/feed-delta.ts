@@ -7,12 +7,11 @@
    Run with: npx tsx scripts/diag/feed-delta.ts
    Reads only; the publishable key is enough. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { byDay, rollWindows, pairOnTime, summarise } from "@/lib/data/feed-delta";
 import { nyMeta } from "@/lib/time/ny";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
 const PAGE = 1000;
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
@@ -29,11 +28,7 @@ const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
    measurement nobody made. */
 const ROLL_THRESHOLD: Partial<Record<FeedSymbol, number>> = { MES: 5, MNQ: 28 };
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 async function readBars(symbol: FeedSymbol, source: string): Promise<Bar[]> {
   const out: Bar[] = [];

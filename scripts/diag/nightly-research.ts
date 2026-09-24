@@ -1,14 +1,10 @@
 /* One-off read-only pull for the nightly research analyst run. Prints JSON
    sections to stdout; nothing here writes to Supabase. */
 
-import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { createClient } from "@/lib/neon/server";
 import { liveOnly } from "@/lib/signals/live";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY
-);
+const supabase = createClient();
 
 async function main() {
   for (const table of ["engine_runs", "signals", "shadow_signals"]) {

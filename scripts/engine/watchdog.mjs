@@ -21,8 +21,8 @@
    any DB-derived list is blind to exactly the failure being hunted.
    tests/silence.test.ts pins that file to tiers.ts.
 
-   Reads the latest heartbeats via Supabase REST with the publishable key
-   (public SELECT is allowed by design — values mirror lib/supabase/config.ts).
+   Reads the latest heartbeats via the Neon Data API with a short-lived
+   anonymous token (public SELECT is allowed by design).
    Alerts when the engine should be running (inside the 06:00–21:45 UTC
    Mon–Fri cron window and not a CME full holiday — same table the app uses,
    lib/market/cme-holidays.json) but the newest run is older than 45 minutes,
@@ -37,9 +37,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://bizgcoljagsnytrnaicr.supabase.co";
-const SUPABASE_KEY =
-  process.env.SUPABASE_ANON_KEY || "sb_publishable_4AAYYUppP6lRdoofTTkd_A_YSu6WPNo";
+const NEON_AUTH_URL = process.env.NEON_AUTH_URL ||
+  "https://ep-twilight-recipe-b3apaham.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth";
+const NEON_DATA_API_URL = process.env.NEON_DATA_API_URL ||
+  "https://ep-twilight-recipe-b3apaham.apirest.c-4.ap-southeast-1.aws.neon.tech/neondb/rest/v1";
 const STALE_MINUTES = Number(process.env.WATCHDOG_STALE_MINUTES || 45);
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
@@ -114,9 +115,15 @@ function tradingDaysBetween(from, to, closedHolidays) {
   return count;
 }
 
-async function supabaseGet(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+let anonymousToken;
+async function neonGet(path) {
+  if (!anonymousToken) {
+    const auth = await fetch(`${NEON_AUTH_URL}/token/anonymous`);
+    if (!auth.ok) throw new Error(`anonymous token → HTTP ${auth.status}`);
+    anonymousToken = (await auth.json()).token;
+  }
+  const res = await fetch(`${NEON_DATA_API_URL}/${path}`, {
+    headers: { Authorization: `Bearer ${anonymousToken}` },
   });
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
   return res.json();
@@ -325,10 +332,10 @@ async function checkSilence(now, closedHolidays) {
   let firstRun = null;
   try {
     // Most recent 1000 signals is far more than 10 trading days of any stream.
-    rows = await supabaseGet(
+    rows = await neonGet(
       "signals?select=dedupe_key,tier,symbol,signal_ts&order=signal_ts.desc&limit=1000"
     );
-    const runs = await supabaseGet("engine_runs?select=ran_at&order=ran_at.asc&limit=1");
+    const runs = await neonGet("engine_runs?select=ran_at&order=ran_at.asc&limit=1");
     firstRun = Array.isArray(runs) && runs.length ? Date.parse(runs[0].ran_at) : null;
   } catch (e) {
     console.log(`silence check skipped (${e?.message ?? e})`);
@@ -408,14 +415,9 @@ async function main() {
 
   let runs = [];
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/engine_runs?select=ran_at,status,message&order=ran_at.desc&limit=2`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-    );
-    if (!res.ok) throw new Error(`heartbeat read HTTP ${res.status}`);
-    runs = await res.json();
+    runs = await neonGet("engine_runs?select=ran_at,status,message&order=ran_at.desc&limit=2");
   } catch (e) {
-    // Supabase briefly unreachable — do not alert on a read failure alone.
+    // Database briefly unreachable — do not alert on a read failure alone.
     // The silence check does its own reads and reports its own failure.
     console.log(`heartbeat unreadable (${e?.message ?? e}) — skipping the cron check`);
     // Skipping the CRON check is deliberate; discarding the SILENCE check's

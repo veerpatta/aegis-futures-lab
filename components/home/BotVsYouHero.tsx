@@ -21,7 +21,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import type { SignalRow } from "@/lib/supabase/client";
+import type { SignalRow } from "@/lib/neon/client";
 import { loadJournal, journalPnl, type JournalTrade } from "@/lib/journal";
 import { useStoredValue } from "@/lib/data/useStored";
 import { nyMeta } from "@/lib/time/ny";

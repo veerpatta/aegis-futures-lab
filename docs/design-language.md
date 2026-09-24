@@ -15,8 +15,8 @@ pattern rather than introducing a new idiom.
 There is **no Tailwind, and no component library**. Confirmed three ways: no
 `tailwind.config.*` exists, `tailwindcss` is absent from `package.json`, and a
 repo-wide grep for utility classes (`text-sm`, `tracking-`, `font-semibold`, …)
-across every `.tsx` returns zero matches. Dependencies are `@supabase/supabase-js`,
-`lightweight-charts`, `next`, `react` — nothing else.
+across every `.tsx` returns zero matches. Data access uses the Neon SDK;
+`lightweight-charts`, `next`, and `react` power the client.
 
 Styling is:
 

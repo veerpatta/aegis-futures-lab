@@ -64,7 +64,7 @@ async function stubExternalData(page: Page, historyRequests: string[]) {
       }),
     }),
   );
-  await page.route("https://bizgcoljagsnytrnaicr.supabase.co/rest/v1/**", (route) =>
+  await page.route("https://*.neon.tech/**/rest/v1/**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

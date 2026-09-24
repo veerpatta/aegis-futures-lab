@@ -21,7 +21,7 @@
 # has TELEGRAM_BOT_TOKEN wired and alerting through it (scripts/engine/
 # notify.ts). A second channel for the same job is maintenance for nothing.
 #
-# SCOPE. The bot's day only. The human journal is behind Supabase Auth with
+# SCOPE. The bot's day only. The human journal is behind Neon Auth with
 # owner-scoped RLS, and the point of that migration was that it stays private —
 # a scheduled job has no business reading it. Bot-vs-you lives in the app,
 # where the user is authenticated as themselves.
@@ -64,10 +64,8 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/engine/debrief.ts
         env:
-          # Read-only work: the publishable key is enough, and using it keeps
-          # the service-role key out of a job that never writes.
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # Database access stays in this server-side job.
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           DEBRIEF_DATE: ${{ inputs.date }}

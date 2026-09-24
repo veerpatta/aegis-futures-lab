@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { isFeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { getNeon } from "@/lib/neon/client";
 import type { Bar } from "@/lib/types";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 export const dynamic = "force-dynamic";
 
-/* Archived 5-minute bars from the bars_5m table the engine fills on every
-   pass. Unlike /api/history (Yahoo, capped at a sliding 60 days) this
-   window grows daily — it is the only way to read history older than 60d.
-   Public read: the table has a public SELECT policy and no write policies. */
+/* Archived 5-minute bars from the Neon bars_5m table. Public read is
+   enforced by the database's anonymous SELECT policy. */
 
-const PAGE = 1000; // Supabase rows per request
+const PAGE = 1000; // Data API rows per request
 const MAX_ROWS = 150_000; // hard cap ≈ 2 years of globex 5m bars
 
 export async function GET(req: NextRequest) {
@@ -27,12 +24,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "from/to must be unix seconds with from <= to" }, { status: 400 });
   }
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-      auth: { persistSession: false },
-    });
+    const neon = getNeon();
     const bars: Bar[] = [];
     for (let offset = 0; offset < MAX_ROWS; offset += PAGE) {
-      const { data, error } = await supabase
+      const { data, error } = await neon
         .from("bars_5m")
         .select("time, open, high, low, close, volume")
         .eq("symbol", symbol)

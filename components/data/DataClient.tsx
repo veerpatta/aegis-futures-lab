@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseCsv } from "@/lib/data/csv";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
-import { getSupabase } from "@/lib/supabase/client";
+import { getNeon } from "@/lib/neon/client";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -34,7 +34,7 @@ export default function DataClient() {
   /* Shadow lab scoreboard — strategies auditioning on live data. Read-only,
      best effort; these rows are never signals. */
   useEffect(() => {
-    getSupabase()
+    getNeon()
       .from("shadow_signals")
       .select("strategy, symbol, status, pnl_usd, regime, fill_confidence, target_price")
       .then(({ data, error }) => {
@@ -63,7 +63,7 @@ export default function DataClient() {
      card that describes the 60-day Yahoo series the live engine writes. Nothing
      downstream could catch it: the count was a real count, of the wrong thing. */
   useEffect(() => {
-    const supabase = getSupabase();
+    const supabase = getNeon();
     for (const s of ["MES", "MNQ"] as const) {
       Promise.all([
         supabase

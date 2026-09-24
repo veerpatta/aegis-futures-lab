@@ -10,7 +10,7 @@
    noise. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getSupabase, type SignalRow } from "@/lib/supabase/client";
+import { getNeon, type SignalRow } from "@/lib/neon/client";
 import {
   bySession,
   bySymbol,
@@ -46,7 +46,7 @@ export default function ReviewClient() {
 
   const load = useCallback(async () => {
     try {
-      const { data, error } = await getSupabase()
+      const { data, error } = await getNeon()
         .from("signals")
         .select("*")
         .order("signal_ts", { ascending: false })

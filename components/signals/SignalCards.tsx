@@ -12,7 +12,7 @@
    Zones carry no confidence field at all, so their cards show distance from
    the delayed price instead of a ring. */
 
-import type { SignalRow, ZoneRow } from "@/lib/supabase/client";
+import type { SignalRow, ZoneRow } from "@/lib/neon/client";
 import { statusLook } from "@/lib/signals/status";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";

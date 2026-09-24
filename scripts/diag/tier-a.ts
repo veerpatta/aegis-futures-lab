@@ -27,7 +27,7 @@
    Run with: npx tsx scripts/diag/tier-a.ts   (publishable key reads bars_5m)
 */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { runBacktest, type BacktestResult } from "@/lib/backtest/engine";
 import { executeRun } from "@/lib/backtest/run";
@@ -45,7 +45,6 @@ import {
   type Zone,
 } from "@/lib/strategies/zone-v5/engine";
 import type { ParamValues, Strategy } from "@/lib/strategies/types";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "@/scripts/engine/tiers";
 import { parseBarSource } from "@/lib/data/source";
 import { fetchArchiveBars } from "@/lib/data/archive";
@@ -56,11 +55,7 @@ const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
 const TFS: Timeframe[] = ["D", "240", "60", "15"];
 const ANNOTATE_BUFFER = 0.25; // same buffer buildStack uses
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 async function trailingBars(symbol: FeedSymbol, fromSec: number): Promise<Bar[]> {
   return fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE, fromSec });

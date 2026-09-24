@@ -6,7 +6,7 @@
    same job.
 
    SCOPE, stated because the audit assumed otherwise: this covers the BOT's
-   day only. The human journal lives behind Supabase Auth with owner-scoped
+   day only. The human journal lives behind Neon Auth with owner-scoped
    RLS (journal_entries), so a GitHub Action holding a service-role key could
    technically read it but has no business doing so — the point of that
    migration was that the journal is private. Bot-vs-you comparison stays in
@@ -15,16 +15,13 @@
    Never fails the run: a debrief that breaks a workflow is worse than no
    debrief. Run with: npx tsx scripts/engine/debrief.ts */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import { tradingDayKey } from "@/lib/time/ny";
 import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { buildDebrief, type DebriefRow } from "./debrief-copy";
 import { sendTelegram } from "./notify";
 
-const url = process.env.SUPABASE_URL || SUPABASE_URL;
-const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+const supabase = createClient();
 
 /* Which day to report on. Defaults to the trading day that has just closed;
    DEBRIEF_DATE overrides it for a manual re-run of a specific session. */

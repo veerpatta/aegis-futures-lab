@@ -15,7 +15,7 @@ import {
   fetchCloudJournal,
   syncJournalToCloud,
 } from "@/lib/journal/cloud";
-import { getSupabase } from "@/lib/supabase/client";
+import { getNeon } from "@/lib/neon/client";
 import { nyDateKey, nyTimeToUnix } from "@/lib/time/ny";
 import { clockIn, etWallIn, ZONE_ABBR, type DisplayZone } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -74,6 +74,8 @@ export default function JournalPanel({
   const [cloud, setCloud] = useState<"signed-out" | "syncing" | "ok" | "offline">("signed-out");
   const [authUser, setAuthUser] = useState<{ id: string; email: string } | null>(null);
   const [authEmail, setAuthEmail] = useState("");
+  const [authCode, setAuthCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const syncedUser = useRef<string | null>(null);
   const [form, setForm] = useState({
@@ -105,7 +107,7 @@ export default function JournalPanel({
   };
 
   useEffect(() => {
-    const supabase = getSupabase();
+    const supabase = getNeon();
     void supabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user;
       setAuthUser(user ? { id: user.id, email: user.email ?? "signed-in trader" } : null);
@@ -157,26 +159,41 @@ export default function JournalPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id]);
 
-  const sendSignInLink = async () => {
+  const sendSignInCode = async () => {
     const email = authEmail.trim();
     if (!email || !email.includes("@")) {
       setAuthMessage("Enter a valid email address.");
       return;
     }
-    setAuthMessage("Sending a private sign-in link…");
-    const { error: authError } = await getSupabase().auth.signInWithOtp({
+    setAuthMessage("Sending a sign-in code…");
+    const { error: authError } = await getNeon().auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/replay`,
-      },
     });
+    setCodeSent(!authError);
     setAuthMessage(
-      authError ? authError.message : "Check your email and open the sign-in link on this device."
+      authError ? authError.message : "Check your email and enter the code below."
     );
   };
 
+  const verifySignInCode = async () => {
+    const token = authCode.trim();
+    if (!/^\d{6}$/.test(token)) {
+      setAuthMessage("Enter the six-digit code from your email.");
+      return;
+    }
+    const { data, error: authError } = await getNeon().auth.verifyOtp({
+      email: authEmail.trim(), token, type: "email",
+    });
+    if (authError) return setAuthMessage(authError.message);
+    if (data.user) setAuthUser({ id: data.user.id, email: data.user.email ?? authEmail.trim() });
+    setAuthCode("");
+    setCodeSent(false);
+    setAuthMessage("Signed in. Your journal is syncing privately.");
+  };
+
   const signOut = async () => {
-    await getSupabase().auth.signOut();
+    await getNeon().auth.signOut();
+    setCodeSent(false);
     setAuthMessage("Signed out. Your local journal remains on this device.");
   };
 
@@ -308,9 +325,28 @@ export default function JournalPanel({
                 onChange={(event) => setAuthEmail(event.target.value)}
               />
             </label>
-            <Button small onClick={() => void sendSignInLink()}>
-              Send sign-in link
+            <Button small onClick={() => void sendSignInCode()}>
+              Send code
             </Button>
+            {codeSent && (
+              <>
+                <label className={styles.syncEmail}>
+                  <span className={styles.srOnly}>Six-digit sign-in code</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="6-digit code"
+                    value={authCode}
+                    onChange={(event) => setAuthCode(event.target.value.replace(/\D/g, ""))}
+                  />
+                </label>
+                <Button small onClick={() => void verifySignInCode()}>
+                  Sign in
+                </Button>
+              </>
+            )}
           </>
         )}
       </div>

@@ -1,14 +1,11 @@
 # One-shot historical backfill into bars_5m. MANUAL ONLY — there is no schedule.
 #
-# Why this exists as a workflow rather than a local script run: writing to
-# bars_5m needs the Supabase service-role key, which lives here as a secret and
-# deliberately nowhere else. The engine has always written from CI for the same
-# reason. Running the pull here means the key never has to leave GitHub.
+# The Neon database URL stays in a GitHub secret for this server-side job.
 #
 # THIS SPENDS DATABENTO CREDIT. The free tier is $125 and expires six months
 # from signup, so the pull is effectively one-shot. Run `--estimate` first —
 # it calls only the free metadata endpoints and prints both the credit cost and
-# the projected Supabase storage, which on a free-tier project is the binding
+# the projected Neon storage, which on a free project is the binding
 # constraint long before the dollars are.
 #
 # The estimate and the run share the same --symbols and --window arguments, so
@@ -62,8 +59,7 @@ jobs:
       - name: Backfill
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://bizgcoljagsnytrnaicr.supabase.co' }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           MODE: ${{ inputs.mode }}
           WINDOW: ${{ inputs.window }}
           SYMBOLS: ${{ inputs.symbols }}

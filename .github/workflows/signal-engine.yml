@@ -1,5 +1,5 @@
 # Scheduled paper-signal engine: recomputes the tier A/B signal streams from
-# delayed Yahoo data and mirrors them into Supabase for the dashboard.
+# delayed Yahoo data and mirrors them into Neon for the dashboard.
 #
 # Cron is UTC and GitHub delays cron jobs by 5-15 min — fine for a paper
 # log, never rely on it for live execution.
@@ -28,10 +28,7 @@
 # the session belongs to the next weekday. run-live.ts keys its daily funnel on
 # lib/time/ny.ts `tradingDayKey` for exactly that reason.
 #
-# Writes need the service-role key: public write policies were dropped
-# (supabase/migrations/20260723100000_lock_down_public_writes.sql), so the
-# publishable key can only read. The secret may live under either name;
-# run-live.ts exits with an actionable error if neither is set.
+# The pooled Neon database URL is stored as a GitHub Actions secret.
 
 name: signal-engine
 
@@ -58,7 +55,7 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/engine/run-live.ts
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Ring 1 kill switch: "1" freezes breakers/veto (existing pauses stay).

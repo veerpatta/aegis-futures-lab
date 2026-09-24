@@ -11,7 +11,7 @@
    rows, so cron jitter and manual re-runs are harmless.
    Run with: npx tsx scripts/engine/run-live.ts */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar, Trade } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { alignArchiveSlice } from "@/lib/data/window";
@@ -36,24 +36,11 @@ import { applyBreakers, isSuppressedAt, streamKeyForRow } from "./breakers";
 import { applyWinProb } from "./model";
 import { rowsToDelete, zoneRows, type ExistingZoneRow } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
 
-const url = process.env.SUPABASE_URL || SUPABASE_URL;
-const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
-/* RLS blocks anonymous writes on the engine tables, so a CI run without the
-   service-role key would fail row by row. Fail fast with the fix instead. */
-if (process.env.GITHUB_ACTIONS && (!process.env.SUPABASE_KEY || key === SUPABASE_PUBLISHABLE_KEY)) {
-  console.error(
-    "SUPABASE_KEY is missing or is the publishable key — engine writes are blocked by RLS.\n" +
-      "Add the Supabase service-role key as the SUPABASE_SERVICE_ROLE_KEY repo secret\n" +
-      "(GitHub → Settings → Secrets and variables → Actions) so the workflow can pass it."
-  );
-  process.exit(1);
-}
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+const supabase = createClient();
 
 interface SignalRow {
   dedupe_key: string;

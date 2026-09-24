@@ -20,7 +20,7 @@
    sample result and shows its old band only as the claim that failed. */
 
 import { useMemo } from "react";
-import type { SignalRow } from "@/lib/supabase/client";
+import type { SignalRow } from "@/lib/neon/client";
 import {
   GO_LIVE_DATE,
   TUNING_BASELINE,

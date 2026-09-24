@@ -17,12 +17,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  getSupabase,
+  getNeon,
   type EngineRunRow,
   type LearningRunRow,
   type SignalRow,
   type ZoneRow,
-} from "@/lib/supabase/client";
+} from "@/lib/neon/client";
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
@@ -318,7 +318,7 @@ export default function HomeClient() {
 
   const load = useCallback(async () => {
     try {
-      const supabase = getSupabase();
+      const supabase = getNeon();
       const [signals, zones, learning] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
         supabase

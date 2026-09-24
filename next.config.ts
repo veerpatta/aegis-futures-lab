@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
               "font-src 'self' https://fonts.gstatic.com; " +
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-              "connect-src 'self' https://*.supabase.co https://query1.finance.yahoo.com wss://*.supabase.co; " +
+              "connect-src 'self' https://*.neon.tech https://query1.finance.yahoo.com; " +
               "worker-src 'self' blob:; form-action 'self'",
           },
           {

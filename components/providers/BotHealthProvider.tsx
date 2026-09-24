@@ -22,10 +22,10 @@ import {
   useState,
 } from "react";
 import {
-  getSupabase,
+  getNeon,
   type BotPolicyRow,
   type EngineRunRow,
-} from "@/lib/supabase/client";
+} from "@/lib/neon/client";
 import { streamLabel } from "@/lib/engine/streams";
 import { dataDelayed, engineScheduled, fmtStamp } from "@/lib/time/session";
 import { useData } from "./DataProvider";
@@ -81,7 +81,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
     inFlight.current = true;
     if (manual) setRefreshing(true);
     try {
-      const supabase = getSupabase();
+      const supabase = getNeon();
       const [runsRes, policyRes] = await Promise.all([
         supabase
           .from("engine_runs")

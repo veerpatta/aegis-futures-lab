@@ -1,18 +1,24 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config";
+import { createClient, SupabaseAuthAdapter } from "@neondatabase/neon-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { NEON_AUTH_URL, NEON_DATA_API_URL } from "./config";
 
-let client: SupabaseClient | null = null;
+// Neon implements the PostgREST and Supabase-auth methods this UI uses. Keep
+// the established row inference until generated Neon types replace it.
+type BrowserClient = SupabaseClient;
+let client: BrowserClient | null = null;
 
-/* One shared browser client (no auth session — the app is anonymous). */
-export function getSupabase(): SupabaseClient {
+/* One shared browser client. Public data is readable anonymously; journal
+   writes require a Neon Auth session and owner-only database policies. */
+export function getNeon(): BrowserClient {
   if (!client)
-    client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    client = createClient({
       auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        adapter: SupabaseAuthAdapter(),
+        url: NEON_AUTH_URL,
+        allowAnonymous: true,
       },
-    });
+      dataApi: { url: NEON_DATA_API_URL },
+    }) as unknown as BrowserClient;
   return client;
 }
 

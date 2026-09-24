@@ -45,14 +45,14 @@ jobs:
         run: npx tsx scripts/engine/learn.ts
         env:
           LEARNING_CADENCE: weekly
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           GITHUB_TOKEN: ${{ github.token }}
           BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - run: npx tsx scripts/engine/challenger.ts
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           GITHUB_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

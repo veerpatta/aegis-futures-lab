@@ -37,7 +37,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { executeRun, type RunRequest } from "@/lib/backtest/run";
 import { runGrossNet } from "@/lib/backtest/grossNet";
@@ -45,7 +45,6 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { fetchArchiveBars, assertArchivePresent } from "@/lib/data/archive";
 import { parseBarSource } from "@/lib/data/source";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { nyMeta } from "@/lib/time/ny";
 import { LEGACY_MODEL } from "@/lib/costs";
 import { candidatePool, bootstrapGeometry, profileFrom } from "@/lib/diagnostics/randomEntry";
@@ -65,11 +64,7 @@ const arg = (flag: string, fallback: string): string => {
 const ITERATIONS = Number(arg("--iterations", "500"));
 const OUT = arg("--out", "docs/research/gold-random-entry.json");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
   const raw = await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE });

@@ -16,10 +16,9 @@ import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { FeedSymbol } from "@/lib/market/contracts";
 import type { Bar } from "@/lib/types";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { nyMeta } from "@/lib/time/ny";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { tierStreams } from "./tiers";
@@ -35,11 +34,7 @@ import { canonicalParams, confirmsFreshWeek, replaceDeclaration } from "./challe
 import { sendTelegram } from "./notify";
 import { recordPromotionDecision } from "./learning-audit";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";

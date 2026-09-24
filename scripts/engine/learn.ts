@@ -18,11 +18,10 @@
 
    Paper only, delayed data — never touches real money or real orders. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import { nyMeta } from "@/lib/time/ny";
 import { liveOnly } from "@/lib/signals/live";
 import { holidayFor } from "@/lib/market/holidays";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { profitFactor } from "@/lib/stats";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
@@ -54,24 +53,7 @@ const learningCadence: LearningCadence =
       : "daily";
 let currentLearningRunId: number | null = null;
 
-const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
-/* Same fail-fast guard run-live.ts has. learn.ts writes learned_stats,
-   model_registry and bot_policy, all RLS-protected, and without this the
-   failure order is actively misleading: the first write is retrainModel, which
-   is caught as non-fatal, so model_registry and bot_policy fail SILENTLY and
-   only the learned_stats upsert at the end surfaces the real cause. */
-if (process.env.GITHUB_ACTIONS && (!process.env.SUPABASE_KEY || key === SUPABASE_PUBLISHABLE_KEY)) {
-  console.error(
-    "SUPABASE_KEY is missing or is the publishable key — learned_stats writes are blocked by RLS.\n" +
-      "Add the Supabase service-role key as the SUPABASE_SERVICE_ROLE_KEY repo secret\n" +
-      "(GitHub → Settings → Secrets and variables → Actions) so the workflow can pass it."
-  );
-  process.exit(1);
-}
-
-const supabase = createClient(process.env.SUPABASE_URL || SUPABASE_URL, key, {
-  auth: { persistSession: false },
-});
+const supabase = createClient();
 
 const PAGE = 1000;
 /* Below this a ledger/decile cell is not judged — it is "still collecting".

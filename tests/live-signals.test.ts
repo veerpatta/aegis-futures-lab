@@ -108,6 +108,9 @@ describe("every signals reader is classified", () => {
     "scripts/engine/backfill-fill-audit.ts":
       "re-judges the fill confidence stored ON each row, one row at a time; it is a data " +
       "correction pass over history, so excluding history is exactly wrong for it",
+    "scripts/migration/smoke-neon.ts":
+      "reads one signal ID only to prove Neon connectivity; it does not calculate or " +
+      "display performance, so historical rows cannot change its result",
   };
 
   /* A reader may name the table inline OR pass it to a generic helper. The

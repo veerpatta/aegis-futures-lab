@@ -17,17 +17,12 @@
  * Run: BAR_SOURCE=databento npx tsx scripts/diag/metals-correlation.ts
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import { fetchArchiveBars, assertArchivePresent } from "@/lib/data/archive";
 import { summariseCorrelation, effectiveSampleSize } from "@/lib/diagnostics/correlation";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import type { Bar } from "@/lib/types";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 /* Below this the confirmation premise is not supported and the strategy should
    not be built. Not a round number pulled from the air: the brief's whole

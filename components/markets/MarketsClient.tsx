@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
-import { getSupabase, type ZoneRow } from "@/lib/supabase/client";
+import { getNeon, type ZoneRow } from "@/lib/neon/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
@@ -105,7 +105,7 @@ export default function MarketsClient() {
   }, [chartSymbol, readoutFeeds, data.ensureHistory]);
 
   useEffect(() => {
-    getSupabase()
+    getNeon()
       .from("zones")
       .select("*")
       .or("active.is.null,active.eq.true")

@@ -10,7 +10,7 @@
    appears without its n, and reads "still collecting" below the minimum. */
 
 import Link from "next/link";
-import type { SignalRow } from "@/lib/supabase/client";
+import type { SignalRow } from "@/lib/neon/client";
 import {
   describeCell,
   describeInvalidation,

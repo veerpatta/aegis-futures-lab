@@ -55,14 +55,15 @@ The engine's behavior is pinned by tests: a verbatim extract of the legacy study
 walker acts as an oracle, and the trade lists must match exactly
 (`tests/engine-v5-parity.test.ts`).
 
-## Cloud signal engine (Supabase + GitHub Actions)
+## Cloud signal engine (Neon + GitHub Actions)
 
-A scheduled job (`.github/workflows/signal-engine.yml`, every 15 minutes during
-the London+NY window) runs `scripts/engine/run-live.ts`: it fetches the delayed
+A scheduled job (`.github/workflows/signal-engine.yml`, every 15 minutes through
+the Globex week) runs `scripts/engine/run-live.ts`: it fetches the delayed
 Yahoo feed, replays the tier streams through the same backtest simulator the app
-uses, and mirrors the results into Supabase (`signals`, `zones`, `engine_runs`).
-The **Signals** page and the Replay journal read/write those tables with the
-publishable key.
+uses, and writes the results into Neon (`signals`, `zones`, `engine_runs`).
+The browser reads public research tables through the Neon Data API. Journal
+sync uses Neon Auth and owner-only database policies. GitHub Actions writes
+through the pooled `NEON_DATABASE_URL` secret.
 
 Two signal tiers (`scripts/engine/tiers.ts`, tuned via `npm run engine:report`):
 
@@ -80,8 +81,8 @@ these signals are a log to study, never execution instructions.
 Run locally: `npm run engine` (one engine pass) · `npm run engine:report`
 (re-measure the tier configuration over the trailing 60 days).
 
-The journal on the Replay page also syncs to the Supabase `trades` table and
-imports Tradovate/Topstep performance CSVs directly.
+The journal on the Journal page saves locally and, after email-code sign-in,
+syncs privately to `journal_entries`. It also imports Tradovate/Topstep CSVs.
 
 ## Development
 
@@ -97,8 +98,13 @@ Stack: Next.js (App Router, TypeScript), plain CSS custom properties + CSS Modul
 Serverless API routes proxy the free delayed Yahoo Finance feed
 (`/api/market`, `/api/history`) and serve the verified 2026 economic calendar
 (`/api/events`). Presets and the forward test persist in `localStorage`; the
-signal log and journal mirror live in a free-tier Supabase project (RLS-governed,
-publishable key only — no auth, no tracking).
+signal log and private journal copy live in Neon. Database credentials stay on
+the server and in GitHub Actions secrets.
+
+For local engine runs, set `DATABASE_URL` to the pooled Neon connection string.
+Schema and one-time source copy are in `db/neon-schema.sql` and
+`scripts/migration/supabase-to-neon.mjs`. The copy uses a direct Neon connection,
+reads the old public source tables, and verifies counts before cutover.
 
 ## Data disclaimers
 

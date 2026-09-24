@@ -5,22 +5,15 @@
 
    Run with:  npx tsx scripts/engine/backfill-fill-audit.ts
 
-   Writes need the service-role key (RLS blocks anonymous updates). With
-   SUPABASE_KEY set, rows are updated directly; without it the script
-   PRINTS the equivalent UPDATE statements so they can be pasted into the
-   Supabase SQL editor (or run via MCP). */
+   Requires DATABASE_URL for the Neon server connection. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { EXECUTION } from "./tiers";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
-const url = process.env.SUPABASE_URL || SUPABASE_URL;
-const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
-const canWrite = Boolean(process.env.SUPABASE_KEY);
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+const supabase = createClient();
 
 const PAGE = 1000;
 
@@ -61,7 +54,6 @@ async function main() {
 
   let updated = 0;
   let skipped = 0;
-  const sql: string[] = [];
   for (const r of rows ?? []) {
     const bars = barsBySymbol.get(r.symbol as string) ?? [];
     const entryTime = Math.floor(new Date(r.signal_ts as string).getTime() / 1000);
@@ -87,25 +79,17 @@ async function main() {
       continue;
     }
     if (verdict === r.fill_confidence) continue;
-    if (canWrite) {
-      const { error: upErr } = await supabase
-        .from("signals")
-        .update({ fill_confidence: verdict })
-        .eq("id", r.id);
-      if (upErr) throw new Error(`signals update ${r.id}: ${upErr.message}`);
-    } else {
-      sql.push(`update public.signals set fill_confidence = '${verdict}' where id = ${r.id};`);
-    }
+    const { error: upErr } = await supabase
+      .from("signals")
+      .update({ fill_confidence: verdict })
+      .eq("id", r.id);
+    if (upErr) throw new Error(`signals update ${r.id}: ${upErr.message}`);
     updated++;
   }
 
   console.log(
-    `backfill: ${rows?.length ?? 0} rows scanned, ${updated} ${canWrite ? "updated" : "to update"}, ${skipped} left null (no archived bars)`
+    `backfill: ${rows?.length ?? 0} rows scanned, ${updated} updated, ${skipped} left null (no archived bars)`
   );
-  if (!canWrite && sql.length) {
-    console.log("\n-- SUPABASE_KEY not set: paste this into the Supabase SQL editor --");
-    for (const line of sql) console.log(line);
-  }
 }
 
 main().catch((e) => {

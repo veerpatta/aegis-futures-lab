@@ -7,45 +7,24 @@
    2. Retro-tags vix_bucket on existing signals AND shadow_signals rows
       using the same no-lookahead rule as the live engine (context.ts).
 
-   Writes need the service-role key. With SUPABASE_KEY set, rows are
-   written directly; without it the script PRINTS the SQL to paste into
-   the Supabase SQL editor. Idempotent either way. */
+   Requires DATABASE_URL for the Neon server connection. Idempotent. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import { nyMeta } from "@/lib/time/ny";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { buildContextRows, vixBucketFor } from "./context";
 
-const url = process.env.SUPABASE_URL || SUPABASE_URL;
-const key = process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY;
-const canWrite = Boolean(process.env.SUPABASE_KEY);
-const supabase = createClient(url, key, { auth: { persistSession: false } });
-
-const sqlNum = (v: number | null) => (v === null ? "null" : String(v));
+const supabase = createClient();
 
 async function main() {
   const rows = await buildContextRows("1y");
   console.log(`context: ${rows.length} daily rows fetched (${rows[0]?.date_key} → ${rows[rows.length - 1]?.date_key})`);
 
-  const sql: string[] = [];
-  if (canWrite) {
-    const stamped = rows.map((r) => ({ ...r, updated_at: new Date().toISOString() }));
-    for (let i = 0; i < stamped.length; i += 500) {
-      const { error } = await supabase
-        .from("context_daily")
-        .upsert(stamped.slice(i, i + 500), { onConflict: "date_key" });
-      if (error) throw new Error(`context_daily upsert: ${error.message}`);
-    }
-  } else {
-    sql.push(
-      `insert into public.context_daily (date_key, vix, dxy, tnx) values`,
-      rows
-        .map((r) => `  ('${r.date_key}', ${sqlNum(r.vix)}, ${sqlNum(r.dxy)}, ${sqlNum(r.tnx)})`)
-        .join(",\n") +
-        // coalesce: a null (e.g. today's not-yet-final VIX) must never
-        // clobber a value the engine already stored.
-        `\non conflict (date_key) do update set vix = coalesce(excluded.vix, context_daily.vix), dxy = coalesce(excluded.dxy, context_daily.dxy), tnx = coalesce(excluded.tnx, context_daily.tnx), updated_at = now();`
-    );
+  const stamped = rows.map((r) => ({ ...r, updated_at: new Date().toISOString() }));
+  for (let i = 0; i < stamped.length; i += 500) {
+    const { error } = await supabase
+      .from("context_daily")
+      .upsert(stamped.slice(i, i + 500), { onConflict: "date_key" });
+    if (error) throw new Error(`context_daily upsert: ${error.message}`);
   }
 
   // Retro-tag both tables with the same rule the engine uses.
@@ -60,23 +39,14 @@ async function main() {
       const dateKey = nyMeta(Math.floor(new Date(r.signal_ts as string).getTime() / 1000)).dateKey;
       const bucket = vixBucketFor(rows, dateKey);
       if (bucket === null || bucket === r.vix_bucket) continue;
-      if (canWrite) {
-        const { error: upErr } = await supabase
-          .from(table)
-          .update({ vix_bucket: bucket })
-          .eq("id", r.id);
-        if (upErr) throw new Error(`${table} update ${r.id}: ${upErr.message}`);
-      } else {
-        sql.push(`update public.${table} set vix_bucket = '${bucket}' where id = ${r.id};`);
-      }
+      const { error: upErr } = await supabase
+        .from(table)
+        .update({ vix_bucket: bucket })
+        .eq("id", r.id);
+      if (upErr) throw new Error(`${table} update ${r.id}: ${upErr.message}`);
       updated++;
     }
-    console.log(`${table}: ${updated} rows ${canWrite ? "tagged" : "to tag"}`);
-  }
-
-  if (!canWrite && sql.length) {
-    console.log("\n-- SUPABASE_KEY not set: paste this into the Supabase SQL editor --");
-    console.log(sql.join("\n"));
+    console.log(`${table}: ${updated} rows tagged`);
   }
 }
 

@@ -12,7 +12,7 @@
    rather than guessing. */
 
 import { useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase/client";
+import { getNeon } from "@/lib/neon/client";
 import { Badge, DataTable, Panel } from "@/components/ui";
 import {
   DAILY_FUNNEL_STAT_KEY,
@@ -45,7 +45,7 @@ export default function WhyNoSignal({ dateKey }: { dateKey: string | null }) {
 
   useEffect(() => {
     let cancelled = false;
-    getSupabase()
+    getNeon()
       .from("learned_stats")
       .select("payload, date_key")
       .eq("stat_key", DAILY_FUNNEL_STAT_KEY)

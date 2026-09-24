@@ -9,10 +9,9 @@
    breakage — and a data-integrity section scans bars_5m for session gaps,
    duplicates and zero/negative-range bars. Paper only, delayed data. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import { inNySession, nyMeta } from "@/lib/time/ny";
 import { earlyCloseMinuteNy, isMarketHoliday } from "@/lib/market/holidays";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf } from "@/lib/stats";
 import { sendTelegram } from "./notify";
 import { fetchAllRows } from "./paginate";
@@ -30,11 +29,7 @@ import { promotionReport, type ShadowLike } from "./promotion";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "./winprob";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";

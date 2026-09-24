@@ -1,8 +1,8 @@
-import { getSupabase } from "@/lib/supabase/client";
+import { getNeon } from "@/lib/neon/client";
 import type { JournalTrade } from "./index";
 
 /* Owner-isolated cloud copy of the local journal. localStorage remains the
-   offline cache, while Supabase Auth + RLS makes cross-device sync private. */
+   offline cache, while Neon Auth + RLS makes cross-device sync private. */
 
 interface CloudRow {
   id: number;
@@ -19,7 +19,7 @@ interface CloudRow {
 }
 
 async function ownerId(): Promise<string> {
-  const { data, error } = await getSupabase().auth.getUser();
+  const { data, error } = await getNeon().auth.getUser();
   if (error) throw new Error(error.message);
   if (!data.user) throw new Error("Sign in to sync the journal.");
   return data.user.id;
@@ -27,7 +27,7 @@ async function ownerId(): Promise<string> {
 
 export async function fetchCloudJournal(): Promise<JournalTrade[]> {
   await ownerId();
-  const { data, error } = await getSupabase()
+  const { data, error } = await getNeon()
     .from("journal_entries")
     .select(
       "id, journal_id, symbol, direction, qty, entry_ts, entry_price, exit_ts, exit_price, notes, created_at"
@@ -57,7 +57,7 @@ export async function fetchCloudJournal(): Promise<JournalTrade[]> {
 /* Upserts are intentionally non-destructive. A fresh or temporarily empty
    device can never erase another device's journal. Deletes are explicit. */
 export async function syncJournalToCloud(trades: JournalTrade[]): Promise<void> {
-  const supabase = getSupabase();
+  const supabase = getNeon();
   const userId = await ownerId();
   if (!trades.length) return;
 
@@ -84,7 +84,7 @@ export async function syncJournalToCloud(trades: JournalTrade[]): Promise<void> 
 
 export async function deleteJournalFromCloud(journalId: string): Promise<void> {
   await ownerId();
-  const { error } = await getSupabase()
+  const { error } = await getNeon()
     .from("journal_entries")
     .delete()
     .eq("journal_id", journalId);

@@ -31,7 +31,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { executeRun, type RunRequest } from "@/lib/backtest/run";
 import { runGrossNet } from "@/lib/backtest/grossNet";
@@ -39,7 +39,6 @@ import { alignArchiveSlice } from "@/lib/data/window";
 import { fetchArchiveBars } from "@/lib/data/archive";
 import { parseBarSource } from "@/lib/data/source";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { LEGACY_MODEL } from "@/lib/costs";
 import { describeOvernight, overnightSplit } from "@/lib/diagnostics/overnight";
 import {
@@ -71,11 +70,7 @@ const ONLY_TRIAL = arg("--trial", "");
 const ONLY_SYMBOL = arg("--symbol", "");
 const CELL_MODE = Boolean(ONLY_TRIAL || ONLY_SYMBOL);
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } },
-);
+const supabase = createClient();
 
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
 const RTH: SessionWindow = { fromMin: 570, toMin: SESSION_EXIT_MINUTE };

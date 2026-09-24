@@ -36,8 +36,8 @@ evidence instead of memory.
    about, sorted by how close price is. An amber **AT ZONE** badge means price is sitting
    in one right now — the interesting moments happen there.
 5. **After you trade, write it down.** On the Journal page, add your own trades by hand
-   or import the CSV file your broker (Topstep / Tradovate) exports. The journal saves to
-   the cloud automatically.
+   or import the CSV file your broker (Topstep / Tradovate) exports. It saves on
+   this device first. Sign in to keep a private copy across devices.
 6. **On the weekend, keep score.** The Performance panel shows the expectancy per trade,
    the win rate and the running profit of each tier — each with the number of trades
    behind it. Give the engine a few weeks of evidence before drawing conclusions:
@@ -305,6 +305,14 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 
 You never need the workshop pages to follow the signals.
 
+### Your journal is private
+
+Journal entries save on this device first. If you want the same journal on another
+device, use **Private cloud sync** on the Journal page. Enter your email, then type
+the six-digit code sent to you. Only your signed-in account can read its cloud copy.
+Signing out returns the journal to local-only mode. CSV export remains available as
+your portable backup.
+
 ### Finding your way around the screen
 
 Every page has the same bar across the top: the diamond mark and the page name on the left,
@@ -485,6 +493,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-08-25. If the app has changed since, the
+*Manual version: matches the app as of 2026-09-24. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

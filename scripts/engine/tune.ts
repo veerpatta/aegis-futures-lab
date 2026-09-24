@@ -22,10 +22,9 @@
      machine, so the incumbent is replayed for reference only.
    - NOTHING changes automatically: tiers.ts is only ever edited by a human. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import type { FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { fmtPf, profitFactor as profitFactorOf } from "@/lib/stats";
 import { resampleDrawdowns } from "./montecarlo";
 import { promotionReport, type ShadowLike } from "./promotion";
@@ -42,11 +41,7 @@ import {
   type EvalResult,
 } from "./tune-core";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+const supabase = createClient();
 
 const money = (v: number) => `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(0)}`;
 const day = (sec: number) => new Date(sec * 1000).toISOString().slice(0, 10);

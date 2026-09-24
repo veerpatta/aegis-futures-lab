@@ -4,12 +4,11 @@
    and cost-sensitivity.ts so the three scripts read the archive identically
    (same day-alignment fix as scripts/diag/tier-a-baseline.ts). Read-only. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/neon/server";
 import type { Bar } from "@/lib/types";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { nyMeta } from "@/lib/time/ny";
 import type { FeedSymbol } from "@/lib/market/contracts";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 import { parseBarSource } from "@/lib/data/source";
 import { fetchArchiveBars } from "@/lib/data/archive";
 
@@ -18,11 +17,7 @@ import { fetchArchiveBars } from "@/lib/data/archive";
    seven years of real contracts instead of sixty days of a delayed proxy. */
 const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL || SUPABASE_URL,
-  process.env.SUPABASE_KEY || SUPABASE_PUBLISHABLE_KEY,
-  { auth: { persistSession: false } }
-);
+export const supabase = createClient();
 
 export async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
   return alignArchiveSlice(await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));

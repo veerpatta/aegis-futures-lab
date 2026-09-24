@@ -63,8 +63,8 @@ export default function GuidePage() {
           </li>
           <li>
             <b>After you trade, write it down.</b> On the Journal page, add your own trades by
-            hand or import the CSV file your broker (Topstep / Tradovate) exports. The journal
-            saves to the cloud automatically.
+            hand or import the CSV file your broker (Topstep / Tradovate) exports. It saves on
+            this device first. Sign in to keep a private copy across devices.
           </li>
           <li>
             <b>On the weekend, keep score.</b> The Performance panel shows the expectancy per
@@ -567,9 +567,10 @@ export default function GuidePage() {
         <h2>Your journal is private</h2>
         <p>
           Journal entries save on this device first. If you want the same journal on another
-          device, use <b>Private cloud sync</b> on the Journal page and sign in with your email
-          link. Supabase row-level security isolates entries by account; signing out returns the
-          journal to local-only mode. CSV export remains available as your portable backup.
+          device, use <b>Private cloud sync</b> on the Journal page. Enter your email, then type
+          the six-digit code sent to you. Only your signed-in account can read its cloud copy.
+          Signing out returns the journal to local-only mode. CSV export remains available as
+          your portable backup.
         </p>
       </section>
 
@@ -828,7 +829,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-08-25. A printable version of this guide lives in the project
+        Matches the app as of 2026-09-24. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

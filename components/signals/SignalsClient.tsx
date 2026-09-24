@@ -1,7 +1,7 @@
 "use client";
 
 /* Live paper-signal terminal. Reads the signals / zones / engine_runs tables
-   the scheduled engine writes to Supabase, plus the delayed quote feed for
+   the scheduled engine writes to Neon, plus the delayed quote feed for
    zone distances. Signature element: the session heartbeat — market clock,
    countdown to the next engine pass, and today's pace toward the 2-3
    signals/day target, over a tape of the trading day. */
@@ -9,12 +9,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  getSupabase,
+  getNeon,
   type BotPolicyRow,
   type EngineRunRow,
   type SignalRow,
   type ZoneRow,
-} from "@/lib/supabase/client";
+} from "@/lib/neon/client";
 import { streamKeyForRow, streamLabel } from "@/lib/engine/streams";
 import { STALE_BAR_AGE_MIN, STALE_LABEL } from "@/lib/signals/freshness";
 import SignalContext, { useConditionLedger } from "./SignalContext";
@@ -207,7 +207,7 @@ export default function SignalsClient() {
 
   const load = useCallback(async () => {
     try {
-      const supabase = getSupabase();
+      const supabase = getNeon();
       const [signals, zones, runs, policy] = await Promise.all([
         supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
         supabase
@@ -560,7 +560,7 @@ export default function SignalsClient() {
         <Panel title="Connection">
           <div className={styles.error}>
             Signal feed unreachable ({state.error}). Retrying every minute — check your network or
-            the Supabase project.
+            the database service.
           </div>
         </Panel>
       )}

@@ -97,26 +97,17 @@ short sentences. The reader knows trading but not software. Always keep the
 - Golden parity tests (`tests/*-parity.test.ts`) pin zone-v5 to a legacy oracle:
   behavior changes must be gated behind new params whose defaults preserve legacy
   behavior. Run `npm test` before every push.
-- Supabase project "Trading Bot Aegis" (`bizgcoljagsnytrnaicr`) holds signals/zones/
-  trades/engine_runs; the publishable key is committed in `lib/supabase/config.ts`
-  by design and is now READ-ONLY on every table. (The journal-scoped INSERT/DELETE
-  on `trades` was revoked by `20260727183355_private_journal_and_learning_audit.sql`,
-  which moved the journal to owner-scoped `journal_entries`.) Engine writes need
-  the service-role key (GitHub secret). Schema/policy changes are SQL files under
-  `supabase/migrations/` — applied manually or via MCP, never assumed applied just
-  because they are committed. The reverse used to happen too: a full column-level
-  diff of the live project against every committed migration found 18 columns and
-  3 indexes that existed only in production. `20260807030500_catch_up_drifted_schema.sql`
-  closes that gap — it is `if not exists` throughout and a no-op against the live
-  database, so its whole purpose is that a rebuild from this folder produces a
-  database the engine can write to. Two of the three indexes were the `dedupe_key`
-  unique constraints, i.e. the arbiters for the engine's `on conflict` upserts; a
-  rebuild without them fails on every write with 42P10, not just on the first.
-  Re-run that diff before trusting this folder again — drift is the default here,
-  not the exception.
+- Neon project `floral-cell-79900814` is the active Aegis backend. Its schema,
+  indexes, triggers and Data API policies are in `db/neon-schema.sql`. The browser
+  reads public data through Neon Data API and uses Neon Auth for owner-scoped
+  `journal_entries`; the engine uses a pooled PostgreSQL URL in the GitHub secret
+  `NEON_DATABASE_URL`. Keep the URL server-side. The old Supabase project
+  `bizgcoljagsnytrnaicr` is a paused migration source. Its historical migrations
+  remain under `supabase/migrations/`; do not apply them to Neon. Check the live
+  Neon schema against `db/neon-schema.sql` before trusting a rebuild.
 - Research tables (`research_baselines`, `research_trials`, `signal_excursion`) are
   guarded by TRIGGERS, not policies, and the distinction is deliberate: the engine
-  writes with the service-role key, which bypasses RLS. A policy saying "nobody may
+  writes over a privileged database connection, which bypasses RLS. A policy saying "nobody may
   edit this" would be no protection against the only writer that exists. Baselines
   are append-only; a trial's hypothesis/prediction/decision_rule and its recorded
   outcome are write-once.

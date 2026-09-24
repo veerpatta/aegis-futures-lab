@@ -135,7 +135,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         if: steps.budget.outputs.go == 'yes'
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}

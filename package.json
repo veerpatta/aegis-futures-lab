@@ -12,15 +12,19 @@
     "engine:report": "tsx scripts/engine/report.ts"
   },
   "dependencies": {
+    "@neondatabase/neon-js": "^0.7.0-beta",
     "@supabase/supabase-js": "^2.110.7",
     "lightweight-charts": "^5.0.9",
     "next": "15.5.21",
+    "pg": "^8.23.0",
+    "pg-copy-streams": "^7.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tsx": "^4.23.1",

@@ -63,7 +63,7 @@ jobs:
       - run: npm ci
       - uses: anthropics/claude-code-action@v1
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -80,7 +80,7 @@ jobs:
             You are the Aegis research analyst. Paper futures bot, MES/MNQ, delayed
             data, no real money. Write for a trader who knows markets, not software.
 
-            READ (you have bash, node 22 and npm ci already done; SUPABASE_KEY is in
+            READ (you have bash, node 22 and npm ci already done; DATABASE_URL is in
             the environment and `scripts/engine/*.ts` show how to query):
             - engine_runs for the last 26 hours: errors, bar ages, heartbeat messages.
             - signals and shadow_signals closed in the last 24 hours, with tier,
@@ -169,7 +169,7 @@ jobs:
       - run: npm ci
       - uses: anthropics/claude-code-action@v1
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
