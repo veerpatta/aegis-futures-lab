@@ -7,7 +7,7 @@ export type DataRequest={dataset:string;schema:string;stype_in:string;symbols:st
 const base="https://hist.databento.com/v0/";
 export async function metadata(method:string,params:Record<string,string>) {
  const key=process.env.DATABENTO_API_KEY;if(!key)throw new Error("DATABENTO_API_KEY missing");
- const r=await fetch(base+method,{method:"POST",headers:{Authorization:`Basic ${Buffer.from(key+":").toString("base64")}`,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(params)});
+ const r=await fetch(base+method+"?"+new URLSearchParams(params),{headers:{Authorization:`Basic ${Buffer.from(key+":").toString("base64")}`}});
  if(!r.ok)throw new Error(`${method}: HTTP ${r.status}: ${(await r.text()).slice(0,200)}`);return r.json();
 }
 export function reserveCost(quote:number,used:number){if(!Number.isFinite(quote)||quote<0||!Number.isFinite(used)||used<0||used+quote*1.25>CREDIT_CAP)throw new Error("Request exceeds remaining authorized credit including reserve");return quote*1.25;}

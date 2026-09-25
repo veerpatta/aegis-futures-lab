@@ -1,12 +1,12 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useState,useCallback} from "react";
 import Link from "next/link";
 import {usePaper} from "@/components/providers/PaperProvider";
 import {useBotHealth} from "@/components/providers/BotHealthProvider";
 import {usePrivacy} from "@/components/providers/PrivacyProvider";
 import {useZone} from "@/components/providers/ZoneProvider";
 import {Badge,Button,Panel} from "@/components/ui";
-import BottomSheet from "@/components/ui/BottomSheet";
+import BottomSheet,{SheetClose} from "@/components/ui/BottomSheet";
 import {botState,candidateName,freshTraining,type Candidate,type Position} from "@/lib/paper/overview";
 import {fmtStamp} from "@/lib/time/session";
 import {nyMeta} from "@/lib/time/ny";
@@ -17,6 +17,7 @@ export default function TraderDesk({bot=false}:{bot?:boolean}) {
  const {data,candidates,activity,errors,loadedAt,loading,refresh}=usePaper();const health=useBotHealth();
  const {mask}=usePrivacy(),{zone}=useZone();
  const [sheet,setSheet]=useState<"how"|"risk"|"training"|Candidate|Position|null>(null);
+ const closeSheet=useCallback(()=>setSheet(null),[]);
  const [quotes,setQuotes]=useState<Partial<Record<"MES"|"MNQ",MarketPayload>>>({});const [quoteErrors,setQuoteErrors]=useState<string[]>([]);
  const [today,setToday]=useState<string|null>(null);
  useEffect(()=>{const tick=()=>setToday(nyMeta(Date.now()/1000).dateKey);tick();const t=setInterval(tick,60000);return()=>clearInterval(t);},[]);
@@ -57,7 +58,7 @@ export default function TraderDesk({bot=false}:{bot?:boolean}) {
   {!bot&&positions.some(p=>p.closed_at)&&<Panel title="Recent paper trades">{positions.filter(p=>p.closed_at).slice(0,5).map(p=><Trade key={p.id} p={p} cash={cash} onClick={()=>setSheet(p)}/>)}</Panel>}
   <div className={styles.footer}><span>Account read {stamp(loadedAt)}</span><button onClick={()=>{refresh();health.refresh();}}>Refresh</button></div>
   {bot&&<div className={styles.links}><Link href="/brain/history">Detailed learning history →</Link><Link href="/research-history">Legacy signal research →</Link><Link href="/diagnostics">Validation evidence →</Link></div>}
-  <BottomSheet open={sheet!==null} onClose={()=>setSheet(null)} title={title}><div className={styles.sheet}>
+  <BottomSheet open={sheet!==null} onClose={closeSheet} title={title}><div className={styles.row}><h2>{title}</h2><SheetClose onClose={closeSheet}/></div><div className={styles.sheet}>
    {sheet==="how"&&<><p>Nothing here sends an order to a broker. Prices and the practice simulation are delayed.</p><ol><li><b>Check Today.</b> Read the status and its reason. Researching means the account is waiting for a strategy to qualify.</li><li><b>Inspect the decision.</b> Open a position for entry, stop, target, risk and the reason for the trade.</li><li><b>Keep your own record.</b> Use Journal to write down what you chose and why. Your entries stay separate from the bot’s account.</li><li><b>Review on Bot.</b> See what ran, what failed, and which evidence is still missing.</li></ol><Link href="/guide">Read the full Guide →</Link></>}
    {sheet==="risk"&&<><p>Starting balance {cash(10000)}. This is a simulation balance.</p><ul><li>Probation risk: {cash(25)} per trade.</li><li>Full risk: {cash(50)} after another qualifying weekly review.</li><li>Total open risk: {cash(100)}.</li><li>Daily loss limit: {cash(200)}, including open positions.</li><li>Drawdown lock: {cash(1000)} from the account’s highest equity.</li></ul><p>Contract sizing includes costs. A trade is skipped if one contract exceeds the available budget. Gaps can cause losses beyond the planned stop. Loss history survives strategy changes. There is no compounding.</p></>}
    {sheet==="training"&&<><p>Latest training: {data?.learning?.status??"not recorded"} · {stamp(data?.learning?.finished_at)}.</p><p>Training studies closed outcomes. It cannot recover genuine forward observations from past prices or promise profit.</p><p>{data?.model?`Latest model: ${data.model.status}. Training sample: n=${data.model.train_n??0}.`:"No trained model is recorded."}</p><p>Prediction error: {data?.model?.oos_brier?.toFixed(4)??"not measured"}; simple baseline: {data?.model?.baseline_brier?.toFixed(4)??"not measured"}. Lower is better. Prediction accuracy and net returns must both improve.</p><Link href="/brain/history">Open the detailed learning record →</Link></>}
