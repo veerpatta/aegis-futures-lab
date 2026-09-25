@@ -412,6 +412,25 @@ const alertLost = (silence) =>
 async function main() {
   const now = new Date();
   const closedHolidays = loadClosedHolidays();
+  // A healthy price engine cannot stand in for completed model training.
+  // Four days covers the weekend and a full market holiday without alert churn.
+  let learningAlertLost = false;
+  try {
+    const [completed, models] = await Promise.all([
+      neonGet("learning_runs?select=finished_at,status&status=eq.ok&order=finished_at.desc&limit=1"),
+      neonGet("model_registry?select=trained_at,train_n&order=trained_at.desc&limit=1"),
+    ]);
+    const finished = Date.parse(completed[0]?.finished_at ?? "");
+    const trained = Date.parse(models[0]?.trained_at ?? "");
+    if (![finished, trained].every(Number.isFinite) || now.getTime() - Math.min(finished, trained) > 4 * 86400000) {
+      learningAlertLost = !await raiseIssue("watchdog-learning", "fbca04", "Watchdog: completed training is overdue",
+        `The last completed learning job or model artifact is more than four days old. Last learning: ${completed[0]?.finished_at ?? "none"}; last model: ${models[0]?.trained_at ?? "none"}. Check nightly-learn. A successful engine heartbeat does not resolve this alert.`,
+        "Completed learning is still overdue.");
+    } else await resolveIssue("watchdog-learning", `Training recovered: ${completed[0].finished_at}.`);
+  } catch (error) {
+    console.error(`training health unreadable: ${error?.message ?? error}`);
+    learningAlertLost = true;
+  }
 
   let runs = [];
   try {
@@ -424,7 +443,7 @@ async function main() {
     // delivery outcome was not. A silence alert that failed both paths still
     // has to turn the run red.
     const silence = await checkSilence(now, closedHolidays);
-    return alertLost(silence) ? 1 : 0;
+    return alertLost(silence) || learningAlertLost ? 1 : 0;
   }
 
   const latest = runs[0] ?? null;
@@ -451,7 +470,7 @@ async function main() {
     console.log("engine healthy");
     // A healthy cron says nothing about OUTPUT — that is the whole point of 2.5.
     const silence = await checkSilence(now, closedHolidays);
-    return alertLost(silence) ? 1 : 0;
+    return alertLost(silence) || learningAlertLost ? 1 : 0;
   }
 
   const since = latest ? latest.ran_at : "unknown (no runs recorded)";
@@ -483,7 +502,7 @@ async function main() {
   // Exit non-zero ONLY when an alert was needed and every path failed —
   // that red X is itself the last-resort alert.
   if (!telegramOk && !issueOk) return 1;
-  return alertLost(silence) ? 1 : 0;
+  return alertLost(silence) || learningAlertLost ? 1 : 0;
 }
 
 /* Run only when this file IS the entry point.

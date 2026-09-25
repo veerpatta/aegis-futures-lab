@@ -21,12 +21,15 @@
 import { createClient } from "@/lib/neon/server";
 import { nyMeta } from "@/lib/time/ny";
 import { liveOnly } from "@/lib/signals/live";
-import { holidayFor } from "@/lib/market/holidays";
+import { holidayFor, flattenMinuteNy } from "@/lib/market/holidays";
 import { profitFactor } from "@/lib/stats";
 import { promotionReport, type ShadowLike } from "./promotion";
 import { computeGateCosts, GATE_COST_LOOKBACK_DAYS } from "./gate-costs";
 import { retrainModel } from "./model";
 import { buildModelRows } from "./train-set";
+import { trainContextModel } from "./winprob-v2";
+import { marketContexts } from "@/lib/strategies/research-v2";
+import { fetchArchiveBars } from "@/lib/data/archive";
 import {
   checkInvariants,
   reportInvariants,
@@ -61,6 +64,7 @@ const PAGE = 1000;
 export const MIN_CELL_N = 10;
 
 interface SignalRow {
+  exit_ts: string | null;
   tier: "A" | "B";
   symbol: string;
   direction: string | null;
@@ -78,6 +82,7 @@ interface SignalRow {
 }
 
 interface ShadowDbRow extends ShadowLike {
+  exit_ts: string | null;
   strategy: string;
   symbol: string;
   score: number | null;
@@ -177,8 +182,12 @@ function scoreCalibration(closed: { score: number | null; pnl: number }[]) {
 
 async function main() {
   const started = Date.now();
-  const nowSec = Math.floor(started / 1000);
-  const date_key = learnDateKey(nowSec);
+  const asOf = process.env.LEARNING_AS_OF || new Date(started).toISOString();
+  if (!Number.isFinite(Date.parse(asOf)) || Date.parse(asOf) > started) throw new Error("Invalid or future LEARNING_AS_OF");
+  const nowSec = Math.floor(Date.parse(asOf) / 1000);
+  const session = nyMeta(nowSec);
+  const date_key = !["Sat", "Sun"].includes(session.weekday) && holidayFor(session.dateKey)?.kind !== "closed" &&
+    session.minutes >= flattenMinuteNy(session.dateKey, 925) ? session.dateKey : learnDateKey(nowSec);
   const computed_at = new Date().toISOString();
   currentLearningRunId = await startLearningRun(supabase, learningCadence, {
     codeSha: process.env.GITHUB_SHA || null,
@@ -201,11 +210,12 @@ async function main() {
   const signals = liveOnly(
     await fetchAll<SignalRow>(
       "signals",
-      "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, stale_data, target_price, orphaned"
+      "tier, symbol, direction, score, rr, status, pnl_usd, regime, fill_confidence, vix_bucket, dedupe_key, signal_ts, exit_ts, stale_data, target_price, orphaned"
     )
-  );
+  ).filter(s => Date.parse(s.signal_ts) <= Date.parse(asOf)).map(s =>
+    s.exit_ts && Date.parse(s.exit_ts) <= Date.parse(asOf) ? s : { ...s, pnl_usd: null, exit_ts: null });
   const quality = dataQualityReport(signals);
-  const datasetHash = stableHash(
+  let datasetHash = stableHash(
     signals
       .map((signal) => ({
         dedupe_key: signal.dedupe_key,
@@ -216,9 +226,7 @@ async function main() {
       }))
       .sort((a, b) => a.dedupe_key.localeCompare(b.dedupe_key))
   );
-  const dataCutoff = signals.length
-    ? [...signals].sort((a, b) => b.signal_ts.localeCompare(a.signal_ts))[0].signal_ts
-    : null;
+  const dataCutoff = asOf;
   const { error: metadataError } = await supabase
     .from("learning_runs")
     .update({ dataset_hash: datasetHash, data_cutoff: dataCutoff })
@@ -249,11 +257,11 @@ async function main() {
     shadowClosed = (
       await fetchAll<ShadowDbRow>(
         "shadow_signals",
-        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price, stale_data"
+        "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, exit_ts, target_price, stale_data"
       )
-    ).filter((r) => r.pnl_usd !== null);
+    ).filter((r) => r.pnl_usd !== null && !!r.exit_ts && Date.parse(r.exit_ts) <= Date.parse(asOf) && !r.stale_data);
   } catch (e) {
-    console.error(`shadow read failed (score+scoreboard degrade): ${e instanceof Error ? e.message : e}`);
+    throw new Error(`Required shadow training read failed: ${e instanceof Error ? e.message : e}`);
   }
   const inclusiveCal = scoreCalibration(
     [...closed, ...shadowClosed].map((s) => ({ score: s.score, pnl: s.pnl_usd ?? 0 }))
@@ -311,11 +319,13 @@ async function main() {
   try {
     allShadow = await fetchAll<ShadowDbRow>(
       "shadow_signals",
-      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, target_price, stale_data"
+      "strategy, symbol, status, score, rr, vix_bucket, pnl_usd, regime, fill_confidence, signal_ts, exit_ts, target_price, stale_data"
     );
-  } catch {
-    allShadow = shadowClosed;
+  } catch (error) {
+    throw error;
   }
+  allShadow = allShadow.filter(s => Date.parse(s.signal_ts) <= Date.parse(asOf)).map(s =>
+    s.exit_ts && Date.parse(s.exit_ts) <= Date.parse(asOf) ? s : { ...s, pnl_usd: null, exit_ts: null });
   const shadowStreamKeys = [...new Set(allShadow.map((r) => `${r.strategy}|${r.symbol}`))].sort();
   const shadowScoreboard = {
     streams: shadowStreamKeys.map((key) => {
@@ -348,21 +358,40 @@ async function main() {
   // model_registry row and, on graduation/demotion, a bot_policy + Telegram.
   // Training set with real-vs-shadow dedup (finding 8) — a promoted strategy
   // that appears as both a live signal and a shadow row is counted once (real).
-  const modelRows: ModelRow[] = buildModelRows(signals, allShadow);
+  const modelRows: ModelRow[] = buildModelRows(signals, allShadow, asOf);
+  for (const symbol of ["MES", "MNQ"]) {
+    const selected = modelRows.filter(r => r.symbol === symbol);
+    if (!selected.length) continue;
+    const first = Math.min(...selected.map(r => Date.parse(r.signal_ts) / 1000));
+    const bars = await fetchArchiveBars(supabase, { symbol, source: "yahoo", fromSec: first - 35 * 86400, toSec: nowSec - 300 });
+    const contexts = marketContexts(bars), indices = new Map(bars.map((b, i) => [b.time, i]));
+    for (const row of selected) {
+      const i = indices.get(Date.parse(row.signal_ts) / 1000 - 300);
+      if (i === undefined) continue;
+      const c = contexts[i], close = bars[i].close;
+      row.atr_pct = c.atr && close ? 100 * c.atr / close : null;
+      row.vwap_atr = c.atr && c.vwap !== null ? (close - c.vwap) / c.atr : null;
+    }
+  }
+  const contextModel = trainContextModel(modelRows, asOf);
+  datasetHash = stableHash([...modelRows].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+  const { error: hashError } = await supabase.from("learning_runs").update({ dataset_hash: datasetHash }).eq("id", currentLearningRunId);
+  if (hashError) throw new Error(hashError.message);
   let modelSummary: Awaited<ReturnType<typeof retrainModel>> | null = null;
   try {
     const m = await retrainModel(supabase, modelRows, {
-      allowTransitions: learningCadence === "weekly",
+      allowTransitions: learningCadence === "weekly" && !process.env.LEARNING_AS_OF,
     });
     modelSummary = m;
     console.log(
       `model: ${m.status}, train_n ${m.train_n}, OOS Brier ${m.oos_brier ?? "—"} vs baseline ${m.baseline_brier ?? "—"}`
     );
   } catch (e) {
-    console.error(`model retrain failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+    throw new Error(`Model training failed: ${e instanceof Error ? e.message : e}`);
   }
 
   const rows = [
+    { stat_key: "context_model_v2", date_key, computed_at, payload: { ...contextModel, deployed: false, note: "Research comparison. Requires better net returns and probability accuracy; no veto authority." } },
     { stat_key: "score_calibration", date_key, computed_at, payload: { real: realCal, inclusive: inclusiveCal, minCell: MIN_CELL_N } },
     { stat_key: "condition_ledger", date_key, computed_at, payload: conditionLedger },
     { stat_key: "gate_costs", date_key, computed_at, payload: gateCosts },

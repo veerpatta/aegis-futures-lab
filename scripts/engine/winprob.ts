@@ -48,6 +48,12 @@ const L2 = 1e-3;
 
 /* A row the model can featurise — the intersection of signals & shadow_signals. */
 export interface ModelRow {
+  exit_ts?: string | null;
+  symbol?: string;
+  strategy?: string;
+  provenance?: string;
+  atr_pct?: number | null;
+  vwap_atr?: number | null;
   tier: string | null;
   regime: string | null;
   vix_bucket: string | null;
@@ -150,7 +156,7 @@ export function trainLogit(X: number[][], y: number[]): number[] {
 const brier = (preds: number[], ys: number[]) =>
   preds.length ? preds.reduce((s, p, i) => s + (p - ys[i]) ** 2, 0) / preds.length : null;
 
-function normalizerOf(rows: ModelRow[]): Normalizer {
+export function normalizerOf(rows: ModelRow[]): Normalizer {
   const scores = rows.map((r) => r.score).filter((s): s is number => s !== null);
   const rrs = rows.map((r) => r.rr).filter((s): s is number => s !== null);
   const mean = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
@@ -185,6 +191,7 @@ export interface ModelArtifact {
   oos_brier: number | null;
   baseline_brier: number | null;
   calibration: CalibrationBin[];
+  economic?: { unfiltered: number; filtered: number; n: number };
 }
 
 /* Walk-forward, expanding window with a 5-trading-day embargo between train
@@ -195,12 +202,14 @@ export function evaluateWalkForward(training: ModelRow[]): {
   baselineBrier: number | null;
   oosPreds: number[];
   oosYs: number[];
+  economic: { unfiltered: number; filtered: number; n: number };
 } {
   const n = training.length;
   const oosPreds: number[] = [];
   const oosYs: number[] = [];
   const baseParts: number[] = [];
-  if (n < 2 * WF_FOLDS) return { oosBrier: null, baselineBrier: null, oosPreds, oosYs };
+  const economic = { unfiltered: 0, filtered: 0, n: 0 };
+  if (n < 2 * WF_FOLDS) return { oosBrier: null, baselineBrier: null, oosPreds, oosYs, economic };
 
   const foldSize = Math.floor(n / (WF_FOLDS + 1));
   for (let f = 1; f <= WF_FOLDS; f++) {
@@ -214,15 +223,19 @@ export function evaluateWalkForward(training: ModelRow[]): {
     // inflating OOS optimism that gates graduation.
     const trainRows = training
       .slice(0, testStart)
-      .filter((r) => pastEmbargo(Math.floor(Date.parse(r.signal_ts) / 1000), testStartSec));
+      .filter((r) => pastEmbargo(Math.floor(Date.parse(r.exit_ts ?? r.signal_ts) / 1000), testStartSec));
     if (trainRows.length < 20) continue;
 
     const norm = normalizerOf(trainRows);
     const w = trainLogit(trainRows.map((r) => featurize(r, norm)), trainRows.map(label));
     const baseRate = trainRows.reduce((s, r) => s + label(r), 0) / trainRows.length;
+    const scores = trainRows.map(r => predictProba(w, featurize(r, norm))).sort((a,b) => a-b);
+    const threshold = scores[Math.floor(scores.length * 0.1)];
     for (const r of testRows) {
       const y = label(r);
       oosPreds.push(predictProba(w, featurize(r, norm)));
+      economic.n++; economic.unfiltered += r.pnl_usd ?? 0;
+      if (oosPreds[oosPreds.length - 1] >= threshold) economic.filtered += r.pnl_usd ?? 0;
       oosYs.push(y);
       baseParts.push((baseRate - y) ** 2);
     }
@@ -232,6 +245,7 @@ export function evaluateWalkForward(training: ModelRow[]): {
     baselineBrier: baseParts.length ? baseParts.reduce((s, v) => s + v, 0) / baseParts.length : null,
     oosPreds,
     oosYs,
+    economic,
   };
 }
 
@@ -276,6 +290,7 @@ export function trainModel(rows: ModelRow[]): ModelArtifact | null {
     oos_brier: wf.oosBrier === null ? null : +wf.oosBrier.toFixed(4),
     baseline_brier: wf.baselineBrier === null ? null : +wf.baselineBrier.toFixed(4),
     calibration: calibration(wf.oosPreds, wf.oosYs),
+    economic: wf.economic,
   };
 }
 

@@ -5,6 +5,7 @@ import { defaultParams } from "@/lib/strategies/types";
 import { nyDateKey, NY_SESSION_START_MIN, nyMeta } from "@/lib/time/ny";
 import type { Bar } from "@/lib/types";
 import mesFixture from "@/tests/fixtures/bars-mes.json";
+import { RESEARCH_IDS } from "@/lib/strategies/research-v2";
 
 const bars = mesFixture.bars as Bar[];
 
@@ -40,7 +41,8 @@ describe("classic strategies on the 60d MES fixture", () => {
     for (const s of STRATEGIES) {
       expect(s.name.length).toBeGreaterThan(3);
       expect(s.blurb.length).toBeGreaterThan(30);
-      expect(s.params.length).toBeGreaterThan(0);
+      if ((RESEARCH_IDS as readonly string[]).includes(s.id)) expect(s.params).toEqual([]); // frozen hypotheses deliberately have no tuning controls
+      else expect(s.params.length).toBeGreaterThan(0);
     }
   });
 

@@ -155,6 +155,16 @@ const WINDOWS: { label: string; start: string; end: string; why: string }[] = [
   },
 ];
 
+// Explicit custom dates supersede the legacy fixed archive windows.
+const fromIndex = process.argv.indexOf("--from"), toIndex = process.argv.indexOf("--to");
+if (fromIndex >= 0 || toIndex >= 0) {
+  const start = process.argv[fromIndex + 1], end = process.argv[toIndex + 1];
+  if (fromIndex < 0 || toIndex < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) ||
+    !Number.isFinite(Date.parse(start)) || Date.parse(start) >= Date.parse(end) || Date.parse(end) > Date.now())
+    throw new Error("Provide valid --from YYYY-MM-DD and --to YYYY-MM-DD (exclusive, no future dates)");
+  WINDOWS.splice(0, WINDOWS.length, { label: "custom", start, end, why: "Explicit recovery window" });
+}
+
 /* ── Secret loading ───────────────────────────────────────────────────── */
 
 /* Read a secret from the environment, falling back to a gitignored .env.local
@@ -393,6 +403,20 @@ async function run(windowLabel: string): Promise<void> {
 
   const key = loadApiKey();
   loadSecret("DATABASE_URL", "<Neon pooled database URL>");
+  const credit = Number(process.env.DATABENTO_VERIFIED_CREDIT_USD);
+  const verified = Date.parse(process.env.DATABENTO_CREDIT_VERIFIED_AT ?? "");
+  if (!Number.isFinite(credit) || credit <= 0 || !Number.isFinite(verified) || Date.now() - verified > 3600000 || verified > Date.now())
+    throw new Error("Existing-credit-only: a current verified credit balance is required. No paid download started.");
+  const range = await postForm("metadata.get_dataset_range", key, { dataset: DATASET });
+  const availableEnd = range.schemas?.[SCHEMA]?.end ?? range.end;
+  if (!availableEnd || Date.parse(w.end) > Date.parse(availableEnd)) throw new Error("Requested data is not yet available for this schema");
+  const priced = await postForm("metadata.get_cost", key, { ...rangeParams(w.start, w.end, SYMBOLS), mode: "historical-streaming" });
+  const cost = typeof priced === "number" ? priced : Number(priced?.cost ?? priced);
+  if (!Number.isFinite(cost) || cost < 0 || cost * 1.25 > credit) throw new Error("Estimated cost plus 25% reserve exceeds verified existing credit");
+  const { transaction } = await import("@/lib/neon/server");
+  const size = await transaction(c => c.query("SELECT pg_database_size(current_database()) AS bytes"));
+  if (Number(size.rows[0].bytes) + projectStorage(w.start, w.end, SYMBOLS.length).bytes > NEON_FREE_TIER_BYTES)
+    throw new Error("Import would exceed the existing storage budget; no download started");
   const { createClient } = await import("@/lib/neon/server");
   const supabase = createClient();
 

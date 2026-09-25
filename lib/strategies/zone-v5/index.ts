@@ -346,6 +346,10 @@ export const zoneV5: Strategy<ZoneCtx> = {
         continue;
       }
       const z = ev.entryZone!;
+      if (params.firstRetestOnly && z.firstReturnAt !== bar.time) {
+        note("firstRetest", symbol);
+        continue;
+      }
       // Phase-1 trading-hours rule: entries only inside the chosen window.
       const mins = nyMeta(bar.time).minutes;
       if (

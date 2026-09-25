@@ -1,0 +1,51 @@
+name: registered-research-v2
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [estimate-data, development, confirmation, recover]
+        default: estimate-data
+      from:
+        description: Start date for estimate or recovery
+        default: '2026-07-30'
+      as_of:
+        description: Required exclusive end date or ISO cutoff
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: research-v2
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run the selected bounded job
+        env:
+          ACTION: ${{ inputs.action }}
+          FROM_DATE: ${{ inputs.from }}
+          AS_OF: ${{ inputs.as_of }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          case "$ACTION" in
+            estimate-data) npx tsx scripts/engine/databento-backfill.ts --estimate --from "$FROM_DATE" --to "$AS_OF" --symbols MES.c.0,MNQ.c.0 ;;
+            development) npx tsx scripts/diag/research-v2.ts ;;
+            confirmation) npx tsx scripts/diag/research-v2.ts --confirmation --as-of "$AS_OF" ;;
+            recover) npx tsx scripts/engine/recover-training.ts --from "$FROM_DATE" --as-of "$AS_OF" && LEARNING_AS_OF="$AS_OF" npx tsx scripts/engine/learn.ts ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-v2-evidence
+          path: docs/research/2026-09-25-research-v2*.json
+          if-no-files-found: ignore

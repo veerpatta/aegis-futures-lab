@@ -16,6 +16,7 @@ import {
 } from "./winprob";
 import { sendTelegram } from "./notify";
 import { stableHash } from "./learning-audit";
+import { transaction } from "@/lib/neon/server";
 
 export const VETO_PERCENTILE = 10; // bottom decile of the trailing distribution
 
@@ -28,13 +29,13 @@ export interface LoadedModel {
 export async function loadLatestModel(supabase: SupabaseClient): Promise<LoadedModel | null> {
   const { data, error } = await supabase
     .from("model_registry")
-    .select("coefficients, features, status")
+    .select("coefficients, features, status, feature_version")
     .eq("deployed", true)
     .order("trained_at", { ascending: false })
     .limit(1);
   if (error) throw new Error(`model_registry read: ${error.message}`);
   const row = data?.[0] as LoadedModel | undefined;
-  if (!row || !Array.isArray(row.coefficients) || !row.coefficients.length) return null;
+  if (!row || (row as LoadedModel & { feature_version: string }).feature_version !== FEATURE_VERSION || !Array.isArray(row.coefficients) || !row.coefficients.length) return null;
   return row;
 }
 
@@ -55,7 +56,8 @@ export async function retrainModel(
 
   const { data: prev, error: prevErr } = await supabase
     .from("model_registry")
-    .select("status, oos_brier, baseline_brier, deployed")
+    .select("status, oos_brier, baseline_brier, deployed, train_n, dataset_hash, trained_at, features")
+    .eq("feature_version", FEATURE_VERSION)
     .order("trained_at", { ascending: false })
     .limit(20);
   if (prevErr) throw new Error(`model_registry read: ${prevErr.message}`);
@@ -64,11 +66,13 @@ export async function retrainModel(
     oos_brier?: number | null;
     baseline_brier?: number | null;
     deployed?: boolean;
+    train_n?: number; dataset_hash?: string; trained_at?: string;
+    features?: { weeklyEvaluation?: boolean };
   }[];
-  const prevRow = previous[0];
+  const prevRow = previous.find(r => r.features?.weeklyEvaluation);
   const deployedRow = previous.find((row) => row.deployed);
   const prevSnap: EvalSnapshot = {
-    status: ((deployedRow ? "active" : prevRow?.status) as EvalSnapshot["status"]) ?? "observe",
+    status: ((deployedRow ? "active" : previous[0]?.status) as EvalSnapshot["status"]) ?? "observe",
     oos_brier: prevRow?.oos_brier ?? null,
     baseline_brier: prevRow?.baseline_brier ?? null,
   };
@@ -76,15 +80,11 @@ export async function retrainModel(
     feature_version: FEATURE_VERSION,
     code_sha: process.env.GITHUB_SHA || null,
     data_cutoff: rows.length
-      ? [...rows].sort((a, b) => b.signal_ts.localeCompare(a.signal_ts))[0].signal_ts
+      ? rows.map(r => r.exit_ts ?? r.signal_ts).sort().at(-1)
       : null,
     dataset_hash: stableHash(
       rows
-        .map((row) => ({
-          signal_ts: row.signal_ts,
-          pnl_usd: row.pnl_usd,
-          fill_confidence: row.fill_confidence,
-        }))
+        .map((row) => ({ ...row }))
         .sort((a, b) => a.signal_ts.localeCompare(b.signal_ts))
     ),
   };
@@ -111,9 +111,21 @@ export async function retrainModel(
     return { status: prevSnap.status, train_n: trainN, oos_brier: null, baseline_brier: null };
   }
 
-  const decision = allowTransitions
+  const newEvidence = !!prevRow && metadata.dataset_hash !== prevRow.dataset_hash &&
+    artifact.train_n >= (prevRow.train_n ?? 0) + 10 && Date.now() - Date.parse(prevRow.trained_at ?? "") >= 6 * 86400000;
+  const economicPass = !!artifact.economic && artifact.economic.n >= 150 &&
+    artifact.economic.filtered > 0 && artifact.economic.filtered > artifact.economic.unfiltered;
+  const decision = allowTransitions && newEvidence
     ? nextModelStatus(prevSnap, artifact, frozen)
     : { status: prevSnap.status, flip: null, skipped: false };
+  if (!economicPass && decision.flip?.action === "veto_enabled") {
+    decision.status = "observe";
+    decision.flip = null;
+  }
+  if (allowTransitions && prevSnap.status === "active" && !economicPass) {
+    decision.status = "demoted";
+    decision.flip = { action: "veto_disabled", reason: "The out-of-sample filter no longer improves positive net returns" };
+  }
   const status = decision.status;
   const flip = decision.flip;
   const artifactHash = stableHash({
@@ -129,7 +141,7 @@ export async function retrainModel(
     .insert({
       model: artifact.model,
       coefficients: artifact.coefficients,
-      features: artifact.features,
+      features: { ...artifact.features, weeklyEvaluation: allowTransitions, economic: artifact.economic },
       train_n: artifact.train_n,
       oos_brier: artifact.oos_brier,
       baseline_brier: artifact.baseline_brier,
@@ -147,20 +159,15 @@ export async function retrainModel(
     artifact.oos_brier !== null &&
     artifact.baseline_brier !== null &&
     artifact.oos_brier < artifact.baseline_brier;
-  const deployCandidate = allowTransitions && status === "active" && beatsBaseline;
+  const deployCandidate = allowTransitions && newEvidence && economicPass && status === "active" && beatsBaseline;
   if (allowTransitions && (deployCandidate || status === "demoted")) {
-    const { error: clearErr } = await supabase
-      .from("model_registry")
-      .update({ deployed: false })
-      .eq("deployed", true);
-    if (clearErr) throw new Error(`model_registry deployment clear: ${clearErr.message}`);
-  }
-  if (deployCandidate) {
-    const { error: deployErr } = await supabase
-      .from("model_registry")
-      .update({ deployed: true })
-      .eq("id", Number(inserted.id));
-    if (deployErr) throw new Error(`model_registry deployment: ${deployErr.message}`);
+    await transaction(async client => {
+      await client.query("SELECT pg_advisory_xact_lock(925001)");
+      await client.query("UPDATE model_registry SET deployed=false WHERE deployed=true");
+      if (deployCandidate) await client.query("UPDATE model_registry SET deployed=true WHERE id=$1", [Number(inserted.id)]);
+      await client.query("INSERT INTO bot_policy(actor,stream,action,reason,metrics) VALUES('model','winprob-model',$1,$2,$3)",
+        [deployCandidate ? "veto_enabled" : "veto_disabled", "Atomic weekly deployment with fresh outcomes and net-return check", JSON.stringify({ model_id: inserted.id, economic: artifact.economic })]);
+    });
   }
 
   if (decision.skipped)

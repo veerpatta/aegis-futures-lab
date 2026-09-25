@@ -777,6 +777,16 @@ async function main() {
   phaseT("shadow", phaseStart);
   phaseStart = Date.now();
 
+  // New registered strategies collect separately from refuted controls.
+  try {
+    const { observeResearch } = await import("./research-observer");
+    await observeResearch(bySymbol, cutoff, nowSec, "yahoo");
+    const { runPaperBroker } = await import("./paper-broker");
+    await runPaperBroker(bySymbol, nowSec);
+  } catch (e) {
+    warnings.push(`research observation failed: ${e instanceof Error ? e.message : e}`);
+  }
+
   // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact
   // token the dashboard looks for (lib/time/session.ts dataDelayed) — newest
   // bar more than 30 min old inside the 02:00–15:25 ET entry window. Shared as

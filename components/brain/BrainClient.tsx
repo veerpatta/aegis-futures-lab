@@ -17,6 +17,7 @@ import { money } from "@/lib/format";
 import { MIN_JUDGED_N, PREVIEW_NOTE, fmtPf } from "@/lib/stats";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "@/scripts/engine/winprob";
 import styles from "./brain.module.css";
+import PaperDesk from "@/components/home/PaperDesk";
 
 interface Cell {
   n: number;
@@ -122,6 +123,7 @@ export default function BrainClient() {
   const [models, setModels] = useState<ModelRegistryRow[] | null>(null);
   const [learningRuns, setLearningRuns] = useState<LearningRunRow[]>([]);
   const [decisions, setDecisions] = useState<PromotionDecisionRow[]>([]);
+  const [auditError, setAuditError] = useState("");
 
   useEffect(() => {
     // Win-probability model history — best effort; absent before it trains.
@@ -130,7 +132,7 @@ export default function BrainClient() {
       .select("*")
       .order("trained_at", { ascending: false })
       .limit(14)
-      .then(({ data, error }) => setModels(error ? [] : ((data ?? []) as ModelRegistryRow[])));
+      .then(({ data, error }) => { if(error) setAuditError("Model history could not be loaded. Results may be incomplete."); else setModels((data ?? []) as ModelRegistryRow[]); });
   }, []);
 
   useEffect(() => {
@@ -145,6 +147,7 @@ export default function BrainClient() {
         .limit(20),
     ]).then(([runs, promotions]) => {
       if (!active) return;
+      if(runs.error || promotions.error) setAuditError("Training history could not be loaded. An empty list does not mean there were no runs.");
       setLearningRuns(runs.error ? [] : ((runs.data ?? []) as LearningRunRow[]));
       setDecisions(
         promotions.error ? [] : ((promotions.data ?? []) as PromotionDecisionRow[])
@@ -186,6 +189,8 @@ export default function BrainClient() {
 
   const intro = (
     <>
+      <PaperDesk />
+      {auditError && <p role="alert">{auditError}</p>}
       <h1 className="pageTitle">What the bot knows</h1>
       <p className="pageSub">
         Every night the bot re-reads everything it has recorded and re-derives its own statistics.

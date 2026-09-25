@@ -184,9 +184,10 @@ export function evaluatePromotion(e: PromotionEvidence): PromotionVerdict {
    and check it says no. A gate first exercised on a candidate you want to
    promote has never been tested in the direction that matters. */
 export const REFUTED_STREAM_EVIDENCE: Record<string, PromotionEvidence> = {
-  A: { randomEntryPercentile: 0.0, oosNetExpectancy: -48.36, trades: 1180 },
-  "B:MES": { randomEntryPercentile: 35.2, oosNetExpectancy: -25.75, trades: 2641 },
-  "B:MNQ": { randomEntryPercentile: 65.2, oosNetExpectancy: -10.54, trades: 2731 },
+  A: { randomEntryPercentile: 37.2, oosNetExpectancy: -14317 / 442, trades: 442 },
+  // Corrected full-sample random percentiles were not published; do not reuse a year-cell statistic.
+  "B:MES": { oosNetExpectancy: -83247 / 2578, trades: 2578 },
+  "B:MNQ": { oosNetExpectancy: -40650 / 2713, trades: 2713 },
   /* The gold candidate, measured 2026-08-21 by scripts/diag/gold-benchmark.ts
      over seven years of Databento MGC. It is NOT a live stream and never was —
      it is here because the gate refusing a candidate BEFORE promotion is the

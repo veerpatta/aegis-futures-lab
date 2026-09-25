@@ -146,6 +146,8 @@ describe("every bars_5m reader applies the whole-session trim", () => {
     "scripts/diag/random-entry.ts", // Phase 1: gross/net, excursion, random-entry null
     "scripts/diag/gold-benchmark.ts", // the gold candidate's random-entry benchmark
     "scripts/diag/phase4.ts", // Phase 4: hypothesis trials + overnight decomposition
+    "scripts/diag/research-v2.ts", // Frozen replacement hypotheses build higher frames
+    "scripts/engine/recover-training.ts", // Replay uses the same higher-frame strategies
     "scripts/engine/gate-costs.ts", // the stored skip funnel
     "scripts/engine/report.ts", // the tuning report
     "scripts/engine/run-live.ts", // the Yahoo-down fallback (reaches live signals)
@@ -157,6 +159,7 @@ describe("every bars_5m reader applies the whole-session trim", () => {
      throw away data they legitimately want. Exempt WITH the reason, so a future
      reader has to justify itself rather than default into either list. */
   const EXEMPT: Record<string, string> = {
+    "scripts/engine/learn.ts": "Entry-local ATR and VWAP features, with 35 days of warmup; no daily or 4H zone frames",
     "app/api/archive/route.ts":
       "serves a caller-bounded time range straight to the chart; the browser draws the bars it " +
       "asked for and builds no Daily/4H frame, and trimming here would drop a leading session " +

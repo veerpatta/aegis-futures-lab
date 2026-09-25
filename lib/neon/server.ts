@@ -10,6 +10,12 @@ types.setTypeParser(1700, (value) => Number(value));
 types.setTypeParser(1184, (value) => new Date(value).toISOString());
 
 type Row = Record<string, unknown>;
+// pg encodes JS arrays as PostgreSQL arrays. These schema columns are JSON,
+// including model coefficients/calibration; symbols and reason_codes are text[].
+const JSON_COLUMNS = new Set(["metrics", "params", "data", "payload", "gate_results", "coefficients", "features", "calibration", "evidence", "gross", "net", "excursion", "random_entry", "dataset", "outcome", "raw", "report"]);
+export function databaseValue(column: string, value: unknown): unknown {
+  return value != null && JSON_COLUMNS.has(column) ? JSON.stringify(value) : value ?? null;
+}
 type Filter = { column: string; op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "notnull" | "like"; value?: unknown };
 type Result = { data: Row[] | Row | null; error: { message: string; code?: string } | null; count: number | null };
 const identifier = (name: string) => {
@@ -25,6 +31,20 @@ function connection(): Pool {
     pool = new Pool({ connectionString: url.toString(), max: 5, allowExitOnIdle: true });
   }
   return pool;
+}
+
+/** All mutations in a lifecycle change share one connection and commit. */
+export async function transaction<T>(work: (client: import("pg").PoolClient) => Promise<T>): Promise<T> {
+  const client = await connection().connect();
+  try {
+    await client.query("BEGIN");
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally { client.release(); }
 }
 
 class Query {
@@ -112,7 +132,7 @@ class Query {
         if (!this.records.length) return { data: [], error: null, count: 0 };
         const columns = [...new Set(this.records.flatMap((row) => Object.keys(row)))];
         sql = `INSERT INTO ${table} (${columns.map(identifier).join(", ")})${columns.includes("id") ? " OVERRIDING SYSTEM VALUE" : ""} VALUES ` +
-          this.records.map((row) => `(${columns.map((column) => { values.push(row[column] ?? null); return `$${values.length}`; }).join(", ")})`).join(", ");
+          this.records.map((row) => `(${columns.map((column) => { values.push(databaseValue(column, row[column])); return `$${values.length}`; }).join(", ")})`).join(", ");
         if (this.operation === "upsert") {
           const update = columns.filter((column) => !this.conflict.includes(column) && column !== "id");
           sql += ` ON CONFLICT (${this.conflict.map(identifier).join(", ")}) ` +
@@ -121,7 +141,7 @@ class Query {
         if (this.returning) sql += ` RETURNING ${this.selectedColumns()}`;
       } else if (this.operation === "update") {
         if (!this.filters.length) throw new Error("Refusing an unfiltered update");
-        sql = `UPDATE ${table} SET ${Object.entries(this.records[0]).map(([column, value]) => { values.push(value); return `${identifier(column)} = $${values.length}`; }).join(", ")}${this.where(values)}`;
+        sql = `UPDATE ${table} SET ${Object.entries(this.records[0]).map(([column, value]) => { values.push(databaseValue(column, value)); return `${identifier(column)} = $${values.length}`; }).join(", ")}${this.where(values)}`;
         if (this.returning) sql += ` RETURNING ${this.selectedColumns()}`;
       } else {
         if (!this.filters.length) throw new Error("Refusing an unfiltered delete");

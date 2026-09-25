@@ -53,6 +53,7 @@ import { Badge, Rate, SampleNote } from "@/components/ui";
 import { statusLook } from "@/lib/signals/status";
 import { liveOnly } from "@/lib/signals/live";
 import styles from "./home.module.css";
+import PaperDesk from "./PaperDesk";
 
 const REFRESH_MS = 60_000;
 const TARGET_PER_DAY = 3; // pace dots: the 2-3 ideas/day goal
@@ -552,6 +553,7 @@ export default function HomeClient() {
 
   return (
     <div className={`${styles.page} riseIn`}>
+      <PaperDesk />
       {/* ── Tap to refresh ── */}
       <button
         type="button"

@@ -40,7 +40,7 @@ export default function GuidePage() {
         <ol className={styles.steps}>
           <li>
             <b>Open Home with your morning coffee.</b> It is the screen the app starts on and it
-            answers the whole morning in one look: how many ideas today (the dots fill toward the
+            starts with Your practice desk: account risk, training health and the next step. Below it are how many ideas today (the dots fill toward the
             2–3 per day target), today&apos;s profit or loss, when the bot checks next, and — at
             the top — the one idea that is live right now, with its entry, stop and target. If
             nothing is running, it says so plainly.
@@ -828,8 +828,19 @@ export default function GuidePage() {
         </dl>
       </section>
 
+      <section className={styles.card}>
+        <h2>Your practice desk and better training</h2>
+        <p>Paper only. Prices are delayed. Nothing here touches real money.</p>
+        <p>Home starts with your practice equity, today’s result including open trades, open risk and the next step. Open Journal to record your own decision. Review training to see what passed, what failed and when learning last finished.</p>
+        <p>The original zone and RSI strategies failed validation. They remain research controls. Three new ideas are tested separately: a first-retest zone rejection, RSI in a quiet range far from VWAP, and a trend pullback to VWAP. None is assumed profitable.</p>
+        <p>The practice account starts at $10,000. A qualified strategy starts with at most $25 risk per trade. Another qualifying weekly review can raise that to $50. Total open risk is capped at $100. The daily loss limit is $200, including open trades. A $1,000 fall from peak equity locks the account until an explicit reset. Results are compared without compounding. A setup is skipped if one contract exceeds the available risk.</p>
+        <p>Automatic paper activation requires every historical check, a separate confirmation period and at least 60 new closed trades over 20 trading days. It also needs two successful weekly reviews with at least 10 new closes between them. Stale prices, changed rules or a risk lock pause new entries.</p>
+        <p>Outage recovery checks stored prices and replays missed periods. These trades are labelled historical replay. They never count as new observations. A repeated training run never counts as fresh evidence. The newer prediction model is compared with the original. It must improve both net returns and prediction accuracy before it can earn any filtering role.</p>
+        <p>“No strategy qualifies for paper activation yet” is a normal result. It means more evidence is needed or the checks failed. A read error is shown as an error. Missing history is never presented as a successful training run.</p>
+      </section>
+
       <p className={styles.foot}>
-        Matches the app as of 2026-09-24. A printable version of this guide lives in the project
+        Matches the app as of 2026-09-25. A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

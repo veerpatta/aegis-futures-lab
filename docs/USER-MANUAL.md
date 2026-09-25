@@ -493,6 +493,22 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-09-24. If the app has changed since, the
+## Your practice desk and better training
+
+Paper only. Prices are delayed. Nothing here touches real money.
+
+Home starts with your practice equity, today’s result including open trades, open risk and the next step. Open Journal to record your own decision. Review training to see what passed, what failed and when learning last finished.
+
+The original zone and RSI strategies failed validation. They remain research controls. Three new ideas are tested separately: a first-retest zone rejection, RSI in a quiet range far from VWAP, and a trend pullback to VWAP. None is assumed profitable.
+
+The practice account starts at $10,000. A qualified strategy starts with at most $25 risk per trade. Another qualifying weekly review can raise that to $50. Total open risk is capped at $100. The daily loss limit is $200, including open trades. A $1,000 fall from peak equity locks the account until an explicit reset. Results are compared without compounding. A setup is skipped if one contract exceeds the available risk.
+
+Automatic paper activation requires every historical check, a separate confirmation period and at least 60 new closed trades over 20 trading days. It also needs two successful weekly reviews with at least 10 new closes between them. Stale prices, changed rules or a risk lock pause new entries.
+
+Outage recovery checks stored prices and replays missed periods. These trades are labelled historical replay. They never count as new observations. A repeated training run never counts as fresh evidence. The newer prediction model is compared with the original. It must improve both net returns and prediction accuracy before it can earn any filtering role.
+
+“No strategy qualifies for paper activation yet” is a normal result. It means more evidence is needed or the checks failed. A read error is shown as an error. Missing history is never presented as a successful training run.
+
+*Manual version: matches the app as of 2026-09-25. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

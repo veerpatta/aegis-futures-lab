@@ -56,3 +56,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Evaluate registered paper releases
+        run: npx tsx scripts/engine/paper-release.ts
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

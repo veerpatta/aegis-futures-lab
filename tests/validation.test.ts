@@ -446,7 +446,7 @@ describe("promotion gate", () => {
     for (const [key, evidence] of Object.entries(REFUTED_STREAM_EVIDENCE)) {
       const v = evaluatePromotion(evidence);
       expect(v.promote, `${key} must not be promotable`).toBe(false);
-      expect(v.failed).toContain("randomEntry");
+      expect([...v.failed, ...v.evidenceGaps]).toContain("randomEntry");
       expect(v.failed).toContain("oosNetExpectancy");
     }
   });

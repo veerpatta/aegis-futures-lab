@@ -10,6 +10,7 @@ import { bollingerBreakout } from "./bollinger-breakout";
 import { orbRelVol } from "./orb-relvol";
 import { turnOfMonth } from "./turn-of-month";
 import { goldSilverZone } from "./gold-silver-zone";
+import { RESEARCH_IDS, zoneRejection, rsiContext, vwapPullback } from "./research-v2";
 
 export const STRATEGIES: Strategy<unknown>[] = [
   zoneV5,
@@ -28,6 +29,7 @@ export const STRATEGIES: Strategy<unknown>[] = [
      random-entry benchmark lands — its blurb and TUNING_BASELINE status say so
      rather than leaving a reader to assume. */
   goldSilverZone,
+  zoneRejection, rsiContext, vwapPullback,
 ] as Strategy<unknown>[];
 
 /* Strategies that exist to be TESTED rather than traded. The distinction is
@@ -40,7 +42,7 @@ export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
 /* Strategies with NO measured result behind them. The set is intentionally
    empty after the 2026-08-25 Phase 4 benchmark: both registered hypotheses now
    have a measured result and belong in REFUTED, not amber limbo. */
-export const UNMEASURED: ReadonlySet<string> = new Set<string>();
+export const UNMEASURED: ReadonlySet<string> = new Set<string>([RESEARCH_IDS[0]]);
 
 export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
 
@@ -54,6 +56,10 @@ export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
    "we looked, and it is a coin flip". lib/stats.ts already treats REFUTED as
    the state that outranks every other for exactly this reason. */
 export const REFUTED: ReadonlySet<string> = new Set([
+  "zone-v5",
+  "rsi-reversion",
+  "rsi-context-v2",
+  "vwap-pullback-v1",
   "gold-silver-zone",
   "orb-relvol",
   "turn-of-month",
