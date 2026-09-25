@@ -26,7 +26,11 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
     if(!account) throw new Error("Paper account missing");
     const release=(await c.query("SELECT * FROM paper_releases WHERE status IN ('probation','active') FOR UPDATE")).rows[0];
     const existing=(await c.query("SELECT * FROM paper_positions WHERE closed_at IS NULL FOR UPDATE")).rows as Position[];
-    if(!release && !existing.length) return {active:false,positions:0};
+    const resetIdleDay=async()=>{
+      const today=nyMeta(nowSec).dateKey;
+      if(account.day_key!==today) await c.query("UPDATE paper_account SET day_key=$1,day_start_equity=equity,daily_pnl=0,updated_at=now() WHERE id=1",[today]);
+    };
+    if(!release && !existing.length) {await resetIdleDay();return {active:false,positions:0};}
     const fresh=["MES","MNQ"].every(s=>bySymbol[s]?.length && nowSec-bySymbol[s].at(-1)!.time<=1800);
     const evaluation=release?(await c.query("SELECT evaluated_at,evidence FROM paper_evaluations WHERE id=$1",[release.evaluation_id])).rows[0]:null;
     const learning=(await c.query("SELECT finished_at FROM learning_runs WHERE status='ok' ORDER BY finished_at DESC LIMIT 1")).rows[0];
@@ -42,7 +46,7 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
     let equity=Number(account.equity),peak=Number(account.peak),day=String(account.day_key),dayStart=Number(account.day_start_equity),locked=!!account.locked;
     const positions:Position[]=existing.map(p=>({...p,qty:Number(p.qty),entry:Number(p.entry),stop:Number(p.stop),target:Number(p.target),risk:Number(p.risk),mark:Number(p.mark)}));
     const from=Math.max(account.last_bar_ts?Date.parse(account.last_bar_ts)/1000:0,Math.min(...positions.map(p=>Date.parse(p.last_mark_ts??p.opened_at)/1000),...pending.keys()));
-    if(!Number.isFinite(from)) return {active:valid,positions:positions.length};
+    if(!Number.isFinite(from)) {await resetIdleDay();return {active:valid,positions:positions.length};}
     const timeline=[...new Set(Object.values(bySymbol).flatMap(bars=>bars.filter(b=>b.time>=from&&b.time+300<=nowSec).map(b=>b.time)))].sort((a,b)=>a-b);
     const indices=Object.fromEntries(Object.entries(bySymbol).map(([s,bars])=>[s,new Map(bars.map(b=>[b.time,b]))]));
     const finish=async(p:Position,price:number,time:number,reason:string)=>{
