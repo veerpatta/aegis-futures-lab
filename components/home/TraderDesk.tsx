@@ -5,61 +5,52 @@ import {usePaper} from "@/components/providers/PaperProvider";
 import {useBotHealth} from "@/components/providers/BotHealthProvider";
 import {usePrivacy} from "@/components/providers/PrivacyProvider";
 import {useZone} from "@/components/providers/ZoneProvider";
-import {Badge,Button,Panel} from "@/components/ui";
+import {Badge,Button} from "@/components/ui";
 import BottomSheet,{SheetClose} from "@/components/ui/BottomSheet";
 import {botState,candidateName,freshTraining,type Candidate,type Position} from "@/lib/paper/overview";
 import {fmtStamp} from "@/lib/time/session";
 import {nyMeta} from "@/lib/time/ny";
-import {fetchMarket,type MarketPayload} from "@/lib/data/fetch";
+import simple from "./simple-workspace.module.css";
 import styles from "./trader-desk.module.css";
 
-export default function TraderDesk({bot=false}:{bot?:boolean}) {
+export default function TraderDesk() {
  const {data,candidates,activity,errors,loadedAt,loading,refresh}=usePaper();const health=useBotHealth();
  const {mask}=usePrivacy(),{zone}=useZone();
  const [sheet,setSheet]=useState<"how"|"risk"|"training"|Candidate|Position|null>(null);
  const closeSheet=useCallback(()=>setSheet(null),[]);
- const [quotes,setQuotes]=useState<Partial<Record<"MES"|"MNQ",MarketPayload>>>({});const [quoteErrors,setQuoteErrors]=useState<string[]>([]);
+ const [allActivity,setAllActivity]=useState(false);
  const [today,setToday]=useState<string|null>(null);
  useEffect(()=>{const tick=()=>setToday(nyMeta(Date.now()/1000).dateKey);tick();const t=setInterval(tick,60000);return()=>clearInterval(t);},[]);
- useEffect(()=>{if(bot)return;let live=true;const load=async()=>{const symbols=["MES","MNQ"] as const;const results=await Promise.allSettled(symbols.map(s=>fetchMarket(s)));if(!live)return;
-  const failures:string[]=[];results.forEach((r,i)=>{if(r.status==="fulfilled")setQuotes(q=>({...q,[symbols[i]]:r.value}));else failures.push(symbols[i]);});setQuoteErrors(failures);};void load();const t=setInterval(()=>void load(),60000);return()=>{live=false;clearInterval(t);};},[bot]);
  const cash=(v:unknown)=>v==null||!Number.isFinite(Number(v))?"—":mask(Number(v).toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}));
  const stamp=(v?:string|null)=>v?fmtStamp(v,zone):"Not recorded";
  const state=botState(data,errors.includes("Account"));const positions=data?.positions??[],open=positions.filter(p=>!p.closed_at);
  const training=freshTraining(data?.learning??null);
  const title=sheet==="how"?"Your daily routine":sheet==="risk"?"Practice account limits":sheet==="training"?"What training does":sheet&&"candidate_key" in sheet?candidateName(sheet.candidate_key):sheet?`${sheet.symbol} · ${sheet.side}`:"Details";
- return <div className={styles.page}>
-  <div className={styles.titleRow}><div><span className={styles.eyebrow}>Your trading workspace</span><h1>{bot?"Bot":"Today"}</h1></div><Button variant="ghost" onClick={()=>setSheet("how")}>How it works</Button></div>
-  <p className={styles.disclaimer}>Paper only · Delayed prices · Nothing here touches real money.</p>
+ return <div className={`${styles.page} ${simple.page}`}>
+  <div className={simple.heading}><h1 className="pageTitle">Bot</h1><Button variant="ghost" onClick={()=>setSheet("how")}>How it works</Button></div>
+  <p className={simple.caption}>Paper only · Delayed prices · No real orders</p>
   {errors.length>0&&<div role="alert" className={styles.notice}>{errors.join(", ")} could not refresh. Previous figures may be old. <button onClick={refresh}>Retry</button></div>}
-  <section className={styles.status} aria-label="Bot status">
-   <div className={styles.row}><span className={styles.eyebrow}>Bot status</span><Badge tone={loading?"default":state.tone}>{loading?"Checking…":state.label}</Badge></div>
-   <h2>{loading?"Checking the practice account":data?.release?.status==="active"||data?.release?.status==="probation"?candidateName(data.release.candidate_key):state.label==="Researching"?"Testing ideas. Waiting for evidence.":state.label}</h2>
-   <p>{loading?"Loading the recorded account and latest checks.":state.reason}</p>
-   <div className={styles.next}><span>Next step</span><p>{loading?"Wait for the latest recorded checks.":state.next}</p><Link href={bot?"/replay":"/brain"}>{bot?"Open Journal":"See what the bot is doing"}<span aria-hidden> →</span></Link></div>
+  <section className={simple.status} aria-label="Bot status"><Badge tone={loading?"default":state.tone}>{loading?"Checking…":state.label}</Badge><p>{loading?"Checking the practice account…":state.reason}</p></section>
+  <div className={simple.facts}>
+   <div><span>Price checks</span><b>{health.loading?"Checking…":health.loadFailed||health.stale?"Needs attention":health.asleep?"Outside scheduled hours":health.delayed?"Delayed":"Running"}</b><small>{stamp(health.lastRun?.ran_at)}</small></div>
+   <button onClick={()=>setSheet("training")}><span>Training ↗</span><b>{errors.includes("Account")?"Not verified":!data?"Checking…":training?"Up to date":"Needs attention"}</b><small>{stamp(data?.learning?.finished_at)}</small></button>
+  </div>
+  <section aria-label="Paper account" className={simple.section}>
+   <div className={simple.heading}><h2>Practice account</h2><button onClick={()=>setSheet("risk")}>Risk limits ↗</button></div>
+   <div className={simple.numbers}><div><span>Equity</span><b>{cash(data?.account?.equity)}</b></div><div><span>Today's result</span><b>{data?.account?.day_key===today?cash(data.account.daily_pnl):"—"}</b></div><div><span>Open risk</span><b>{cash(data?.account?.open_risk)}</b></div></div>
+   <p className={simple.caption}>Equity and today's result include open paper trades.</p>
+   {!data?.account||errors.includes("Account")?<p>{loading?"Checking positions…":"Positions not verified"}</p>:open.length?open.map(p=><Trade key={p.id} p={p} cash={cash} onClick={()=>setSheet(p)}/>):<p className={simple.caption}>No open paper position</p>}
   </section>
-  {!bot&&<>
-   <section className={styles.account} aria-label="Paper account"><div className={styles.row}><span className={styles.eyebrow}>Practice account</span><button onClick={()=>setSheet("risk")}>Risk limits ↗</button></div>
-    <div className={styles.balance}>{cash(data?.account?.equity)}</div><p className={styles.muted}>Equity, including open paper trades</p>
-    <div className={styles.metrics}><div><span>Today’s P&amp;L</span><strong>{data?.account?.day_key===today?cash(data.account.daily_pnl):"—"}</strong><small>{data?.account?.day_key===today?"Includes open trades":"Waiting for today’s account update"}</small></div><div><span>Open risk</span><strong>{cash(data?.account?.open_risk)}</strong><small>Limit {cash(100)}</small></div></div>
-   </section>
-   <div className={styles.columns}><Panel title="Current position" hint="Practice account only">{!data?.account||errors.includes("Account")?<div className={styles.empty}><h3>{loading?"Checking positions…":"Positions not verified"}</h3><p>{loading?"Loading the recorded practice account.":"Retry the account update before treating the position list as current."}</p></div>:open.length?open.map(p=><Trade key={p.id} p={p} cash={cash} onClick={()=>setSheet(p)}/>):<div className={styles.empty}><span className={styles.emptyIcon} aria-hidden>◇</span><h3>No open paper position</h3><p>{data?.release&&data.release.status!=="paused"?"The bot is waiting for a qualifying setup.":"Research signals do not open trades in this account."}</p><Link href="/brain">View the requirements →</Link></div>}</Panel>
-    <Panel title="Markets" hint="Delayed quotes"><div className={styles.list}>{(["MES","MNQ"] as const).map(s=><Link key={s} href={`/markets?symbol=${s}`} className={styles.market}><div><b>{s}</b><span>{s==="MES"?"S&P micro":"Nasdaq micro"}</span></div><div><strong className="num">{quotes[s]?.price?.toLocaleString("en-US",{maximumFractionDigits:2})??"—"}</strong><small>{quoteErrors.includes(s)?"Could not refresh":quotes[s]?stamp(quotes[s]?.dataTimestamp):"Loading quote…"}</small></div></Link>)}</div></Panel></div>
-  </>}
-  <div className={styles.health}><div><span>Price checks</span><b>{health.loading?"Checking…":health.loadFailed||health.stale?"Needs attention":health.asleep?"Outside scheduled hours":health.delayed?"Prices delayed":"Running"}</b><small>{stamp(health.lastRun?.ran_at)}</small></div><button onClick={()=>setSheet("training")}><span>Training</span><b>{!data?"Checking…":training?"Up to date":"Needs attention"}</b><small>{stamp(data?.learning?.finished_at)}</small></button></div>
-  {bot&&<>
-   <Panel title="Research progress" hint="Each idea must earn its place"><p className={styles.muted}>Past simulations, separate confirmation, and new observations are checked independently. More training does not automatically mean a better strategy.</p>
-    {errors.includes("Research")&&<p className={styles.caution}>Research progress may be incomplete.</p>}
-    {!candidates.length?<p>Research results are {loading?"loading":"not available yet"}.</p>:<details className={styles.researchDetails}><summary>Review {candidates.length} strategy tests <span>{candidates.filter(c=>(c.historical as {gate?:{promote?:boolean}}|null)?.gate?.promote).length} passed historical checks</span></summary><div className={styles.candidates}>{candidates.map(c=>{const h=c.historical as {n?:number;net?:number;gate?:{promote:boolean}}|null;const passed=h?.gate?.promote;return <button key={c.candidate_key} className={styles.candidate} onClick={()=>setSheet(c)}><div className={styles.row}><b>{candidateName(c.candidate_key)}</b><span aria-hidden>↗</span></div><Badge tone={!h||Number(h.n)<150?"amber":passed?"green":"red"}>{!h?"Awaiting test":Number(h.n)<150?"Too little evidence":passed?"Historical checks passed":"Did not qualify"}</Badge><p>{h?`${cash(h.net)} after costs · n=${h.n??0}`:"Registered before testing"}</p><small>New observations: {c.forward_closed}/60 closes · {c.forward_days}/20 trading days</small></button>;})}</div></details>}
-   </Panel>
-   <div className={styles.columns}><Panel title="Model learning"><h3>{data?.model?.status==="active"?"Model active":data?.model?"Model inactive":"Awaiting model evidence"}</h3><p className={styles.muted}>The model must improve predictions and net trading results before it can filter entries.</p><p>{data?.model?`${data.model.train_n??0} eligible training trades`:"No model recorded yet"}</p><button className={styles.textButton} onClick={()=>setSheet("training")}>Understand the latest result →</button></Panel><Panel title="Risk controls"><p>One qualified strategy at a time. Risk starts at {cash(25)} per trade and can rise to {cash(50)} after another qualifying review.</p><button className={styles.textButton} onClick={()=>setSheet("risk")}>See all account limits →</button></Panel></div>
-  </>}
-  <Panel title="Latest activity" hint="Recorded actions"><ol className={styles.activity}>{activity.slice(0,bot?12:4).map(a=><li key={a.id}><span className={styles.activityDot}/><div><b>{a.kind}{a.candidate_key?` · ${candidateName(a.candidate_key)}`:""}</b><p>{a.detail}</p><small>{stamp(a.at)}</small></div></li>)}</ol>{!activity.length&&<p>{errors.includes("Activity")?"Activity could not be loaded.":loading?"Loading recorded activity…":"No recorded activity to show yet."}</p>}</Panel>
-  {!bot&&positions.some(p=>p.closed_at)&&<Panel title="Recent paper trades">{positions.filter(p=>p.closed_at).slice(0,5).map(p=><Trade key={p.id} p={p} cash={cash} onClick={()=>setSheet(p)}/>)}</Panel>}
+  <section aria-label="Research progress" className={simple.section}>
+   <div className={simple.heading}><h2>Strategy progress</h2><span className={simple.caption}>After costs · simulated</span></div>
+   {errors.includes("Research")&&<p className={styles.caution}>Research progress may be incomplete.</p>}
+   {!candidates.length?<p className={simple.caption}>{loading?"Loading strategy tests…":"No strategy results available."}</p>:<div className={simple.list}>{candidates.map(c=>{const h=c.historical as {n?:number;net?:number;gate?:{promote:boolean}}|null;return <button key={c.candidate_key} className={simple.progress} onClick={()=>setSheet(c)}><div><b>{candidateName(c.candidate_key)}</b><span className={!h||Number(h.n??0)<150?simple.amber:h.gate?.promote?simple.green:simple.red}>{!h?"Awaiting test":Number(h.n??0)<150?"Too little evidence":h.gate?.promote?"Historical checks passed":"Did not qualify"}</span></div><div><b className="num">{h?cash(h.net):"—"}</b><small>{h?`n=${h.n??0} trades`:"No result"} ↗</small></div></button>;})}</div>}
+  </section>
+  <section className={simple.section}><div className={simple.heading}><h2>Latest activity</h2>{activity.length>3&&<button onClick={()=>setAllActivity(!allActivity)}>{allActivity?"Show less":"View all"}</button>}</div><ol className={styles.activity}>{activity.slice(0,allActivity?activity.length:3).map(a=><li key={a.id}><span className={styles.activityDot}/><div><b>{a.kind}{a.candidate_key?` · ${candidateName(a.candidate_key)}`:""}</b><p>{a.detail}</p><small>{stamp(a.at)}</small></div></li>)}</ol>{!activity.length&&<p className={simple.caption}>{errors.includes("Activity")?"Activity could not be loaded.":loading?"Loading activity…":"No recorded activity yet."}</p>}</section>
   <div className={styles.footer}><span>Account read {stamp(loadedAt)}</span><button onClick={()=>{refresh();health.refresh();}}>Refresh</button></div>
-  {bot&&<div className={styles.links}><Link href="/brain/history">Detailed learning history →</Link><Link href="/research-history">Legacy signal research →</Link><Link href="/diagnostics">Validation evidence →</Link></div>}
+  <details className={simple.details}><summary>More details</summary><div className={styles.links}><button className={styles.textButton} onClick={()=>setSheet("training")}>Model and training</button><Link href="/brain/history">Learning history →</Link><Link href="/research-history">Legacy signal research →</Link><Link href="/diagnostics">Validation evidence →</Link><Link href="/replay">Journal →</Link></div></details>
   <BottomSheet open={sheet!==null} onClose={closeSheet} title={title}><div className={styles.row}><h2>{title}</h2><SheetClose onClose={closeSheet}/></div><div className={styles.sheet}>
-   {sheet==="how"&&<><p>Nothing here sends an order to a broker. Prices and the practice simulation are delayed.</p><ol><li><b>Check Today.</b> Read the status and its reason. Researching means the account is waiting for a strategy to qualify.</li><li><b>Inspect the decision.</b> Open a position for entry, stop, target, risk and the reason for the trade.</li><li><b>Keep your own record.</b> Use Journal to write down what you chose and why. Your entries stay separate from the bot’s account.</li><li><b>Review on Bot.</b> See what ran, what failed, and which evidence is still missing.</li></ol><Link href="/guide">Read the full Guide →</Link></>}
+   {sheet==="how"&&<><p>Nothing here sends an order to a broker. Prices and the practice simulation are delayed.</p><ol><li><b>Check Home and Signals.</b> Read the signal count and Entry, Stop and Target. These are delayed research ideas.</li><li><b>Inspect the decision.</b> Open a position for entry, stop, target, risk and the reason for the trade.</li><li><b>Keep your own record.</b> Use Journal to write down what you chose and why. Your entries stay separate from the bot’s account.</li><li><b>Review on Bot.</b> See what ran, what failed, and which evidence is still missing.</li></ol><Link href="/guide">Read the full Guide →</Link></>}
    {sheet==="risk"&&<><p>Starting balance {cash(10000)}. This is a simulation balance.</p><ul><li>Probation risk: {cash(25)} per trade.</li><li>Full risk: {cash(50)} after another qualifying weekly review.</li><li>Total open risk: {cash(100)}.</li><li>Daily loss limit: {cash(200)}, including open positions.</li><li>Drawdown lock: {cash(1000)} from the account’s highest equity.</li></ul><p>Contract sizing includes costs. A trade is skipped if one contract exceeds the available budget. Gaps can cause losses beyond the planned stop. Loss history survives strategy changes. There is no compounding.</p></>}
    {sheet==="training"&&<><p>Latest training: {data?.learning?.status??"not recorded"} · {stamp(data?.learning?.finished_at)}.</p><p>Training studies closed outcomes. It cannot recover genuine forward observations from past prices or promise profit.</p><p>{data?.model?`Latest model: ${data.model.status}. Training sample: n=${data.model.train_n??0}.`:"No trained model is recorded."}</p><p>Prediction error: {data?.model?.oos_brier?.toFixed(4)??"not measured"}; simple baseline: {data?.model?.baseline_brier?.toFixed(4)??"not measured"}. Lower is better. Prediction accuracy and net returns must both improve.</p><Link href="/brain/history">Open the detailed learning record →</Link></>}
    {sheet&&typeof sheet==="object"&&"candidate_key" in sheet&&<CandidateDetails c={sheet} cash={cash}/>}

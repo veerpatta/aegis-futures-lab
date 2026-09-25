@@ -87,7 +87,7 @@ describe("every signals reader is classified", () => {
   const MUST_FILTER = [
     "components/home/HomeClient.tsx", // headline P&L, the card that was wrong
     "components/review/ReviewClient.tsx", // P&L calendar + year heatmap
-    "components/signals/SignalsClient.tsx", // the feed's performance panel
+    "lib/signals/snapshot.ts", // shared Home/Signals reader and headline calculation
     "scripts/diag/nightly-research.ts", // mirrors the breaker's rolling PF
     "scripts/engine/breakers.ts", // rolling PF -> PAUSES a stream
     "scripts/engine/digest.ts", // the weekly Telegram digest

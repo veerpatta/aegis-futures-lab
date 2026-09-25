@@ -35,9 +35,9 @@ export default function GuidePage() {
         </div>
       </section>
 
-      <section className={styles.card}><h2>Your daily routine</h2><p>Open Today. Read the bot status and its reason. Researching means no strategy has qualified for the practice account. Paper probation means a qualified strategy is using reduced risk. Paper active means full paper risk is available. Paused means new entries are blocked. Status unavailable means the account could not be verified.</p><p>Inspect the account. Equity and today’s result include open paper positions. Open a position to see its entry, stop, target, contracts, planned risk and reason. An empty account is not a broken app.</p><p>Open Bot. Check price checks, training and research separately. A successful training run does not activate a strategy. Open an idea’s progress card to see historical checks, separate confirmation, new observations and weekly reviews.</p><p>Record your own decision in Journal. Add a trade by hand or import your broker CSV. Your journal stays separate from the bot account. Sign in to keep a private copy across devices.</p><p>Review the latest activity. It says what ran, what changed and what needs attention. Refresh retries an update; it does not start a trade or force training.</p></section>
+      <section className={styles.card}><h2>Your daily routine</h2><p>Open Home. See signals today, open or waiting signals, and the result of signals closed today. Today follows the New York date. The result is simulated and shows its number of closed trades. A dash means no result is available. These figures are separate from the Bot account.</p><p>Open Signals. Read Entry, Stop and Target. Switch between Open, Zones and History. Tap a signal for its full record. Paused, stale and revised records are excluded from the main cards. More details opens performance, excluded records and the update log.</p><p>Open Bot. Read its status and the reason. Researching means no strategy has qualified. Paper probation means reduced risk. Paper active means full paper risk is available. Paused blocks new entries. Status unavailable means the account could not be verified.</p><p>Check the practice account on Bot. Equity and today’s result include open paper positions. Tap a position for prices, contracts, planned risk and the reason. Strategy progress shows each idea’s result after costs and its trade count. Tap a row for qualification details.</p><p>Review the latest three activities on Bot. View all opens the rest. Training and price checks have separate timestamps. A successful training run does not activate a strategy. Refresh retries an update; it does not start trading or force training.</p><p>Use More → Journal to record your own decisions or import a broker CSV. Your journal stays separate from the Bot account. Sign in to keep a private copy across devices.</p></section>
 
-      <section className={styles.card}><h2>Finding your way on a phone</h2><p>The five bottom tabs are Today, Bot, Markets, Journal and More. Today is the practice-account overview. Bot explains the system’s work. Markets shows delayed prices and charts. Journal holds your own trades. More opens Signals, Strategy Lab, Review, Diagnostics, Compare, Data and Guide.</p><p>Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account. Market research signals and personal journal entries are labelled separately.</p><p>Tap How it works for the short routine. Tap Risk limits, a research card or a paper trade for details. The sheet closes with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; journal input times stay ET.</p></section>
+      <section className={styles.card}><h2>Finding your way on a phone</h2><p>The five bottom tabs are Home, Signals, Markets, Bot and More. Home is a short trading snapshot. Signals shows the price levels. Markets shows delayed prices and charts. Bot holds the practice account and strategy progress. More starts with Journal and Guide, followed by research tools.</p><p>Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account.</p><p>On Bot, tap How it works for the short routine. Tap Risk limits, a strategy row or a paper trade for details. Close a sheet with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; signal daily totals and journal input times stay in New York time.</p></section>
 
       <section className={styles.card}><h2>Your practice account and research</h2><p>Paper only. Delayed data. Nothing here touches real money.</p><p>The account starts at $10,000. Risk starts at $25 per trade and can rise to $50 after another qualifying weekly review. Total open risk is capped at $100. The daily loss limit is $200 including open positions. A $1,000 drawdown from peak equity locks the account until an explicit reset. There is no compounding. Gaps can cause losses beyond the planned stop.</p><p>A strategy needs historical checks, a separate confirmation test, 60 genuinely new closed observations across 20 trading days, and two qualifying weekly reviews at least six days apart with ten new closes between them. Failed checks block activation. Too little evidence is amber; measured failure is red. Historical replay never counts as forward evidence.</p><p>Training compares a model with a simple baseline and checks net results after costs. More training does not promise profit. Recovery keeps the original failed runs and records reconstructed history separately.</p><p>This research round tests opening continuation and failed overnight breakout on MES and MNQ with fixed rules. Opening continuation checks whether the opening half-hour agrees with the prior 20-session trend. Failed overnight breakout checks the first rejection back inside a complete overnight range before 11:00 ET. Each allows one trade per market per day. All four strategy-market tests lost money after costs in the development archive. They remain research records and cannot activate.</p><p>New historical data is checked for coverage and execution assumptions. Missing session bars block qualification. The September 25 review found an incomplete expiry session in both markets, so confirmation results are provisional. A finer price record can clarify an ambiguous bar, but it is not proof that a real order would have filled. Research failures remain visible.</p></section>
 
@@ -344,7 +344,7 @@ export default function GuidePage() {
         <dl className={styles.dl}>
           <dt>Legacy signal research</dt>
           <dd>
-            The screen the app opens on. Today at a glance: the live idea, today&apos;s score, the
+            The original research dashboard: the live idea, today&apos;s score, the
             last three weeks, the two markets, the nearest zones, <b>why there was no signal
             today</b>, and whether the bot is healthy.
           </dd>
@@ -462,7 +462,7 @@ export default function GuidePage() {
           <b>Tapping any idea</b> — on Legacy signal research, on Signals, or from a day in the Journal — slides up a
           card with its entry, stop, target and a plain-English &ldquo;why the bot took it&rdquo;.
           Tap outside the card, or press Escape, to go back without losing your place on the page.
-          On Signals, the <b>Live / Zones / History</b> switch at the top shows what is working now,
+          On Signals, the <b>Open / Zones / History</b> switch at the top shows what is working now,
           which zones price is walking into, and what has already closed; the ring on each card is
           the model&apos;s win probability, and it reads &ldquo;—&rdquo; when the model has not
           scored that idea.
@@ -659,7 +659,7 @@ export default function GuidePage() {
         <h2>Put it on your phone</h2>
         <p>
           Open this site on your phone, then choose <b>Add to Home Screen</b> (in the browser
-          menu). It installs like an app and opens straight onto Today, with the five
+          menu). It installs like an app and opens straight onto Home, with the five
           main pages along the bottom.
         </p>
       </section>
@@ -796,7 +796,7 @@ export default function GuidePage() {
 
 
       <p className={styles.foot}>
-        Matches the app as of 2026-09-25 (trader workspace release). A printable version of this guide lives in the project
+        Matches the app as of 2026-09-25 (simplified trader layout). A printable version of this guide lives in the project
         as{" "}
         <a
           href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"

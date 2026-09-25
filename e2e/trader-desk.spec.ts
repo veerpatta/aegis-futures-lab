@@ -11,7 +11,7 @@ for(const width of [360,390,430,1440])for(const mode of ["research","probation",
     return r.fulfill({json:[{account:{equity:10000,peak:10000,open_risk:0,daily_pnl:0,day_key:"2026-09-25",locked:mode==="locked",updated_at:now},release:["active","probation","paused"].includes(mode)?{candidate_key:"2026-09-25.2:opening-continuation-v1:MES",status:mode,reason:"Waiting for fresh evidence",activated_at:now}:null,positions:[],learning:{status:"ok",finished_at:now,started_at:now},model:null}]});
    }return r.fulfill({json:[]});
   });
-  await page.goto("/");
+  await page.goto("/brain");
   const status=page.getByRole("region",{name:"Bot status"});
   await expect(status).toContainText(mode==="error"?"Status unavailable":mode==="locked"||mode==="paused"?"Paused":mode==="probation"?"Paper probation":mode==="active"?"Paper active":"Researching");
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

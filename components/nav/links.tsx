@@ -187,12 +187,14 @@ const ORIGINAL_SECONDARY: NavLink[] = [
 
 const find=(href:string)=>[...ORIGINAL_LINKS,...ORIGINAL_SECONDARY].find(l=>l.href===href)!;
 export const NAV_LINKS:NavLink[]=[
- {...find("/"),label:"Today",hint:"Your practice account",mobile:true},
+ {...find("/"),label:"Home",hint:"Signals at a glance",mobile:true},
+ {...find("/signals"),hint:"Entry, stop and target",mobile:true},
+ {...find("/markets"),mobile:true},
  {...find("/brain"),label:"Bot",shortLabel:"Bot",hint:"Status, training and research",mobile:true},
- {...find("/markets"),mobile:true}, {...find("/replay"),mobile:true},
+
  {href:"/more",label:"More",hint:"Research tools and Guide",mobile:true,icon:<svg {...iconProps}><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>}
 ];
-export const SECONDARY_LINKS:NavLink[]=["/signals","/lab","/review","/diagnostics","/compare","/data","/guide"].map(href=>({...find(href),mobile:false,...(href==="/signals"?{hint:"Legacy research signals"}:{})}));
+export const SECONDARY_LINKS:NavLink[]=["/replay","/guide","/lab","/review","/diagnostics","/compare","/data"].map(href=>({...find(href),mobile:false}));
 export const MOBILE_LINKS= NAV_LINKS;
 
 

@@ -1,11 +1,12 @@
 "use client";
 
-/* Live paper-signal terminal. Reads the signals / zones / engine_runs tables
-   the scheduled engine writes to Neon, plus the delayed quote feed for
-   zone distances. Signature element: the session heartbeat — market clock,
-   countdown to the next engine pass, and today's pace toward the 2-3
-   signals/day target, over a tape of the trading day. */
+/* Shared Home and Signals view over the same recorded research signals. */
 
+import {usePaper} from "@/components/providers/PaperProvider";
+import {usePrivacy} from "@/components/providers/PrivacyProvider";
+import {botState} from "@/lib/paper/overview";
+import {readSignalRows,signalSnapshot,visibleSignals} from "@/lib/signals/snapshot";
+import simple from "@/components/home/simple-workspace.module.css";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -26,13 +27,10 @@ import { nyMeta } from "@/lib/time/ny";
 import {
   ago,
   dataDelayed,
-  fmtCountdown,
   fmtStamp,
   engineScheduled,
   fmtTime,
   marketPhase,
-  nextRunSec,
-  tapeProgress,
 } from "@/lib/time/session";
 import { dayKeyLabel, etWindowLabel, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -44,7 +42,6 @@ import styles from "./signals.module.css";
 
 const REFRESH_MS = 60_000;
 const STALE_AFTER_MIN = 40; // two missed 15-min cron slots + jitter
-const TARGET_PER_DAY = 3; // pace dots: the 2-3 signals/day goal
 
 function statusBadge(s: SignalRow["status"]) {
   switch (s) {
@@ -169,7 +166,9 @@ type State =
       policy: BotPolicyRow[];
     };
 
-export default function SignalsClient() {
+export default function SignalsClient({home=false}:{home?:boolean}) {
+  const paper=usePaper();const {mask}=usePrivacy();
+  const [refreshError,setRefreshError]=useState(false);
   const [state, setState] = useState<State>({ status: "loading" });
   const [tierTab, setTierTab] = useState("all");
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -183,33 +182,15 @@ export default function SignalsClient() {
      HomeClient and MarketsClient already do it this way. */
   const [nowSec, setNowSec] = useState<number | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [showIntro, setShowIntro] = useState(false);
   const [segment, setSegment] = useState<Segment>("live");
   const [sheet, setSheet] = useState<SignalRow | null>(null);
   const { zone } = useZone();
-
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem("aegis.guideSeen.v1")) setShowIntro(true);
-    } catch {
-      /* private mode — skip */
-    }
-  }, []);
-
-  const dismissIntro = () => {
-    setShowIntro(false);
-    try {
-      localStorage.setItem("aegis.guideSeen.v1", "1");
-    } catch {
-      /* ignore */
-    }
-  };
 
   const load = useCallback(async () => {
     try {
       const supabase = getNeon();
       const [signals, zones, runs, policy] = await Promise.all([
-        supabase.from("signals").select("*").order("signal_ts", { ascending: false }).limit(200),
+        readSignalRows(supabase),
         supabase
           .from("zones")
           .select("*")
@@ -221,9 +202,10 @@ export default function SignalsClient() {
         // Breaker/model policy log — best effort; absent before the table exists.
         supabase.from("bot_policy").select("*").order("changed_at", { ascending: false }).limit(50),
       ]);
-      const err = signals.error || zones.error || runs.error;
+      const err = zones.error || runs.error;
       if (err) throw new Error(err.message);
-      const allSignals = (signals.data ?? []) as SignalRow[];
+      const allSignals = signals;
+      setRefreshError(false);
       setState({
         status: "ready",
         /* liveOnly at the read boundary: the performance panel below sums
@@ -238,6 +220,7 @@ export default function SignalsClient() {
       });
       setLoadedAt(Date.now());
     } catch (e) {
+      setRefreshError(true);
       setState((prev) =>
         prev.status === "ready" ? prev : { status: "error", error: e instanceof Error ? e.message : String(e) }
       );
@@ -257,6 +240,7 @@ export default function SignalsClient() {
   }, [load]);
 
   useEffect(() => {
+    setNowSec(Math.floor(Date.now() / 1000));
     const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(id);
   }, []);
@@ -276,27 +260,12 @@ export default function SignalsClient() {
 
   const phase = nowSec === null ? null : marketPhase(nowSec);
   const delayed = nowSec !== null && dataDelayed(ready?.runs ?? [], nowSec);
-  const nextRun = nowSec === null ? null : nextRunSec(nowSec);
-  const tape = nowSec === null ? null : tapeProgress(nowSec);
-  const todayKey = nowSec === null ? null : nyMeta(nowSec).dateKey;
-  const todayCount = useMemo(
-    () =>
-      todayKey === null
-        ? null
-        : (ready?.signals ?? []).filter(
-            (s) =>
-              !s.suppressed &&
-              nyMeta(Math.floor(new Date(s.signal_ts).getTime() / 1000)).dateKey === todayKey
-          ).length,
-    [ready, todayKey]
-  );
-
-  /* Performance across the loaded window (up to 200 signals). */
+  /* Performance across the loaded window (recent history plus current signals). */
   const perf = useMemo(() => {
     if (!ready) return null;
     // Headline stats exclude breaker-suppressed streams (shown in their own
     // drawer). They still simulate — they just don't count here or alert.
-    const active = ready.signals.filter((s) => !s.suppressed);
+    const active = visibleSignals(ready.signals);
     const closed = active
       .filter((s) => s.pnl_usd !== null)
       .sort((a, b) => (a.exit_ts ?? a.signal_ts).localeCompare(b.exit_ts ?? b.signal_ts));
@@ -399,7 +368,7 @@ export default function SignalsClient() {
      All three come off the same active set the blotter uses — suppressed and
      stale-data rows keep to their own drawers further down. */
   const activeSignals = useMemo(
-    () => (ready?.signals ?? []).filter((s) => !s.suppressed && !s.stale_data),
+    () => visibleSignals(ready?.signals ?? []),
     [ready]
   );
   const liveRows = useMemo(
@@ -452,101 +421,32 @@ export default function SignalsClient() {
      says so rather than showing a number without its sample count. */
   const ledger = useConditionLedger();
 
+  const summary=ready&&nowSec!==null?signalSnapshot(ready.signals,nowSec):null;
+  const paperStatus=botState(paper.data,paper.errors.includes("Account"));
+  const warning=<>{refreshError&&<p role="alert" className={simple.warning}>Signals could not refresh.{ready?" Showing the previous update.":" Try again."} <button onClick={load}>Retry</button></p>}</>;
+  const session=<div className={simple.session}><span>{phase?.label??"Checking market…"}</span><span>{!ready?"Checking updates":engineStale||lastRun?.status==="error"?"Updates need attention":delayed?"Prices delayed":"Updated"} {loadedAt?ago(new Date(loadedAt).toISOString()):"—"}</span><button onClick={load} aria-label="Refresh data">↻</button></div>;
+  if(home)return <div className={simple.page}>
+    <h1 className="pageTitle">Home</h1><p className={simple.caption}>Paper signals · Delayed prices · No real orders</p>
+    {warning}{session}
+    <section className={simple.numbers} aria-label="Today's signals">
+      <div><span>Signals today</span><b>{summary?.today??"—"}</b></div>
+      <div><span>Open signals</span><b>{summary?.open??"—"}</b></div>
+      <div><span>Today's result</span><b>{summary?.closed?mask(money(summary.net)):"—"}</b><small>{summary?`${summary.closed} closed · NY day`:"Loading…"}</small></div>
+    </section>
+    <div className={simple.heading}><h2>Recent signals</h2><Link href="/signals">View all →</Link></div>
+    <p className={simple.caption}>Research ideas · Not Bot-account trades.</p>
+    {ready?<SignalCards segment="live" showTabs={false} onSegment={()=>{}} liveRows={summary?.recent??activeSignals.slice(0,3)} historyRows={[]} zoneRows={[]} loading={false} emptyText="No recent signals to show. Check Signals for zones and history." onOpen={setSheet}/>:<p>{state.status==="error"?"Signals unavailable":"Loading signals…"}</p>}
+    <Link className={simple.botLink} href="/brain"><span>Bot <b>{paper.loading?"Checking…":paperStatus.label}</b></span><span>View progress →</span></Link>
+    <SignalSheet signal={sheet} ledger={ledger} onClose={()=>setSheet(null)}/>
+  </div>;
   return (
     <>
       <h1 className="pageTitle">Signals</h1>
-      <p className="pageSub">
-        Legacy strategy research, not positions in the current practice account.
-        Tier A = zone setups · Tier B = RSI flow. Delayed simulations to study.
-      </p>
-
-      {showIntro && (
-        <div className={styles.intro} role="note">
-          <span>
-            <b>New here?</b> The 5-minute guide explains the signals, the two tiers, and the daily
-            routine — in trading language, not tech.
-          </span>
-          <span className={styles.introActions}>
-            <Link href="/guide" className={styles.introLink} onClick={dismissIntro}>
-              Read the guide
-            </Link>
-            <button className={styles.introClose} onClick={dismissIntro} aria-label="Dismiss">
-              ✕
-            </button>
-          </span>
-        </div>
-      )}
-
-      {/* ── Session heartbeat ── */}
-      <section className={styles.hero} aria-label="Session status">
-        <div className={styles.heroCell}>
-          <span
-            className={`${styles.phaseDot} ${phase ? styles[phase.tone] : ""} ${phase?.live ? styles.phaseLive : ""}`}
-          />
-          <div>
-            <div className={styles.heroValue}>{phase ? phase.label : "Loading the session…"}</div>
-            <div className={styles.heroDetail}>{phase ? phase.detail : " "}</div>
-          </div>
-        </div>
-        <div className={styles.heroCell}>
-          <div>
-            <div className={`${styles.heroValue} num`}>
-              {nextRun === null || nowSec === null ? "—" : fmtCountdown(Math.max(0, nextRun - nowSec))}
-            </div>
-            <div className={styles.heroDetail}>
-              next engine pass ·{" "}
-              {lastRun ? (
-                <span
-                  className={
-                    lastRun.status !== "ok"
-                      ? styles.bad
-                      : engineStale
-                        ? styles.warn
-                        : engineAsleep
-                          ? undefined
-                          : styles.good
-                  }
-                >
-                  {/* "last run", not "last ok": this is runs[0] whatever its
-                      status, and the old label claimed otherwise. */}
-                  last {lastRun.status === "ok" ? "run" : "failed"} {ago(lastRun.ran_at)}
-                  {engineAsleep && lastRun.status === "ok" ? " · asleep" : ""}
-                </span>
-              ) : (
-                "no runs yet"
-              )}
-              {delayed && <span className={styles.warn}> · data delayed more than usual</span>}
-            </div>
-          </div>
-        </div>
-        <div className={styles.heroCell}>
-          <div>
-            <div className={styles.heroValue}>
-              <span className="num">{todayCount ?? "—"}</span>
-              <span className={styles.paceDots} aria-hidden>
-                {Array.from({ length: TARGET_PER_DAY }, (_, i) => (
-                  <i key={i} className={i < (todayCount ?? 0) ? styles.paceOn : styles.paceOff} />
-                ))}
-              </span>
-            </div>
-            <div className={styles.heroDetail}>signals today · target 2–3</div>
-          </div>
-        </div>
-        <div className={styles.heroSide}>
-          <Button small variant="ghost" onClick={load} aria-label="Refresh data">
-            ↻ {loadedAt ? `${Math.max(0, Math.round((Date.now() - loadedAt) / 1000))}s` : ""}
-          </Button>
-        </div>
-        {tape !== null && (
-          <div className={styles.tape} aria-hidden>
-            <div className={styles.tapeFill} style={{ width: `${(tape * 100).toFixed(2)}%` }} />
-            <span className={styles.tapeMark} style={{ left: `${(tape * 100).toFixed(2)}%` }} />
-          </div>
-        )}
-      </section>
-
+      <p className={simple.caption}>Paper signals · Delayed prices · No real orders</p>
+      {warning}{session}
+      <p className={simple.caption}>Research ideas · Not Bot-account trades.</p>
       {/* ── At a glance: live · zones · history ── */}
-      <SignalCards
+      {ready?<SignalCards
         segment={segment}
         onSegment={setSegment}
         liveRows={liveRows}
@@ -554,17 +454,9 @@ export default function SignalsClient() {
         zoneRows={nearZones}
         loading={state.status === "loading"}
         onOpen={setSheet}
-      />
+      />:<p className={simple.caption}>{state.status==="error"?"Signals unavailable":"Loading signals…"}</p>}
 
-      {state.status === "error" && (
-        <Panel title="Connection">
-          <div className={styles.error}>
-            Signal feed unreachable ({state.error}). Retrying every minute — check your network or
-            the database service.
-          </div>
-        </Panel>
-      )}
-
+      <details className={simple.details}><summary>More details</summary>
       {/* ── Performance ── */}
       {perf && (
         <Panel title="Performance" hint="closed simulated signals, costs included">
@@ -962,6 +854,7 @@ export default function SignalsClient() {
         )}
       </Panel>
 
+      </details>
       <SignalSheet signal={sheet} ledger={ledger} onClose={() => setSheet(null)} />
     </>
   );

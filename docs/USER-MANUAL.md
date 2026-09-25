@@ -21,23 +21,25 @@ evidence instead of memory.
 
 ## Your daily routine
 
-Open Today. Read the bot status and its reason. Researching means no strategy has qualified for the practice account. Paper probation means a qualified strategy is using reduced risk. Paper active means full paper risk is available. Paused means new entries are blocked. Status unavailable means the account could not be verified.
+Open Home. See signals today, open or waiting signals, and the result of signals closed today. Today follows the New York date. The result is simulated and shows its number of closed trades. A dash means no result is available. These figures are separate from the Bot account.
 
-Inspect the account. Equity and today’s result include open paper positions. Open a position to see its entry, stop, target, contracts, planned risk and reason. An empty account is not a broken app.
+Open Signals. Read Entry, Stop and Target. Switch between Open, Zones and History. Tap a signal for its full record. Paused, stale and revised records are excluded from the main cards. More details opens performance, excluded records and the update log.
 
-Open Bot. Check price checks, training and research separately. A successful training run does not activate a strategy. Open an idea’s progress card to see historical checks, separate confirmation, new observations and weekly reviews.
+Open Bot. Read its status and the reason. Researching means no strategy has qualified. Paper probation means reduced risk. Paper active means full paper risk is available. Paused blocks new entries. Status unavailable means the account could not be verified.
 
-Record your own decision in Journal. Add a trade by hand or import your broker CSV. Your journal stays separate from the bot account. Sign in to keep a private copy across devices.
+Check the practice account on Bot. Equity and today’s result include open paper positions. Tap a position for prices, contracts, planned risk and the reason. Strategy progress shows each idea’s result after costs and its trade count. Tap a row for qualification details.
 
-Review the latest activity. It says what ran, what changed and what needs attention. Refresh retries an update; it does not start a trade or force training.
+Review the latest three activities on Bot. View all opens the rest. Training and price checks have separate timestamps. A successful training run does not activate a strategy. Refresh retries an update; it does not start trading or force training.
+
+Use More → Journal to record your own decisions or import a broker CSV. Your journal stays separate from the Bot account. Sign in to keep a private copy across devices.
 
 ## Finding your way on a phone
 
-The five bottom tabs are Today, Bot, Markets, Journal and More. Today is the practice-account overview. Bot explains the system’s work. Markets shows delayed prices and charts. Journal holds your own trades. More opens Signals, Strategy Lab, Review, Diagnostics, Compare, Data and Guide.
+The five bottom tabs are Home, Signals, Markets, Bot and More. Home is a short trading snapshot. Signals shows the price levels. Markets shows delayed prices and charts. Bot holds the practice account and strategy progress. More starts with Journal and Guide, followed by research tools.
 
-Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account. Market research signals and personal journal entries are labelled separately.
+Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account.
 
-Tap How it works for the short routine. Tap Risk limits, a research card or a paper trade for details. The sheet closes with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; journal input times stay ET.
+On Bot, tap How it works for the short routine. Tap Risk limits, a strategy row or a paper trade for details. Close a sheet with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; signal daily totals and journal input times stay in New York time.
 
 ## Your practice account and research
 
@@ -303,7 +305,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 
 | Page | What it's for |
 |---|---|
-| **Legacy signal research** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
+| **Legacy signal research** | The original research dashboard: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
 | **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. The readout loads the selected strategy's actual instruments, including gold and its silver confirmation feed, rather than substituting MES and MNQ. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
@@ -347,7 +349,7 @@ streak counts how many trading days in a row have finished up.
 
 **Tapping any idea** — on Legacy signal research, on Signals, or from a day in the Journal — slides up a card with
 its entry, stop, target and a plain-English "why the bot took it". Tap outside the card, or press
-Escape, to go back without losing your place on the page. On Signals, the **Live / Zones /
+Escape, to go back without losing your place on the page. On Signals, the **Open / Zones /
 History** switch at the top shows what is working now, which zones price is walking into, and what
 has already closed; the ring on each card is the model's win probability, and it reads "—" when
 the model has not scored that idea.
@@ -389,7 +391,7 @@ figure shifts by itself when New York changes its clocks.
 ## 7. Put it on your phone
 
 Open the site on your phone, then choose **Add to Home Screen** in the browser menu. It
-installs like an app and opens straight onto Today, with the five main pages
+installs like an app and opens straight onto Home, with the five main pages
 along the bottom.
 
 ## 7a. "Live vs tuning window" — is it still working?
@@ -481,28 +483,27 @@ operator with a free Telegram bot; nothing to configure in the app.)
   stops early — the session bar says "early close" and simulated positions are flat
   before the earlier bell.
 - **"Data delayed more than usual"** — an amber note on Legacy signal research (Bot status) and on the
-  Signals heartbeat. The bot is running **during trading hours**, but the prices it last
+  Signals update row. The bot is running **during trading hours**, but the prices it last
   saw are older than the usual 10–15 minutes (a slow feed or a missed check). Ideas
   simply catch up on the next pass — treat the current ones as extra-delayed. Outside
   trading hours the note never appears: there is nothing to be late for.
-- **"Bot asleep" on Legacy signal research / "ASLEEP" on Signals** — no check is scheduled right now. The
+- **"Bot asleep" on Legacy signal research on the original dashboard** — no check is scheduled right now. The
   bot checks every 15 minutes for as long as the futures market is open, and rests only
   when it is shut, so it is asleep from Friday evening until the Sunday evening reopen.
   The card shows when the next check is due. "Last check 1d 17h ago" alongside "asleep"
   is the schedule working, not a fault — nothing was missed.
-- **"Bot idle" on Legacy signal research / "Engine idle / stale" on Signals** — different, and worth a
+- **"Bot idle" on Legacy signal research / "Updates need attention" on Signals** — different, and worth a
   glance: a check WAS due and has not arrived (it runs on a free scheduler that is
   sometimes 5–15 minutes late). It catches up on the next pass; nothing is lost, because
   every pass recomputes the full picture.
 - **"Nothing open right now" on Legacy signal research** — normal. Most of the day there is no live idea;
   the card tells you when the bot checks next.
-- **No signals today** — quiet days happen, especially for Tier A. The pace dots simply
-  stay empty. That is information too.
-- **"Signal feed unreachable"** — your device is offline or the database is briefly
+- **No signals today** — quiet days happen, especially for Tier A. There is no daily quota.
+- **"Signals could not refresh"** — your device is offline or the database is briefly
   unavailable. The page retries every minute on its own.
 
 ---
 
-*Manual version: matches the app as of 2026-09-25 (trader workspace release). If the app has changed since, the
+*Manual version: matches the app as of 2026-09-25 (simplified trader layout). If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

@@ -22,6 +22,7 @@
   font-weight: 600;
   font-family: inherit;
   padding: 8px 6px;
+  min-height: 44px;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -128,32 +129,6 @@
   margin-top: 13px;
 }
 
-/* Confidence ring — the model's win probability. */
-
-.ring {
-  position: relative;
-  width: 52px;
-  height: 52px;
-  flex: 0 0 auto;
-}
-
-.ring svg {
-  width: 52px;
-  height: 52px;
-  transform: rotate(-90deg);
-}
-
-.ringText {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .levels {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -171,7 +146,7 @@
 
 .level b {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 17px;
 }
 
 .cellLabel {

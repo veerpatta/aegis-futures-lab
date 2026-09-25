@@ -1,62 +1,16 @@
 "use client";
 
-/* The native pass's Signals screen: one segmented switch over three readings
-   of the same data — what is working right now, which zones price is walking
-   into, and what has already closed. Each card opens the detail sheet.
-
-   The confidence ring is the model's win probability (`win_prob`, Ring 1b).
-   Rows written before the model existed have none, and the ring says so with
-   a dashed track and "not scored" rather than inventing a number — the comp's
-   `conf: '78'` was fixture data.
-
-   Zones carry no confidence field at all, so their cards show distance from
-   the delayed price instead of a ring. */
+/* Clear price levels; open a card for the full signal record. */
 
 import type { SignalRow, ZoneRow } from "@/lib/neon/client";
 import { statusLook } from "@/lib/signals/status";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { fmtTime } from "@/lib/time/session";
-import { ZONE_ABBR } from "@/lib/time/zones";
+import { fmtStamp } from "@/lib/time/session";
 import { money } from "@/lib/format";
 import styles from "./signalCards.module.css";
 
 export type Segment = "live" | "zones" | "history";
-
-const RING_R = 18;
-const RING_C = 2 * Math.PI * RING_R;
-
-function ConfidenceRing({ p }: { p: number | null | undefined }) {
-  const known = p !== null && p !== undefined;
-  const pct = known ? Math.max(0, Math.min(1, p)) : 0;
-  const tone = !known ? "var(--text-faint)" : pct >= 0.6 ? "var(--green)" : pct >= 0.45 ? "var(--amber)" : "var(--red)";
-  return (
-    <span
-      className={styles.ring}
-      title={known ? `The model puts this at about ${Math.round(pct * 100)}% to win` : "The model has not scored this one yet"}
-    >
-      <svg viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={RING_R} fill="none" stroke="var(--border)" strokeWidth="5" strokeDasharray={known ? undefined : "4 5"} />
-        {known && (
-          <circle
-            cx="22"
-            cy="22"
-            r={RING_R}
-            fill="none"
-            stroke={tone}
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeDasharray={RING_C.toFixed(1)}
-            strokeDashoffset={(RING_C * (1 - pct)).toFixed(1)}
-          />
-        )}
-      </svg>
-      <span className={styles.ringText} style={{ color: known ? undefined : "var(--text-faint)" }}>
-        {known ? Math.round(pct * 100) : "—"}
-      </span>
-    </span>
-  );
-}
 
 function tierName(tier: "A" | "B"): string {
   return tier === "A" ? "Zone setup" : "Daily flow";
@@ -64,6 +18,8 @@ function tierName(tier: "A" | "B"): string {
 
 export default function SignalCards({
   segment,
+  showTabs=true,
+  emptyText,
   onSegment,
   liveRows,
   historyRows,
@@ -72,6 +28,8 @@ export default function SignalCards({
   onOpen,
 }: {
   segment: Segment;
+  showTabs?: boolean;
+  emptyText?: string;
   onSegment: (s: Segment) => void;
   liveRows: SignalRow[];
   historyRows: SignalRow[];
@@ -83,7 +41,7 @@ export default function SignalCards({
   const { mask } = usePrivacy();
 
   const segs: { id: Segment; label: string }[] = [
-    { id: "live", label: `Live · ${liveRows.length}` },
+    { id: "live", label: `Open · ${liveRows.length}` },
     { id: "zones", label: `Zones · ${zoneRows.length}` },
     { id: "history", label: "History" },
   ];
@@ -92,7 +50,7 @@ export default function SignalCards({
 
   return (
     <section className={styles.wrap} aria-label="Signals at a glance">
-      <div className={styles.segment} role="group" aria-label="View">
+      {showTabs&&<div className={styles.segment} role="group" aria-label="View">
         {segs.map((s) => (
           <button
             key={s.id}
@@ -104,7 +62,7 @@ export default function SignalCards({
             {s.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       <div className={`${styles.list} riseIn`} key={segment}>
         {segment === "zones" ? (
@@ -162,7 +120,7 @@ export default function SignalCards({
           <p className={styles.empty}>
             {loading
               ? "Loading…"
-              : segment === "live"
+              : emptyText ? emptyText : segment === "live"
                 ? "Nothing open or waiting to fill right now."
                 : "No closed ideas yet."}
           </p>
@@ -187,12 +145,11 @@ export default function SignalCards({
                     <span className={styles.kind}>{tierName(s.tier)}</span>
                   </span>
                   <span className={styles.time}>
-                    {fmtTime(s.signal_ts, zone)} {ZONE_ABBR[zone]}
+                    {fmtStamp(s.signal_ts, zone)}
                   </span>
                 </div>
 
                 <div className={styles.cardBody}>
-                  <ConfidenceRing p={s.win_prob} />
                   <div className={styles.levels}>
                     <span className={styles.level}>
                       <span className={styles.cellLabel}>Entry</span>
