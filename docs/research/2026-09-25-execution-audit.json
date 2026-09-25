@@ -1,0 +1,77 @@
+{
+  "selectionHash": "dedd2e358c9efc8b3d21121940a59718ae9a1cadb2ffe311aa5a19901d599b8d",
+  "selected": 7,
+  "results": [
+    {
+      "signal": 6431,
+      "symbol": "MES",
+      "bar": 1786629000,
+      "bothHit": false,
+      "first": "stop first",
+      "seconds": 299,
+      "quoteRecords": 9512,
+      "meanQuotedSpread": 0.25344301934398655
+    },
+    {
+      "signal": 2626,
+      "symbol": "MES",
+      "bar": 1785745500,
+      "bothHit": true,
+      "first": "stop first",
+      "seconds": 204,
+      "quoteRecords": 1170,
+      "meanQuotedSpread": 0.2623931623931624
+    },
+    {
+      "signal": 17862,
+      "symbol": "MNQ",
+      "bar": 1788251100,
+      "bothHit": false,
+      "first": "stop first",
+      "seconds": 300,
+      "quoteRecords": 9286,
+      "meanQuotedSpread": 0.5624326943786345
+    },
+    {
+      "signal": 21466,
+      "symbol": "MNQ",
+      "bar": 1789043700,
+      "bothHit": false,
+      "first": "stop first",
+      "seconds": 300,
+      "quoteRecords": 31357,
+      "meanQuotedSpread": 0.7144018879357081
+    },
+    {
+      "signal": 6505,
+      "symbol": "MNQ",
+      "bar": 1786629000,
+      "bothHit": false,
+      "first": "stop first",
+      "seconds": 300,
+      "quoteRecords": 38558,
+      "meanQuotedSpread": 0.3829036775766378
+    },
+    {
+      "signal": 24281,
+      "symbol": "MNQ",
+      "bar": 1789973700,
+      "bothHit": true,
+      "first": "target first",
+      "seconds": 271,
+      "quoteRecords": 3281,
+      "meanQuotedSpread": 0.4026211520877781
+    },
+    {
+      "signal": 5565,
+      "symbol": "MNQ",
+      "bar": 1786456200,
+      "bothHit": false,
+      "first": "stop first",
+      "seconds": 300,
+      "quoteRecords": 46610,
+      "meanQuotedSpread": 0.43968032611027674
+    }
+  ],
+  "note": "Deterministically selected ambiguous or gapped exits, not a representative execution sample. TBBO records quotes at trades, not guaranteed fills. Remaining ambiguity stays stop-first. No production cost or fill assumptions relaxed."
+}

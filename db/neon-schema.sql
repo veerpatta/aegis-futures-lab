@@ -617,11 +617,14 @@ WHERE t.trial_key LIKE '2026-09-25.%:%';
 
 CREATE OR REPLACE VIEW public.bot_activity WITH (security_invoker=true) AS
 SELECT 'training:'||id::text id,coalesce(finished_at,started_at) AS at,'Training'::text kind,status,
- CASE WHEN status='ok' THEN 'Training finished. Model qualification is checked separately.' WHEN status='running' THEN 'Training is running.' ELSE 'Training needs attention. Previous results remain recorded.' END detail
+ CASE WHEN status='ok' THEN 'Training finished. Model qualification is checked separately.' WHEN status='running' THEN 'Training is running.' ELSE 'Training needs attention. Previous results remain recorded.' END detail,NULL::text candidate_key
 FROM (SELECT * FROM public.learning_runs ORDER BY started_at DESC LIMIT 20) l
-UNION ALL SELECT 'release:'||id,activated_at,'Paper account',status,reason FROM public.paper_releases
-UNION ALL SELECT 'decision:'||observation_key,decided_at,'Trade decision','recorded',reason FROM (SELECT * FROM public.paper_entry_decisions ORDER BY decided_at DESC LIMIT 20) d
+UNION ALL SELECT 'release:'||id,activated_at,'Paper account',status,reason,candidate_key FROM public.paper_releases
+UNION ALL SELECT 'decision:'||observation_key,decided_at,'Trade decision','recorded',reason,split_part(observation_key,':',1)||':'||split_part(observation_key,':',2)||':'||split_part(observation_key,':',3) FROM (SELECT * FROM public.paper_entry_decisions ORDER BY decided_at DESC LIMIT 20) d
 UNION ALL SELECT 'research:'||id,coalesce(decided_at,registered_at),'Research',status,
- CASE WHEN outcome IS NULL THEN 'A fixed hypothesis was registered before testing.' WHEN outcome->'gate'->>'promote'='true' THEN 'Historical checks passed. Separate confirmation and forward evidence are still required.' ELSE 'Historical research finished. This result does not qualify for activation.' END FROM public.research_trials;
+ CASE WHEN outcome IS NULL THEN 'A fixed hypothesis was registered before testing.' WHEN outcome->'gate'->>'promote'='true' THEN 'Historical checks passed. Separate confirmation and forward evidence are still required.' ELSE 'Historical research finished. This result does not qualify for activation.' END,trial_key FROM public.research_trials
+UNION ALL SELECT 'measurement:'||id,measured_at,'Research','complete','A frozen strategy was remeasured. Open its progress card for the current evidence.',candidate_key FROM public.research_measurements
+UNION ALL SELECT 'confirmation:'||id,measured_at,'Confirmation','complete',
+ CASE WHEN outcome->'dataQuality'->>'ready'='false' THEN 'Missing session bars block qualification. Confirmation results are provisional.' WHEN outcome->'gate'->>'promote'='true' THEN 'Separate confirmation passed. New observations and weekly reviews are still required.' ELSE 'Separate confirmation did not qualify.' END,candidate_key FROM public.research_confirmations;
 GRANT SELECT ON public.bot_overview,public.candidate_progress,public.bot_activity TO anonymous,authenticated;
 NOTIFY pgrst, 'reload schema';

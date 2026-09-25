@@ -51,4 +51,5 @@ jobs:
           path: |
             docs/research/2026-09-25-research-v2*.json
             docs/research/2026-09-25-execution-audit.json
+            docs/research/2026-09-25-contract-quality.json
           if-no-files-found: ignore

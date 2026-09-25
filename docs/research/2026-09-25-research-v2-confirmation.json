@@ -1,0 +1,1185 @@
+{
+  "version": "2026-09-25.1",
+  "totalTrials": 26,
+  "confirmationFrom": "2026-07-30T00:00:00Z",
+  "results": [
+    {
+      "id": "zone-rejection-v2",
+      "symbol": "MES",
+      "key": "2026-09-25.1:zone-rejection-v2:MES",
+      "n": 0,
+      "net": 0,
+      "sharpe": 0,
+      "percentile": null,
+      "stressDrawdown": 0,
+      "datasetHash": "12c23db5b635b3a51cbcba55eec82d31a38b2ece3f34210934e82c2aefeaacb1",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": null,
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 0
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.95,
+            "detail": "No deflated Sharpe computed."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 3,
+            "detail": "No t-statistic computed."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 0,
+            "threshold": 150,
+            "detail": "0 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "dsr",
+          "tStat",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "zone-rejection-v2",
+      "symbol": "MNQ",
+      "key": "2026-09-25.1:zone-rejection-v2:MNQ",
+      "n": 0,
+      "net": 0,
+      "sharpe": 0,
+      "percentile": null,
+      "stressDrawdown": 0,
+      "datasetHash": "f675f59e0e239b02c0e7b25498d5123df31925dd47dbad6b6f719fa5099fea74",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": null,
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 0
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.95,
+            "detail": "No deflated Sharpe computed."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 3,
+            "detail": "No t-statistic computed."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 0,
+            "threshold": 150,
+            "detail": "0 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "dsr",
+          "tStat",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "rsi-context-v2",
+      "symbol": "MES",
+      "key": "2026-09-25.1:rsi-context-v2:MES",
+      "n": 11,
+      "net": 122.15791445425677,
+      "sharpe": 0.18164261676666948,
+      "percentile": null,
+      "stressDrawdown": 121.56096897617317,
+      "datasetHash": "12c23db5b635b3a51cbcba55eec82d31a38b2ece3f34210934e82c2aefeaacb1",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": 0.19050838366966288,
+          "n": 11,
+          "skew": -0.173359201836876,
+          "kurtosis": 1.0422286589281569,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.7232830100958663,
+          "dsr": 0.3133461317563174,
+          "tStat": 0.5926221226610683,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": 11.84771128882615,
+        "cvFoldSurvival": 0.7333333333333333,
+        "trades": 11
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.3133461317563174,
+            "threshold": 0.95,
+            "detail": "DSR 31.3% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": 0.5926221226610683,
+            "threshold": 3,
+            "detail": "t = 0.59."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "pass",
+            "value": 11.84771128882615,
+            "threshold": 0,
+            "detail": "$11.85 per trade after modelled commission and slippage."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "pass",
+            "value": 0.7333333333333333,
+            "threshold": 0.6,
+            "detail": "Positive in 73% of purged, embargoed folds."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 11,
+            "threshold": 150,
+            "detail": "11 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "rsi-context-v2",
+      "symbol": "MNQ",
+      "key": "2026-09-25.1:rsi-context-v2:MNQ",
+      "n": 1,
+      "net": -49.93055955716991,
+      "sharpe": 0,
+      "percentile": null,
+      "stressDrawdown": 0,
+      "datasetHash": "f675f59e0e239b02c0e7b25498d5123df31925dd47dbad6b6f719fa5099fea74",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": null,
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 1
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.95,
+            "detail": "No deflated Sharpe computed."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 3,
+            "detail": "No t-statistic computed."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 1,
+            "threshold": 150,
+            "detail": "1 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "dsr",
+          "tStat",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "vwap-pullback-v1",
+      "symbol": "MES",
+      "key": "2026-09-25.1:vwap-pullback-v1:MES",
+      "n": 15,
+      "net": -218.72500000000002,
+      "sharpe": -0.26141172916004807,
+      "percentile": null,
+      "stressDrawdown": 356.5499999999938,
+      "datasetHash": "12c23db5b635b3a51cbcba55eec82d31a38b2ece3f34210934e82c2aefeaacb1",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": -0.2705868466522209,
+          "n": 15,
+          "skew": 1.0637567302207642,
+          "kurtosis": 2.1461564732416982,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.1880850024361243,
+          "dsr": 0.02172137040515143,
+          "tStat": -0.8849750755772163,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": -14.199,
+        "cvFoldSurvival": 0.26666666666666666,
+        "trades": 15
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.02172137040515143,
+            "threshold": 0.95,
+            "detail": "DSR 2.2% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": -0.8849750755772163,
+            "threshold": 3,
+            "detail": "t = -0.88."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "fail",
+            "value": -14.199,
+            "threshold": 0,
+            "detail": "$-14.20 per trade after modelled commission and slippage."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "fail",
+            "value": 0.26666666666666666,
+            "threshold": 0.6,
+            "detail": "Positive in 27% of purged, embargoed folds."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 15,
+            "threshold": 150,
+            "detail": "15 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "vwap-pullback-v1",
+      "symbol": "MNQ",
+      "key": "2026-09-25.1:vwap-pullback-v1:MNQ",
+      "n": 3,
+      "net": 90.39999999999999,
+      "sharpe": 0.3604316511692346,
+      "percentile": null,
+      "stressDrawdown": 36.79999999999927,
+      "datasetHash": "f675f59e0e239b02c0e7b25498d5123df31925dd47dbad6b6f719fa5099fea74",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": 0.44143681625672226,
+          "n": 3,
+          "skew": -0.7071056564840753,
+          "kurtosis": 1.4999999999999998,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.705403727318911,
+          "dsr": 0.5460500812052491,
+          "tStat": 0.5400064421201408,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 3
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.5460500812052491,
+            "threshold": 0.95,
+            "detail": "DSR 54.6% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": 0.5400064421201408,
+            "threshold": 3,
+            "detail": "t = 0.54."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 3,
+            "threshold": 150,
+            "detail": "3 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "opening-continuation-v1",
+      "symbol": "MES",
+      "key": "2026-09-25.2:opening-continuation-v1:MES",
+      "n": 9,
+      "net": 79.24648621380214,
+      "sharpe": 0.138463306505491,
+      "percentile": null,
+      "stressDrawdown": 52.23269212807645,
+      "datasetHash": "12c23db5b635b3a51cbcba55eec82d31a38b2ece3f34210934e82c2aefeaacb1",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": 0.14686251446331614,
+          "n": 9,
+          "skew": 0.23007310862549485,
+          "kurtosis": 1.0611434326065796,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.663676723733801,
+          "dsr": 0.28250922787474547,
+          "tStat": 0.4225186728504808,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": 11.406373058193772,
+        "cvFoldSurvival": 0.6,
+        "trades": 9
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.28250922787474547,
+            "threshold": 0.95,
+            "detail": "DSR 28.3% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": 0.4225186728504808,
+            "threshold": 3,
+            "detail": "t = 0.42."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "pass",
+            "value": 11.406373058193772,
+            "threshold": 0,
+            "detail": "$11.41 per trade after modelled commission and slippage."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "pass",
+            "value": 0.6,
+            "threshold": 0.6,
+            "detail": "Positive in 60% of purged, embargoed folds."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 9,
+            "threshold": 150,
+            "detail": "9 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "opening-continuation-v1",
+      "symbol": "MNQ",
+      "key": "2026-09-25.2:opening-continuation-v1:MNQ",
+      "n": 0,
+      "net": 0,
+      "sharpe": 0,
+      "percentile": null,
+      "stressDrawdown": 0,
+      "datasetHash": "f675f59e0e239b02c0e7b25498d5123df31925dd47dbad6b6f719fa5099fea74",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": null,
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 0
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.95,
+            "detail": "No deflated Sharpe computed."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 3,
+            "detail": "No t-statistic computed."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 0,
+            "threshold": 150,
+            "detail": "0 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "dsr",
+          "tStat",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "overnight-rejection-v1",
+      "symbol": "MES",
+      "key": "2026-09-25.2:overnight-rejection-v1:MES",
+      "n": 12,
+      "net": -112.25000000000003,
+      "sharpe": -0.15380698428888562,
+      "percentile": null,
+      "stressDrawdown": 166.29999999999563,
+      "datasetHash": "12c23db5b635b3a51cbcba55eec82d31a38b2ece3f34210934e82c2aefeaacb1",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": -0.16064615576774433,
+          "n": 12,
+          "skew": 0.7262438899128698,
+          "kurtosis": 1.5724594803556637,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.3073519837456389,
+          "dsr": 0.05588997014747549,
+          "tStat": -0.5033702641675337,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": -9.354166666666666,
+        "cvFoldSurvival": 0.3333333333333333,
+        "trades": 12
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.05588997014747549,
+            "threshold": 0.95,
+            "detail": "DSR 5.6% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": -0.5033702641675337,
+            "threshold": 3,
+            "detail": "t = -0.50."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "fail",
+            "value": -9.354166666666666,
+            "threshold": 0,
+            "detail": "$-9.35 per trade after modelled commission and slippage."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "fail",
+            "value": 0.3333333333333333,
+            "threshold": 0.6,
+            "detail": "Positive in 33% of purged, embargoed folds."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 12,
+            "threshold": 150,
+            "detail": "12 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    },
+    {
+      "id": "overnight-rejection-v1",
+      "symbol": "MNQ",
+      "key": "2026-09-25.2:overnight-rejection-v1:MNQ",
+      "n": 3,
+      "net": -126.69999999999999,
+      "sharpe": 0,
+      "percentile": null,
+      "stressDrawdown": 33.79999999999927,
+      "datasetHash": "f675f59e0e239b02c0e7b25498d5123df31925dd47dbad6b6f719fa5099fea74",
+      "configHash": "5b101312568959452fe8a9d60b89ab2bd9956e88feac6cd34c8f1be60a0f1815",
+      "dataQuality": {
+        "ready": false,
+        "hash": "774e7ff4c83c75e2fc468fe5cfe71a142ebf423a8da0ef53d968c61b0dc4b991",
+        "missingBars": 72
+      },
+      "stage": "confirmation",
+      "evidence": {
+        "randomEntryPercentile": null,
+        "deflated": {
+          "sharpe": 0,
+          "n": 3,
+          "skew": 0,
+          "kurtosis": 3,
+          "trials": 26,
+          "trialSharpeStdev": 0.17224993900902374,
+          "expectedMaxSharpe": 0.34686594542684235,
+          "psr": 0.5000000005,
+          "dsr": 0.3118750267618138,
+          "tStat": 0,
+          "significant": false
+        },
+        "pbo": null,
+        "oosNetExpectancy": null,
+        "cvFoldSurvival": null,
+        "trades": 3
+      },
+      "gate": {
+        "promote": false,
+        "checks": [
+          {
+            "key": "randomEntry",
+            "label": "Beats matched random entries",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 95,
+            "detail": "No random-entry benchmark has been run."
+          },
+          {
+            "key": "dsr",
+            "label": "Deflated Sharpe after trial correction",
+            "status": "fail",
+            "value": 0.3118750267618138,
+            "threshold": 0.95,
+            "detail": "DSR 31.2% against a hurdle built from 26 logged trials."
+          },
+          {
+            "key": "tStat",
+            "label": "t-statistic above the Harvey/Liu/Zhu hurdle",
+            "status": "fail",
+            "value": 0,
+            "threshold": 3,
+            "detail": "t = 0.00."
+          },
+          {
+            "key": "pbo",
+            "label": "Probability of backtest overfitting",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.5,
+            "detail": "No PBO computed."
+          },
+          {
+            "key": "oosNetExpectancy",
+            "label": "Positive expectancy out of sample, net of costs",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "No out-of-sample expectancy measured."
+          },
+          {
+            "key": "cvFoldSurvival",
+            "label": "Survives purged cross-validation folds",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0.6,
+            "detail": "No purged cross-validation run."
+          },
+          {
+            "key": "trades",
+            "label": "Enough closed trades to judge",
+            "status": "fail",
+            "value": 3,
+            "threshold": 150,
+            "detail": "3 closed trades."
+          },
+          {
+            "key": "contract-data",
+            "label": "Complete contract data",
+            "status": "not-measured",
+            "value": null,
+            "threshold": 0,
+            "detail": "The refreshed archive has missing session bars. Results are provisional and cannot qualify a strategy."
+          }
+        ],
+        "failed": [
+          "dsr",
+          "tStat",
+          "trades"
+        ],
+        "evidenceGaps": [
+          "randomEntry",
+          "pbo",
+          "oosNetExpectancy",
+          "cvFoldSurvival",
+          "contract-data"
+        ],
+        "summary": "Blocked: incomplete contract data."
+      },
+      "codeHash": "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6",
+      "confirmationPassed": false,
+      "note": "Separate contract confirmation. Development and genuine forward requirements still apply."
+    }
+  ]
+}

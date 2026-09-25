@@ -15,7 +15,8 @@ for(const width of [360,390,430,1440])for(const mode of ["research","probation",
   const status=page.getByRole("region",{name:"Bot status"});
   await expect(status).toContainText(mode==="error"?"Status unavailable":mode==="locked"||mode==="paused"?"Paused":mode==="probation"?"Paper probation":mode==="active"?"Paper active":"Researching");
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.getByRole("button",{name:"How it works"}).click();await expect(page.getByRole("dialog")).toBeVisible();await page.keyboard.press("Escape");await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button",{name:"How it works"}).click();await expect(page.getByRole("dialog")).toBeVisible();await page.getByRole("button",{name:"Close",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
+  if(mode==="error")await expect(page.getByText("Positions not verified",{exact:true})).toBeVisible();
   if(mode!=="error"){await page.getByRole("button",{name:"Hide money figures"}).click();await expect(page.getByText("$10,000.00",{exact:true})).toHaveCount(0);}
   await page.goto("/more");await expect(page.getByRole("link",{name:/Guide/}).last()).toBeVisible();
  });

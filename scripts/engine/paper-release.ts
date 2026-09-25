@@ -44,6 +44,8 @@ export async function evaluatePaperReleases() {
           VALUES($1,$2,$3,$4,'probation','Every historical and forward gate passed; $25 risk probation')`,[key,inserted.rows[0].id,codeHash,researchConfigHash]);
         else if(active.rows[0].candidate_key===key && active.rows[0].status==="probation" && prior && freshWeeklyEvidence(prior,evidence))
           await c.query("UPDATE paper_releases SET status='active',evaluation_id=$2,reason='Fresh weekly pass after probation; $50 risk' WHERE id=$1",[active.rows[0].id,inserted.rows[0].id]);
+        else if(active.rows[0].candidate_key===key && active.rows[0].status==="active")
+          await c.query("UPDATE paper_releases SET evaluation_id=$2,reason='Fresh weekly qualification retained; $50 risk' WHERE id=$1",[active.rows[0].id,inserted.rows[0].id]);
       } else if(active.rows[0]?.candidate_key===key && (!pass || !inserted.rows.length)) {
         // Repeated unchanged evidence never promotes; only an actual failed fresh evaluation pauses.
         if(inserted.rows.length && !pass) await c.query("UPDATE paper_releases SET status='paused',reason='Weekly evidence no longer qualifies' WHERE id=$1",[active.rows[0].id]);

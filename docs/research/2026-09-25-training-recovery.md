@@ -91,3 +91,9 @@ storage. Unknown credit means no download. No provider upgrade is authorized.
 Forward collection is part of the signal engine; weekly release evaluation is
 part of `weekly-challenger`. Future elapsed trading days cannot be manufactured
 by backfilling or repeatedly running a job.
+
+Later on September 25, the owner supplied a $102.76 credit screenshot and approved
+the bounded trader-workspace research plan. Its separate `trader-research`
+workflow uses that attested cap with reservations and private download caching.
+See `2026-09-25-trader-workspace.md` for the completed import, audit and research
+results, including the contract-expiry data gap that blocks qualification.

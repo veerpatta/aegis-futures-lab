@@ -9,7 +9,7 @@ export function PaperProvider({children}:{children:React.ReactNode}) {
  const [errors,setErrors]=useState<string[]>([]),[loadedAt,setLoadedAt]=useState<string|null>(null),[loading,setLoading]=useState(true);
  const busy=useRef(false),mounted=useRef(true);
  const refresh=useCallback(async()=>{if(busy.current)return;busy.current=true;
-  try {const db=getNeon();const results=await Promise.allSettled([db.from("bot_overview").select("*").limit(1),db.from("candidate_progress").select("*"),db.from("bot_activity").select("*").order("at",{ascending:false}).limit(20)]);
+  try {const db=getNeon();const results=await Promise.allSettled([db.from("bot_overview").select("*").limit(1),db.from("candidate_progress").select("*"),db.from("bot_activity").select("id,at,kind,status,detail,candidate_key").order("at",{ascending:false}).limit(20)]);
    if(!mounted.current)return;const failed:string[]=[];
    results.forEach((r,i)=>{const label=["Account","Research","Activity"][i];if(r.status==="rejected"||r.value.error){failed.push(label);return;}
     if(i===0){const row=r.value.data?.[0];if(!row){failed.push(label);return;}setData(row as BotOverview);setLoadedAt(new Date().toISOString());}

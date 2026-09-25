@@ -1,4 +1,5 @@
 /** Register every trial before reading bars. No tuning or parameter search. */
+import { auditContractQuality, requireCompleteContractData } from "./contract-quality";
 import { writeFileSync } from "node:fs";
 import { createClient, transaction } from "@/lib/neon/server";
 import { fetchArchiveBars } from "@/lib/data/archive";
@@ -33,6 +34,8 @@ async function main() {
         JSON.stringify({ source:"databento", developmentEnd:confirmationFrom, confirmationFrom, note:"Old inspected archive is development, never independent confirmation" }), process.env.GITHUB_SHA ?? null]);
   });
   if (process.argv.includes("--register-only")) { console.log("Registered all frozen trials and reserved confirmation period."); return; }
+  const quality=confirmation?await auditContractQuality():null;
+  if(quality && (quality.to!==new Date(end*1000).toISOString() || quality.from!==confirmationFrom.replace("Z",".000Z"))) throw new Error("Quality audit does not cover the requested confirmation window");
   const db=createClient();
   const counts=await transaction(c=>c.query("SELECT params,dataset FROM research_trials"));
   const totalTrials=effectiveTrialCount(counts.rows);
@@ -75,13 +78,15 @@ async function main() {
     const evidence:PromotionEvidence={randomEntryPercentile:r.percentile,deflated:r.rs.length>2?deflatedSharpe(r.rs,totalTrials,dispersion):null,pbo,
       oosNetExpectancy:r.foldNet.length?r.foldNet.reduce((a,b)=>a+b,0)/r.foldNet.length:null,
       cvFoldSurvival:r.foldNet.length?r.foldNet.filter(n=>n>0).length/r.foldNet.length:null,trades:r.n};
-    return {...r,stage:confirmation?"confirmation":"development",rs:undefined,daily:undefined,foldNet:undefined,evidence,gate:evaluatePromotion(evidence),codeHash:researchCodeHash(),confirmationPassed:false,
-      note:"Development evidence. Independent contract confirmation and forward paper evidence still required."};
+    const measuredGate=evaluatePromotion(evidence);
+    const gate=quality?requireCompleteContractData(measuredGate,quality.qualificationReady):measuredGate;
+    return {...r,dataQuality:quality?{ready:quality.qualificationReady,hash:stableHash(quality.results),missingBars:quality.results.find(x=>x.symbol===r.symbol)?.missingDayBars.length}:undefined,stage:confirmation?"confirmation":"development",rs:undefined,daily:undefined,foldNet:undefined,evidence,gate,codeHash:researchCodeHash(),confirmationPassed:false,
+      note:confirmation?"Separate contract confirmation. Development and genuine forward requirements still apply.":"Development evidence. Independent contract confirmation and forward paper evidence still required."};
   });
   await transaction(async c=>{
     for(const r of output) {
       if(confirmation) await c.query(`INSERT INTO research_confirmations(id,candidate_key,code_hash,config_hash,outcome)
-        VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,[stableHash({key:r.key,hash:r.datasetHash,config:r.configHash,code:r.codeHash}),r.key,r.codeHash,r.configHash,JSON.stringify(r)]);
+        VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,[stableHash({key:r.key,hash:r.datasetHash,config:r.configHash,code:r.codeHash,quality:r.dataQuality?.hash}),r.key,r.codeHash,r.configHash,JSON.stringify(r)]);
       else { await c.query(`UPDATE research_trials SET status=$2,outcome=$3,decided_at=now()
         WHERE config_hash=$1 AND outcome IS NULL`,[stableHash({key:r.key,config:researchConfigHash}),"complete",JSON.stringify(r)]);
         await c.query(`INSERT INTO research_measurements(id,candidate_key,code_hash,config_hash,outcome) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,[stableHash({key:r.key,hash:r.datasetHash,config:r.configHash,code:r.codeHash}),r.key,r.codeHash,r.configHash,JSON.stringify(r)]);

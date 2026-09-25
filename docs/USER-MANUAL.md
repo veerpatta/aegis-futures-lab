@@ -49,9 +49,9 @@ A strategy needs historical checks, a separate confirmation test, 60 genuinely n
 
 Training compares a model with a simple baseline and checks net results after costs. More training does not promise profit. Recovery keeps the original failed runs and records reconstructed history separately.
 
-This research round tests opening continuation and failed overnight breakout on MES and MNQ with fixed rules. Opening continuation checks whether the opening half-hour agrees with the prior 20-session trend. Failed overnight breakout checks the first rejection back inside a complete overnight range before 11:00 ET. Each allows one trade per market per day. Both remain research until every requirement passes.
+This research round tests opening continuation and failed overnight breakout on MES and MNQ with fixed rules. Opening continuation checks whether the opening half-hour agrees with the prior 20-session trend. Failed overnight breakout checks the first rejection back inside a complete overnight range before 11:00 ET. Each allows one trade per market per day. All four strategy-market tests lost money after costs in the development archive. They remain research records and cannot activate.
 
-New historical data is checked for coverage and execution assumptions. A finer price record can clarify an ambiguous bar, but it is not proof that a real order would have filled. Research failures remain visible.
+New historical data is checked for coverage and execution assumptions. Missing session bars block qualification. The September 25 review found an incomplete expiry session in both markets, so confirmation results are provisional. A finer price record can clarify an ambiguous bar, but it is not proof that a real order would have filled. Research failures remain visible.
 
 ## 2a. How to read a number here
 
@@ -182,7 +182,7 @@ there are two of them:
 - **UNMEASURED**, in amber. The idea has never been tested against random entries, so
   nobody knows yet whether it is better than a coin flip. An unmeasured idea is **not** a
   losing idea — it is an untested one, which is why the tag is amber rather than red.
-- **REFUTED**, in red. The idea *has* been tested, and it did not beat random entries.
+- **REFUTED**, in red. The idea has been tested and failed its qualification rules. Open its evidence to see which checks failed and which were not measured.
 
 You can open any of them in the Lab and backtest them like anything else. What they will
 never do is produce a signal on Legacy signal research or Signals, or place a paper trade. Nothing reaches
@@ -503,6 +503,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
 
 ---
 
-*Manual version: matches the app as of 2026-09-25. If the app has changed since, the
+*Manual version: matches the app as of 2026-09-25 (trader workspace release). If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —
 see CLAUDE.md in the repository).*

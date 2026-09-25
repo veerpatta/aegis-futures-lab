@@ -2,7 +2,7 @@ export interface Account { equity:number; peak:number; daily_pnl:number; open_ri
 export interface Release { candidate_key:string; status:"active"|"probation"|"paused"; reason:string; activated_at:string; }
 export interface Position { id:string; symbol:string; side:string; qty:number; entry:number; stop:number; target:number; risk:number; pnl:number|null; mark:number; opened_at:string; closed_at:string|null; reason:string; }
 export interface Candidate { candidate_key:string; historical:Record<string,unknown>|null; confirmation:Record<string,unknown>|null; forward_closed:number; forward_days:number; forward_net:number; weekly_passes:number; }
-export interface Activity { id:string; at:string; kind:string; status:string; detail:string; }
+export interface Activity { id:string; at:string; kind:string; status:string; detail:string; candidate_key?:string|null; }
 export interface BotOverview { account:Account|null; release:Release|null; positions:Position[]; learning:{status:string; finished_at:string|null; started_at:string}|null; model:{status:string; train_n:number; oos_brier:number|null; baseline_brier:number|null}|null; }
 export function botState(data:BotOverview|null, failed=false) {
   if(!data?.account || failed) return {label:"Status unavailable",tone:"amber" as const,reason:"Account status could not be verified. Check the last update before using these figures.",next:"Retry the account update."};
