@@ -11,7 +11,7 @@ This manual is also available inside the app on the **Guide** page.
 
 Aegis watches micro index futures and keeps an evidence-first record of simulated
 strategies. When an eligible paper stream is active it posts **practice trade ideas** and
-tracks every result. When the evidence benches those streams, Home says **RESEARCH MODE**
+tracks every result. When the evidence benches those streams, Legacy signal research says **RESEARCH MODE**
 instead of quietly substituting an untested strategy. The point is to judge every idea on
 evidence instead of memory.
 
@@ -19,29 +19,39 @@ evidence instead of memory.
 > 10–15 minutes, and trade ideas appear 5–15 minutes after the setup happens. Use the app
 > to practice, learn, and keep score — never as a live trade instruction.
 
-## 2. Your daily routine
+## Your daily routine
 
-1. **Open Home with your morning coffee.** It is the screen the app starts on and it
-   answers the whole morning in one look: how many ideas today (the dots fill toward the
-   2–3 per day target), today's profit or loss, when the bot checks next, and — at the
-   top — the one idea that is live right now, with its entry, stop and target. If nothing
-   is running, it says so plainly.
-2. **Scroll on for the last three weeks.** One bar per trading day, green above the line
-   and red below, with the net, the win rate and the number of ideas beside it. Below
-   that: the two markets, the zones price is closest to, and whether the bot is healthy.
-3. **Open Signals when you want the detail.** Every idea ever posted, grouped by day.
-   Each row is a complete trade plan: where to get in (Entry), where the idea is wrong
-   (Stop), where to take profit (Target), and how it ended (the Status badge).
-4. **Glance at the Zone watchlist.** These are the buy and sell areas the strategy cares
-   about, sorted by how close price is. An amber **AT ZONE** badge means price is sitting
-   in one right now — the interesting moments happen there.
-5. **After you trade, write it down.** On the Journal page, add your own trades by hand
-   or import the CSV file your broker (Topstep / Tradovate) exports. It saves on
-   this device first. Sign in to keep a private copy across devices.
-6. **On the weekend, keep score.** The Performance panel shows the expectancy per trade,
-   the win rate and the running profit of each tier — each with the number of trades
-   behind it. Give the engine a few weeks of evidence before drawing conclusions:
-   anything still marked "previewed, not judged" proves nothing, in either direction.
+Open Today. Read the bot status and its reason. Researching means no strategy has qualified for the practice account. Paper probation means a qualified strategy is using reduced risk. Paper active means full paper risk is available. Paused means new entries are blocked. Status unavailable means the account could not be verified.
+
+Inspect the account. Equity and today’s result include open paper positions. Open a position to see its entry, stop, target, contracts, planned risk and reason. An empty account is not a broken app.
+
+Open Bot. Check price checks, training and research separately. A successful training run does not activate a strategy. Open an idea’s progress card to see historical checks, separate confirmation, new observations and weekly reviews.
+
+Record your own decision in Journal. Add a trade by hand or import your broker CSV. Your journal stays separate from the bot account. Sign in to keep a private copy across devices.
+
+Review the latest activity. It says what ran, what changed and what needs attention. Refresh retries an update; it does not start a trade or force training.
+
+## Finding your way on a phone
+
+The five bottom tabs are Today, Bot, Markets, Journal and More. Today is the practice-account overview. Bot explains the system’s work. Markets shows delayed prices and charts. Journal holds your own trades. More opens Signals, Strategy Lab, Review, Diagnostics, Compare, Data and Guide.
+
+Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account. Market research signals and personal journal entries are labelled separately.
+
+Tap How it works for the short routine. Tap Risk limits, a research card or a paper trade for details. The sheet closes with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; journal input times stay ET.
+
+## Your practice account and research
+
+Paper only. Delayed data. Nothing here touches real money.
+
+The account starts at $10,000. Risk starts at $25 per trade and can rise to $50 after another qualifying weekly review. Total open risk is capped at $100. The daily loss limit is $200 including open positions. A $1,000 drawdown from peak equity locks the account until an explicit reset. There is no compounding. Gaps can cause losses beyond the planned stop.
+
+A strategy needs historical checks, a separate confirmation test, 60 genuinely new closed observations across 20 trading days, and two qualifying weekly reviews at least six days apart with ten new closes between them. Failed checks block activation. Too little evidence is amber; measured failure is red. Historical replay never counts as forward evidence.
+
+Training compares a model with a simple baseline and checks net results after costs. More training does not promise profit. Recovery keeps the original failed runs and records reconstructed history separately.
+
+This research round tests opening continuation and failed overnight breakout on MES and MNQ with fixed rules. Opening continuation checks whether the opening half-hour agrees with the prior 20-session trend. Failed overnight breakout checks the first rejection back inside a complete overnight range before 11:00 ET. Each allows one trade per market per day. Both remain research until every requirement passes.
+
+New historical data is checked for coverage and execution assumptions. A finer price record can clarify an ambiguous bar, but it is not proof that a real order would have filled. Research failures remain visible.
 
 ## 2a. How to read a number here
 
@@ -77,7 +87,7 @@ hard.
 
 ## 2b. The clean streak — the one number about you
 
-Home used to show a **green streak**: how many days in a row finished in profit. That
+Legacy signal research used to show a **green streak**: how many days in a row finished in profit. That
 rewarded the wrong thing. A day where you broke every rule and got away with it kept
 the streak; a day where you followed your plan exactly and lost broke it. In an app
 built on the idea that process beats outcome, that was backwards.
@@ -175,7 +185,7 @@ there are two of them:
 - **REFUTED**, in red. The idea *has* been tested, and it did not beat random entries.
 
 You can open any of them in the Lab and backtest them like anything else. What they will
-never do is produce a signal on Home or Signals, or place a paper trade. Nothing reaches
+never do is produce a signal on Legacy signal research or Signals, or place a paper trade. Nothing reaches
 the live feed until it has beaten random entries on years of data.
 
 **Gold zones, silver confirmed** is the newest of these, and as of 21 August 2026 it is
@@ -217,7 +227,7 @@ showing its ideas and stops counting them in the headline numbers, but keeps sim
 them silently. When the silent practice recovers (profit factor 1.1 or better over the
 next 15), the bot returns the stream to the game on its own, waiting at least three
 trading days between changes so it never flip-flops. Paused streams appear in their own
-**Paused streams** box on Signals and a **RESEARCH MODE** note on Home; the weekly digest also keeps their
+**Paused streams** box on Signals and a **RESEARCH MODE** note on Legacy signal research; the weekly digest also keeps their
 practice out of the headline numbers and reports it on its own line. Every bench and return
 is recorded and sent to Telegram. It is the safest kind of automation — learning when *not*
 to trade — and it is paper only.
@@ -228,7 +238,7 @@ were measured and refuted, so no replacement is active.
 
 ### What each idea tells you at a glance
 
-Every idea on Home and on Signals carries four lines under it, so you do not have to hold the
+Every idea on Legacy signal research and on Signals carries four lines under it, so you do not have to hold the
 context in your head:
 
 - **Setup** — what triggered it, in the strategy's own terms.
@@ -246,7 +256,7 @@ context in your head:
 ### When nothing happens: "Why no signal today?"
 
 A quiet day raises exactly one question — is the bot broken, or just being patient? The
-**Why no signal today?** box on Home answers it in a sentence, using the bot's own count of
+**Why no signal today?** box on Legacy signal research answers it in a sentence, using the bot's own count of
 what it looked at: how many five-minute candles it checked, how many zones price actually
 reached, how many setups qualified, and what stopped the rest.
 
@@ -293,7 +303,7 @@ month. Most weeks it finds nothing and stays quiet. Merging is the one job left 
 
 | Page | What it's for |
 |---|---|
-| **Home** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
+| **Legacy signal research** | The screen the app opens on. Today at a glance: the live idea, today's score, the last three weeks, the two markets, the nearest zones, **why there was no signal today**, and whether the bot is healthy. |
 | **Signals** | Every idea, grouped by day, with the full zone watchlist and engine detail. |
 | **Markets** | Delayed charts, a live strategy readout, and the news calendar — each week's high-impact U.S. events from a free live feed, backed by the official BLS and Fed schedules when the feed is down. The readout loads the selected strategy's actual instruments, including gold and its silver confirmation feed, rather than substituting MES and MNQ. |
 | **Journal** | Pick any past day: see what the engine did, minute by minute, next to your own journaled trades. This is where the learning happens. |
@@ -324,7 +334,7 @@ and three controls on the right.
 | **The eye — private mode** | Turns every money figure into dots, so you can check the app on a train without showing your P&L to the next seat. Prices, times, win rates and status labels stay, because those are what make the screen readable. Remembered on that device. Backtest results in the Strategy Lab are *not* hidden — they are hypothetical numbers from a simulation, not your money. |
 | **The bell — what needs attention** | A red dot appears when there is something real to report: the bot has not checked in recently, the last check failed, the price feed is running late, a stream has been benched, or a news pause is coming. Tap for the list. No dot means there is nothing to say. |
 
-On Home, the line under the bar tells you when the bot last checked and lets you tap to check
+On Legacy signal research, the line under the bar tells you when the bot last checked and lets you tap to check
 again. The big number below it is your P&L, and the **Today / Week / 3 wks** switch changes the
 window it covers — the small badge beside it is the profit factor for that same window, and the
 line underneath is the running total after each closed idea.
@@ -335,7 +345,7 @@ glance mid-trade. Underneath it, the twelve small bars are the bot's last twelve
 checks — taller means the check took longer, green means it finished cleanly — and the green
 streak counts how many trading days in a row have finished up.
 
-**Tapping any idea** — on Home, on Signals, or from a day in the Journal — slides up a card with
+**Tapping any idea** — on Legacy signal research, on Signals, or from a day in the Journal — slides up a card with
 its entry, stop, target and a plain-English "why the bot took it". Tap outside the card, or press
 Escape, to go back without losing your place on the page. On Signals, the **Live / Zones /
 History** switch at the top shows what is working now, which zones price is walking into, and what
@@ -379,13 +389,13 @@ figure shifts by itself when New York changes its clocks.
 ## 7. Put it on your phone
 
 Open the site on your phone, then choose **Add to Home Screen** in the browser menu. It
-installs like an app and opens straight onto the Home screen, with the five main pages
+installs like an app and opens straight onto Today, with the five main pages
 along the bottom.
 
 ## 7a. "Live vs tuning window" — is it still working?
 
 The strategy's settings were chosen on past data, which promised a certain profit factor
-and pace for each stream. The Home panel **Live vs tuning window** compares that promise
+and pace for each stream. The Legacy signal research panel **Live vs tuning window** compares that promise
 with what the live ideas have actually delivered since go-live. While a stream has fewer
 than 20 finished ideas it only says **collecting data** — a handful of trades proves
 nothing. After that: green **tracking** = reality matches the promise; amber **lagging** =
@@ -458,7 +468,7 @@ operator with a free Telegram bot; nothing to configure in the app.)
 | Fresh / Tested | Fresh = price hasn't come back to the zone yet (strongest). Tested = touched once already. |
 | Paper trading | Practice trades with imaginary money. All trades in this app are paper trades. |
 | Flat by 15:25 ET | The strategy closes everything before the New York session ends (00:55 IST in summer, 01:55 in winter). No overnight risk, ever. |
-| Engine (the "bot") | The automated checker that re-reads the market every 15 minutes for the whole futures week — Sunday evening reopen through Friday's close — so zones keep refreshing overnight, even though new ideas are only ever taken between 02:00 and 15:25 ET. If Home or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
+| Engine (the "bot") | The automated checker that re-reads the market every 15 minutes for the whole futures week — Sunday evening reopen through Friday's close — so zones keep refreshing overnight, even though new ideas are only ever taken between 02:00 and 15:25 ET. If Legacy signal research or Signals says the bot is idle or a run failed, the feed is paused — not the market. |
 | Win rate | Share of closed trades that made money. |
 | Delayed data | Prices arrive 10–15 minutes late. Fine for studying, useless for live execution. |
 | ET / IST | The two clocks the app can show. ET is New York exchange time — the clock the strategy is written in. |
@@ -470,21 +480,21 @@ operator with a free Telegram bot; nothing to configure in the app.)
   problem. On half days (MLK day, the day after Thanksgiving, Christmas Eve…) trading
   stops early — the session bar says "early close" and simulated positions are flat
   before the earlier bell.
-- **"Data delayed more than usual"** — an amber note on Home (Bot status) and on the
+- **"Data delayed more than usual"** — an amber note on Legacy signal research (Bot status) and on the
   Signals heartbeat. The bot is running **during trading hours**, but the prices it last
   saw are older than the usual 10–15 minutes (a slow feed or a missed check). Ideas
   simply catch up on the next pass — treat the current ones as extra-delayed. Outside
   trading hours the note never appears: there is nothing to be late for.
-- **"Bot asleep" on Home / "ASLEEP" on Signals** — no check is scheduled right now. The
+- **"Bot asleep" on Legacy signal research / "ASLEEP" on Signals** — no check is scheduled right now. The
   bot checks every 15 minutes for as long as the futures market is open, and rests only
   when it is shut, so it is asleep from Friday evening until the Sunday evening reopen.
   The card shows when the next check is due. "Last check 1d 17h ago" alongside "asleep"
   is the schedule working, not a fault — nothing was missed.
-- **"Bot idle" on Home / "Engine idle / stale" on Signals** — different, and worth a
+- **"Bot idle" on Legacy signal research / "Engine idle / stale" on Signals** — different, and worth a
   glance: a check WAS due and has not arrived (it runs on a free scheduler that is
   sometimes 5–15 minutes late). It catches up on the next pass; nothing is lost, because
   every pass recomputes the full picture.
-- **"Nothing open right now" on Home** — normal. Most of the day there is no live idea;
+- **"Nothing open right now" on Legacy signal research** — normal. Most of the day there is no live idea;
   the card tells you when the bot checks next.
 - **No signals today** — quiet days happen, especially for Tier A. The pace dots simply
   stay empty. That is information too.
@@ -492,22 +502,6 @@ operator with a free Telegram bot; nothing to configure in the app.)
   unavailable. The page retries every minute on its own.
 
 ---
-
-## Your practice desk and better training
-
-Paper only. Prices are delayed. Nothing here touches real money.
-
-Home starts with your practice equity, today’s result including open trades, open risk and the next step. Open Journal to record your own decision. Review training to see what passed, what failed and when learning last finished.
-
-The original zone and RSI strategies failed validation. They remain research controls. Three new ideas are tested separately: a first-retest zone rejection, RSI in a quiet range far from VWAP, and a trend pullback to VWAP. None is assumed profitable.
-
-The practice account starts at $10,000. A qualified strategy starts with at most $25 risk per trade. Another qualifying weekly review can raise that to $50. Total open risk is capped at $100. The daily loss limit is $200, including open trades. A $1,000 fall from peak equity locks the account until an explicit reset. Results are compared without compounding. A setup is skipped if one contract exceeds the available risk.
-
-Automatic paper activation requires every historical check, a separate confirmation period and at least 60 new closed trades over 20 trading days. It also needs two successful weekly reviews with at least 10 new closes between them. Stale prices, changed rules or a risk lock pause new entries.
-
-Outage recovery checks stored prices and replays missed periods. These trades are labelled historical replay. They never count as new observations. A repeated training run never counts as fresh evidence. The newer prediction model is compared with the original. It must improve both net returns and prediction accuracy before it can earn any filtering role.
-
-“No strategy qualifies for paper activation yet” is a normal result. It means more evidence is needed or the checks failed. A read error is shown as an error. Missing history is never presented as a successful training run.
 
 *Manual version: matches the app as of 2026-09-25. If the app has changed since, the
 Guide page in the app is the up-to-date reference (this file is regenerated from it —

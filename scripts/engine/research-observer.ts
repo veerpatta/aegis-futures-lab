@@ -1,6 +1,7 @@
 import type { Bar } from "@/lib/types";
 import { executeRun } from "@/lib/backtest/run";
 import { POINT_VALUES } from "@/lib/market/contracts";
+import {ROUND3_IDS} from "@/lib/strategies/research-round3";
 import { RESEARCH_IDS, RESEARCH_VERSION, ZONE_REJECTION_PARAMS, RSI_CONTEXT_PARAMS } from "@/lib/strategies/research-v2";
 import { PAPER_RISK } from "@/lib/paper/policy";
 import { EXECUTION, SESSION_EXIT_MINUTE } from "./tiers";
@@ -11,7 +12,8 @@ import { stableHash } from "./learning-audit";
 import { strategyById } from "@/lib/strategies/registry";
 import { researchCodeHash } from "./research-code";
 
-export const candidateKey = (id: string, symbol: string) => `${RESEARCH_VERSION}:${id}:${symbol}`;
+export const ALL_RESEARCH_IDS=[...RESEARCH_IDS,...ROUND3_IDS];
+export const candidateKey = (id: string, symbol: string) => `${(ROUND3_IDS as readonly string[]).includes(id)?"2026-09-25.2":RESEARCH_VERSION}:${id}:${symbol}`;
 export const researchConfig = { version: RESEARCH_VERSION, zone:ZONE_REJECTION_PARAMS, rsi:RSI_CONTEXT_PARAMS, maxRisk: PAPER_RISK.riskPerTrade, execution: EXECUTION,
   dailyLoss: PAPER_RISK.dailyLoss, maxTrades: 2, maxDrawdown: Number.MAX_SAFE_INTEGER, sessionExitMinute: SESSION_EXIT_MINUTE };
 export const researchConfigHash = stableHash(researchConfig);
@@ -19,7 +21,7 @@ export function researchRequest(strategyId: string, symbol: string, bars: Bar[])
   const days = [...new Set(bars.map(b => nyMeta(b.time).dateKey))];
   return { strategyId, params: {}, series: { [symbol]: bars },
     execution: { ...EXECUTION, maxRisk: PAPER_RISK.riskPerTrade, fillModel: "nextOpen" as const, tradableSymbols: [symbol] },
-    locks: { dailyLoss: PAPER_RISK.dailyLoss, maxTrades: 2, maxLosses: 2, maxDrawdown: Number.MAX_SAFE_INTEGER },
+    locks: { dailyLoss: PAPER_RISK.dailyLoss, maxTrades: (ROUND3_IDS as readonly string[]).includes(strategyId)?1:2, maxLosses: 2, maxDrawdown: Number.MAX_SAFE_INTEGER },
     startingCapital: PAPER_RISK.capital, sessionExitMinute: SESSION_EXIT_MINUTE,
     sessionExitMinuteByDay: Object.fromEntries(days.map(d => [d, holidayFor(d)?.kind === "closed" ? 0 : flattenMinuteNy(d, SESSION_EXIT_MINUTE)])),
     pointValues: POINT_VALUES, keepOpenAtEnd: true };
@@ -31,7 +33,7 @@ export async function observeResearch(bySymbol: Record<string, Bar[]>, fromSec: 
   source: "yahoo" | "databento", recoveryId?: string) {
   let recorded = 0;
   const codeHash = researchCodeHash();
-  for (const strategyId of RESEARCH_IDS) for (const symbol of ["MES", "MNQ"] as const) {
+  for (const strategyId of ALL_RESEARCH_IDS) for (const symbol of ["MES", "MNQ"] as const) {
     const bars = (bySymbol[symbol] ?? []).filter(b => b.time + 300 <= asOfSec);
     if (bars.length < 200) throw new Error(`${symbol}: insufficient bars for research replay`);
     const result = executeRun(researchRequest(strategyId, symbol, bars));
@@ -47,7 +49,7 @@ export async function observeResearch(bySymbol: Record<string, Bar[]>, fromSec: 
           VALUES($1,$2,$3,$4,$5,to_timestamp($6),to_timestamp($7),$8,$9,$10,$11)
           ON CONFLICT(observation_key) DO UPDATE SET exit_ts=excluded.exit_ts,payload=excluded.payload
           WHERE research_observations.exit_ts IS NULL`,
-          [key, candidateKey(strategyId, symbol), RESEARCH_VERSION, source, "historical-replay", row.time, row.exit, JSON.stringify(row.payload), recoveryId ?? null,codeHash,researchConfigHash]);
+          [key, candidateKey(strategyId, symbol), candidateKey(strategyId,symbol).split(":")[0], source, "historical-replay", row.time, row.exit, JSON.stringify(row.payload), recoveryId ?? null,codeHash,researchConfigHash]);
         recorded++;
       }
       // Observe the decision BEFORE the next bar arrives. Merely finding an
@@ -64,7 +66,7 @@ export async function observeResearch(bySymbol: Record<string, Bar[]>, fromSec: 
           const intent=JSON.stringify({ ...signal, status:"pending", decisionTime:last.time, pnl:null });
           await client.query(`INSERT INTO research_observations(observation_key,candidate_key,strategy_version,source,provenance,signal_ts,payload,intent,code_hash,config_hash)
             VALUES($1,$2,$3,$4,'forward',to_timestamp($5),$6,$6,$7,$8) ON CONFLICT DO NOTHING`,
-            [key,candidateKey(strategyId,symbol),RESEARCH_VERSION,source,entry,intent,codeHash,researchConfigHash]);
+            [key,candidateKey(strategyId,symbol),candidateKey(strategyId,symbol).split(":")[0],source,entry,intent,codeHash,researchConfigHash]);
         }
       }
     });

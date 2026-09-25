@@ -1,0 +1,54 @@
+name: trader-research
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [register, refresh, development, confirmation, fill-audit, recover]
+        default: register
+        required: true
+      cutoff:
+        description: Exclusive data cutoff (availability is checked again)
+        default: '2026-09-24T00:00:00Z'
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: trader-research-purchases
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run registered research
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          ACTION: ${{ inputs.action }}
+          DATA_CUTOFF: ${{ inputs.cutoff }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            register) npx tsx scripts/diag/research-v2.ts --register-only ;;
+            refresh) npx tsx scripts/diag/research-v2.ts --register-only && npx tsx scripts/engine/refresh-contract-data.ts ;;
+            development) npx tsx scripts/diag/research-v2.ts ;;
+            confirmation) npx tsx scripts/diag/research-v2.ts --confirmation --as-of "$DATA_CUTOFF" ;;
+            fill-audit) npx tsx scripts/diag/execution-audit.ts ;;
+            recover) npx tsx scripts/engine/recover-training.ts --from 2026-07-30T00:00:00Z --as-of "$DATA_CUTOFF" --source databento && LEARNING_AS_OF="$DATA_CUTOFF" npx tsx scripts/engine/learn.ts ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-summaries
+          path: |
+            docs/research/2026-09-25-research-v2*.json
+            docs/research/2026-09-25-execution-audit.json
+          if-no-files-found: ignore

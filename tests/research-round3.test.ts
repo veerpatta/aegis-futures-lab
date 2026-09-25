@@ -1,0 +1,8 @@
+import {it,expect} from "vitest";
+import {openingContinuation,overnightRejection} from "@/lib/strategies/research-round3";
+import type {Bar} from "@/lib/types";
+import {nyMeta} from "@/lib/time/ny";
+const fixture=()=>{const bars:Bar[]=[];for(let time=Date.parse("2026-08-03T13:30:00Z")/1000;time<Date.parse("2026-09-12")/1000;time+=300){const m=nyMeta(time);if(m.weekday==="Sat"||m.weekday==="Sun"||m.minutes<570||m.minutes>=960)continue;const n=bars.length;bars.push({time,open:5000+n*.01,high:5001+n*.01,low:4999+n*.01,close:5000.1+n*.01,volume:100});}return bars;};
+it("opening continuation uses a full opening half-hour and completed daily history",()=>{const bars=fixture(),ctx=openingContinuation.prepare({MES:bars},{},{sizing:"risk" as const,cost:2.4,slippage:.25,maxRisk:50,fillModel:"nextOpen"});const entries=[...ctx.MES];expect(entries.length).toBeGreaterThan(0);for(const [t,s] of entries){expect(nyMeta(t).minutes).toBe(595);expect(s.side).toBe("LONG");expect(s.target).toEqual({kind:"rMultiple",r:2});}});
+it("future bars cannot change an earlier opening decision",()=>{const bars=fixture();const config={sizing:"risk" as const,cost:2.4,slippage:.25,maxRisk:50,fillModel:"nextOpen" as const};const full=openingContinuation.prepare({MES:bars},{},config);for(const [t,s] of [...full.MES].slice(0,3)){const prefix=bars.filter(b=>b.time<=t);expect(openingContinuation.prepare({MES:prefix},{},config).MES.get(t)).toEqual(s);}});
+it("overnight rejection refuses incomplete overnight coverage",()=>{const bars=fixture();expect(overnightRejection.prepare({MES:bars},{},{sizing:"risk" as const,cost:2.4,slippage:.25,maxRisk:50,fillModel:"nextOpen"}).MES.size).toBe(0);});

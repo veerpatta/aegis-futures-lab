@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   test:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -45,7 +45,7 @@ jobs:
       - run: npm run test:e2e
 
   bot-branches:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

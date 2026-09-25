@@ -17,7 +17,6 @@ import { money } from "@/lib/format";
 import { MIN_JUDGED_N, PREVIEW_NOTE, fmtPf } from "@/lib/stats";
 import { GRADUATE_MIN_TRAIN, graduationProgress } from "@/scripts/engine/winprob";
 import styles from "./brain.module.css";
-import PaperDesk from "@/components/home/PaperDesk";
 
 interface Cell {
   n: number;
@@ -189,7 +188,7 @@ export default function BrainClient() {
 
   const intro = (
     <>
-      <PaperDesk />
+
       {auditError && <p role="alert">{auditError}</p>}
       <h1 className="pageTitle">What the bot knows</h1>
       <p className="pageSub">

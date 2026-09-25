@@ -233,7 +233,7 @@ export default function MarketsClient() {
     <>
       <h1 className="pageTitle">Markets</h1>
       <p className="pageSub">
-        Free delayed research feed — display only, never execution-grade.
+        Delayed research feed. Chart signals are research observations, not current paper-account positions.
       </p>
 
       {/* ── Session strip: which session, and how long is left in it ── */}

@@ -1,5 +1,2 @@
-import HomeClient from "@/components/home/HomeClient";
-
-export default function HomePage() {
-  return <HomeClient />;
-}
+import TraderDesk from "@/components/home/TraderDesk";
+export default function HomePage(){return <TraderDesk/>;}

@@ -7,6 +7,7 @@ import { ZoneProvider } from "@/components/providers/ZoneProvider";
 import { PrivacyProvider } from "@/components/providers/PrivacyProvider";
 import { BotHealthProvider } from "@/components/providers/BotHealthProvider";
 import "./globals.css";
+import { PaperProvider } from "@/components/providers/PaperProvider";
 
 export const metadata: Metadata = {
   title: "Aegis Futures Lab",
@@ -44,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ZoneProvider>
           <DataProvider>
             <PrivacyProvider>
-              <BotHealthProvider>
+              <BotHealthProvider><PaperProvider>
                 <div className="shell">
                   <Sidebar />
                   <div className="contentCol">
@@ -53,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </div>
                 </div>
                 <MobileTabBar />
-              </BotHealthProvider>
+              </PaperProvider></BotHealthProvider>
             </PrivacyProvider>
           </DataProvider>
         </ZoneProvider>

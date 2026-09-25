@@ -1,0 +1,4 @@
+import Link from "next/link";
+import {SECONDARY_LINKS} from "@/components/nav/links";
+import styles from "@/components/home/trader-desk.module.css";
+export default function MorePage(){return <div className={styles.page}><div className={styles.titleRow}><h1>More</h1></div><p className={styles.disclaimer}>Research tools, your records, and help. Paper only · Delayed data.</p><div className={styles.candidates}>{SECONDARY_LINKS.map(l=><Link className={styles.candidate} key={l.href} href={l.href}><div className={styles.row}><b>{l.label}</b><span aria-hidden>→</span></div><p>{l.hint}</p></Link>)}</div><Link href="/research-history">Legacy signal research →</Link></div>;}

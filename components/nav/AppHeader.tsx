@@ -14,6 +14,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {usePaper} from "@/components/providers/PaperProvider";
+import {botState,freshTraining} from "@/lib/paper/overview";
 import { usePathname } from "next/navigation";
 import { NAV_LINKS, SECONDARY_LINKS } from "./links";
 import ZoneToggle from "./ZoneToggle";
@@ -35,7 +37,10 @@ function screenTitle(pathname: string): string {
 export default function AppHeader() {
   const pathname = usePathname();
   const { privacy, toggle } = usePrivacy();
-  const { alerts, asleep } = useBotHealth();
+  const { alerts:engineAlerts, asleep } = useBotHealth();
+  const paper=usePaper();
+  const paperStatus=botState(paper.data,paper.errors.includes("Account"));
+  const alerts=[...engineAlerts,...(!paper.loading&&paperStatus.label==="Paused"?[{id:"paper-paused",tone:"warn" as const,text:paperStatus.reason}]:[]),...(!paper.loading&&!freshTraining(paper.data?.learning??null)?[{id:"training-stale",tone:"warn" as const,text:"Training needs attention. Check Bot for the last completed run."}]:[]),...(paper.errors.length?[{id:"paper-read",tone:"warn" as const,text:"Practice account information could not refresh. The displayed snapshot may be old."}]:[])];
   const { zone } = useZone();
   const [bellOpen, setBellOpen] = useState(false);
   /* null on the server and on first paint; the date lands after mount so the

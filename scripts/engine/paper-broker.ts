@@ -57,14 +57,16 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
       const m=nyMeta(time);
       if(m.dateKey!==day){day=m.dateKey;dayStart=equity;}
       const o=pending.get(time);
-      if(o) await c.query("INSERT INTO paper_entry_decisions(observation_key,reason) VALUES($1,'Evaluated once under the current portfolio risk budget') ON CONFLICT DO NOTHING",[o.observation_key]);
+      let decision="Skipped: account is paused, locked, or outside its entry session";
       if(o && valid && !locked && m.minutes>=120 && m.minutes<flattenMinuteNy(m.dateKey,925) && holidayFor(m.dateKey)?.kind!=="closed") {
         const symbol=o.candidate_key.endsWith(":MES")?"MES":"MNQ",b=indices[symbol]?.get(time),s=o.intent;
         if(b && ["LONG","SHORT"].includes(s.side) && Number.isFinite(s.stop)) {
           const direction=s.side==="LONG"?1:-1,entry=b.open+direction*slip(symbol,time),distance=(entry-s.stop)*direction;
           const openRisk=positions.filter(p=>!p.closed_at).reduce((a,p)=>a+p.risk,0);
           const perRisk=distance*pv(symbol)+EXECUTION.cost+slip(symbol,time)*pv(symbol);
+          decision="Skipped: entry bar or trade instruction is unavailable";
           const sized=sizePaperTrade({equity,peak,dailyPnl:equity-dayStart,openRisk,locked},perRisk,release.status==="probation");
+          decision=distance<2?"Skipped: stop is too close or the market opened beyond it":sized.reason??"Paper entry opened within the account risk budget";
           if(distance>=2 && sized.qty>0){
             const ratio=release.candidate_key.includes("rsi-context")?1.5:2;
             const p:Position={id:o.observation_key,release_id:release.id,symbol,side:s.side,qty:sized.qty,entry,stop:s.stop,target:entry+direction*distance*ratio,
@@ -74,6 +76,7 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
           }
         }
       }
+      if(o) await c.query("INSERT INTO paper_entry_decisions(observation_key,reason) VALUES($1,$2) ON CONFLICT DO NOTHING",[o.observation_key,decision]);
       for(const p of positions.filter(p=>!p.closed_at)) {
         const b=indices[p.symbol]?.get(time);if(!b || (p.last_mark_ts && time < Date.parse(p.last_mark_ts)/1000)) continue;
         const exit=exitForPaper(p,b);

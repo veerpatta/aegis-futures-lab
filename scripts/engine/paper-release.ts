@@ -1,7 +1,7 @@
 import { transaction } from "@/lib/neon/server";
 import { RESEARCH_IDS } from "@/lib/strategies/research-v2";
 import { releaseEligible, freshWeeklyEvidence, type ForwardEvidence } from "@/lib/paper/policy";
-import { candidateKey, researchConfigHash } from "./research-observer";
+import { ALL_RESEARCH_IDS, candidateKey, researchConfigHash } from "./research-observer";
 import { stableHash } from "./learning-audit";
 import { nyMeta } from "@/lib/time/ny";
 import { researchCodeHash } from "./research-code";
@@ -13,11 +13,12 @@ export async function evaluatePaperReleases() {
     await c.query("SELECT * FROM paper_account WHERE id=1 FOR UPDATE");
     const decisions=[];
     const ranked=await c.query("SELECT trial_key FROM research_trials WHERE outcome IS NOT NULL ORDER BY (outcome->>'net')::numeric DESC NULLS LAST, (outcome->>'stressDrawdown')::numeric ASC NULLS LAST, trial_key");
-    const registered=RESEARCH_IDS.flatMap(id=>["MES","MNQ"].map(symbol=>candidateKey(id,symbol)));
+    const registered=ALL_RESEARCH_IDS.flatMap(id=>["MES","MNQ"].map(symbol=>candidateKey(id,symbol)));
     const keys=[...new Set([...ranked.rows.map(r=>r.trial_key).filter(k=>registered.includes(k)),...registered])];
     for(const key of keys) {
       const trials=await c.query("SELECT outcome,config_hash,code_sha FROM research_trials WHERE trial_key=$1 AND config_hash=$2",[key,stableHash({key,config:researchConfigHash})]);
-      const trial=trials.rows[0], historical=trial?.outcome;
+      const measurement=await c.query("SELECT outcome FROM research_measurements WHERE candidate_key=$1 AND code_hash=$2 AND config_hash=$3 ORDER BY measured_at DESC LIMIT 1",[key,researchCodeHash(),researchConfigHash]);
+      const trial=trials.rows[0], historical=measurement.rows[0]?.outcome??trial?.outcome;
       const confirmations=await c.query("SELECT outcome FROM research_confirmations WHERE candidate_key=$1 AND code_hash=$2 AND config_hash=$3 ORDER BY measured_at DESC LIMIT 1",[key,researchCodeHash(),researchConfigHash]);
       const confirmation=confirmations.rows[0]?.outcome;
       const rows=await c.query(`SELECT observation_key,signal_ts,exit_ts,payload FROM research_observations

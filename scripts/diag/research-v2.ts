@@ -5,7 +5,7 @@ import { fetchArchiveBars } from "@/lib/data/archive";
 import { alignArchiveSlice } from "@/lib/data/window";
 import { executeRun } from "@/lib/backtest/run";
 import { RESEARCH_IDS, RESEARCH_VERSION } from "@/lib/strategies/research-v2";
-import { candidateKey, researchConfigHash, researchRequest } from "../engine/research-observer";
+import { ALL_RESEARCH_IDS, candidateKey, researchConfigHash, researchRequest } from "../engine/research-observer";
 import { stableHash } from "../engine/learning-audit";
 import { researchCodeHash } from "../engine/research-code";
 import { effectiveTrialCount } from "../engine/trial-count";
@@ -24,7 +24,7 @@ const end = Date.parse(confirmation ? asOf : "2026-07-30T00:00:00Z") / 1000;
 const confirmationFrom = "2026-07-30T00:00:00Z";
 const decisionRule = "Frozen rules; all existing promotion gates, stressed drawdown below $1000, untouched confirmation data and 60 forward closes over 20 trading days, two weekly passes with 10 new closes. No parameter tuning.";
 async function main() {
-  const specs = RESEARCH_IDS.flatMap(id => (["MES", "MNQ"] as const).map(symbol => ({ id, symbol, key: candidateKey(id, symbol) })));
+  const specs = ALL_RESEARCH_IDS.flatMap(id => (["MES", "MNQ"] as const).map(symbol => ({ id, symbol, key: candidateKey(id, symbol) })));
   await transaction(async c => {
     for (const s of specs) await c.query(`INSERT INTO research_trials(trial_key,hypothesis,prediction,decision_rule,config_hash,params,dataset,status,code_sha)
       VALUES($1,$2,$3,$4,$5,$6,$7,'registered',$8) ON CONFLICT(config_hash) DO NOTHING`,
@@ -32,7 +32,7 @@ async function main() {
         JSON.stringify({ version: RESEARCH_VERSION, risk: 50, strategy: s.id, symbol:s.symbol }),
         JSON.stringify({ source:"databento", developmentEnd:confirmationFrom, confirmationFrom, note:"Old inspected archive is development, never independent confirmation" }), process.env.GITHUB_SHA ?? null]);
   });
-  if (process.argv.includes("--register-only")) { console.log("Registered six frozen trials and reserved confirmation period."); return; }
+  if (process.argv.includes("--register-only")) { console.log("Registered all frozen trials and reserved confirmation period."); return; }
   const db=createClient();
   const counts=await transaction(c=>c.query("SELECT params,dataset FROM research_trials"));
   const totalTrials=effectiveTrialCount(counts.rows);
@@ -82,11 +82,13 @@ async function main() {
     for(const r of output) {
       if(confirmation) await c.query(`INSERT INTO research_confirmations(id,candidate_key,code_hash,config_hash,outcome)
         VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,[stableHash({key:r.key,hash:r.datasetHash,config:r.configHash,code:r.codeHash}),r.key,r.codeHash,r.configHash,JSON.stringify(r)]);
-      else await c.query(`UPDATE research_trials SET status=$2,outcome=$3,decided_at=now()
+      else { await c.query(`UPDATE research_trials SET status=$2,outcome=$3,decided_at=now()
         WHERE config_hash=$1 AND outcome IS NULL`,[stableHash({key:r.key,config:researchConfigHash}),"complete",JSON.stringify(r)]);
+        await c.query(`INSERT INTO research_measurements(id,candidate_key,code_hash,config_hash,outcome) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,[stableHash({key:r.key,hash:r.datasetHash,config:r.configHash,code:r.codeHash}),r.key,r.codeHash,r.configHash,JSON.stringify(r)]);
+      }
     }
   });
   writeFileSync(`docs/research/2026-09-25-research-v2${confirmation?"-confirmation":""}.json`,JSON.stringify({version:RESEARCH_VERSION,totalTrials,confirmationFrom,results:output},null,2));
-  console.log(`${output.filter(r=>r.gate.promote).length}/6 development passes; independent confirmation remains required.`);
+  console.log(`${output.filter(r=>r.gate.promote).length}/${output.length} ${confirmation?"confirmation":"development"} passes; independent confirmation remains required.`);
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

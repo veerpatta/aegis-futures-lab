@@ -456,8 +456,8 @@ export default function SignalsClient() {
     <>
       <h1 className="pageTitle">Signals</h1>
       <p className="pageSub">
-        Tier A = high-conviction zone setups · Tier B = daily RSI flow. Delayed data, paper
-        simulation — a log to study, never execution instructions.
+        Legacy strategy research, not positions in the current practice account.
+        Tier A = zone setups · Tier B = RSI flow. Delayed simulations to study.
       </p>
 
       {showIntro && (
