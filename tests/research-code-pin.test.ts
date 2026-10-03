@@ -11,7 +11,8 @@ import { researchCodeHash } from "@/scripts/engine/research-code";
    effect of UI work that happened to reword a label in a hashed folder. So the
    hash is pinned here. A deliberate research-code revision updates this value
    in the same commit and says why in docs/research/. */
-const PINNED = "affc097472cb222c45171bf44bd791bf2dc600fca33c2b40c64fd0d080bd6de6";
+// 2026-10-03 research-code revision (docs/research/2026-10-03-research-code-revision.md).
+const PINNED = "702840b7633f7da54d29c46c63a779389ad7b6d497405e78f3f768aade0a8b46";
 
 describe("research code hash", () => {
   it("only changes in a deliberate research-code revision", () => {

@@ -41,10 +41,18 @@ export const PHASE4_HYPOTHESES = new Set(["orb-relvol", "turn-of-month"]);
 
 export const isHypothesis = (id: string): boolean => PHASE4_HYPOTHESES.has(id);
 
-/* Strategies with NO measured result behind them. The set is intentionally
-   empty after the 2026-08-25 Phase 4 benchmark: both registered hypotheses now
-   have a measured result and belong in REFUTED, not amber limbo. */
-export const UNMEASURED: ReadonlySet<string> = new Set<string>([RESEARCH_IDS[0],...ROUND3_IDS].filter(id=>!(roundStanding.refuted as string[]).includes(id)));
+/* Strategies with NO random-entry benchmark behind them. Until 2026-10-03 the
+   four classics (ema-cross, orb, vwap-reversion, bollinger-breakout) fell
+   through to "measured" by default although nobody had benchmarked them —
+   the misleading third state. They are listed in research-standing.json,
+   which the research code hash does NOT cover (it reads .ts files only), so a
+   later verdict moves a strategy between lists without restarting forward
+   evidence. The weekly auto-benchmark measures these and reports; a person
+   moves them. */
+const listedUnmeasured = ((roundStanding as { unmeasured?: string[] }).unmeasured ?? []);
+export const UNMEASURED: ReadonlySet<string> = new Set<string>(
+  [RESEARCH_IDS[0], ...ROUND3_IDS, ...listedUnmeasured].filter((id) => !(roundStanding.refuted as string[]).includes(id))
+);
 
 export const isUnmeasured = (id: string): boolean => UNMEASURED.has(id);
 
@@ -72,7 +80,7 @@ export const isRefutedStrategy = (id: string): boolean => REFUTED.has(id);
 
 /* Design language §6: insufficient evidence is AMBER, never red — an unproven
    strategy is not a losing one. A REFUTED one has been proven not to work, and
-   the app already renders that state red (LiveVsTuning.tsx). */
+   the app renders that state red (the idea-card badge in lib/plain/idea.ts). */
 export const UNMEASURED_LABEL = "UNMEASURED";
 export const REFUTED_LABEL = "REFUTED";
 

@@ -6,7 +6,7 @@ import { RESEARCH_IDS, RESEARCH_VERSION, ZONE_REJECTION_PARAMS, RSI_CONTEXT_PARA
 import { PAPER_RISK } from "@/lib/paper/policy";
 import { EXECUTION, SESSION_EXIT_MINUTE } from "./tiers";
 import { transaction } from "@/lib/neon/server";
-import { nyMeta } from "@/lib/time/ny";
+import { nyMeta, nyTimeToUnix, tradingDayKey } from "@/lib/time/ny";
 import { flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { stableHash } from "./learning-audit";
 import { strategyById } from "@/lib/strategies/registry";
@@ -27,10 +27,44 @@ export function researchRequest(strategyId: string, symbol: string, bars: Bar[])
     pointValues: POINT_VALUES, keepOpenAtEnd: true };
 }
 
+/* Which finished bars a pass decides on. Default 0 is the legacy behaviour:
+   the last finished bar only. With a 15-minute cron and 5-minute bars that
+   skipped about two decision bars in three, and the 60-trade / 20-day forward
+   bar took three times as long to reach. The live engine opts in to a short
+   catch-up window (run-live.ts): every finished bar inside it is decided on,
+   oldest first, each with only the bars up to itself visible — the same
+   frozen rules on the same bars, decided once (ON CONFLICT DO NOTHING). */
+export function decisionIndexes(bars: Bar[], catchUpSec = 0): number[] {
+  if (!bars.length) return [];
+  const last = bars.length - 1;
+  if (catchUpSec <= 0) return [last];
+  const from = bars[last].time - catchUpSec;
+  const out: number[] = [];
+  for (let i = last; i >= 0 && bars[i].time >= from; i--) out.unshift(i);
+  return out;
+}
+
+/* An intent the strategy's own rules never took — its replay hit a daily
+   limit, already held a position, or the risk budget refused one contract —
+   used to stay open forever, so it never counted and never closed. Once its
+   session has ended (plus a grace pass) it is closed with no result. A null
+   pnl keeps it out of every forward count (candidate_progress and
+   paper-release both require a numeric pnl). */
+export const UNTAKEN_GRACE_SEC = 90 * 60;
+export const UNTAKEN_NOTE =
+  "The strategy's own rules did not take this trade (daily limit, one position at a time, or risk budget).";
+export function sessionEndSec(entrySec: number): number {
+  const day = tradingDayKey(entrySec);
+  return nyTimeToUnix(day, flattenMinuteNy(day, SESSION_EXIT_MINUTE));
+}
+export function untakenReadyToClose(entrySec: number, asOfSec: number): boolean {
+  return asOfSec > sessionEndSec(entrySec) + UNTAKEN_GRACE_SEC;
+}
+
 /** Only positions actually observed open near entry can become forward evidence.
  * A closed trade first discovered during replay is forever historical. */
 export async function observeResearch(bySymbol: Record<string, Bar[]>, fromSec: number, asOfSec: number,
-  source: "yahoo" | "databento", recoveryId?: string) {
+  source: "yahoo" | "databento", recoveryId?: string, { catchUpSec = 0 }: { catchUpSec?: number } = {}) {
   let recorded = 0;
   const codeHash = researchCodeHash();
   for (const strategyId of ALL_RESEARCH_IDS) for (const symbol of ["MES", "MNQ"] as const) {
@@ -52,21 +86,40 @@ export async function observeResearch(bySymbol: Record<string, Bar[]>, fromSec: 
           [key, candidateKey(strategyId, symbol), candidateKey(strategyId,symbol).split(":")[0], source, "historical-replay", row.time, row.exit, JSON.stringify(row.payload), recoveryId ?? null,codeHash,researchConfigHash]);
         recorded++;
       }
-      // Observe the decision BEFORE the next bar arrives. Merely finding an
-      // already-open trade would select survivors and bias the forward sample.
+      // Observe the decision from the bars alone, before the outcome exists.
+      // Merely finding an already-open trade would select survivors and bias
+      // the forward sample, so only decisions are recorded here; the replay
+      // above fills in entry, target and size when the rules take the trade.
       const last = bars.at(-1)!;
       if (!recoveryId && asOfSec - last.time <= 1800) {
         const strategy = strategyById(strategyId), req = researchRequest(strategyId, symbol, bars);
         const ctx = strategy.prepare(req.series, {}, req.execution);
-        const signals = strategy.onSnapshot(ctx, { time: last.time, bySymbol: { [symbol]: { bars, index: bars.length - 1 } } }, {}, () => {});
-        for (const signal of signals) {
-          const m = nyMeta(last.time);
+        for (const index of decisionIndexes(bars, catchUpSec)) {
+          const bar = bars[index];
+          const m = nyMeta(bar.time);
           if (holidayFor(m.dateKey)?.kind === "closed" || m.minutes >= flattenMinuteNy(m.dateKey, SESSION_EXIT_MINUTE)) continue;
-          const entry = last.time + 300, key = `${candidateKey(strategyId,symbol)}:${source}:${entry}:${codeHash}`;
-          const intent=JSON.stringify({ ...signal, status:"pending", decisionTime:last.time, pnl:null });
-          await client.query(`INSERT INTO research_observations(observation_key,candidate_key,strategy_version,source,provenance,signal_ts,payload,intent,code_hash,config_hash)
-            VALUES($1,$2,$3,$4,'forward',to_timestamp($5),$6,$6,$7,$8) ON CONFLICT DO NOTHING`,
-            [key,candidateKey(strategyId,symbol),candidateKey(strategyId,symbol).split(":")[0],source,entry,intent,codeHash,researchConfigHash]);
+          const signals = strategy.onSnapshot(ctx, { time: bar.time, bySymbol: { [symbol]: { bars, index } } }, {}, () => {});
+          for (const signal of signals) {
+            const entry = bar.time + 300, key = `${candidateKey(strategyId,symbol)}:${source}:${entry}:${codeHash}`;
+            // `late` is transparency only: the entry bar had already printed when
+            // this decision was recorded. The rules and the bars are the same.
+            const intent=JSON.stringify({ ...signal, status:"pending", decisionTime:bar.time, pnl:null, ...(index < bars.length - 1 ? { late: true } : {}) });
+            await client.query(`INSERT INTO research_observations(observation_key,candidate_key,strategy_version,source,provenance,signal_ts,payload,intent,code_hash,config_hash)
+              VALUES($1,$2,$3,$4,'forward',to_timestamp($5),$6,$6,$7,$8) ON CONFLICT DO NOTHING`,
+              [key,candidateKey(strategyId,symbol),candidateKey(strategyId,symbol).split(":")[0],source,entry,intent,codeHash,researchConfigHash]);
+          }
+        }
+        // Every hash, not just this one: intents stranded under an earlier code
+        // hash were never taken by the replay that ran while it was live.
+        const untaken = await client.query(`SELECT observation_key,signal_ts FROM research_observations
+          WHERE candidate_key=$1 AND source=$2 AND provenance='forward' AND exit_ts IS NULL
+          AND intent IS NOT NULL AND NOT (payload ? 'entryPrice')`, [candidateKey(strategyId, symbol), source]);
+        for (const row of untaken.rows) {
+          const entrySec = Date.parse(row.signal_ts) / 1000;
+          if (!untakenReadyToClose(entrySec, asOfSec)) continue;
+          await client.query(`UPDATE research_observations SET exit_ts=to_timestamp($2), payload=payload || $3::jsonb
+            WHERE observation_key=$1 AND exit_ts IS NULL`,
+            [row.observation_key, sessionEndSec(entrySec), JSON.stringify({ pnl: null, untaken: true, note: UNTAKEN_NOTE })]);
         }
       }
     });

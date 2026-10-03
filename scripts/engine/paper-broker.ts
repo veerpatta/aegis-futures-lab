@@ -58,7 +58,16 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
       if(m.dateKey!==day){day=m.dateKey;dayStart=equity;}
       const o=pending.get(time);
       let decision="Skipped: account is paused, locked, or outside its entry session";
-      if(o && valid && !locked && m.minutes>=120 && m.minutes<flattenMinuteNy(m.dateKey,925) && holidayFor(m.dateKey)?.kind!=="closed") {
+      /* The practice account only takes trades the strategy's own replay took.
+         The replay applies the rules the forward evidence is judged by — its
+         daily trade and loss limits, one position at a time, its risk budget —
+         and writes the opened trade (entryPrice, target, qty) into the
+         observation's payload. An intent it refused stays without entryPrice
+         and is skipped here, so practice P&L and forward evidence describe the
+         same trades. */
+      const taken=!!o && typeof o.payload?.entryPrice==="number";
+      if(o && !taken) decision="Skipped: the strategy's own rules did not take this trade";
+      if(o && taken && valid && !locked && m.minutes>=120 && m.minutes<flattenMinuteNy(m.dateKey,925) && holidayFor(m.dateKey)?.kind!=="closed") {
         const symbol=o.candidate_key.endsWith(":MES")?"MES":"MNQ",b=indices[symbol]?.get(time),s=o.intent;
         if(b && ["LONG","SHORT"].includes(s.side) && Number.isFinite(s.stop)) {
           const direction=s.side==="LONG"?1:-1,entry=b.open+direction*slip(symbol,time),distance=(entry-s.stop)*direction;
@@ -68,8 +77,11 @@ export async function runPaperBroker(bySymbol:Record<string,Bar[]>,nowSec:number
           const sized=sizePaperTrade({equity,peak,dailyPnl:equity-dayStart,openRisk,locked},perRisk,release.status==="probation");
           decision=distance<2?"Skipped: stop is too close or the market opened beyond it":sized.reason??"Paper entry opened within the account risk budget";
           if(distance>=2 && sized.qty>0){
+            // The strategy's own target, as its replay placed it. The old fixed
+            // 1.5R/2R stays only as a fallback for a targetless strategy.
             const ratio=release.candidate_key.includes("rsi-context")?1.5:2;
-            const p:Position={id:o.observation_key,release_id:release.id,symbol,side:s.side,qty:sized.qty,entry,stop:s.stop,target:entry+direction*distance*ratio,
+            const target=Number.isFinite(o.payload?.target)?Number(o.payload.target):entry+direction*distance*ratio;
+            const p:Position={id:o.observation_key,release_id:release.id,symbol,side:s.side,qty:sized.qty,entry,stop:s.stop,target,
               risk:perRisk*sized.qty,mark:entry,opened_at:new Date(time*1000).toISOString(),last_mark_ts:null,closed_at:null,pnl:null,reason:String(s.reason??s.tags?.trigger??"Registered strategy passed every gate")};
             await c.query(`INSERT INTO paper_positions(id,release_id,opened_at,symbol,side,qty,entry,stop,target,risk,mark,reason)
               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING`,[p.id,p.release_id,p.opened_at,p.symbol,p.side,p.qty,p.entry,p.stop,p.target,p.risk,p.mark,p.reason]);positions.push(p);

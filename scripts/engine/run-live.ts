@@ -843,7 +843,9 @@ async function main() {
   // Two blocks, not one: an observer failure used to skip the broker silently.
   try {
     const { observeResearch } = await import("./research-observer");
-    await observeResearch(bySymbol, cutoff, nowSec, "yahoo");
+    // Opts in to the 30-minute catch-up (the observer default is the legacy
+    // last-bar-only pass): a delayed cron no longer skips decision bars.
+    await observeResearch(bySymbol, cutoff, nowSec, "yahoo", undefined, { catchUpSec: 1800 });
   } catch (e) {
     warnings.push(componentWarning("research-observer", e));
   }
