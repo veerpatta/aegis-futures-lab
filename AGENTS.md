@@ -44,7 +44,10 @@ short sentences. The reader knows trading but not software. Always keep the
   `lib/paper/policy.ts`, `lib/types.ts`, `regime.ts`, `research-observer.ts`,
   `paper-broker.ts`. Editing any of them restarts forward evidence and pauses releases.
   `tests/research-code-pin.test.ts` pins the hash — UI copy goes in `lib/plain/`, never in a
-  hashed folder, and a deliberate research-code revision updates the pin in its own commit.
+  hashed folder, and a deliberate research-code revision updates the pin in its own commit. The hash
+  must be identical on Windows and Linux (paths are normalised before sorting; until
+  2026-10-03 they were not, and a Windows-run measurement never matched the Linux engine's
+  forward evidence). Run research measurements in CI (`registered-research-v2`), not locally.
 - Stale open rows: `run-live.ts` reconciles `triggered`/`pending` rows older than the 7-day
   mirror window (`lib/engine/stale-open.ts`), and the screens never show a row past its
   session's flatten time as OPEN (`lib/signals/open-state.ts`). Best-effort engine parts

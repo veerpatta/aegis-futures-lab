@@ -11,8 +11,10 @@ import { researchCodeHash } from "@/scripts/engine/research-code";
    effect of UI work that happened to reword a label in a hashed folder. So the
    hash is pinned here. A deliberate research-code revision updates this value
    in the same commit and says why in docs/research/. */
-// 2026-10-03 research-code revision, then the risk-cap change (docs/research/2026-10-03-risk-cap.md).
-const PINNED = "de35d4993f0c527c566acc5d7f88c3259feeae874abdd3a97f9a296fc50f2114";
+// 2026-10-03: research-code revision, risk-cap change, then the cross-platform hash fix
+// (docs/research/2026-10-03-risk-cap.md). The same value on Windows and Linux — if this
+// passes on one and fails on the other, the hash has become platform-dependent again.
+const PINNED = "c933481bea2ceb4856d136be58e88bfffe50a5bd30ee88bbe740ba54f947a9ab";
 
 describe("research code hash", () => {
   it("only changes in a deliberate research-code revision", () => {
