@@ -1,2 +1,5 @@
-import TraderDesk from "@/components/home/TraderDesk";
-export default function BrainPage(){return <TraderDesk/>;}
+import BotClient from "@/components/bot/BotClient";
+
+export default function BotPage() {
+  return <BotClient />;
+}

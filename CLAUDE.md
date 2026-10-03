@@ -26,10 +26,32 @@ short sentences. The reader knows trading but not software. Always keep the
 
 ## Repo facts
 
-- Routes: `/` is the Home dashboard (`components/home/HomeClient.tsx`), the Strategy Lab
-  lives at `/lab`, and `/replay` is labelled "Journal" in the nav. `components/nav/links.tsx`
-  splits `NAV_LINKS` (sidebar + the five `mobile: true` tab-bar entries) from
-  `SECONDARY_LINKS` (Compare, Data — sidebar "More" group only).
+- Routes (plain-language mobile redesign, 2026-10-03): five phone tabs — Today `/`
+  (`components/today/TodayClient.tsx`), Ideas `/signals` (`components/signals/IdeasClient.tsx`),
+  Chart `/markets`, Bot `/brain` (`components/bot/BotClient.tsx`), More `/more`. URLs kept
+  their old paths on purpose. `components/nav/links.tsx` holds `NAV_LINKS` and `MORE_GROUPS`
+  (Your tools: Journal `/replay`, Review · Learn: Guide · Research room: Lab, Diagnostics, Data);
+  `SECONDARY_LINKS` is the flattened groups. Compare, the legacy dashboard (`/research-history`)
+  and `/brain/history` were removed; `next.config.ts` redirects them.
+- Plain-language layer: every jargon word on screen goes through `<Term k=…>`
+  (`components/ui/Glossary.tsx`) backed by `lib/glossary.ts`, which also renders the Guide's
+  word list and must match `docs/USER-MANUAL.md` word for word (tests/plain-language pins it).
+  Research numbers sit behind `components/ui/ShowNumbers.tsx`. Idea cards
+  (`components/signals/IdeaCard.tsx`) always carry their method's standing badge
+  (`lib/plain/idea.ts`). Sentences and verdicts live in `lib/plain/`.
+- RESEARCH CODE HASH: `scripts/engine/research-code.ts` hashes `lib/strategies`, `lib/backtest`,
+  `lib/costs`, `lib/indicators`, `lib/time`, `lib/market`, `lib/validation`,
+  `lib/paper/policy.ts`, `lib/types.ts`, `regime.ts`, `research-observer.ts`,
+  `paper-broker.ts`. Editing any of them restarts forward evidence and pauses releases.
+  `tests/research-code-pin.test.ts` pins the hash — UI copy goes in `lib/plain/`, never in a
+  hashed folder, and a deliberate research-code revision updates the pin in its own commit.
+- Stale open rows: `run-live.ts` reconciles `triggered`/`pending` rows older than the 7-day
+  mirror window (`lib/engine/stale-open.ts`), and the screens never show a row past its
+  session's flatten time as OPEN (`lib/signals/open-state.ts`). Best-effort engine parts
+  write `component_failed[<part>]` into the heartbeat (`lib/engine/markers.ts`); the
+  watchdog's `watchdog-components` check alerts when one fails twice in a row.
+- Never run `scripts/engine/run-live.ts` locally: `.env.local` points at production Neon and
+  there is no dry-run mode.
 - Times on screen follow a global ET/IST switch (`components/providers/ZoneProvider.tsx`,
   `lib/time/zones.ts`), persisted per device and defaulting to IST for Asia/Kolkata
   browsers. Two things stay ET on purpose: signals group by New York trading day
@@ -80,8 +102,8 @@ short sentences. The reader knows trading but not software. Always keep the
   that must reach a tier before it can be benchmarked makes the gate
   unfalsifiable. Same rule as the other three: do not tune it.
 - Strategy standing is a THREE-state fact in `lib/strategies/registry.ts`:
-  `standingOf(id)` returns measured | unmeasured | refuted, and the Lab,
-  Compare and Markets all read it. UNMEASURED is amber and REFUTED is red on
+  `standingOf(id)` returns measured | unmeasured | refuted, and the Lab, the
+  idea-card badges (`lib/plain/idea.ts`) and the Ideas verdict all read it. UNMEASURED is amber and REFUTED is red on
   purpose — "nobody has looked" and "we looked, and it is a coin flip" are
   different claims. Before this landed, `isHypothesis` was called
   "load-bearing for the UI" while only tests ever read it.

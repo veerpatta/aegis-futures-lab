@@ -1,0 +1,366 @@
+/* Shared layout for the phone-first screens (Today, Ideas, Bot, More …).
+   Replaces the minified simple-workspace.module.css. Tokens only. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding-bottom: var(--space-5);
+  min-width: 0;
+}
+
+.wide {
+  max-width: 1120px;
+}
+
+.head {
+  display: grid;
+  gap: 4px;
+}
+.head h1 {
+  margin: 0;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.paperLine {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  margin-top: var(--space-2);
+}
+.sectionHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+}
+.sectionHead a,
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Label/value tiles in a row — wraps to two columns on narrow phones. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.tile {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.tile > span {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.tile > b {
+  font-family: var(--font-mono);
+  font-size: clamp(14px, 4.1vw, 22px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile > small {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* A tappable row in a list (More, Bot methods, activity). */
+.list {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 60px;
+  padding: 12px var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row:hover {
+  background: var(--bg-inset);
+}
+.rowMain {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.rowMain b {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.rowMain span {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.rowIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-dim);
+}
+.rowSide {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  flex: none;
+  text-align: right;
+}
+.chev {
+  color: var(--text-faint);
+  flex: none;
+}
+
+.note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--amber-line);
+  border-radius: var(--radius-tile);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13px;
+}
+.warning button {
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-weight: 600;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.loading {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.good {
+  color: var(--green);
+}
+.bad {
+  color: var(--red);
+}
+.warn {
+  color: var(--amber);
+}
+.dim {
+  color: var(--text-faint);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip_green {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+.chip_amber {
+  color: var(--amber);
+  border-color: var(--amber-line);
+  background: var(--amber-soft);
+}
+.chip_red {
+  color: var(--red);
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}
+.chip_dim {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+/* A setting: label on the left, its control on the right. */
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 60px;
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.setting:last-child {
+  border-bottom: 0;
+}
+.switch {
+  min-width: 64px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.switch[aria-pressed="true"] {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+
+.segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+}
+.seg {
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.segOn {
+  background: var(--border);
+  color: var(--text);
+}
+
+.details {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-3);
+}
+.details > summary {
+  min-height: 48px;
+  padding: 14px 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 340px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A measured verdict that must stay on screen (refuted methods). Red border
+   because the result is a measured negative; the text stays readable. */
+.verdict {
+  margin: 0;
+  padding: 12px var(--space-4);
+  border: 1px solid var(--red-line);
+  border-radius: var(--radius-card);
+  background: var(--red-soft);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.verdict b {
+  color: var(--red);
+}

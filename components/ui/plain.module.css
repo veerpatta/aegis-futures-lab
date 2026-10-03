@@ -1,0 +1,181 @@
+/* Plain-language layer: tappable terms, the "Show the numbers" disclosure and
+   the status hero. Built only from the tokens in app/globals.css
+   (docs/design-language.md §9 records these classes). */
+
+/* ── Term: a word with a meaning one tap away ─────────────────────────── */
+.term {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: help;
+  text-decoration: underline dotted var(--text-faint);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.term:hover {
+  text-decoration-color: var(--text-dim);
+}
+
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.sheetTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+.sheetBody {
+  margin: var(--space-3) 0 var(--space-4);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.sheetLink {
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* ── ShowNumbers ─────────────────────────────────────────────────────── */
+.numbers {
+  margin-top: var(--space-3);
+}
+.numbersToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-tile);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.numbersToggle:hover {
+  color: var(--text);
+  border-color: var(--border-live);
+}
+.chevron,
+.chevronUp {
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+.chevronUp {
+  transform: rotate(180deg);
+}
+.numbersBody {
+  margin-top: var(--space-3);
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* ── StatusHero ──────────────────────────────────────────────────────── */
+.hero {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.hero_green {
+  border-color: var(--green-line);
+}
+.hero_amber {
+  border-color: var(--amber-line);
+}
+.hero_red {
+  border-color: var(--red-line);
+}
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+}
+.badge_green {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+.badge_amber {
+  color: var(--amber);
+  border-color: var(--amber-line);
+  background: var(--amber-soft);
+}
+.badge_red {
+  color: var(--red);
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}
+.health {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.healthAge {
+  color: var(--text-faint);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+}
+.dot_good {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+.dot_warn {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-soft);
+}
+.dot_bad {
+  background: var(--red);
+  box-shadow: 0 0 0 3px var(--red-soft);
+}
+.heroText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.heroAction {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

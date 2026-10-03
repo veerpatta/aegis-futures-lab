@@ -1,17 +1,17 @@
 import type { MetadataRoute } from "next";
 
-/* Installable app: "Add to Home Screen" opens straight onto the signal
-   feed — the page you actually check from a phone between sessions. */
+/* Installable app: "Add to Home Screen" opens on Today — the one screen that
+   says whether the bot is working and what is new. Colours match --bg. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Aegis Futures Lab",
     short_name: "Aegis",
     description:
-      "Paper-signal terminal for MES & MNQ futures — tiered signals, zones, and journal on delayed data.",
-    start_url: "/signals",
+      "Practice-only futures lab: a bot tests trading methods on delayed S&P and Nasdaq micro prices and shows, in plain words, what it found. No real money.",
+    start_url: "/",
     display: "standalone",
-    background_color: "#070b12",
-    theme_color: "#070b12",
+    background_color: "#05080f",
+    theme_color: "#05080f",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

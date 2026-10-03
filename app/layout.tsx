@@ -8,11 +8,12 @@ import { PrivacyProvider } from "@/components/providers/PrivacyProvider";
 import { BotHealthProvider } from "@/components/providers/BotHealthProvider";
 import "./globals.css";
 import { PaperProvider } from "@/components/providers/PaperProvider";
+import { GlossaryProvider } from "@/components/ui/Glossary";
 
 export const metadata: Metadata = {
   title: "Aegis Futures Lab",
   description:
-    "Strategy research lab for MES & MNQ futures — pick a strategy, tune it, backtest it. Research edition: delayed data, paper simulation only.",
+    "Practice-only futures lab: a bot tests trading methods on delayed S&P and Nasdaq micro prices and shows, in plain words, what it found. No real money.",
   appleWebApp: {
     capable: true,
     title: "Aegis",
@@ -45,16 +46,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ZoneProvider>
           <DataProvider>
             <PrivacyProvider>
-              <BotHealthProvider><PaperProvider>
-                <div className="shell">
-                  <Sidebar />
-                  <div className="contentCol">
-                    <AppHeader />
-                    <main className="main">{children}</main>
-                  </div>
-                </div>
-                <MobileTabBar />
-              </PaperProvider></BotHealthProvider>
+              <BotHealthProvider>
+                <PaperProvider>
+                  <GlossaryProvider>
+                    <div className="shell">
+                      <Sidebar />
+                      <div className="contentCol">
+                        <AppHeader />
+                        <main className="main">{children}</main>
+                      </div>
+                    </div>
+                    <MobileTabBar />
+                  </GlossaryProvider>
+                </PaperProvider>
+              </BotHealthProvider>
             </PrivacyProvider>
           </DataProvider>
         </ZoneProvider>

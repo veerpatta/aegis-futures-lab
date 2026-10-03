@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import ReplayClient from "@/components/replay/ReplayClient";
+import JournalClient from "@/components/replay/JournalClient";
 
-export default function ReplayPage() {
+export default function JournalPage() {
   return (
     <Suspense>
-      <ReplayClient />
+      <JournalClient />
     </Suspense>
   );
 }

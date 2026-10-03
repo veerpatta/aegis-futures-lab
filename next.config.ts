@@ -6,6 +6,16 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: projectRoot,
+  /* Pages removed in the 2026-10-03 mobile redesign. Temporary (307) so the
+     paths stay free; saved bookmarks and home-screen icons land somewhere
+     useful instead of a 404. */
+  async redirects() {
+    return [
+      { source: "/compare", destination: "/lab", permanent: false },
+      { source: "/research-history", destination: "/signals", permanent: false },
+      { source: "/brain/history", destination: "/brain", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

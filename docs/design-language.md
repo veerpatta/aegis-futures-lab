@@ -229,7 +229,7 @@ and paints gradient scroll-shadows on the wrapper's edges when columns clip.
 ### Status badge / chip
 
 `Badge` is an outlined pill: tone-coloured text + `-line` border + `-soft`
-background. The fill-confidence chips (`SignalsClient.tsx:73-87`) are the canonical
+background. The fill-confidence chips (`fillChip` in `ResearchDrawer.tsx`) are the canonical
 example — and they encode a rule worth copying: **a clean fill renders no chip at
 all.** Absence is the good state; only `marginal` (amber) and `doubtful` (red) are
 labelled. Tone→label mappings live once in `lib/signals/status.ts:67-84`
@@ -237,10 +237,11 @@ labelled. Tone→label mappings live once in `lib/signals/status.ts:67-84`
 
 ### Empty state
 
-Always a dashed border. Three sizes exist — `ui.module.css:297-304` (in-table),
-`signalCards.module.css:221-230` (card list), `home.module.css:603-619` (hero, with
-icon + title + body + link). Use `--border-strong` for the dash and
-`--text-faint`/`--text-dim` for the copy.
+Always a dashed border. Two sizes exist — `ui.module.css` `.empty` (in-table) and
+`components/ui/page.module.css` `.empty` (card list, phone screens). Use
+`--border-strong` for the dash and `--text-faint`/`--text-dim` for the copy. Empty
+copy is an explanation, not an apology ("Quiet days are normal — the methods wait
+for their setups").
 
 ### Loading
 
@@ -261,9 +262,9 @@ expressed in CSS, and new diagnostics UI must follow them.
 > Amber = "careful", never red: too little data is not a loss, and colouring it
 > like one would be its own dishonesty.
 
-The same rule governs pass/fail checklists — a failed item renders **grey**
-(`.dim`), not red (`BrainClient.tsx:462-468`). Red is reserved for a measured
-negative result. A thing not yet proven is never coloured as a loss.
+The same rule governs pass/fail verdicts — `methodVerdict()` in `lib/plain/methods.ts`
+renders "Too early to tell" and "Didn't qualify" amber; only "Lost money in testing"
+(a measured negative net) is red. A thing not yet proven is never coloured as a loss.
 
 **2. No rate renders without its `n`.** `lib/stats.ts` + the `Rate`/`SampleNote`
 primitives enforce this: below `MIN_JUDGED_N = 30` the value dims and is flagged
@@ -279,19 +280,19 @@ distributed, and new diagnostics extend these rather than replacing them:
   reason is a 6px dot. Reasons take a **green** dot; caveats take an **amber** dot
   and dimmed text ("dimmer dot so the eye reads it as a caveat rather than a
   reason"). There is no red dot in this component.
-- **`SignalContext.tsx`** — the inline no-click context strip, sharing the same
-  describe-helpers so the two cannot disagree.
-- **`WhyNoSignal.tsx`** — "is it broken, or just patient?": plain-language sentence,
-  then a blockers table, then per-stream status badges.
-- **`BrainClient.tsx`** — Trust Center state badge + 4-up tile grid, the
-  "What the filters turned away" gate-cost funnel, and the ✓/✗ checklist.
+- **Chart → "Why no idea right now?"** (`MarketsClient.tsx`) and **Bot → "What the bot
+  learned"** (`BotClient.tsx`) — "is it broken, or just patient?": the engine's own
+  daily-funnel sentence (`summarizeDailyFunnel`), then the top blockers.
+- **`BotClient.tsx`** — the status hero, the Watch → Test → Practice stepper, and each
+  method's steps sheet (history test, confirmation, new trades, weekly reviews).
 - **`ResultsPanel.tsx:165-186`** — the qualification funnel: label / bar track /
   count grid, where the `qualified` bar alone switches from blue to `--green`.
   Labels are centralised in `components/lab/funnel.ts`.
 
-The one component literally called a "rail" is the Home **risk rail**
-(`home.module.css:491-553`) — a red→neutral→green gradient track showing where
-price sits between stop and target. That is a position visualisation, not a gate.
+The one component that draws a "rail" is the **price ladder**
+(`components/signals/PriceLadder.tsx`, which replaced the legacy Home risk rail) —
+stop on the left, target on the right, a tick at the entry and a ring where the idea
+ended. That is a position visualisation, not a gate.
 
 ---
 
@@ -325,16 +326,11 @@ inherits this automatically — do not add motion that bypasses it.**
 
 Recorded so new work does not copy them.
 
-1. **`components/brain/brain.module.css` is written against a token vocabulary that
-   does not exist.** It uses `var(--dim, #8a94a6)` — `--dim` is undefined (the real
-   tokens are `--text-dim` / `--text-faint`), so it always falls through to the
-   literal, rendering Brain's muted text a different grey from every other page. Its
-   `var(--green, #21ba72)` / `var(--red, #e5484d)` fallbacks also don't match the
-   real `#2dd4a0` / `#ff6b7a`. Authored against a stale palette.
-2. **A hero gradient is hand-copied three times** with drift:
-   `lab.module.css:438` and `home.module.css:267` both hardcode
+1. *(Resolved 2026-10-03: `brain.module.css`, written against the undefined
+   `--dim` token, was deleted with `/brain/history`.)*
+2. **A hero gradient is hand-copied** with drift: `lab.module.css:438` hardcodes
    `linear-gradient(165deg, #131c2c, #0a0f1a 60%)`; `markets.module.css:45` uses a
-   different start colour and stop.
+   different start colour and stop. (The Home copy went with the legacy dashboard.)
 3. **Two different brand-mark gradients** — `Sidebar.module.css:27` uses
    `135deg … #128a68`, `AppHeader.module.css:32` uses `140deg … #0f7f60`.
 4. **De-facto tokens that were never named:** `#04110c` (ink on bright green,
@@ -382,4 +378,29 @@ way a research tool turns back into a sales page.
 
 ---
 
-*Derived from the repository as of 2026-07-31.*
+---
+
+## 10. The plain-language layer (2026-10-03 mobile redesign)
+
+Every screen leads with a sentence that answers its question, then a simple visual,
+then the numbers one tap down. New screens extend these rather than inventing idioms.
+
+| Piece | File | Rule it carries |
+|---|---|---|
+| `Term` + `GlossaryProvider` | `components/ui/Glossary.tsx`, `lib/glossary.ts` | Any jargon word is a dotted-underline button that opens one shared sheet with its meaning. Works on touch, unlike `title=`. Never nest a `Term` inside another button (a card row) — use plain words there. |
+| `ShowNumbers` | `components/ui/ShowNumbers.tsx` | Hides numbers, never a verdict. Rates inside still go through `Rate` / `SampleNote` / `Kpi n=`. |
+| `StatusHero` | `components/ui/StatusHero.tsx` | Two facts kept apart: the practice account's state (badge) and whether checks are running (health dot). |
+| `IdeaCard`, `PriceLadder` | `components/signals/` | Every idea carries its method's standing badge — red "hasn't beaten chance" (REFUTED), amber "not tested yet" (UNMEASURED). Dollars per contract come from `POINT_VALUES`. |
+| `page.module.css` | `components/ui/` | Shared phone layout: `.page` (760px max), `.card`, `.tiles`, `.list`/`.row` (60px rows), `.setting`, `.segment`, `.verdict`, `.chip_*`. Readable CSS — the minified modules it replaced are gone. |
+| `plain.module.css`, `idea.module.css`, `bot.module.css`, `today.module.css` | | Tokens only; no new colours, radii or spacing steps. |
+
+Touch rules: 44px targets under `pointer: coarse` (header icons, rows, sheet links);
+top safe area in the header; sheets stack and Escape closes only the top one
+(`BottomSheet.tsx`). The bell's dot is amber for warnings, red only for a failure,
+and absent for information.
+
+Copy rules: sentence case, short sentences, "practice money" for the paper account
+and "trade ideas" for simulated signals — never one word for both. UI copy lives in
+`lib/plain/`, never in a folder covered by the research code hash.
+
+*Derived from the repository as of 2026-07-31; §10 added 2026-10-03.*

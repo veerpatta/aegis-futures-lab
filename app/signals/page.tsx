@@ -1,5 +1,5 @@
-import SignalsClient from "@/components/signals/SignalsClient";
+import IdeasClient from "@/components/signals/IdeasClient";
 
-export default function SignalsPage() {
-  return <SignalsClient />;
+export default function IdeasPage() {
+  return <IdeasClient />;
 }

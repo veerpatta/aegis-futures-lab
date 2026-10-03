@@ -16,8 +16,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {usePaper} from "@/components/providers/PaperProvider";
 import {botState,freshTraining} from "@/lib/paper/overview";
-import { usePathname } from "next/navigation";
-import { NAV_LINKS, SECONDARY_LINKS } from "./links";
 import ZoneToggle from "./ZoneToggle";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useBotHealth } from "@/components/providers/BotHealthProvider";
@@ -26,21 +24,17 @@ import { dayLabel } from "@/lib/time/session";
 import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
 import styles from "./AppHeader.module.css";
 
-/* Home's title is the product name; every other screen uses its nav label. */
-function screenTitle(pathname: string): string {
-  if (pathname === "/") return "Aegis";
-  const all = [...NAV_LINKS, ...SECONDARY_LINKS];
-  const hit = all.find((l) => l.href !== "/" && pathname.startsWith(l.href));
-  return hit?.label ?? "Aegis";
-}
-
 export default function AppHeader() {
-  const pathname = usePathname();
   const { privacy, toggle } = usePrivacy();
   const { alerts:engineAlerts, asleep } = useBotHealth();
   const paper=usePaper();
   const paperStatus=botState(paper.data,paper.errors.includes("Account"));
   const alerts=[...engineAlerts,...(!paper.loading&&paperStatus.label==="Paused"?[{id:"paper-paused",tone:"warn" as const,text:paperStatus.reason}]:[]),...(!paper.loading&&!freshTraining(paper.data?.learning??null)?[{id:"training-stale",tone:"warn" as const,text:"Training needs attention. Check Bot for the last completed run."}]:[]),...(paper.errors.length?[{id:"paper-read",tone:"warn" as const,text:"Practice account information could not refresh. The displayed snapshot may be old."}]:[])];
+  const attention = alerts.some((a) => a.tone === "bad")
+    ? "bad"
+    : alerts.some((a) => a.tone === "warn")
+      ? "warn"
+      : null;
   const { zone } = useZone();
   const [bellOpen, setBellOpen] = useState(false);
   /* null on the server and on first paint; the date lands after mount so the
@@ -53,7 +47,6 @@ export default function AppHeader() {
     return () => clearInterval(id);
   }, []);
 
-  const title = screenTitle(pathname);
   /* null until the client clock mounts, so the markup hydrates identically. */
   const dateLine = now === null ? "paper" : `${dayLabel(now, zone)} · paper`;
 
@@ -65,7 +58,7 @@ export default function AppHeader() {
             ◆
           </span>
           <span className={styles.brandText}>
-            <span className={styles.title}>{title}</span>
+            <span className={styles.title}>Aegis</span>
             <span className={styles.sub}>{dateLine}</span>
           </span>
         </Link>
@@ -111,7 +104,11 @@ export default function AppHeader() {
               <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9Z" />
               <path d="M10.5 19.5a2 2 0 0 0 3 0" />
             </svg>
-            {alerts.length > 0 && <i className={styles.dot} aria-hidden />}
+            {/* The dot means "look at this": info notes (a news pause ahead) do
+                not light it, and it is red only when something actually failed. */}
+            {attention !== null && (
+              <i className={`${styles.dot} ${attention === "bad" ? styles.dotBad : styles.dotWarn}`} aria-hidden />
+            )}
           </button>
         </div>
       </header>

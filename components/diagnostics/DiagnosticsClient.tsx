@@ -74,6 +74,12 @@ export default function DiagnosticsClient({ report }: { report: Phase1Report | n
           Does the entry signal contribute anything at all? Measured on {report.barSource} bars,{" "}
           {report.windowFrom} → {report.windowTo}.
         </p>
+        <p className={styles.plainVerdict}>
+          In plain words: the live methods&apos; trades were compared with thousands of random entries on the same days.{" "}
+          {beats === 0
+            ? `In none of the ${cells.length} market-years did they beat random entries, so they have no proven edge.`
+            : `They beat random entries in ${beats} of ${cells.length} market-years — about what luck alone produces.`}
+        </p>
       </div>
 
       {/* ── Hero: the random-entry percentile ───────────────────────────── */}

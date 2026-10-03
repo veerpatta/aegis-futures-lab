@@ -6,13 +6,15 @@ import { getNeon, type ZoneRow } from "@/lib/neon/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
 import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
-import { STRATEGIES, feedsFor, strategyById, standingOf } from "@/lib/strategies/registry";
-import { defaultParams, type ReadoutRow, type Snapshot } from "@/lib/strategies/types";
+import { DAILY_FUNNEL_STAT_KEY, parseDailyFunnel, summarizeDailyFunnel, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
+import { tradingDayKey } from "@/lib/time/ny";
+import { sentenceCase } from "@/lib/plain/text";
+import { Term } from "@/components/ui/Glossary";
 import { points } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { Badge, Button, Panel, SelectField, toneClass } from "@/components/ui";
+import { Badge, Panel } from "@/components/ui";
 import CandleChart, { type ZoneBox } from "@/components/chart/CandleChart";
 import { zoneToBox } from "@/components/chart/zoneBoxes";
 import PriceArea from "./PriceArea";
@@ -87,9 +89,10 @@ export default function MarketsClient() {
   /* The hero opens on the design's line chart; candles are one tap away on the
      same card rather than a second chart further down the page. */
   const [chartStyle, setChartStyle] = useState<"line" | "candles">("line");
-  const [readoutStrategy, setReadoutStrategy] = useState("zone-v5");
-  const selectedStrategy = useMemo(() => strategyById(readoutStrategy), [readoutStrategy]);
-  const readoutFeeds = useMemo(() => feedsFor(selectedStrategy), [selectedStrategy]);
+  /* The engine's own count of today's checks — what it looked at and what
+     turned ideas away — rather than a re-run here with default parameters,
+     which could disagree with what the live engine actually did. */
+  const [funnel, setFunnel] = useState<DailyFunnelPayload | null | undefined>(undefined);
   const [zones, setZones] = useState<ZoneRow[]>([]);
   /* null until mounted — the session countdown must not render on the server. */
   const [tick, setTick] = useState<number | null>(null);
@@ -101,8 +104,25 @@ export default function MarketsClient() {
   }, []);
 
   useEffect(() => {
-    data.ensureHistory([chartSymbol, ...readoutFeeds]);
-  }, [chartSymbol, readoutFeeds, data.ensureHistory]);
+    data.ensureHistory([chartSymbol]);
+  }, [chartSymbol, data.ensureHistory]);
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve(
+      getNeon()
+        .from("learned_stats")
+        .select("payload")
+        .eq("stat_key", DAILY_FUNNEL_STAT_KEY)
+        .order("date_key", { ascending: false })
+        .limit(1)
+    ).then(({ data: rows, error }) => {
+      if (alive) setFunnel(error || !rows?.length ? null : parseDailyFunnel(rows[0].payload));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     getNeon()
@@ -144,38 +164,11 @@ export default function MarketsClient() {
     return tf === 5 ? bars : aggregateMinutes(bars, tf);
   }, [data.history, chartSymbol, tf]);
 
-  const readoutRows: ReadoutRow[] = useMemo(() => {
-    if (!readoutFeeds.every((symbol) => data.history[symbol].status === "ready")) return [];
-    try {
-      const series = Object.fromEntries(
-        readoutFeeds.map((symbol) => [symbol, data.history[symbol].bars])
-      );
-      const cutoff = data.replayCutoff;
-      const visible = Object.fromEntries(
-        Object.entries(series).map(([s, bars]) => {
-          const cut = cutoff ? bars.filter((b) => b.time <= cutoff) : bars;
-          return [s, cut];
-        })
-      );
-      if (Object.values(visible).some((b) => b.length < 30)) return [];
-      const params = defaultParams(selectedStrategy);
-      const ctx = selectedStrategy.prepare(visible, params, {
-        cost: 2.4,
-        slippage: 0.25,
-        maxRisk: 160,
-        sizing: "risk",
-      });
-      const snap: Snapshot = {
-        time: Math.min(...Object.values(visible).map((b) => b[b.length - 1].time)),
-        bySymbol: Object.fromEntries(
-          Object.entries(visible).map(([s, bars]) => [s, { bars, index: bars.length - 1 }])
-        ),
-      };
-      return selectedStrategy.liveReadout?.(ctx, snap, params) ?? [];
-    } catch {
-      return [];
-    }
-  }, [data.history, selectedStrategy, readoutFeeds, data.replayCutoff]);
+  const tradingDay = tick === null ? null : tradingDayKey(tick);
+  const whyNone = useMemo(
+    () => (funnel === undefined || tradingDay === null ? null : summarizeDailyFunnel(funnel, tradingDay)),
+    [funnel, tradingDay]
+  );
 
   /* Zones nearest the delayed price, for the "near price" card. */
   const nearZones = useMemo(() => {
@@ -231,9 +224,10 @@ export default function MarketsClient() {
 
   return (
     <>
-      <h1 className="pageTitle">Markets</h1>
+      <h1 className="pageTitle">Chart</h1>
       <p className="pageSub">
-        Delayed research feed. Chart signals are research observations, not current paper-account positions.
+        Where the two markets are, the price areas the bot watches, and the news it steps aside for.{" "}
+        <Term k="delayed">Delayed prices</Term>, for practice only.
       </p>
 
       {/* ── Session strip: which session, and how long is left in it ── */}
@@ -380,9 +374,13 @@ export default function MarketsClient() {
             </div>
           </section>
 
-          {/* ── Zones near price ── */}
-          <section className={styles.card} aria-label="Zones near price">
-            <h2 className={styles.cardTitle}>Zones near price</h2>
+          {/* ── Price areas to watch (the engine's zones) ── */}
+          <section className={styles.card} aria-label="Price areas to watch">
+            <h2 className={styles.cardTitle}>Price areas to watch</h2>
+            <p className={styles.note}>
+              <Term k="zone">Zones</Term> where strong buying or selling showed up before. The zone method looks for a
+              bounce when price comes back to one.
+            </p>
             <div className={styles.zoneList}>
               {nearZones.length ? (
                 nearZones.map(({ z, dist, inside, above }) => (
@@ -397,7 +395,8 @@ export default function MarketsClient() {
                         : `${(dist ?? 0).toFixed(1)}% ${above ? "ABOVE" : "BELOW"}`}
                     </span>
                     <span className={styles.zoneBody}>
-                      <b>{z.symbol}</b> {z.zone_type === "demand" ? "buy" : "sell"} area{" "}
+                      <b>{z.symbol === "MES" ? "S&P" : z.symbol === "MNQ" ? "Nasdaq" : z.symbol}</b>{" "}
+                      {z.zone_type === "demand" ? "buy" : "sell"} area{" "}
                       <span className="num">
                         {z.price_low.toFixed(0)}–{z.price_high.toFixed(0)}
                       </span>
@@ -409,7 +408,7 @@ export default function MarketsClient() {
                   </div>
                 ))
               ) : (
-                <span className={styles.note}>No zones within reach of the delayed price yet.</span>
+                <span className={styles.note}>No price areas near the delayed price right now.</span>
               )}
             </div>
           </section>
@@ -447,40 +446,38 @@ export default function MarketsClient() {
         </div>
 
         <div className={styles.sideCol}>
-          <Panel title="Signal readout" hint={data.replayCutoff ? "at replay cutoff" : "latest bar"}>
-            <div style={{ marginBottom: "var(--space-3)" }}>
-              <SelectField
-                label="Strategy"
-                value={readoutStrategy}
-                onChange={setReadoutStrategy}
-                options={STRATEGIES.map((s) => ({
-                  value: s.id,
-                  /* A dropdown cannot carry a colour chip, so the standing rides
-                     in the label. Silence here would let an unmeasured strategy
-                     read exactly like a measured one. */
-                  label:
-                    standingOf(s.id) === "measured" ? s.name : `${s.name} · ${standingOf(s.id)}`,
-                }))}
-              />
-            </div>
-            <div className={styles.readout}>
-              {readoutRows.length ? (
-                readoutRows.map((r, i) => (
-                  <div key={i} className={styles.readoutRow}>
-                    <span className={styles.readoutLabel}>{r.label}</span>
-                    <span className={toneClass(r.tone)}>{r.value}</span>
+          <Panel title="Why no idea right now?" hint="the engine's own count of its latest check">
+            {whyNone === null ? (
+              <span className={`${styles.note} pulse`}>Reading the latest check…</span>
+            ) : (
+              <>
+                {!phase.live && tick !== null && (
+                  <p className={styles.whySentence}>
+                    <b>The market is closed</b>, so no new ideas until it reopens. The last check said:
+                  </p>
+                )}
+                <p className={styles.whySentence}>
+                  {sentenceCase(whyNone.sentence)}
+                </p>
+                {whyNone.blockers.length > 0 && (
+                  <div className={styles.readout}>
+                    {whyNone.blockers.slice(0, 4).map((b) => (
+                      <div key={b.reason} className={styles.readoutRow}>
+                        <span className={styles.readoutLabel}>{b.label}</span>
+                        <span className="num">{b.count.toLocaleString("en-US")}</span>
+                      </div>
+                    ))}
                   </div>
-                ))
-              ) : (
-                <span className={styles.note}>
-                  Waiting for {readoutFeeds.join(" + ")} — the readout runs the selected strategy
-                  on the latest completed bars with default parameters.
-                </span>
-              )}
-            </div>
+                )}
+                <p className={styles.note}>Turning ideas away is the methods being picky, not a fault.</p>
+              </>
+            )}
           </Panel>
 
-          <Panel title="News lockouts" hint={data.eventsSource ?? "calendar unavailable"}>
+          <Panel title="Big news ahead" hint={data.eventsSource ?? "calendar unavailable"}>
+            <p className={styles.note}>
+              <Term k="newsPause">The bot takes no new ideas 30 minutes either side of these.</Term>
+            </p>
             <div className={styles.eventList}>
               {upcoming.length ? (
                 upcoming.map((e) => {
@@ -494,14 +491,14 @@ export default function MarketsClient() {
                         <b>{e.name}</b>
                         <span>{e.publisher}</span>
                       </span>
-                      <Badge tone={locked ? "red" : "amber"}>
-                        {locked ? "LOCKED" : "±30 MIN"}
+                      <Badge tone={locked ? "amber" : undefined}>
+                        {locked ? "PAUSED NOW" : "±30 MIN"}
                       </Badge>
                     </div>
                   );
                 })
               ) : (
-                <span className={styles.note}>No upcoming verified events.</span>
+                <span className={styles.note}>No big news on the calendar right now.</span>
               )}
             </div>
           </Panel>

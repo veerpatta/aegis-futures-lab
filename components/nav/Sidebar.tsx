@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_LINKS, SECONDARY_LINKS, isActiveLink, type NavLink } from "./links";
+import { MORE_GROUPS, NAV_LINKS, isActiveLink, type NavLink } from "./links";
 import ZoneToggle from "./ZoneToggle";
 import styles from "./Sidebar.module.css";
 
@@ -38,9 +38,14 @@ export default function Sidebar() {
       </Link>
 
       <nav className={styles.nav}>
-        {NAV_LINKS.map(renderLink)}
-        <span className={styles.groupLabel}>More</span>
-        {SECONDARY_LINKS.map(renderLink)}
+        {/* The /more hub is a phone screen; on desktop its groups are listed here. */}
+        {NAV_LINKS.filter((l) => l.href !== "/more").map(renderLink)}
+        {MORE_GROUPS.map((g) => (
+          <div key={g.title} className={styles.group}>
+            <span className={styles.groupLabel}>{g.title}</span>
+            {g.links.map(renderLink)}
+          </div>
+        ))}
       </nav>
 
       <div className={styles.footer}>

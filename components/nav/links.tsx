@@ -1,10 +1,17 @@
-/* Shared nav definition for Sidebar (desktop) and MobileNav (phone).
-   Icons are inline 20×20 stroke SVGs — no icon dependency.
+/* Shared nav definition for the Sidebar (desktop), the phone tab bar and the
+   More page.
 
-   Two groups: PRIMARY is the everyday path through the app (Home first, the
-   research tools last); SECONDARY holds the deep tools that only matter once
-   you are already inside a study. The phone tab bar carries the five primary
-   links flagged `mobile` — Guide is reached from the Home screen pointer. */
+   Five tabs, each answering one question in plain words:
+     Today — is the bot working, is it trading, anything new?
+     Ideas — what trade ideas exist and how did they end?
+     Chart — where is price, where are the key areas, what news is ahead?
+     Bot   — what is the bot testing, how close is it, is it healthy?
+     More  — your journal and review, the Guide, settings, the research room.
+
+   URLs did not change when the labels did (/signals is Ideas, /markets is
+   Chart, /brain is Bot), so saved links and home-screen icons keep working.
+   Everything below the tabs lives in MORE_GROUPS; the Research room is the
+   raw-numbers corner and says so. Icons are inline 20×20 stroke SVGs. */
 
 export interface NavLink {
   href: string;
@@ -12,9 +19,13 @@ export interface NavLink {
   /** Shorter label for the phone tab bar, when the sidebar label is too wide. */
   shortLabel?: string;
   hint: string;
-  /** Show in the phone tab bar (five fit). */
-  mobile?: boolean;
   icon: React.ReactNode;
+}
+
+export interface NavGroup {
+  title: string;
+  note?: string;
+  links: NavLink[];
 }
 
 const iconProps = {
@@ -29,15 +40,13 @@ const iconProps = {
   "aria-hidden": true,
 };
 
-const ORIGINAL_LINKS: NavLink[] = [
+export const NAV_LINKS: NavLink[] = [
   {
     href: "/",
-    label: "Home",
-    hint: "Today at a glance",
-    mobile: true,
+    label: "Today",
+    hint: "Is the bot working?",
     icon: (
       <svg {...iconProps}>
-        {/* house */}
         <path d="M3 11.5 12 4l9 7.5" />
         <path d="M5.5 10v9.5h13V10" />
       </svg>
@@ -45,26 +54,21 @@ const ORIGINAL_LINKS: NavLink[] = [
   },
   {
     href: "/signals",
-    label: "Signals",
-    hint: "Live paper signals",
-    mobile: true,
+    label: "Ideas",
+    hint: "Trade ideas and how they ended",
     icon: (
       <svg {...iconProps}>
-        {/* radio waves */}
-        <circle cx="12" cy="12" r="1.6" />
-        <path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7" />
-        <path d="M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8" />
+        <path d="M9 18h6M10 21h4" />
+        <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.95v.25h5.2v-.25c0-.8.4-1.5 1-1.95A6 6 0 0 0 12 3Z" />
       </svg>
     ),
   },
   {
     href: "/markets",
-    label: "Markets",
-    hint: "Delayed feed & signals",
-    mobile: true,
+    label: "Chart",
+    hint: "Prices, key areas and news",
     icon: (
       <svg {...iconProps}>
-        {/* candlesticks */}
         <path d="M7 4v3M7 15v5M17 4v5M17 17v3" />
         <rect x="5" y="7" width="4" height="8" rx="0.5" />
         <rect x="15" y="9" width="4" height="8" rx="0.5" />
@@ -72,132 +76,136 @@ const ORIGINAL_LINKS: NavLink[] = [
     ),
   },
   {
-    href: "/replay",
-    label: "Journal",
-    hint: "Day review & journal",
-    mobile: true,
-    icon: (
-      <svg {...iconProps}>
-        {/* calendar with rewind */}
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 9h18M8 3v4M16 3v4" />
-        <path d="M13.5 13l-3 2.5 3 2.5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/lab",
-    label: "Strategy Lab",
-    shortLabel: "Lab",
-    hint: "Tune & backtest",
-    mobile: true,
-    icon: (
-      <svg {...iconProps}>
-        {/* flask */}
-        <path d="M10 3h4M11 3v6l-5.2 8.6A2 2 0 0 0 7.5 21h9a2 2 0 0 0 1.7-3.4L13 9V3" />
-        <path d="M8.5 15h7" />
-      </svg>
-    ),
-  },
-  {
-    href: "/guide",
-    label: "Guide",
-    hint: "How to use this app",
-    icon: (
-      <svg {...iconProps}>
-        {/* open book */}
-        <path d="M12 6.5C10.5 5 8.2 4.5 5.5 4.5c-.8 0-1.5.1-2 .2V18c.5-.1 1.2-.2 2-.2 2.7 0 5 .5 6.5 2 1.5-1.5 3.8-2 6.5-2 .8 0 1.5.1 2 .2V4.7c-.5-.1-1.2-.2-2-.2-2.7 0-5 .5-6.5 2Z" />
-        <path d="M12 6.5v13.3" />
-      </svg>
-    ),
-  },
-];
-
-/* Reachable from the sidebar's "More" group, but not from the phone tab bar —
-   both are desk work, not glance-at-the-phone work. */
-const ORIGINAL_SECONDARY: NavLink[] = [
-  {
-    /* Secondary rather than primary on purpose: the phone tab bar holds
-       exactly five, and post-trade review is a weekend job done sitting down,
-       not something reached one-handed during a session. */
-    href: "/review",
-    label: "Review",
-    hint: "Calendar, heatmap, and when the money is made",
-    icon: (
-      <svg {...iconProps}>
-        {/* calendar with a marked day */}
-        <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
-        <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
-        <rect x="7" y="12.5" width="3.5" height="3.5" rx="0.6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/diagnostics",
-    label: "Diagnostics",
-    hint: "Does the signal beat random entries?",
-    icon: (
-      <svg {...iconProps}>
-        {/* distribution curve with a marker where the real result sits */}
-        <path d="M3 17c3 0 3.5-9 6.5-9s3.5 9 6.5 9 2.5-5 5-5" />
-        <path d="M8 20.5v-3" />
-        <circle cx="8" cy="15.5" r="1.4" />
-      </svg>
-    ),
-  },
-  {
     href: "/brain",
-    label: "What the bot knows",
-    shortLabel: "Brain",
-    hint: "Nightly self-learned stats",
+    label: "Bot",
+    hint: "What it is testing and its health",
     icon: (
       <svg {...iconProps}>
-        {/* brain / lightbulb of knowledge */}
-        <path d="M9 18h6M10 21h4" />
-        <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.95v.25h5.2v-.25c0-.8.4-1.5 1-1.95A6 6 0 0 0 12 3Z" />
+        <rect x="4.5" y="7.5" width="15" height="11" rx="3" />
+        <path d="M12 7.5V4.5M12 4.5h.01" />
+        <circle cx="9.3" cy="12.6" r="1.1" />
+        <circle cx="14.7" cy="12.6" r="1.1" />
+        <path d="M9.5 16h5" />
       </svg>
     ),
   },
   {
-    href: "/compare",
-    label: "Compare",
-    hint: "Side-by-side runs",
+    href: "/more",
+    label: "More",
+    hint: "Journal, Guide, settings, research",
     icon: (
       <svg {...iconProps}>
-        {/* twin columns */}
-        <rect x="4" y="10" width="6" height="10" rx="1" />
-        <rect x="14" y="4" width="6" height="16" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    href: "/data",
-    label: "Data",
-    hint: "CSV import & replay",
-    icon: (
-      <svg {...iconProps}>
-        {/* database */}
-        <ellipse cx="12" cy="5.5" rx="7" ry="2.5" />
-        <path d="M5 5.5V12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5.5" />
-        <path d="M5 12v6.5C5 19.9 8.1 21 12 21s7-1.1 7-2.5V12" />
+        <circle cx="5" cy="12" r="1" />
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="19" cy="12" r="1" />
       </svg>
     ),
   },
 ];
 
-const find=(href:string)=>[...ORIGINAL_LINKS,...ORIGINAL_SECONDARY].find(l=>l.href===href)!;
-export const NAV_LINKS:NavLink[]=[
- {...find("/"),label:"Home",hint:"Signals at a glance",mobile:true},
- {...find("/signals"),hint:"Entry, stop and target",mobile:true},
- {...find("/markets"),mobile:true},
- {...find("/brain"),label:"Bot",shortLabel:"Bot",hint:"Status, training and research",mobile:true},
-
- {href:"/more",label:"More",hint:"Research tools and Guide",mobile:true,icon:<svg {...iconProps}><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>}
+export const MORE_GROUPS: NavGroup[] = [
+  {
+    title: "Your tools",
+    links: [
+      {
+        href: "/replay",
+        label: "Journal",
+        hint: "Log your own trades and compare with the bot",
+        icon: (
+          <svg {...iconProps}>
+            <rect x="4" y="3.5" width="16" height="17" rx="2" />
+            <path d="M8 8h8M8 12h8M8 16h5" />
+          </svg>
+        ),
+      },
+      {
+        href: "/review",
+        label: "Review",
+        hint: "Calendar of results and when ideas did best",
+        icon: (
+          <svg {...iconProps}>
+            <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+            <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+            <rect x="7" y="12.5" width="3.5" height="3.5" rx="0.6" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Learn",
+    links: [
+      {
+        href: "/guide",
+        label: "Guide",
+        hint: "How to use this app, in five minutes",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M12 6.5C10.5 5 8.2 4.5 5.5 4.5c-.8 0-1.5.1-2 .2V18c.5-.1 1.2-.2 2-.2 2.7 0 5 .5 6.5 2 1.5-1.5 3.8-2 6.5-2 .8 0 1.5.1 2 .2V4.7c-.5-.1-1.2-.2-2-.2-2.7 0-5 .5-6.5 2Z" />
+            <path d="M12 6.5v13.3" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Research room",
+    note: "For researchers. Raw numbers and statistics — every method tested here so far has failed to beat chance.",
+    links: [
+      {
+        href: "/lab",
+        label: "Strategy Lab",
+        shortLabel: "Lab",
+        hint: "Test a method on past prices",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M10 3h4M11 3v6l-5.2 8.6A2 2 0 0 0 7.5 21h9a2 2 0 0 0 1.7-3.4L13 9V3" />
+            <path d="M8.5 15h7" />
+          </svg>
+        ),
+      },
+      {
+        href: "/diagnostics",
+        label: "Diagnostics",
+        hint: "Does a method beat random entries?",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M3 17c3 0 3.5-9 6.5-9s3.5 9 6.5 9 2.5-5 5-5" />
+            <path d="M8 20.5v-3" />
+            <circle cx="8" cy="15.5" r="1.4" />
+          </svg>
+        ),
+      },
+      {
+        href: "/data",
+        label: "Data",
+        hint: "Import price files and replay a past day",
+        icon: (
+          <svg {...iconProps}>
+            <ellipse cx="12" cy="5.5" rx="7" ry="2.5" />
+            <path d="M5 5.5V12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5.5" />
+            <path d="M5 12v6.5C5 19.9 8.1 21 12 21s7-1.1 7-2.5V12" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
-export const SECONDARY_LINKS:NavLink[]=["/replay","/guide","/lab","/review","/diagnostics","/compare","/data"].map(href=>({...find(href),mobile:false}));
-export const MOBILE_LINKS= NAV_LINKS;
 
+/** Every page reached through More, flattened (sidebar, header lookups). */
+export const SECONDARY_LINKS: NavLink[] = MORE_GROUPS.flatMap((g) => g.links);
+
+/** The phone tab bar carries all five primary links. */
+export const MOBILE_LINKS = NAV_LINKS;
 
 export function isActiveLink(href: string, pathname: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
+
+/** The tab to highlight: the matching primary link, or More for any page reached through it. */
+export function activeTabIndex(pathname: string): number {
+  const direct = MOBILE_LINKS.findIndex((l) => isActiveLink(l.href, pathname));
+  if (direct >= 0) return direct;
+  const viaMore = SECONDARY_LINKS.some((l) => isActiveLink(l.href, pathname));
+  return viaMore ? MOBILE_LINKS.findIndex((l) => l.href === "/more") : -1;
 }

@@ -14,6 +14,10 @@
 import { useCallback, useEffect, useId, useRef } from "react";
 import styles from "./sheet.module.css";
 
+/* Sheets can stack — a word's meaning opens over a trade idea — so Escape must
+   close only the one on top. Each open sheet pushes its id here. */
+const openSheets: string[] = [];
+
 export default function BottomSheet({
   open,
   onClose,
@@ -29,6 +33,10 @@ export default function BottomSheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const labelId = useId();
+  /* Held in a ref so a parent passing a fresh arrow each render does not
+     re-run the effect below and reorder the open-sheet stack. */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   /* Remember what opened us, and hand focus back on close. */
   useEffect(() => {
@@ -41,23 +49,26 @@ export default function BottomSheet({
     };
   }, [open]);
 
-  /* Escape closes; the body behind stops scrolling while we are up. */
+  /* Escape closes the top sheet only; the body behind stops scrolling while we are up. */
   useEffect(() => {
     if (!open) return;
+    openSheets.push(labelId);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && openSheets[openSheets.length - 1] === labelId) {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      const at = openSheets.lastIndexOf(labelId);
+      if (at >= 0) openSheets.splice(at, 1);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open, labelId]);
 
   /* Keep Tab inside the sheet while it is open. */
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {

@@ -26,6 +26,7 @@ import ExecutionPanel, { DEFAULT_EXECUTION, type ExecutionSettings } from "./Exe
 import ResultsPanel from "./ResultsPanel";
 import RiskCalculator from "./RiskCalculator";
 import ForwardTab from "@/components/forward/ForwardTab";
+import { plainSummary } from "@/lib/plain/strategies";
 import styles from "./lab.module.css";
 
 /* Any fetchable symbol, not just the legacy index pair. The Lab used to hard
@@ -203,8 +204,8 @@ export default function LabClient() {
     <>
       <h1 className="pageTitle">Strategy Lab</h1>
       <p className="pageSub">
-        Pick a strategy, tune it, and see how it would have performed. Delayed data, paper
-        simulation only — execution is permanently locked.
+        Pick a method, adjust it, and see how it would have done on the last 60 days of delayed prices. A
+        simulation only — nothing here can place a trade. Every method tested so far has failed to beat chance.
       </p>
 
       <div className={styles.gallery} role="list">
@@ -217,10 +218,11 @@ export default function LabClient() {
           >
             <span className={styles.cardHead}>
               <span className={styles.cardName}>{s.name}</span>
-              {s.flagship && <Badge tone="green">FLAGSHIP</Badge>}
+              {s.flagship && !isRefutedStrategy(s.id) && <Badge tone="green">FLAGSHIP</Badge>}
               {isUnmeasured(s.id) && <Badge tone="amber">{UNMEASURED_LABEL}</Badge>}
               {isRefutedStrategy(s.id) && <Badge tone="red">{REFUTED_LABEL}</Badge>}
             </span>
+            <span className={styles.cardPlain}>{plainSummary(s.id, s.blurb)}</span>
             <span className={styles.cardBlurb}>{s.blurb}</span>
           </button>
         ))}

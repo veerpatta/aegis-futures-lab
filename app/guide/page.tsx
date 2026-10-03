@@ -1,808 +1,238 @@
 import type { Metadata } from "next";
+import { GLOSSARY, GLOSSARY_KEYS } from "@/lib/glossary";
+import { PAPER_RISK } from "@/lib/paper/policy";
+import { etTimeLabel, etWindowLabel } from "@/lib/time/zones";
 import styles from "./guide.module.css";
 
 export const metadata: Metadata = {
   title: "How to use this app — Aegis Futures Lab",
   description:
-    "A plain-English guide to the Aegis Futures Lab: what the signals mean, the daily routine, and what every page does.",
+    "A plain-English guide to Aegis: the five tabs, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
 };
 
+/* Session times print both clocks from the current US daylight-saving state
+   (CLAUDE.md: never hardcode the gap), so the page re-renders daily. */
+export const revalidate = 86400;
+
 /* The trader's manual, in the app itself. Written for someone who knows
-   trading but not software. Keep this page, docs/USER-MANUAL.md and
-   docs/user-manual.pdf in sync — see CLAUDE.md. */
+   trading but not software — or neither. Keep this page, docs/USER-MANUAL.md
+   and docs/user-manual.pdf in sync (CLAUDE.md). The word list renders from
+   lib/glossary.ts, the same text the tap-a-word sheets show. */
+
+const usd = (v: number) => `$${v.toLocaleString("en-US")}`;
 
 export default function GuidePage() {
   return (
     <div className={styles.guide}>
       <h1 className="pageTitle">How to use this app</h1>
-      <p className="pageSub">
-        Five minutes, no tech knowledge needed. Just trading.
-      </p>
+      <p className="pageSub">Five minutes. No tech knowledge needed.</p>
 
-      <section className={styles.card}>
-        <h2>What this app is</h2>
+      <section className={styles.card} id="start">
+        <h2>Start here</h2>
         <p>
-          Aegis watches micro index futures and keeps an evidence-first record of simulated
-          strategies. When an eligible paper stream is active it posts <b>practice trade ideas</b>
-          and tracks every result; when the evidence benches those streams, Legacy signal research says{" "}
-          <b>RESEARCH MODE</b> instead of quietly substituting an untested strategy. The point is
-          to judge every idea on evidence, not memory.
+          Aegis has a bot that watches two stock-index futures — the S&amp;P micro (MES) and the Nasdaq micro (MNQ) —
+          and tests trading methods on them. It shows you what it finds in plain words, and it keeps an honest score.
+        </p>
+        <p>
+          The short version today: <b>no method has beaten chance yet</b>, so the bot is still testing and has not
+          traded its practice money. The trade ideas you see are a record of what the methods do, not advice.
         </p>
         <div className={styles.warn}>
-          <b>Nothing here touches real money.</b> There is no broker connection, prices are
-          delayed 10–15 minutes, and the trade ideas come 5–15 minutes after the setup happens.
-          Use it to practice, learn, and keep score — never as a live trade instruction.
+          <b>Nothing here touches real money.</b> There is no broker connection. Prices are delayed 10–15 minutes and
+          trade ideas arrive 5–15 minutes after the setup. Use the app to practice, learn and keep score — never as a
+          live trade instruction.
         </div>
       </section>
 
-      <section className={styles.card}><h2>Your daily routine</h2><p>Open Home. See signals today, open or waiting signals, and the result of signals closed today. Today follows the New York date. The result is simulated and shows its number of closed trades. A dash means no result is available. These figures are separate from the Bot account.</p><p>Open Signals. Read Entry, Stop and Target. Switch between Open, Zones and History. Tap a signal for its full record. Paused, stale and revised records are excluded from the main cards. More details opens performance, excluded records and the update log.</p><p>Open Bot. Read its status and the reason. Researching means no strategy has qualified. Paper probation means reduced risk. Paper active means full paper risk is available. Paused blocks new entries. Status unavailable means the account could not be verified.</p><p>Check the practice account on Bot. Equity and today’s result include open paper positions. Tap a position for prices, contracts, planned risk and the reason. Strategy progress shows each idea’s result after costs and its trade count. Tap a row for qualification details.</p><p>Review the latest three activities on Bot. View all opens the rest. Training and price checks have separate timestamps. A successful training run does not activate a strategy. Refresh retries an update; it does not start trading or force training.</p><p>Use More → Journal to record your own decisions or import a broker CSV. Your journal stays separate from the Bot account. Sign in to keep a private copy across devices.</p></section>
-
-      <section className={styles.card}><h2>Finding your way on a phone</h2><p>The five bottom tabs are Home, Signals, Markets, Bot and More. Home is a short trading snapshot. Signals shows the price levels. Markets shows delayed prices and charts. Bot holds the practice account and strategy progress. More starts with Journal and Guide, followed by research tools.</p><p>Legacy signal research is available from More and Bot. It contains the original simulated signals and performance comparisons. Those figures are not trades or returns in the current practice account.</p><p>On Bot, tap How it works for the short routine. Tap Risk limits, a strategy row or a paper trade for details. Close a sheet with its close button or Escape. The eye button hides money figures. The ET/IST switch changes displayed times; signal daily totals and journal input times stay in New York time.</p></section>
-
-      <section className={styles.card}><h2>Your practice account and research</h2><p>Paper only. Delayed data. Nothing here touches real money.</p><p>The account starts at $10,000. Risk starts at $25 per trade and can rise to $50 after another qualifying weekly review. Total open risk is capped at $100. The daily loss limit is $200 including open positions. A $1,000 drawdown from peak equity locks the account until an explicit reset. There is no compounding. Gaps can cause losses beyond the planned stop.</p><p>A strategy needs historical checks, a separate confirmation test, 60 genuinely new closed observations across 20 trading days, and two qualifying weekly reviews at least six days apart with ten new closes between them. Failed checks block activation. Too little evidence is amber; measured failure is red. Historical replay never counts as forward evidence.</p><p>Training compares a model with a simple baseline and checks net results after costs. More training does not promise profit. Recovery keeps the original failed runs and records reconstructed history separately.</p><p>This research round tests opening continuation and failed overnight breakout on MES and MNQ with fixed rules. Opening continuation checks whether the opening half-hour agrees with the prior 20-session trend. Failed overnight breakout checks the first rejection back inside a complete overnight range before 11:00 ET. Each allows one trade per market per day. All four strategy-market tests lost money after costs in the development archive. They remain research records and cannot activate.</p><p>New historical data is checked for coverage and execution assumptions. Missing session bars block qualification. The September 25 review found an incomplete expiry session in both markets, so confirmation results are provisional. A finer price record can clarify an ambiguous bar, but it is not proof that a real order would have filled. Research failures remain visible.</p></section>
-
       <section className={styles.card}>
-        <h2>Tier A and Tier B — the two kinds of ideas</h2>
-        <p>
-          <span className={styles.tierA}>TIER A</span>&nbsp; The classic zone setup: price
-          returning to a fresh daily or 4-hour demand/supply zone with everything lined up. These
-          are <b>rare</b> — sometimes none for days. &ldquo;Tier A&rdquo; describes the setup&apos;s
-          selectivity, not proof that it has an edge; Diagnostics records the measured verdict.
-        </p>
-        <p>
-          <span className={styles.tierB}>TIER B</span>&nbsp; The daily bread-and-butter: a
-          mean-reversion setup that fades short-term exhaustion, capped at two trades per market
-          per day and shut off after two losses. A breaker can bench it when recent paper results
-          deteriorate, so an empty feed can be the correct safety state.
-        </p>
-        <p className={styles.note}>
-          The whole point of the labels: over time, watch <b>which tier actually makes money</b>{" "}
-          in the Performance panel, and weight your attention accordingly.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Ideas in the Lab that are not traded</h2>
-        <p>
-          The Strategy Lab lists more ideas than the bot actually runs. Their cards carry a tag, and
-          there are two of them.
-        </p>
+        <h2>The five tabs</h2>
         <dl className={styles.dl}>
-          <dt>UNMEASURED (amber)</dt>
+          <dt>Today</dt>
           <dd>
-            The idea has never been tested against random entries, so nobody knows yet whether it is
-            better than a coin flip. An unmeasured idea is <b>not</b> a losing idea — it is an
-            untested one, which is why the tag is amber rather than red.
+            One sentence on whether the bot is working and trading, the two markets, the practice money, the latest
+            trade ideas and any big news coming up.
           </dd>
-          <dt>REFUTED (red)</dt>
+          <dt>Ideas</dt>
           <dd>
-            The idea has been tested and failed its qualification rules. Open its evidence to see which checks failed and which were not measured.
+            Every trade idea, open or finished. The verdict on the methods sits at the top. &ldquo;For
+            researchers&rdquo; at the bottom holds every number behind the cards.
           </dd>
-        </dl>
-        <p>
-          <b>The two Phase 4 replacement candidates are now refuted too.</b> On 25 August 2026,
-          opening-range breakout with relative volume and the intraday turn-of-month rule were run
-          as six preregistered configurations on both MES and MNQ. None of the 12 measured runs
-          cleared every promotion check. The least-bad run made $510 on MNQ, but still failed the
-          random-entry, deflated-Sharpe, t-statistic, PBO and fold-survival checks. They remain in
-          the Lab and Diagnostics for audit; neither can replace a paused stream.
-        </p>
-        <p>
-          You can open any of them in the Lab and backtest them like anything else. What they will
-          never do is produce a signal on Legacy signal research or Signals, or place a paper trade. Nothing reaches
-          the live feed until it has beaten random entries on years of data.
-        </p>
-        <p>
-          <b>Gold zones, silver confirmed</b> is the newest of these, and as of 21 August 2026 it is{" "}
-          <b>refuted</b>. It buys gold demand zones and sells gold supply zones, but it waits for
-          silver to arrive at its matching zone first — the idea being that a move both metals agree
-          on is worth more than a move only one of them makes.
-        </p>
-        <p>
-          It was tested over seven years of gold data, one year at a time. It did not beat random
-          entries in a single one of those years. Its results sit in the middle of what you would
-          get by opening trades at random times, which is the plainest way of saying the rule is not
-          telling you anything.
-        </p>
-        <p>
-          Worth being precise about what that does and does not mean. Gold and silver really do move
-          together — that part was checked first and held up. What failed is the next step: knowing
-          that silver has arrived at its zone does not tell you where gold goes next. And it is not
-          losing because of costs. Switch the costs off and it still loses.
-        </p>
-        <dl className={styles.dl}>
-          <dt>Silver is watched, never traded</dt>
+          <dt>Chart</dt>
           <dd>
-            The app cannot take a position in silver at all. If you run this in the Lab you will see
-            silver on the instrument line with zero trades next to it, and that is correct rather
-            than a fault.
+            Prices, the price areas the bot watches, why there is no idea right now, and the big news it steps aside
+            for.
           </dd>
-          <dt>It is not live, and will not be tuned</dt>
-          <dd>
-            A setup that does not beat a coin flip does not get adjusted until it looks better on the
-            same data that just refuted it. That is how you fool yourself, and this app has a rule
-            against it.
-          </dd>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>How to read a number here</h2>
-        <p>
-          Every percentage and profit factor in this app comes with two extra pieces of
-          information, and they matter more than the number itself.
-        </p>
-        <dl className={styles.dl}>
-          <dt>n = how many trades it is based on</dt>
-          <dd>
-            You will see <b>n=7</b> or <b>n=26</b> under every rate. That is the number of
-            finished trades the figure was calculated from. A win rate on seven trades and a win
-            rate on seven hundred look identical on screen unless the app tells you which is
-            which, so it always tells you.
-          </dd>
-          <dt>The range in brackets</dt>
-          <dd>
-            A win rate of <b>67%</b> sounds like an edge. On three trades, the honest range around
-            it is <b>21% to 94%</b> — which is another way of saying you have learned nothing yet.
-            That bracketed range is what the true rate could plausibly be, given how few trades
-            there are. It narrows as trades accumulate. When it is wide, ignore the headline
-            number.
-          </dd>
-          <dt>&ldquo;previewed, not judged&rdquo;</dt>
-          <dd>
-            Below <b>30 finished trades</b> a figure is greyed and carries this amber tag. It is
-            shown so you can watch it develop — not so you can act on it. Above 30 the tag
-            disappears. Nothing about a tagged number is broken; there simply is not enough of it
-            yet.
-          </dd>
-          <dt>&ldquo;nothing logged yet&rdquo;</dt>
-          <dd>
-            Zero finished trades. This is <i>not</i> a zero percent win rate and does not mean
-            anything failed — it means the stream has not traded yet. Tier A can sit here for
-            weeks, which is normal for it.
-          </dd>
-          <dt>Expectancy comes first</dt>
-          <dd>
-            Where you used to see win rate as the headline you will now see <b>expectancy per
-            trade</b> — the average profit or loss across every trade, winners and losers
-            together. It is the figure that answers &ldquo;is this making money?&rdquo;. Win rate
-            on its own cannot: winning 70% of the time while losing far more on the losers than
-            you make on the winners still empties the account. Win rate is still shown, just
-            underneath, where it belongs.
-          </dd>
+          <dt>Bot</dt>
+          <dd>Where the bot is on its Watch → Test → Practice path, its health, the practice money and each method&apos;s progress.</dd>
+          <dt>More</dt>
+          <dd>Your Journal and Review, this Guide, settings (ET or IST, hide money) and the research room.</dd>
         </dl>
         <p className={styles.note}>
-          None of this is a disclaimer. Reading a small sample as if it were a large one is the
-          most expensive mistake available to a trader with a dashboard, and the app is built to
-          make it hard.
+          Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
         </p>
       </section>
 
       <section className={styles.card}>
-        <h2>The clean streak — the one number about you</h2>
-        <p>
-          Legacy signal research used to show a <b>green streak</b>: how many days in a row finished in profit. That
-          rewarded the wrong thing. A day where you broke every rule and got away with it kept the
-          streak; a day where you followed your plan exactly and lost broke it. In an app built on
-          the idea that process beats outcome, that was backwards.
-        </p>
-        <p>
-          It is now a <b>clean streak</b>: days in a row where <i>you broke no rule</i>. It is
-          judged from your journal against the same rules the bot follows — entries only inside the
-          trading window, no more than two trades a day per market, stop after two losers, and
-          nothing wildly oversized.
-        </p>
-        <ul className={styles.steps}>
+        <h2>How to read a trade idea</h2>
+        <ol className={styles.steps}>
           <li>
-            <b>A losing day where you followed the plan keeps the chain alive.</b> That is the whole
-            point.
+            <b>Buy or Sell, and which market.</b> &ldquo;Sell · Nasdaq micro&rdquo; means the idea expected the Nasdaq
+            micro to fall.
           </li>
           <li>
-            <b>A winning day where you broke a rule ends it.</b> Getting away with it is not the
-            same as being right.
+            <b>The badge.</b> A red &ldquo;Method hasn&apos;t beaten chance&rdquo; means the method behind it was tested
+            on years of prices and did no better than random entries. Amber &ldquo;Not tested yet&rdquo; means nobody
+            has checked.
           </li>
           <li>
-            With an empty journal it reads <b>&ldquo;log a trade to start the chain&rdquo;</b> — not
-            a zero-day streak, which would look like a failure you have not had.
-          </li>
-        </ul>
-        <p className={styles.note}>
-          Don&apos;t break the chain. It is the only score on the app that is entirely within your
-          control.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Your costs are now counted</h2>
-        <p>
-          Your journalled trades used to be shown <b>gross</b> — before commission — while the
-          bot&apos;s figures were always <b>net</b>. Every close race quietly favoured you. Both
-          sides now have the same $2.40 per contract taken out, so &ldquo;bot vs you&rdquo; is a
-          fair fight.
-        </p>
-        <p>
-          One difference remains, and it runs against the bot. The bot also pays a tick of slippage
-          on the way in, because its fills are simulated and it assumes it does not always get the
-          price it wanted. Your entry price is the fill you actually got, so your slippage is
-          already in the number — charging you a second helping would count it twice. All in, the
-          bot carries about $3.65 a contract on MES and $2.90 on MNQ against your $2.40.
-        </p>
-        <p className={styles.note}>
-          One consequence worth knowing: a trade that made a tick or two is now correctly shown as a
-          small <i>loss</i>, because the commission was bigger than the move. That is real, and it
-          is what your broker statement says too.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>How far a trade ran before it ended</h2>
-        <p>
-          Every finished trade now records the worst it got against you and the best it got in your
-          favour, measured in <b>R</b> — multiples of the distance from your entry to your stop.
-        </p>
-        <dl className={styles.dl}>
-          <dt>Worst drawdown (MAE)</dt>
-          <dd>
-            How far offside the trade went before it worked out. Look at this on your{" "}
-            <i>winners</i>: if they routinely go 0.8R against you first, a tighter stop would have
-            cut them all.
-          </dd>
-          <dt>Best run (MFE)</dt>
-          <dd>
-            How far onside it went before it ended. Look at this on your <i>losers</i>: if they were
-            usually green first, a break-even rule would have paid for itself.
-          </dd>
-          <dt>How much you kept</dt>
-          <dd>
-            What you actually took out of the move, against the best it ever showed. Low numbers
-            mean you are exiting well before the trade is done — or holding well past it.
-          </dd>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Zones on the chart</h2>
-        <p>
-          On Markets, buy and sell areas are now drawn as <b>shaded rectangles</b> rather than
-          single lines. The <b>solid edge</b> is where price enters the zone — the line you would
-          get filled at. The <b>dashed edge</b> is the far side; your stop belongs just beyond it.
-          Green is a buy area, red is a sell area, and a faded box is one price has already worked
-          through.
-        </p>
-        <p className={styles.note}>
-          A single line could not show you the difference between price touching the edge of a zone
-          and eating all the way through it — which is exactly the difference between a trade and
-          no trade.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>How to read one signal</h2>
-        <dl className={styles.dl}>
-          <dt>Entry / Stop / Target</dt>
-          <dd>
-            The full plan. Risk is the distance from entry to stop; reward is entry to target.
-          </dd>
-          <dt>R:R</dt>
-          <dd>
-            Reward-to-risk. 1.5 means the target pays 1.5× what the stop costs. At 1.5 R:R you
-            only need to win about 4 trades in 10 to come out ahead.
-          </dd>
-          <dt>Status</dt>
-          <dd>
-            <b>TARGET</b> = winner. <b>STOP</b> = loser. <b>OPEN</b> = still running.{" "}
-            <b>CLOSED UP</b> = finished in profit without reaching a target — some strategies exit
-            on their own signal instead of a fixed target, and those wins used to be mislabelled as
-            flat closes. <b>FLAT CLOSE</b> = closed at 15:25 ET (00:55 IST in summer, 01:55 in
-            winter) with nothing gained, because the strategy never holds overnight.
-          </dd>
-          <dt>P&amp;L</dt>
-          <dd>
-            Simulated dollars for the position size the engine chose (risking about $160 a trade),
-            with commissions already subtracted.
-          </dd>
-          <dt>Regime</dt>
-          <dd>
-            What kind of market the idea was born into: trending or ranging, quiet or volatile
-            (e.g. <b>TR·HV</b> = trending, high volatility). It never changes the ideas — it is a
-            label, so the Performance panel can show which conditions the strategy actually earns
-            in.
-          </dd>
-          <dt>Stale data</dt>
-          <dd>
-            The feed is delayed 10–15 minutes by design, but sometimes it stalls for far longer. If
-            the newest price bar is more than <b>30 minutes</b> old when the bot runs, any idea it
-            works out is describing a market that has already moved on. Those ideas are still
-            written down — hiding them would hide the outage — but they are marked{" "}
-            <b>STALE DATA</b>, kept out of every score on Legacy signal research and Signals, never sent to Telegram,
-            and never used to teach the model. You will find them in their own{" "}
-            <b>Excluded: stale data</b> box on the Signals page.
-          </dd>
-          <dt>Revised-away signal</dt>
-          <dd>
-            The data vendor occasionally corrects a bar inside the seven-day reconciliation
-            window. If the deterministic rerun no longer produces an older row, the engine keeps
-            it for traceability but marks it <b>REVISED</b>. It is removed from performance,
-            breakers, alerts and model training, and remains visible in the{" "}
-            <b>Excluded: revised-away signals</b> box on Signals.
-          </dd>
-          <dt>Marginal / doubtful fill</dt>
-          <dd>
-            An honesty check on the entry itself. The simulation assumes a resting order fills the
-            moment price touches the entry level — in a real market a touch is often not enough.
-            No chip means price traded cleanly through the level. <b>MARGINAL FILL</b> (amber)
-            means price barely reached it but came back later; <b>DOUBTFUL FILL</b> (red) means
-            price only kissed the level once — a real order likely never filled, so treat that
-            idea&apos;s profit as imaginary. Every performance number is also restated
-            &ldquo;excluding doubtful fills&rdquo; so you can see both versions.
-          </dd>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>What each page does</h2>
-        <dl className={styles.dl}>
-          <dt>Legacy signal research</dt>
-          <dd>
-            The original research dashboard: the live idea, today&apos;s score, the
-            last three weeks, the two markets, the nearest zones, <b>why there was no signal
-            today</b>, and whether the bot is healthy.
-          </dd>
-          <dt>Signals</dt>
-          <dd>Every idea, grouped by day, with the full zone watchlist and engine detail.</dd>
-          <dt>Review</dt>
-          <dd>
-            The weekend page. A calendar of every trading day coloured by profit or loss, a
-            year-at-a-glance heatmap, and the same results split by <b>session</b> (London, NY
-            open, lunch, NY close), weekday, market and market conditions. Use it to find{" "}
-            <i>when</i> the money is made and when it is given back. Every split carries its own
-            sample size, and they are all small — read those before the percentages.
-          </dd>
-          <dt>Markets</dt>
-          <dd>
-            Delayed charts, live strategy readout, and the news calendar — each week&apos;s
-            high-impact U.S. events from a free live feed, backed by the official BLS and Fed
-            schedules when the feed is down. The readout loads the selected strategy&apos;s actual
-            instruments — including gold and its silver confirmation feed — rather than always
-            substituting MES and MNQ.
-          </dd>
-          <dt>Journal</dt>
-          <dd>
-            Pick any past day: see what the engine did, minute by minute, next to your own
-            journaled trades. This is where the learning happens.
-          </dd>
-          <dt>Strategy Lab (plus Compare and Data)</dt>
-          <dd>
-            The workshop (advanced, optional). Change strategy settings, run backtests, compare
-            variants, load your own CSV history. Compare and Data sit under <b>More</b> in the
-            side menu on a computer. The Data page also shows the app&apos;s own price archive —
-            it saves its five-minute history to the cloud every day, so over time backtests can
-            reach further back than the feed&apos;s 60-day limit — and the <b>Shadow lab</b>:
-            four extra strategies auditioning silently on live data. Shadow results are{" "}
-            <b>not signals</b> and never send alerts; a stream only earns promotion interest
-            after at least 60 finished trades, a profit factor of 1.2 or better, and profits in
-            two different market regimes. You never need any of these pages to follow the
-            signals.
-          </dd>
-          <dt>What the bot knows</dt>
-          <dd>
-            Under <b>More</b> in the side menu. Every night the bot re-reads everything it has
-            recorded and re-derives its own statistics — whether the zone score actually predicts
-            winners, which market conditions each tier does well in, what the filters are turning
-            away, whether the fills still look believable, and how the shadow strategies are doing.
-            It is pure observation: nothing on this page is a trade idea and none of it changes what
-            the bot does. Anything with too few finished trades reads &ldquo;collecting (n=X of
-            10)&rdquo;, and anything past that but still under 30 is marked &ldquo;previewed, not
-            judged&rdquo; — the bot will not draw a lesson from a handful of trades.
-          </dd>
-          <dt>Diagnostics</dt>
-          <dd>
-            Under <b>More</b> in the side menu. This page asks the hardest question in the app:
-            <b> is the entry actually doing anything?</b> It re-runs every stream a thousand times
-            with the entries replaced by coin flips — same stops, same targets, same costs, same
-            number of trades, same times of day, same long/short balance — and shows where the real
-            result lands among those thousand random versions. If the real strategy is not in the
-            top 5% of them, the entry rule is not adding anything, and changing its settings will
-            not help. The page also shows every result twice: <b>gross</b> (before costs) beside{" "}
-            <b>net</b> (after), so you can see how much of a loss is the idea and how much is the
-            commission and spread.
-            <br />
-            <br />
-            Lower down the same page: <b>where the drift actually is</b> — how much of the market&apos;s
-            move happens overnight, while this bot is flat, versus during the day when it can trade.
-            Then the <b>promotion gate</b>, shown turning down all three of the bot&apos;s own live
-            ideas, and a <b>hypothesis board</b> of new ideas being tested the same way. Nothing on
-            the board is a signal or a recommendation; a new idea starts with no more standing than
-            the old ones ended with, and every setting tried counts against the bar the next one has
-            to clear.
-          </dd>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Finding your way around the screen</h2>
-        <p>
-          Every page has the same bar across the top: the diamond mark and the page name on the
-          left, and three controls on the right.
-        </p>
-        <dl className={styles.dl}>
-          <dt>ET / IST</dt>
-          <dd>Which clock every time on screen is shown in. See below.</dd>
-          <dt>The eye — private mode</dt>
-          <dd>
-            Tap it and every money figure turns into dots, so you can check the app on a train
-            without showing your P&amp;L to the next seat. Prices, times, win rates and status
-            labels all stay, because those are what make the screen readable. The setting is
-            remembered on that device. Backtest results in the Strategy Lab are not hidden — they
-            are hypothetical numbers from a simulation, not your money.
-          </dd>
-          <dt>The bell — what needs attention</dt>
-          <dd>
-            A red dot appears when there is something real to report: the bot has not checked in
-            recently, the last check failed, the price feed is running late, a stream has been
-            benched, or a news pause is coming. Tap it for the list. No dot means there is nothing
-            to say.
-          </dd>
-        </dl>
-        <p>
-          On Legacy signal research, the line under the bar tells you when the bot last checked and lets you tap to
-          check again. The big number below it is your P&amp;L, and the <b>Today / Week / 3 wks</b>{" "}
-          switch changes the window it covers — the small badge beside it is the profit factor for
-          that same window, and the line underneath is the running total after each closed idea.
-        </p>
-        <p>
-          When an idea is open, the coloured track shows where price is sitting between your stop
-          (left, red) and your target (right, green), with a tick for the entry. It is the one
-          thing worth a glance mid-trade. Underneath it, the twelve small bars are the bot&apos;s
-          last twelve scheduled checks — taller means the check took longer, green means it
-          finished cleanly — and the green streak counts how many trading days in a row have
-          finished up.
-        </p>
-        <p>
-          <b>Tapping any idea</b> — on Legacy signal research, on Signals, or from a day in the Journal — slides up a
-          card with its entry, stop, target and a plain-English &ldquo;why the bot took it&rdquo;.
-          Tap outside the card, or press Escape, to go back without losing your place on the page.
-          On Signals, the <b>Open / Zones / History</b> switch at the top shows what is working now,
-          which zones price is walking into, and what has already closed; the ring on each card is
-          the model&apos;s win probability, and it reads &ldquo;—&rdquo; when the model has not
-          scored that idea.
-        </p>
-        <p>
-          On Markets, the top card is whichever contract you are looking at: its price, its move on
-          the day, and a chart with a dashed blue line at yesterday&apos;s close so you can see at a
-          glance whether the day is up or down. The five pills under it change the bar size — 5m
-          through 1D — and <b>Line / Candles</b> switches between the quick shape and the full
-          candlestick chart. The other contract sits in a row further down; tap it to bring it into
-          the top card.
-        </p>
-        <p className={styles.note}>
-          In the Journal, the coloured grid is three weeks of daily P&amp;L — one square per trading
-          day, showing the date and that day&apos;s result, pattern first and numbers second. Hover
-          or long-press a square for the exact figure, or tap it to load that day. <b>Bot vs you</b>{" "}
-          compares the engine against your own logged trades over the days you actually journaled. Your side is gross of costs and the engine&apos;s already has
-          commission and slippage taken out, so a close race is really a win for the bot. In the
-          Strategy Lab, the front panel now holds only the settings that genuinely change
-          behaviour, in plain words, with everything else in <b>Advanced</b>.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>When the bot benches a strategy</h2>
-        <p>
-          The bot watches how each stream is actually doing. When a stream&apos;s recent results
-          slump — its profit factor drops below 0.8 over its last 20 finished trades — the bot{" "}
-          <b>benches it</b>: it stops showing that stream&apos;s ideas and stops counting them in
-          the headline numbers, but it keeps simulating them silently in the background. When the
-          silent practice run recovers — profit factor back to 1.1 or better over the next 15 — the
-          bot puts the stream back in the game on its own. It waits at least three trading days
-          between changes so it never flip-flops.
-        </p>
-        <p className={styles.note}>
-          Paused streams show up in their own <b>Paused streams</b> box on the Signals page and a
-          <b>RESEARCH MODE</b> note on Legacy signal research, with the date they were benched and how their practice
-          run is recovering. Research mode means exactly what it says: no candidate is presented
-          as the replacement unless its completed benchmark clears every promotion check. The
-          current Phase 4 candidates were measured and refuted, so no replacement is active.
-          The weekly digest keeps their practice out of the headline numbers too and reports it on
-          its own line. Every bench and every return is recorded and sent to Telegram, so nothing
-          happens silently. It is the safest kind of automation — learning when <i>not</i> to trade — and,
-          like everything here, it is paper only.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>How automatic learning stays safe</h2>
-        <p>
-          Every trading day the bot retrains a <b>candidate</b> from the newest completed paper
-          trades and records the data cutoff, feature version, dataset fingerprint and result.
-          Daily training can observe and measure; it cannot silently replace the model used by
-          the signal engine. Once a week, the promotion gate checks genuinely newer
-          out-of-sample trades, costs and drawdown before a candidate can move through canary to
-          active. No fresh evidence means no change.
-        </p>
-        <p className={styles.note}>
-          Open <b>Bot → Detailed learning history → Trust Center</b> to see the latest daily and weekly runs, the deployed
-          model, and the exact reason a proposal was accepted or blocked. This is still paper
-          trading: the learning loop changes research artefacts and paper-signal behaviour, never
-          places a broker order.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Your journal is private</h2>
-        <p>
-          Journal entries save on this device first. If you want the same journal on another
-          device, use <b>Private cloud sync</b> on the Journal page. Enter your email, then type
-          the six-digit code sent to you. Only your signed-in account can read its cloud copy.
-          Signing out returns the journal to local-only mode. CSV export remains available as
-          your portable backup.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>What each idea tells you at a glance</h2>
-        <p>
-          Every idea on Legacy signal research and on Signals now carries four lines under it, so you do not have to
-          hold the context in your head:
-        </p>
-        <dl className={styles.dl}>
-          <dt>Setup</dt>
-          <dd>What triggered it, in the strategy&apos;s own terms.</dd>
-          <dt>Invalidated</dt>
-          <dd>
-            The price that proves the idea wrong, and how far away it is. This is the stop — if price
-            gets there, the reason for the trade is gone.
-          </dd>
-          <dt>Odds</dt>
-          <dd>
-            The model&apos;s win probability for this idea, plus the zone score where there is one. If
-            the model has not scored it, it says so rather than showing a number.
-          </dd>
-          <dt>History</dt>
-          <dd>
-            How <i>this kind of setup</i> has actually done — the same tier in the same kind of
-            market, and the same tier at the same level of market fear. <b>Every one of these comes
-            with the number of trades behind it</b>. Below 10 trades it says &ldquo;still
-            collecting&rdquo; and shows no rate at all; between 10 and 30 it shows the numbers but
-            marks them &ldquo;previewed, not judged&rdquo;. A 100% win rate on 3 trades is not
-            information, and the app will not present it as if it were.
-          </dd>
-        </dl>
-      </section>
-
-      <section className={styles.card}>
-        <h2>When nothing happens: &ldquo;Why no signal today?&rdquo;</h2>
-        <p>
-          A quiet day raises exactly one question — is the bot broken, or just being patient? The{" "}
-          <b>Why no signal today?</b> box on Legacy signal research answers it in a sentence, using the bot&apos;s own
-          count of what it looked at: how many five-minute candles it checked, how many zones price
-          actually reached, how many setups qualified, and what stopped the rest.
-        </p>
-        <p>
-          A big number of candles checked with nothing qualified is the <b>normal, healthy</b>{" "}
-          state — this strategy is built to wait for price to come to it. The box also tells you when
-          something else is going on: a strategy benched by the breaker, or a stalled price feed. If
-          it cannot tell you why, it says so rather than guessing.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>The model that learns to skip weak signals</h2>
-        <p>
-          Alongside the strategies, a small model studies every signal the bot has already seen and
-          learns which setups are <b>least</b> likely to win. It can only ever do one thing: quietly
-          skip the weakest 1-in-10 signals. It can never invent a trade or make one bigger.
-        </p>
-        <p>
-          It has to <b>earn the right</b> to act. Until it has at least 150 clean examples <i>and</i>{" "}
-          its predictions beat a simple baseline on data it has never seen <i>two nights running</i>,
-          it only shadow-votes — it marks which signals it <i>would</i> have skipped, and the
-          Saturday digest reports how those would have done, so you can watch it audition just like
-          the shadow strategies. The count it has so far, and the count it needs, are printed
-          together everywhere it appears. If it graduates and later starts slipping, it demotes
-          itself back to watching. You can see its status, accuracy trend and calibration on the{" "}
-          <b>What the bot knows</b> page, and it is paper only, like everything here.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>The bot proposes its own upgrades</h2>
-        <p>
-          Once a week the bot searches for better strategy settings and tests them the honest way:
-          it tunes on older data, checks the result on a month it never saw, and stress-tests the
-          worst-case drawdown. If the same improved setting wins two weeks in a row — or a shadow
-          strategy passes its promotion checklist two weeks running — the bot opens a{" "}
-          <b>pull request</b> on GitHub with the full evidence attached.
-        </p>
-        <p className={styles.note}>
-          A pull request is just a proposal. <b>Nothing changes until you merge it</b> — the bot can
-          never edit the live settings by itself, and it will not pester you with the same idea more
-          than once a month. Most weeks it finds nothing and stays quiet, which is exactly what a
-          disciplined system should do. Merging is the one job left to you; everything else —
-          noticing, measuring, proposing — is the bot&apos;s.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>ET or IST — your choice</h2>
-        <p>
-          Every time in the app can be shown on the New York exchange clock (<b>ET</b>) or on
-          your own clock in India (<b>IST</b>). Use the <b>ET / IST</b> switch — bottom of the
-          side menu on a computer, top right on a phone. Your choice is remembered on that
-          device, and it changes every screen at once: the signal times, the chart&apos;s time
-          axis, the journal, the news calendar.
-        </p>
-        <p>
-          Two things deliberately do <b>not</b> move:
-        </p>
-        <ul className={styles.steps}>
-          <li>
-            <b>Trading days.</b> The blotter groups ideas by New York trading day, always. An
-            idea posted at 21:20 IST belongs to that New York session, not to the next Indian
-            date.
+            <b>The bar.</b> Stop on the left, target on the right, the white tick is the entry. The red part is the
+            room to be wrong; the green part is how far it aimed. A ring shows where it ended.
           </li>
           <li>
-            <b>Journal entry times.</b> You type your own trades in ET, because that is what the
-            chart and the engine&apos;s own timestamps use. When the app is set to IST, the form
-            shows you what your typed ET time means in IST as you go.
+            <b>The sentence.</b> &ldquo;Exits at X if wrong (−$Y per contract) or Z if right (+$W)&rdquo; turns the
+            prices into dollars for one contract. MES moves $5 a point, MNQ $2 a point.
           </li>
-        </ul>
+          <li>
+            <b>The ending.</b> Reached its target, Stopped out, Closed before stop or target, Open now — or &ldquo;Not
+            resolved yet&rdquo; when the bot has not recorded how an old idea finished. Results are after costs.
+          </li>
+          <li>
+            <b>Details.</b> Tap a card for why the bot took it and, under &ldquo;How this kind of idea has
+            done&rdquo;, the numbers with their sample sizes.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Two kinds of money — never mixed</h2>
+        <p>
+          <b>Trade ideas</b> are a simulated record: what each method would have done, followed to the end on delayed
+          prices. Their results show on Today, Ideas and Review.
+        </p>
+        <p>
+          <b>Practice money</b> is the bot&apos;s own {usd(PAPER_RISK.capital)} paper account. It only trades once a
+          method has passed every test, so it has not traded yet. It shows on Today and Bot.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>How the bot earns the right to trade</h2>
+        <ol className={styles.steps}>
+          <li>
+            <b>Watch.</b> Every 15 minutes, all futures week, the bot reads prices and posts any idea its methods spot.
+            New ideas only start {etWindowLabel("02:00", "15:25")}, and everything is closed by {etTimeLabel("15:25")}.
+          </li>
+          <li>
+            <b>Test.</b> A method must beat thousands of random entries on years of past prices, pass a separate
+            confirmation period, then earn 60 new trades over 20 trading days and two weekly reviews. Past replays
+            never count as new trades.
+          </li>
+          <li>
+            <b>Practice.</b> Only then does it trade practice money — first at {usd(PAPER_RISK.probationRisk)} of risk
+            a trade, then up to {usd(PAPER_RISK.riskPerTrade)}. All open trades together risk at most{" "}
+            {usd(PAPER_RISK.totalOpenRisk)}. A {usd(PAPER_RISK.dailyLoss)} daily loss stops it for the day, and a{" "}
+            {usd(PAPER_RISK.maxDrawdown)} drop from its high locks the account until someone resets it.
+          </li>
+        </ol>
+        <p>
+          Every week the bot also tests any method marked &ldquo;Not tested yet&rdquo; against random entries by itself,
+          and reports the result on Bot. It never promotes a method on its own — a person has to.
+        </p>
         <p className={styles.note}>
-          India does not change its clocks but the United States does, so the gap is 9½ hours
-          from March to November and 10½ hours through the winter. The app works this out for
-          you — the session rules always print both, like &ldquo;flat by 15:25 ET (00:55
-          IST)&rdquo;, and that second figure shifts by itself when New York changes its clocks.
+          Too little evidence is shown in amber, never red: too little data is not a loss. Red is only for a measured
+          loss. Every rate is shown with its n, and below 30 trades it is marked &ldquo;previewed, not judged&rdquo;.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Is the bot working?</h2>
+        <dl className={styles.dl}>
+          <dt>Running</dt>
+          <dd>Price checks are arriving every 15 minutes.</dd>
+          <dt>Resting</dt>
+          <dd>The market is closed (weekends, holidays). That is the schedule, not a fault.</dd>
+          <dt>Prices delayed / Running late</dt>
+          <dd>The feed or a check is behind. Ideas catch up on the next pass.</dd>
+          <dt>Needs attention</dt>
+          <dd>Part of a check had a problem, such as the practice account update. Trade ideas are still checked.</dd>
+          <dt>Last check failed</dt>
+          <dd>The newest check errored. The next one runs within 15 minutes; a watchdog alerts if it keeps failing.</dd>
+        </dl>
+        <p>
+          The bell in the header lists anything worth a look. Its dot is amber for a warning and red only when something
+          failed. News notes alone do not light it.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Your journal</h2>
+        <p>
+          More → Journal is yours alone. Pick the trading day, type in a trade or import your broker&apos;s file
+          (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time
+          to match the chart. Sign in with your email to keep a private copy across devices; local saving always works.
+        </p>
+        <p>
+          &ldquo;Compare with the bot&rdquo; re-runs the zone method over 60 days in your browser and shows what it did
+          on your days. It takes a few seconds, so it only loads when you open it.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>ET or IST</h2>
+        <p>
+          Times follow the ET/IST switch in the header (also under More → Settings). Phones in India start on IST. Two
+          things stay in New York time on purpose: trading days (a day&apos;s ideas group by the New York date) and
+          journal entry times. Session rules print both clocks, for example flat by {etTimeLabel("15:25")}.
+        </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>The research room</h2>
+        <p>
+          More → Research room holds the raw tools: the Strategy Lab (test a method on past prices yourself),
+          Diagnostics (the beat-random test, market-year by market-year) and Data (import price files, replay a past
+          day). They use statistics words on purpose; tap any underlined word, or see the list below.
+        </p>
+        <p>
+          Methods carry their standing everywhere: <b>red &ldquo;hasn&apos;t beaten chance&rdquo;</b> means tested
+          and failed; <b>amber &ldquo;not tested yet&rdquo;</b> means unknown. Lab results never become trade ideas.
         </p>
       </section>
 
       <section className={styles.card}>
         <h2>Put it on your phone</h2>
         <p>
-          Open this site on your phone, then choose <b>Add to Home Screen</b> (in the browser
-          menu). It installs like an app and opens straight onto Home, with the five
-          main pages along the bottom.
+          iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: open it in Chrome, tap ⋮, then
+          Add to Home screen. It opens straight onto Today.
         </p>
       </section>
 
-      <section className={styles.card}>
-        <h2>&ldquo;Live vs tuning window&rdquo; — is it still working?</h2>
-        <p>
-          The strategy&apos;s settings were chosen on past data, which promised a certain profit
-          factor and pace for each stream. This Legacy signal research panel compares that promise with what the
-          live ideas have actually delivered since go-live. While a stream has fewer than 20
-          finished ideas it only says <b>collecting data</b> — a handful of trades proves nothing.
-          After that: green <b>tracking</b> means reality matches the promise, amber{" "}
-          <b>lagging</b> means it is earning less than promised but still above water, and red{" "}
-          <b>underwater</b> means the stream is losing money over a meaningful sample. Red{" "}
-          <b>refuted</b> overrides all of them and is explained in the next section.
-        </p>
-        <p>
-          Some streams say <b>this stream clusters</b>. That matters: their trades do not arrive at
-          a steady rate, they come in bursts, so the &ldquo;per day&rdquo; figure is a long-run
-          average and not a pace to expect. <b>Zone setups</b> is one of these — measured over
-          eleven weeks it traded on only 3 days in 51, and most of those trades were on a single
-          day. Whole quiet weeks from that stream are normal and are <i>not</i> a shortfall.
-        </p>
-        <p className={styles.note}>
-          A red stream means <b>stop trusting that stream</b> — the market may have changed since
-          the settings were tuned. It never means &ldquo;trade harder to catch up&rdquo;. The
-          muted line under each stream repeats the numbers excluding doubtful fills, the stricter
-          honest version.
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>&ldquo;Refuted&rdquo; — what it means, and why every stream now says it</h2>
-        <p>
-          There is a fifth state, and as of 31 July 2026 <b>all three streams are in it</b>. You
-          should read this section before you read any other number in this app.
-        </p>
-        <p>
-          The settings were chosen on <b>sixty days</b> of a delayed, free price feed. That is what
-          the &ldquo;tuned profit factor&rdquo; figures came from. We have since loaded{" "}
-          <b>seven years of real exchange data</b> for the actual MES and MNQ contracts — about a
-          million candles — and re-run the exact same settings over it. The results:
-        </p>
-        <ul>
-          <li>
-            <b>Zone setups</b> — 1,180 trades over 1,838 days: profit factor <b>0.55</b>, down{" "}
-            <b>$57,065</b>.
-          </li>
-          <li>
-            <b>Daily flow, MES</b> — 2,641 trades: profit factor <b>0.71</b>, down <b>$68,001</b>.
-          </li>
-          <li>
-            <b>Daily flow, MNQ</b> — 2,731 trades: profit factor <b>0.87</b>, down <b>$28,773</b>.
-          </li>
-        </ul>
-        <p>
-          Read the profit factor, not the dollar figure. Those totals assume a constant $160 of
-          risk on every trade for seven years and ignore the account being wiped out along the way
-          — the worst drawdown alone is $69,711 against a $3,000 starting balance. They are the
-          size of the leak, not a bill anyone could have paid.
-        </p>
-        <p>
-          And it is not one bad patch. Broken the two daily-flow streams down year by year gives
-          sixteen figures — two markets × eight years, 2019 to 2026 — and <b>all sixteen lost
-          money</b>. Not one profitable year in either market. (Zone setups was not split by year;
-          it trades on only about one session in six, so a single year of it is too thin to read.)
-        </p>
-        <p>
-          Sixty days is roughly fifty trading sessions. Seven years is roughly eighteen hundred.
-          When a set of settings looks good on the small sample and loses money on the large one,
-          the honest conclusion is that the small sample was luck, not that the market has changed.
-          The tuned figures are still shown, but only as the claim that failed.
-        </p>
-        <p className={styles.note}>
-          Nothing here has ever placed an order, so nothing was lost — but this is exactly the
-          finding the app exists to surface, and it says the current settings do not have an edge.
-          The streams keep running on paper so the numbers keep updating.{" "}
-          <b>Do not trade these signals.</b>
-        </p>
-      </section>
-
-      <section className={styles.card}>
-        <h2>Telegram alerts (optional)</h2>
-        <p>
-          The bot can message you on Telegram the moment an idea triggers — entry, stop, target
-          and reward-to-risk, with the time in both ET and IST — and again when it closes with the
-          result. These are <b>paper ideas, not orders</b>: same delayed data, same simulation as
-          the app, just delivered to your phone. It also messages if an engine run fails, so a
-          quiet feed means a healthy bot, not a broken one. (Set up once by the operator with a
-          free Telegram bot; nothing to configure in the app.)
-        </p>
-      </section>
-
-      <section className={styles.card}>
+      <section className={styles.card} id="words">
         <h2>Words you&apos;ll see</h2>
         <dl className={styles.dl}>
-          <dt>Zone</dt>
-          <dd>
-            A price area where big buying (demand) or selling (supply) showed up before. The
-            strategy trades the return to these areas.
-          </dd>
-          <dt>Fresh / Tested</dt>
-          <dd>
-            Fresh = price hasn&apos;t come back to the zone yet (strongest). Tested = it has been
-            touched once already.
-          </dd>
-          <dt>Paper trading</dt>
-          <dd>Practice trades with imaginary money. All trades in this app are paper trades.</dd>
-          <dt>Flat by 15:25 ET (00:55 IST)</dt>
-          <dd>
-            The strategy closes everything before the New York session ends. No overnight risk,
-            ever.
-          </dd>
-          <dt>Engine</dt>
-          <dd>
-            The automated checker (the &ldquo;bot&rdquo;) that re-reads the market every 15
-            minutes and posts what it finds. It runs for the whole futures week — from the
-            Sunday evening reopen through to Friday&apos;s close — so the zones keep refreshing
-            overnight even though <b>new ideas are only ever taken between 02:00 and 15:25 ET</b>.
-            It rests when the market is shut: from Friday evening to Sunday evening Legacy signal research says{" "}
-            <b>&ldquo;bot asleep&rdquo;</b> and shows when the next check is due. That is the
-            schedule working, not a fault, however long ago the last check was.{" "}
-            <b>&ldquo;Bot idle&rdquo;</b> is the different one: a check was due and has not
-            arrived. An amber &ldquo;data delayed more than usual&rdquo; note means the bot is
-            running <i>during trading hours</i> but the prices it last saw are older than the
-            usual 10–15 minutes — ideas catch up on the next pass. On CME holidays the app
-            simply shows &ldquo;Market closed&rdquo; with the holiday&apos;s name — the bot
-            rests on purpose — and on half days (like the day after Thanksgiving) everything
-            closes and flattens early.
-          </dd>
+          {GLOSSARY_KEYS.map((k) => (
+            <div key={k} style={{ display: "contents" }}>
+              <dt>{GLOSSARY[k].term}</dt>
+              <dd>{GLOSSARY[k].meaning}</dd>
+            </div>
+          ))}
         </dl>
       </section>
 
-
+      <section className={styles.card}>
+        <h2>If something looks wrong</h2>
+        <ul className={styles.steps}>
+          <li>A warning with &ldquo;Try again&rdquo; means a read failed; the screen keeps the last good numbers.</li>
+          <li>An idea marked &ldquo;Not resolved yet&rdquo; is left out of every total until the bot records its end.</li>
+          <li>A dash (—) means there is no number yet, not zero.</li>
+          <li>Still stuck? Check the bell, then Bot → health. The research drawers on Ideas show every excluded row.</li>
+        </ul>
+      </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-09-25 (simplified trader layout). A printable version of this guide lives in the project
-        as{" "}
-        <a
-          href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf"
-          target="_blank"
-          rel="noreferrer"
-        >
+        Matches the app as of 2026-10-03 (plain-language mobile redesign). A printable version of this guide lives in
+        the project as{" "}
+        <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf
         </a>
         .

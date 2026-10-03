@@ -9,7 +9,7 @@ import { strategyById } from "@/lib/strategies/registry";
 import { defaultParams } from "@/lib/strategies/types";
 import { decodeParams } from "@/lib/urlparams";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
-import { loadJournal, type JournalStore } from "@/lib/journal";
+import type { JournalStore } from "@/lib/journal";
 import { matchAll, summarize } from "@/lib/journal/match";
 import { nyDateKey } from "@/lib/time/ny";
 import { money } from "@/lib/format";
@@ -23,18 +23,22 @@ import { Badge, Button, DataTable, Kpi, Panel, SelectField } from "@/components/
 import BlotterCalendar, { type BlotterDay } from "./BlotterCalendar";
 import BotVsYou from "./BotVsYou";
 import DayTimeline from "./DayTimeline";
-import JournalPanel from "./JournalPanel";
 import styles from "./replay.module.css";
 
-/* Replay: one engine pass over the full 60-day delayed window (with the
-   decision-event log enabled), a blotter calendar as day-picker, the day's
-   chart with engine AND journal trades, the decision timeline, and the
-   journal itself. Zone Engine v5 with its shipped defaults; a ?p= override
-   from the Lab's share URL is honored. */
+/* "Compare with the bot" on the Journal page: one engine pass over the full
+   60-day delayed window (with the decision-event log enabled), a calendar as
+   day-picker, the day's chart with engine AND journal trades, and the
+   decision timeline. Zone Engine v5 with its shipped defaults; a ?p= override
+   from the Lab's share URL is honored.
+
+   Mounted only when the reader opens the comparison (JournalClient.tsx): the
+   60-day download and replay are the heaviest thing on any phone screen, and
+   logging a trade should never wait for them. The journal itself is passed
+   in; it is owned and edited by JournalClient. */
 
 const STRATEGY_ID = "zone-v5";
 
-export default function ReplayClient() {
+export default function ReplayClient({ journal }: { journal: JournalStore }) {
   const { zone } = useZone();
   const router = useRouter();
   const pathname = usePathname();
@@ -109,10 +113,6 @@ export default function ReplayClient() {
   useEffect(() => {
     void executeReplay();
   }, [executeReplay]);
-
-  // Journal: start empty (SSR-safe), hydrate from localStorage on mount.
-  const [journal, setJournal] = useState<JournalStore>({ version: 1, trades: [] });
-  useEffect(() => setJournal(loadJournal()), []);
 
   // All NY weekdays present in the bar data, ascending.
   const days = useMemo(() => {
@@ -258,17 +258,10 @@ export default function ReplayClient() {
 
   return (
     <>
-      <h1 className="pageTitle">Journal</h1>
-      <p className="pageSub">
-        Your own trades, next to a <b>re-run</b> of the zone strategy on the same day. Delayed data,
-        paper simulation only.
-      </p>
       <p className={styles.replayCaveat}>
-        This page re-simulates the zone strategy here in your browser over the last 60 days. It is
-        not the bot&apos;s own record, and its totals will not match Home or Signals: it runs the
-        zone strategy only (not the two daily-flow streams), it uses the Lab&apos;s default risk
-        limits rather than the live ones, and it covers days from before the bot went live. For
-        what the bot actually posted, use <a href="/signals">Signals</a>.
+        A re-run of the zone method in your browser over the last 60 days, so its totals will not match
+        Ideas: zone method only, the Lab&apos;s default limits, and days from before the bot went live. For
+        what the bot actually posted, use <a href="/signals">Ideas</a>.
       </p>
 
       {feedError && (
@@ -391,8 +384,6 @@ export default function ReplayClient() {
               symbol={chartSymbol}
             />
           </Panel>
-
-          <JournalPanel selectedDay={selectedDay} journal={journal} onChange={setJournal} />
 
           {journalSummary && (
             <Panel

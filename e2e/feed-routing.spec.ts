@@ -74,28 +74,29 @@ async function stubExternalData(page: Page, historyRequests: string[]) {
   );
 }
 
-test("home reaches a useful state without downloading any 60-day history", async ({ page }) => {
+test("Today reaches a useful state without downloading any 60-day history", async ({ page }) => {
   const historyRequests: string[] = [];
   await stubExternalData(page, historyRequests);
 
   await page.goto("/");
-  await expect(page.getByText("Paper signals · Delayed prices · No real orders")).toBeVisible();
+  await expect(page.getByText("Practice only · Delayed prices · No real money")).toBeVisible();
   await page.waitForTimeout(500);
 
   expect(historyRequests).toEqual([]);
 });
 
-test("Markets loads the selected strategy's real feeds", async ({ page }) => {
+test("Chart loads only the market on screen", async ({ page }) => {
   const historyRequests: string[] = [];
   await stubExternalData(page, historyRequests);
 
   await page.goto("/markets");
-  await expect(page.getByRole("heading", { name: "Markets" })).toBeVisible();
-  await expect.poll(() => [...new Set(historyRequests)].sort()).toEqual(["MES", "MNQ"]);
+  await expect(page.getByRole("heading", { name: "Chart" })).toBeVisible();
+  await expect.poll(() => [...new Set(historyRequests)].sort()).toEqual(["MES"]);
 
-  await page.getByLabel("Strategy").selectOption("gold-silver-zone");
-  await expect.poll(() => [...new Set(historyRequests)].sort()).toEqual(["MES", "MGC", "MNQ", "SI"]);
-  await expect(page.getByText(/Waiting for MGC \+ SI/)).toBeVisible();
+  await page.getByRole("group", { name: "Select symbol" }).getByRole("button", { name: "MNQ" }).click();
+  await expect.poll(() => [...new Set(historyRequests)].sort()).toEqual(["MES", "MNQ"]);
+  // No strategy dropdown any more — the engine's own check explains a quiet day.
+  await expect(page.getByText("Why no idea right now?")).toBeVisible();
 });
 
 test("Lab deep links request only the strategy-specific metals history", async ({ page }) => {

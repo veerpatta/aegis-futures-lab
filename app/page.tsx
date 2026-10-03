@@ -1,2 +1,5 @@
-import SignalsClient from "@/components/signals/SignalsClient";
-export default function HomePage(){return <SignalsClient home/>;}
+import TodayClient from "@/components/today/TodayClient";
+
+export default function TodayPage() {
+  return <TodayClient />;
+}

@@ -28,6 +28,8 @@ import { money } from "@/lib/format";
 import { nyMeta } from "@/lib/time/ny";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { Panel, Rate, SampleNote } from "@/components/ui";
+import ShowNumbers from "@/components/ui/ShowNumbers";
+import { Term } from "@/components/ui/Glossary";
 import { liveOnly } from "@/lib/signals/live";
 import styles from "./review.module.css";
 
@@ -43,6 +45,16 @@ export default function ReviewClient() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [month, setMonth] = useState<string | null>(null);
   const { mask } = usePrivacy();
+  /* A phone shows the last 13 weeks so the squares stay tappable-sized; wider
+     screens show the half year. */
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 480px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -73,8 +85,8 @@ export default function ReviewClient() {
   const shownMonth = month ?? months[0] ?? nyMeta(Math.floor(Date.now() / 1000)).dateKey.slice(0, 7);
   const calendar = useMemo(() => monthCalendar(days, shownMonth), [days, shownMonth]);
   const heat = useMemo(
-    () => yearHeatmap(days, nyMeta(Math.floor(Date.now() / 1000)).dateKey, 27),
-    [days]
+    () => yearHeatmap(days, nyMeta(Math.floor(Date.now() / 1000)).dateKey, narrow ? 13 : 27),
+    [days, narrow]
   );
 
   const pnls = closed.map((r) => r.pnl_usd ?? 0);
@@ -122,9 +134,13 @@ export default function ReviewClient() {
     <>
       <h1 className="pageTitle">Review</h1>
       <p className="pageSub">
-        When the bot makes its money, and when it gives it back. Every table below is a slice of
-        the same closed trades, so every one of them is thinner than the headline — read the
-        sample size before the number.
+        How the trade ideas have done, day by day. These are simulated ideas from methods that have not beaten
+        chance — not practice-account trades.
+      </p>
+      <p className={styles.plainHeadline}>
+        {closed.length === 0
+          ? "No idea has closed yet."
+          : `Trade ideas ${headline.net >= 0 ? "made" : "lost"} ${mask(money(Math.abs(headline.net), false))} over ${closed.length} closed idea${closed.length === 1 ? "" : "s"}, after costs. ${headline.rate.valueLabel} of them were winners (n=${closed.length}).`}
       </p>
 
       <Panel title="Closed trades" hint="suppressed and stale-data rows excluded, as everywhere">
@@ -216,7 +232,7 @@ export default function ReviewClient() {
         )}
       </Panel>
 
-      <Panel title="The year so far" hint="one square per weekday; weekends are not drawn">
+      <Panel title={narrow ? "The last 13 weeks" : "The last six months"} hint="one square per weekday">
         {days.length === 0 ? (
           <p className={styles.empty}>Nothing to plot yet.</p>
         ) : (
@@ -225,7 +241,7 @@ export default function ReviewClient() {
               className={styles.heat}
               style={{ gridTemplateColumns: `repeat(${Math.max(...heat.map((c) => c.weekIndex)) + 1}, 1fr)` }}
               role="img"
-              aria-label="Daily profit and loss over the last six months"
+              aria-label={`Daily result over the last ${narrow ? "13 weeks" : "six months"}`}
             >
               {heat.map((c) => (
                 <i
@@ -249,10 +265,15 @@ export default function ReviewClient() {
         )}
       </Panel>
 
-      <SliceTable title="By session" hint="when the trade was taken, New York time" rows={bySession(rows)} mask={mask} />
-      <SliceTable title="By weekday" hint="does one day carry the week?" rows={byWeekday(rows)} mask={mask} />
-      <SliceTable title="By market" hint="MES against MNQ" rows={bySymbol(rows)} mask={mask} />
-      <SliceTable title="By market regime" hint="conditions at entry" rows={byRegime(rows)} mask={mask} />
+      <ShowNumbers label="Show results by session, weekday and market">
+        <p className={styles.sliceNote}>
+          Each slice holds fewer ideas than the total, so read the <Term k="sampleSize">n</Term> before the number.
+        </p>
+        <SliceTable title="By session" hint="when the idea was taken, New York time" rows={bySession(rows)} mask={mask} />
+        <SliceTable title="By weekday" hint="does one day carry the week?" rows={byWeekday(rows)} mask={mask} />
+        <SliceTable title="By market" hint="S&P micro against Nasdaq micro" rows={bySymbol(rows)} mask={mask} />
+        <SliceTable title="By market mood" hint="conditions at entry" rows={byRegime(rows)} mask={mask} />
+      </ShowNumbers>
     </>
   );
 }

@@ -212,3 +212,12 @@
     font-size: 26px;
   }
 }
+
+/* Plain-words verdict under the title (2026-10-03). */
+.plainVerdict {
+  margin: var(--space-3) 0 0;
+  max-width: 70ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}

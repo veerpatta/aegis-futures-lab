@@ -85,9 +85,8 @@ describe("liveOnly", () => {
    EXEMPT with a written reason, and MUST_FILTER members must import liveOnly. */
 describe("every signals reader is classified", () => {
   const MUST_FILTER = [
-    "components/home/HomeClient.tsx", // headline P&L, the card that was wrong
     "components/review/ReviewClient.tsx", // P&L calendar + year heatmap
-    "lib/signals/snapshot.ts", // shared Home/Signals reader and headline calculation
+    "lib/signals/snapshot.ts", // shared Today/Ideas reader (useSignalFeed) and headline calculation
     "scripts/diag/nightly-research.ts", // mirrors the breaker's rolling PF
     "scripts/engine/breakers.ts", // rolling PF -> PAUSES a stream
     "scripts/engine/digest.ts", // the weekly Telegram digest

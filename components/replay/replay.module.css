@@ -426,3 +426,16 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Journal trading-day picker (JournalClient.tsx, 2026-10-03). */
+.dayInput {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--bg-inset);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  color-scheme: dark;
+}

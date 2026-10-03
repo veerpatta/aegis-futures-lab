@@ -10,7 +10,9 @@
   justify-content: space-between;
   gap: var(--space-3);
   min-height: var(--appbar-h);
-  padding: 8px max(var(--space-4), env(safe-area-inset-right)) 10px
+  /* The top inset matters once the app is installed: apple-mobile-web-app
+     uses black-translucent, so the page draws under the status bar. */
+  padding: max(8px, env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right)) 10px
     max(var(--space-4), env(safe-area-inset-left));
   background: rgba(5, 8, 15, 0.86);
   backdrop-filter: blur(18px);
@@ -73,8 +75,8 @@
 
 .iconBtn {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-icon);
   background: var(--bg-lifted);
   border: 1px solid var(--border);
@@ -99,8 +101,21 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--red);
   border: 1.5px solid var(--bg-lifted);
+}
+.dotWarn {
+  background: var(--amber);
+}
+.dotBad {
+  background: var(--red);
+}
+
+/* Fingers, not cursors: 44px is the smallest target a thumb hits reliably. */
+@media (pointer: coarse) {
+  .iconBtn {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 /* The zone switch is a second-order control — it keeps its own styling but

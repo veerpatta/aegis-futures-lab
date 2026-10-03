@@ -1,0 +1,201 @@
+/* Bot screen pieces (BotClient.tsx). Tokens only. */
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* ── Watch → Test → Practice ─────────────────────────────────────────── */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  position: relative;
+}
+.step {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+  min-width: 0;
+}
+.step b {
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+.step small {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+.stepDot {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  color: var(--text-faint);
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--bg-inset);
+}
+.stepDone .stepDot {
+  border-color: var(--green-line);
+  color: var(--green);
+  background: var(--green-soft);
+}
+.stepNow .stepDot {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+.stepNow b {
+  color: var(--amber);
+}
+.stepLater {
+  opacity: 0.7;
+}
+
+/* ── Progress meter toward 60 new trades / 20 days ───────────────────── */
+.meter {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+
+/* ── Activity ─────────────────────────────────────────────────────────── */
+.activity {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+}
+.activity li {
+  display: flex;
+  gap: var(--space-3);
+  padding: 12px var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.activity li:last-child {
+  border-bottom: 0;
+}
+.activity b {
+  font-size: 13.5px;
+}
+.activity p {
+  margin: 2px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.activity small {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.activityDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ── Sheets ───────────────────────────────────────────────────────────── */
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.sheetHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.sheet {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.sheet h3 {
+  margin: var(--space-4) 0 4px;
+  font-size: 14px;
+}
+.sheet p {
+  margin: var(--space-2) 0;
+}
+.sheet ul {
+  padding-left: 20px;
+}
+.sheet a {
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
+  color: var(--blue);
+  font-weight: 600;
+}
+.howList {
+  display: grid;
+  gap: var(--space-3);
+  padding-left: 20px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+}
+.facts div {
+  display: grid;
+}
+.facts dt {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.facts dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.verdict_green {
+  color: var(--green);
+}
+.verdict_amber {
+  color: var(--amber);
+}
+.verdict_red {
+  color: var(--red);
+}
+.verdict_dim {
+  color: var(--text-dim);
+}

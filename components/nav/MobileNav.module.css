@@ -13,13 +13,12 @@
   border-top: 1px solid var(--border);
 }
 
-/* The accent rail that slides between tabs. One fifth of the bar wide, so the
-   translate is a plain multiple of its own width. */
+/* The accent rail that slides between tabs. Its width is set inline to one
+   tab (100% / tab count), so the translate is a plain multiple of it. */
 .indicator {
   position: absolute;
   top: 0;
   left: 0;
-  width: 20%;
   height: 2px;
   border-radius: 999px;
   background: var(--green);
@@ -43,7 +42,7 @@
 }
 
 .tabLabel {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
