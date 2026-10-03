@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { databaseValue } from "@/lib/neon/server";
 import { buildModelRows, type RealTrainRow } from "@/scripts/engine/train-set";
 import { marketContexts, vwapPullback } from "@/lib/strategies/research-v2";
-import { sizePaperTrade, freshWeeklyEvidence, releaseEligible, type ForwardEvidence } from "@/lib/paper/policy";
+import { PAPER_RISK, sizePaperTrade, freshWeeklyEvidence, releaseEligible, type ForwardEvidence } from "@/lib/paper/policy";
 import { exitForPaper } from "@/scripts/engine/paper-broker";
 import { featuresV2 } from "@/scripts/engine/winprob-v2";
 import { normalizerOf, type ModelRow } from "@/scripts/engine/winprob";
@@ -39,17 +39,27 @@ describe("training recovery boundaries",()=>{
   });
 });
 describe("paper portfolio gates",()=>{
-  const state={equity:10000,peak:10000,dailyPnl:0,openRisk:0,locked:false};
+  /* Written against PAPER_RISK rather than literal dollars, so the gates are
+     tested whatever the policy's limits are set to. */
+  const R=PAPER_RISK;
+  const state={equity:R.capital,peak:R.capital,dailyPnl:0,openRisk:0,locked:false};
   it("counts costs and concurrent risk, and refuses oversized single contracts",()=>{
-    expect(sizePaperTrade(state,26,true).qty).toBe(0);
-    expect(sizePaperTrade(state,24,true).qty).toBe(1);
-    expect(sizePaperTrade({...state,openRisk:90},12,false).qty).toBe(0);
-    expect(sizePaperTrade({...state,dailyPnl:-190},12,false).qty).toBe(0);
+    expect(sizePaperTrade(state,R.probationRisk+1,true).qty).toBe(0);
+    expect(sizePaperTrade(state,R.probationRisk-1,true).qty).toBe(1);
+    expect(sizePaperTrade(state,R.riskPerTrade-1,false).qty).toBe(1);
+    expect(sizePaperTrade({...state,openRisk:R.totalOpenRisk-10},12,false).qty).toBe(0);
+    expect(sizePaperTrade({...state,dailyPnl:-(R.dailyLoss-10)},12,false).qty).toBe(0);
   });
   it("keeps a drawdown lock even if equity later recovers",()=>{
-    expect(sizePaperTrade({...state,equity:9000},10,false).qty).toBe(0);
+    expect(sizePaperTrade({...state,equity:R.capital-R.maxDrawdown},10,false).qty).toBe(0);
     expect(sizePaperTrade({...state,locked:true},10,false).qty).toBe(0);
     expect(sizePaperTrade({...state,dailyPnl:NaN},10,false).qty).toBe(0);
+  });
+  it("keeps the limits in proportion to one trade's risk", ()=>{
+    expect(R.probationRisk).toBeLessThan(R.riskPerTrade);
+    expect(R.totalOpenRisk).toBeGreaterThanOrEqual(R.riskPerTrade);
+    expect(R.dailyLoss).toBeGreaterThanOrEqual(R.totalOpenRisk);
+    expect(R.maxDrawdown).toBeGreaterThan(R.dailyLoss);
   });
   const evidence:ForwardEvidence={closed:60,days:20,net:200,pf:1.4,fingerprint:"first",evaluatedAt:"2026-09-01T00:00:00Z"};
   it("a rerun or a week with no new trades cannot promote",()=>{

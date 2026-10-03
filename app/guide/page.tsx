@@ -129,7 +129,9 @@ export default function GuidePage() {
           </li>
           <li>
             <b>Practice.</b> Only then does it trade practice money — first at {usd(PAPER_RISK.probationRisk)} of risk
-            a trade, then up to {usd(PAPER_RISK.riskPerTrade)}. All open trades together risk at most{" "}
+            a trade, then up to {usd(PAPER_RISK.riskPerTrade)} (
+            {Math.round((PAPER_RISK.riskPerTrade / PAPER_RISK.capital) * 1000) / 10}% of the account). All open trades
+            together risk at most{" "}
             {usd(PAPER_RISK.totalOpenRisk)}. A {usd(PAPER_RISK.dailyLoss)} daily loss stops it for the day, and a{" "}
             {usd(PAPER_RISK.maxDrawdown)} drop from its high locks the account until someone resets it.
           </li>

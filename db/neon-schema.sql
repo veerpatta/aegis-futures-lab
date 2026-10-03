@@ -604,7 +604,9 @@ CREATE OR REPLACE VIEW public.candidate_progress WITH (security_invoker=true) AS
 SELECT t.trial_key AS candidate_key,h.outcome AS historical,c.outcome AS confirmation,
  coalesce(f.closed,0)::integer AS forward_closed,coalesce(f.days,0)::integer AS forward_days,
  coalesce(f.net,0) AS forward_net,coalesce(w.passes,0)::integer AS weekly_passes
-FROM public.research_trials t
+-- One trial per candidate, the latest (db/migrations/20261003_candidate_progress_latest_trial.sql).
+FROM (SELECT DISTINCT ON (trial_key) * FROM public.research_trials
+      WHERE trial_key LIKE '2026-09-25.%:%' ORDER BY trial_key, registered_at DESC, id DESC) t
 LEFT JOIN LATERAL (SELECT coalesce((SELECT outcome FROM public.research_measurements m WHERE m.candidate_key=t.trial_key ORDER BY measured_at DESC LIMIT 1),t.outcome) outcome) h ON true
 LEFT JOIN LATERAL (SELECT outcome FROM public.research_confirmations c WHERE c.candidate_key=t.trial_key
  AND c.code_hash=h.outcome->>'codeHash' AND c.config_hash=h.outcome->>'configHash' ORDER BY measured_at DESC LIMIT 1) c ON true
@@ -612,8 +614,7 @@ LEFT JOIN LATERAL (SELECT count(*) closed,count(DISTINCT (signal_ts AT TIME ZONE
  FROM public.research_observations o WHERE o.candidate_key=t.trial_key AND provenance='forward' AND exit_ts<=now()
  AND intent IS NOT NULL AND jsonb_typeof(payload->'pnl')='number' AND code_hash=h.outcome->>'codeHash' AND config_hash=h.outcome->>'configHash') f ON true
 LEFT JOIN LATERAL (SELECT count(*) passes FROM public.paper_evaluations e WHERE e.candidate_key=t.trial_key
- AND e.code_hash=h.outcome->>'codeHash' AND e.config_hash=h.outcome->>'configHash' AND e.evidence->>'pass'='true') w ON true
-WHERE t.trial_key LIKE '2026-09-25.%:%';
+ AND e.code_hash=h.outcome->>'codeHash' AND e.config_hash=h.outcome->>'configHash' AND e.evidence->>'pass'='true') w ON true;
 
 CREATE OR REPLACE VIEW public.bot_activity WITH (security_invoker=true) AS
 SELECT 'training:'||id::text id,coalesce(finished_at,started_at) AS at,'Training'::text kind,status,

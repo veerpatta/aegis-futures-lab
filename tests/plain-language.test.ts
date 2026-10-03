@@ -8,6 +8,7 @@ import { methodVerdict, forwardProgress } from "@/lib/plain/methods";
 import { PLAIN_SUMMARY } from "@/lib/plain/strategies";
 import { STRATEGIES } from "@/lib/strategies/registry";
 import type { Candidate } from "@/lib/paper/overview";
+import { PAPER_RISK } from "@/lib/paper/policy";
 
 const mnqBuy = {
   dedupe_key: "B:rsi-reversion:MNQ:1787033700",
@@ -59,7 +60,7 @@ describe("the bot in plain words", () => {
   });
 
   it("reads limits from the policy, not typed numbers", () => {
-    expect(botSentence("Paper probation", null)).toMatch(/\$25 a trade/);
+    expect(botSentence("Paper probation", null)).toContain(`$${PAPER_RISK.probationRisk} a trade`);
   });
 
   const base = { loading: false, loadFailed: false, stale: false, asleep: false, delayed: false, failing: [], lastRun: { status: "ok" } };

@@ -9,6 +9,7 @@ import { RESEARCH_IDS, RESEARCH_VERSION } from "@/lib/strategies/research-v2";
 import { ALL_RESEARCH_IDS, candidateKey, researchConfigHash, researchRequest } from "../engine/research-observer";
 import { stableHash } from "../engine/learning-audit";
 import { researchCodeHash } from "../engine/research-code";
+import { PAPER_RISK } from "@/lib/paper/policy";
 import { effectiveTrialCount } from "../engine/trial-count";
 import { evaluatePromotion, type PromotionEvidence } from "@/lib/validation/promotionGate";
 import { deflatedSharpe, trialSharpeDispersion } from "@/lib/validation/deflatedSharpe";
@@ -30,7 +31,7 @@ async function main() {
     for (const s of specs) await c.query(`INSERT INTO research_trials(trial_key,hypothesis,prediction,decision_rule,config_hash,params,dataset,status,code_sha)
       VALUES($1,$2,$3,$4,$5,$6,$7,'registered',$8) ON CONFLICT(config_hash) DO NOTHING`,
       [s.key, s.id, "Positive net returns after costs and every validation gate", decisionRule, stableHash({ key:s.key, config:researchConfigHash }),
-        JSON.stringify({ version: RESEARCH_VERSION, risk: 50, strategy: s.id, symbol:s.symbol }),
+        JSON.stringify({ version: RESEARCH_VERSION, risk: PAPER_RISK.riskPerTrade, strategy: s.id, symbol:s.symbol }),
         JSON.stringify({ source:"databento", developmentEnd:confirmationFrom, confirmationFrom, note:"Old inspected archive is development, never independent confirmation" }), process.env.GITHUB_SHA ?? null]);
   });
   if (process.argv.includes("--register-only")) { console.log("Registered all frozen trials and reserved confirmation period."); return; }

@@ -1,7 +1,17 @@
 import { evaluatePromotion, type PromotionEvidence } from "@/lib/validation/promotionGate";
 
-export const PAPER_RISK = Object.freeze({ version: "paper-risk-2026-09-25", capital: 10000,
-  riskPerTrade: 50, probationRisk: 25, totalOpenRisk: 100, dailyLoss: 200, maxDrawdown: 1000 });
+/* Risk limits, all in proportion to one trade's risk R: probation 0.5R, every
+   open trade together 2R, daily loss 4R, drawdown lock 20R.
+
+   2026-10-03: R raised from $50 to $100 (1% of capital). Measured on the
+   development archive (docs/research/2026-10-03-risk-cap.md): one MNQ contract
+   of these methods typically risks $47–$125, so at $50 the replay refused
+   46–92% of MNQ signals and the forward evidence only ever saw tight-stop
+   trades. At $100, 71–100% of MES and 46–92% of MNQ signals fit. A change here
+   moves the research code AND config hashes: it is a new preregistered
+   configuration, not a tweak to an old one. */
+export const PAPER_RISK = Object.freeze({ version: "paper-risk-2026-10-03", capital: 10000,
+  riskPerTrade: 100, probationRisk: 50, totalOpenRisk: 200, dailyLoss: 400, maxDrawdown: 2000 });
 export interface ForwardEvidence {
   closed: number; days: number; net: number; pf: number | null;
   fingerprint: string; evaluatedAt: string;

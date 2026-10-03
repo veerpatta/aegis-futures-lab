@@ -124,7 +124,7 @@ export const GLOSSARY = {
   drawdown: {
     term: "Drawdown",
     meaning:
-      "How far the account has fallen from its highest point. A $1,000 drawdown locks the practice account until it is reset.",
+      "How far the account has fallen from its highest point. A $2,000 drawdown locks the practice account until it is reset.",
   },
   randomTest: {
     term: "Beat-random test",
@@ -153,7 +153,7 @@ export const GLOSSARY = {
   },
   probation: {
     term: "Probation",
-    meaning: "A newly qualified method trades practice money at half risk ($25 per trade) until another weekly review passes.",
+    meaning: "A newly qualified method trades practice money at half risk ($50 per trade) until another weekly review passes.",
   },
   tier: {
     term: "Zone setup and daily flow",

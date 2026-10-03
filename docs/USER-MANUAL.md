@@ -46,7 +46,7 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 
 1. **Watch.** Every 15 minutes, all futures week, the bot reads prices and posts any idea its methods spot. New ideas only start between 02:00 and 15:25 New York time (11:30–00:55 IST while the US is on summer time, 12:30–01:55 IST in winter), and everything is closed by 15:25 New York time.
 2. **Test.** A method must beat thousands of random entries on years of past prices, pass a separate confirmation period, then earn 60 new trades over 20 trading days and two weekly reviews. Past replays never count as new trades.
-3. **Practice.** Only then does it trade practice money — first at $25 of risk a trade, then up to $50. All open trades together risk at most $100. A $200 daily loss stops it for the day, and a $1,000 drop from its high locks the account until someone resets it.
+3. **Practice.** Only then does it trade practice money — first at $50 of risk a trade, then up to $100 (1% of the account). All open trades together risk at most $200. A $400 daily loss stops it for the day, and a $2,000 drop from its high locks the account until someone resets it.
 
 Every week the bot also tests any method marked "Not tested yet" against random entries by itself, and reports the result on Bot. It never promotes a method on its own — a person has to.
 
@@ -111,13 +111,13 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 | **Slippage** | Getting filled at a slightly worse price than planned. The app charges it on every trade. |
 | **Equity** | What the practice account is worth right now, including any open trade. |
 | **Open risk** | How much the practice account could lose if every open trade hit its stop. |
-| **Drawdown** | How far the account has fallen from its highest point. A $1,000 drawdown locks the practice account until it is reset. |
+| **Drawdown** | How far the account has fallen from its highest point. A $2,000 drawdown locks the practice account until it is reset. |
 | **Beat-random test** | The method's trades are compared with thousands of random entries on the same days. If it cannot beat random entries, it has no real edge. |
 | **Hasn't beaten chance** | The method was tested on years of data and did no better than random entries. Its ideas are kept as a record, not as advice. |
 | **Not tested yet** | Nobody has run the beat-random test on this method yet. Untested is not the same as losing — it just isn't known. |
 | **New trades** | Trades the bot recorded live, as the prices arrived. Past replays never count, so a method has to prove itself going forward. |
 | **Qualify** | To trade practice money a method needs: a passed history test, a separate confirmation, 60 new trades over 20 trading days, and two weekly reviews. |
-| **Probation** | A newly qualified method trades practice money at half risk ($25 per trade) until another weekly review passes. |
+| **Probation** | A newly qualified method trades practice money at half risk ($50 per trade) until another weekly review passes. |
 | **Zone setup and daily flow** | The two kinds of trade ideas. Zone setups are rare returns to strong price areas. Daily flow fades short sharp moves, at most twice a day. |
 | **Paused by the breaker** | When a kind of idea loses too often lately, the bot keeps simulating it but hides it from the results until it recovers. |
 | **Journal** | Your own trades, typed in or imported from your broker. They stay separate from the bot and are private to you. |
