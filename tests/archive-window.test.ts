@@ -145,6 +145,7 @@ describe("every bars_5m reader applies the whole-session trim", () => {
     "scripts/diag/tier-b-baseline.ts", // the tier-B out-of-sample measurement
     "scripts/diag/random-entry.ts", // Phase 1: gross/net, excursion, random-entry null
     "scripts/diag/gold-benchmark.ts", // the gold candidate's random-entry benchmark
+    "scripts/diag/auto-benchmark.ts", // weekly self-research: untested methods vs random entries
     "scripts/diag/phase4.ts", // Phase 4: hypothesis trials + overnight decomposition
     "scripts/diag/research-v2.ts", // Frozen replacement hypotheses build higher frames
     "scripts/engine/recover-training.ts", // Replay uses the same higher-frame strategies

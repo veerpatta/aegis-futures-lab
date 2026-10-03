@@ -50,6 +50,13 @@ short sentences. The reader knows trading but not software. Always keep the
   session's flatten time as OPEN (`lib/signals/open-state.ts`). Best-effort engine parts
   write `component_failed[<part>]` into the heartbeat (`lib/engine/markers.ts`); the
   watchdog's `watchdog-components` check alerts when one fails twice in a row.
+- Weekly self-research: `.github/workflows/weekly-benchmark.yml` runs
+  `scripts/diag/auto-benchmark.ts`, which measures ONE unmeasured method per run against
+  matched random entries (preregistered `research_trials` row, append-only
+  `research_baselines` row, issue + Telegram, Bot activity). Decision rule:
+  `lib/research/auto-benchmark.ts`. It never promotes and never edits standing — a person
+  moves a method in `lib/strategies/research-standing.json` (unhashed, so moving one does
+  not restart forward evidence). Each method is measured once per research-code hash.
 - Never run `scripts/engine/run-live.ts` locally: `.env.local` points at production Neon and
   there is no dry-run mode.
 - Times on screen follow a global ET/IST switch (`components/providers/ZoneProvider.tsx`,

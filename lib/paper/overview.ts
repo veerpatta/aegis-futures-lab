@@ -12,6 +12,8 @@ export function botState(data:BotOverview|null, failed=false) {
   if(r?.status==="active"||r?.status==="probation") return {label:r.status==="probation"?"Paper probation":"Paper active",tone:"green" as const,reason:r.status==="probation"?"A qualified strategy is practising with reduced risk.":"A qualified strategy is trading the practice account.",next:"Inspect the latest trade, then record your own decision in Journal."};
   return {label:"Researching",tone:"amber" as const,reason:"No strategy has passed every requirement for this practice account.",next:"Check the research progress on Bot. You can keep practising in Journal."};
 }
-const names:Record<string,string>={"zone-rejection-v2":"Zone rejection confirmation","rsi-context-v2":"RSI with market context","vwap-pullback-v1":"Trend pullback to VWAP","opening-continuation-v1":"Opening continuation","overnight-rejection-v1":"Failed overnight breakout"};
+const names:Record<string,string>={"zone-rejection-v2":"Zone rejection confirmation","rsi-context-v2":"RSI with market context","vwap-pullback-v1":"Trend pullback to VWAP","opening-continuation-v1":"Opening continuation","overnight-rejection-v1":"Failed overnight breakout",
+  // Weekly auto-benchmark trials (auto-benchmark.<date>:<id>) show in Bot activity.
+  "ema-cross":"Trend crossover","orb":"Opening range breakout","vwap-reversion":"Return to the day's average","bollinger-breakout":"Quiet-market breakout"};
 export function candidateName(key:string) {const parts=key.split(":");return `${names[parts.length>1?parts[1]:parts[0]]??"Research strategy"}${parts.length>2?` · ${parts[2]}`:""}`;}
 export function freshTraining(run:BotOverview["learning"],now=Date.now()) {return !!run?.finished_at && run.status==="ok" && now-Date.parse(run.finished_at)<4*86400000;}

@@ -1,0 +1,56 @@
+# Weekly self-research: measure ONE "not tested yet" method against matched
+# random entries, record it (preregistered trial + append-only baseline), and
+# report it — GitHub issue, Telegram and the Bot screen's activity list.
+#
+# It never promotes, never edits strategy standing or tiers, and never tunes:
+# scripts/diag/auto-benchmark.ts explains why. A method is measured once per
+# research-code version, so quiet weeks are normal once every untested method
+# has a result. Paper only, delayed data. Nothing here touches real money.
+
+name: weekly-benchmark
+
+on:
+  schedule:
+    # Sunday 05:00 UTC — after weekly-challenger (04:00) and autopilot (04:30).
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Matched-random iterations per cell
+        required: false
+        default: "200"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: weekly-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      BAR_SOURCE: databento
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      GITHUB_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Measure the next untested method
+        run: npx tsx scripts/diag/auto-benchmark.ts --iterations "${{ inputs.iterations || '200' }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: auto-benchmark
+          path: artifacts/auto-benchmark.json
+          if-no-files-found: ignore
+          retention-days: 90
