@@ -56,7 +56,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Runs even when learn.ts or challenger.ts failed: it has its own staleness
+      # guards (stale training pauses a release), and skipping it would leave a
+      # release running on last week's evaluation instead.
       - name: Evaluate registered paper releases
+        if: ${{ !cancelled() }}
         run: npx tsx scripts/engine/paper-release.ts
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

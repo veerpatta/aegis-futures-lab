@@ -6,6 +6,7 @@ import {usePaper} from "@/components/providers/PaperProvider";
 import {usePrivacy} from "@/components/providers/PrivacyProvider";
 import {botState} from "@/lib/paper/overview";
 import {readSignalRows,signalSnapshot,visibleSignals} from "@/lib/signals/snapshot";
+import {isLiveOpen} from "@/lib/signals/open-state";
 import simple from "@/components/home/simple-workspace.module.css";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -372,8 +373,8 @@ export default function SignalsClient({home=false}:{home?:boolean}) {
     [ready]
   );
   const liveRows = useMemo(
-    () => activeSignals.filter((s) => s.status === "triggered" || s.status === "pending"),
-    [activeSignals]
+    () => activeSignals.filter((s) => isLiveOpen(s, nowSec ?? Math.floor(Date.now() / 1000))),
+    [activeSignals, nowSec]
   );
   const historyRows = useMemo(
     () => activeSignals.filter((s) => s.pnl_usd !== null).slice(0, 12),

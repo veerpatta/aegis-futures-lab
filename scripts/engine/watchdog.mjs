@@ -3,8 +3,11 @@
    offset from the engine's every-15-min cadence) with PLAIN node: no npm
    install, no TypeScript.
 
-   Two independent checks, each with its own issue label and lifecycle so one
-   can never mask the other:
+   Independent checks, each with its own issue label and lifecycle so one can
+   never mask another (training freshness is `watchdog-learning`, and the
+   `watchdog-components` check fires when the same best-effort part of a pass —
+   research observer, paper broker, orphan sweep, excursion — failed on the two
+   newest runs while the heartbeat still said `ok`):
 
      `watchdog`          the cron is dead — no heartbeat for 45 min inside the
                          run window, or the two newest runs both errored.
@@ -46,6 +49,12 @@ const REPO = process.env.GITHUB_REPOSITORY || "veerpatta/aegis-futures-lab";
 const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 const LABEL = "watchdog";
 const SILENCE_LABEL = "watchdog-silence";
+const COMPONENT_LABEL = "watchdog-components";
+
+/* Copy of COMPONENT_FAILED from lib/engine/markers.ts — this script runs on
+   bare node and cannot import TypeScript. tests/component-failures.test.ts
+   pins the two equal. */
+export const COMPONENT_FAILED = "component_failed";
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
@@ -174,6 +183,25 @@ export function findSilentStreams({
       });
   }
   return out;
+}
+
+/* Parts of an engine pass that failed on EVERY one of the newest `consecutive`
+   runs. The observer, broker, orphan sweep and excursion writer are best
+   effort — the run still records `ok` — so their failures only ever showed up
+   as text inside a green heartbeat. One bad pass is a blip (a Neon hiccup);
+   the same component failing twice in a row is a fault worth a person.
+
+   `runs` is newest first, as the Data API returns it. Errored runs carry no
+   component markers, so a dead engine never doubles as a component alert —
+   the cron check owns that. Pure, so it is unit-tested directly. */
+export function findComponentFailures(runs, consecutive = 2) {
+  const recent = runs.slice(0, consecutive);
+  if (recent.length < consecutive) return [];
+  const pattern = new RegExp(`${COMPONENT_FAILED}\\[([a-z-]+)\\]`, "g");
+  const sets = recent.map(
+    (r) => new Set([...(r?.message ?? "").matchAll(pattern)].map((m) => m[1]))
+  );
+  return [...sets[0]].filter((c) => sets.every((s) => s.has(c)));
 }
 
 /* The engine's cron window as a pure predicate — the whole Globex week: every
@@ -403,6 +431,44 @@ async function checkSilence(now, closedHolidays) {
   return { silent, telegramOk, issueOk };
 }
 
+/* ── Component check ──────────────────────────────────────────────────────
+   Independent of both checks above, with its own label and lifecycle. Returns
+   true when an alert was needed and every delivery path failed. Never throws. */
+async function checkComponents(now) {
+  let runs = [];
+  try {
+    runs = await neonGet("engine_runs?select=ran_at,status,message&order=ran_at.desc&limit=2");
+  } catch (e) {
+    console.log(`component check skipped (${e?.message ?? e})`);
+    return false;
+  }
+  const failing = findComponentFailures(runs);
+  console.log(`components: ${failing.length ? failing.join(", ") : "all healthy"}`);
+  if (!failing.length) {
+    await resolveIssue(COMPONENT_LABEL, `Recovered at ${now.toISOString()} — no component failed on the latest runs.`);
+    return false;
+  }
+  const detail = runs[0]?.message
+    ?.split("; ")
+    .filter((part) => part.startsWith(COMPONENT_FAILED))
+    .join("\n") ?? "";
+  const telegramOk = await sendTelegram(
+    `🧩 <b>Engine part failing</b>: ${failing.join(", ")} failed on the last two runs. ` +
+      `The signal feed is still running. Paper only.`
+  );
+  const issueOk = await raiseIssue(
+    COMPONENT_LABEL,
+    "fbca04",
+    `Watchdog: ${failing.join(", ")} failing on consecutive engine runs`,
+    `These parts of the engine pass are best effort, so the runs still record \`ok\` — ` +
+      `but each one failed on the last two runs:\n\n${failing.map((c) => `- \`${c}\``).join("\n")}\n\n` +
+      `Latest messages:\n\n\`\`\`\n${detail.slice(0, 1500)}\n\`\`\`\n\n` +
+      `- Detected: ${now.toISOString()}\n\nThis issue closes itself when a later pass is clean.`,
+    `Still failing at ${now.toISOString()}: ${failing.join(", ")}.`
+  );
+  return !telegramOk && !issueOk;
+}
+
 /* ── Main ────────────────────────────────────────────────────────────── */
 
 /** True when checkSilence needed to alert and every delivery path failed. */
@@ -414,7 +480,7 @@ async function main() {
   const closedHolidays = loadClosedHolidays();
   // A healthy price engine cannot stand in for completed model training.
   // Four days covers the weekend and a full market holiday without alert churn.
-  let learningAlertLost = false;
+  let sideAlertLost = false;
   try {
     const [completed, models] = await Promise.all([
       neonGet("learning_runs?select=finished_at,status&status=eq.ok&order=finished_at.desc&limit=1"),
@@ -423,14 +489,17 @@ async function main() {
     const finished = Date.parse(completed[0]?.finished_at ?? "");
     const trained = Date.parse(models[0]?.trained_at ?? "");
     if (![finished, trained].every(Number.isFinite) || now.getTime() - Math.min(finished, trained) > 4 * 86400000) {
-      learningAlertLost = !await raiseIssue("watchdog-learning", "fbca04", "Watchdog: completed training is overdue",
+      sideAlertLost = !await raiseIssue("watchdog-learning", "fbca04", "Watchdog: completed training is overdue",
         `The last completed learning job or model artifact is more than four days old. Last learning: ${completed[0]?.finished_at ?? "none"}; last model: ${models[0]?.trained_at ?? "none"}. Check nightly-learn. A successful engine heartbeat does not resolve this alert.`,
         "Completed learning is still overdue.");
     } else await resolveIssue("watchdog-learning", `Training recovered: ${completed[0].finished_at}.`);
   } catch (error) {
     console.error(`training health unreadable: ${error?.message ?? error}`);
-    learningAlertLost = true;
+    sideAlertLost = true;
   }
+  // Training and component alerts share one flag so every return path below
+  // turns the run red when either lost its delivery.
+  if (await checkComponents(now)) sideAlertLost = true;
 
   let runs = [];
   try {
@@ -443,7 +512,7 @@ async function main() {
     // delivery outcome was not. A silence alert that failed both paths still
     // has to turn the run red.
     const silence = await checkSilence(now, closedHolidays);
-    return alertLost(silence) || learningAlertLost ? 1 : 0;
+    return alertLost(silence) || sideAlertLost ? 1 : 0;
   }
 
   const latest = runs[0] ?? null;
@@ -470,7 +539,7 @@ async function main() {
     console.log("engine healthy");
     // A healthy cron says nothing about OUTPUT — that is the whole point of 2.5.
     const silence = await checkSilence(now, closedHolidays);
-    return alertLost(silence) || learningAlertLost ? 1 : 0;
+    return alertLost(silence) || sideAlertLost ? 1 : 0;
   }
 
   const since = latest ? latest.ran_at : "unknown (no runs recorded)";
@@ -502,7 +571,7 @@ async function main() {
   // Exit non-zero ONLY when an alert was needed and every path failed —
   // that red X is itself the last-resort alert.
   if (!telegramOk && !issueOk) return 1;
-  return alertLost(silence) || learningAlertLost ? 1 : 0;
+  return alertLost(silence) || sideAlertLost ? 1 : 0;
 }
 
 /* Run only when this file IS the entry point.

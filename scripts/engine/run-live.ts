@@ -20,6 +20,8 @@ import { assessStaleness, lastBarBySymbol, staleAtSignal } from "@/lib/signals/f
 import { DAILY_FUNNEL_STAT_KEY, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
 import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
+import { planStaleOpen, type ComputedOutcome } from "@/lib/engine/stale-open";
+import { componentWarning } from "@/lib/engine/markers";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta, tradingDayKey } from "@/lib/time/ny";
@@ -351,6 +353,10 @@ async function main() {
      signalRows, so a dedupe_key collision drops the trade and its excursion
      together rather than pairing a row with someone else's numbers. */
   const closedByKey = new Map<string, Trade>();
+  /* Every finished trade in the whole 60-day recompute that is older than the
+     mirror cutoff, keyed like the rows. Only read by the stale-open pass (1c)
+     below, for rows that aged out of the window while still marked open. */
+  const computedOutcomes = new Map<string, ComputedOutcome>();
   let tierA = 0;
   let tierB = 0;
   // Item 2.7 — today's skip funnel, summed across streams, for the Home panel.
@@ -413,7 +419,16 @@ async function main() {
       if (hasExcursion(t)) {
         closedByKey.set(dedupeKey(stream.tier, tagOf(stream), t.symbol, t.entryTime), t);
       }
-      if (t.entryTime < cutoff) continue;
+      if (t.entryTime < cutoff) {
+        const older = rowFromTrade(stream.tier, tagOf(stream), t);
+        computedOutcomes.set(older.dedupe_key, {
+          status: older.status,
+          exit_ts: older.exit_ts,
+          exit_price: older.exit_price,
+          pnl_usd: older.pnl_usd,
+        });
+        continue;
+      }
       const row = rowFromTrade(stream.tier, tagOf(stream), t);
       row.regime = computeRegime(bySymbol[t.symbol] ?? [], t.entryTime);
       row.fill_confidence = audit(t.side, t.symbol, t.entryPrice, t.entryTime, t.exitTime);
@@ -616,7 +631,7 @@ async function main() {
         console.log(`excursion: ${rows.length} rows`);
       }
     } catch (e) {
-      warnings.push(`signal_excursion write failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+      warnings.push(componentWarning("excursion", e));
     }
   }
 
@@ -658,7 +673,54 @@ async function main() {
       console.log(`orphans: ${orphans.length} (e.g. ${orphans.slice(0, 3).map((o) => o.dedupe_key).join(", ")})`);
     }
   } catch (e) {
-    warnings.push(`orphan check failed: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+    warnings.push(componentWarning("orphan-check", e));
+  }
+
+  /* 1c) Stale open rows — the ones the sweep above can no longer see.
+     A row still `triggered` or `pending` after it has fallen behind the mirror
+     cutoff was never closed by a later upsert, so the recompute stopped
+     producing it while it was inside the window (lib/engine/stale-open.ts has
+     the two rows this stranded on 2026-08-18). If the full recompute still
+     holds a finished trade under the key, the row takes that outcome; anything
+     else is marked orphaned. Outcome fields only — suppressed, stale_data and
+     the other stamps on the stored row are left exactly as they were. */
+  try {
+    const { data, error } = await supabase
+      .from("signals")
+      .select("dedupe_key, status, signal_ts")
+      .in("status", ["triggered", "pending"])
+      .eq("orphaned", false)
+      .lt("signal_ts", iso(cutoff));
+    if (error) throw new Error(error.message);
+    const plan = planStaleOpen(
+      (data ?? []) as { dedupe_key: string; status: string; signal_ts: string }[],
+      cutoff,
+      computedOutcomes
+    );
+    for (const { key, outcome } of plan.close) {
+      const { error: closeError } = await supabase
+        .from("signals")
+        .update({ ...outcome, updated_at: new Date().toISOString() })
+        .eq("dedupe_key", key);
+      if (closeError) throw new Error(closeError.message);
+    }
+    if (plan.orphan.length) {
+      const { error: markError } = await supabase
+        .from("signals")
+        .update({ orphaned: true })
+        .in("dedupe_key", plan.orphan);
+      if (markError) throw new Error(markError.message);
+    }
+    if (plan.close.length || plan.orphan.length) {
+      warnings.push(
+        `stale open rows: ${plan.close.length} closed from the recompute, ${plan.orphan.length} reconciled as orphaned`
+      );
+      console.log(
+        `stale-open: closed ${plan.close.length}, orphaned ${plan.orphan.length} (${plan.orphan.slice(0, 3).join(", ")})`
+      );
+    }
+  } catch (e) {
+    warnings.push(componentWarning("stale-open", e));
   }
   phaseT("signals", phaseStart);
   phaseStart = Date.now();
@@ -778,13 +840,18 @@ async function main() {
   phaseStart = Date.now();
 
   // New registered strategies collect separately from refuted controls.
+  // Two blocks, not one: an observer failure used to skip the broker silently.
   try {
     const { observeResearch } = await import("./research-observer");
     await observeResearch(bySymbol, cutoff, nowSec, "yahoo");
+  } catch (e) {
+    warnings.push(componentWarning("research-observer", e));
+  }
+  try {
     const { runPaperBroker } = await import("./paper-broker");
     await runPaperBroker(bySymbol, nowSec);
   } catch (e) {
-    warnings.push(`research observation failed: ${e instanceof Error ? e.message : e}`);
+    warnings.push(componentWarning("paper-broker", e));
   }
 
   // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact

@@ -2,6 +2,7 @@ import type {SignalRow} from "@/lib/neon/client";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {liveOnly} from "./live";
 import {nyMeta} from "@/lib/time/ny";
+import {isLiveOpen} from "./open-state";
 
 export function visibleSignals(rows:SignalRow[]) {
  return liveOnly(rows).filter(s=>!s.suppressed&&!s.stale_data);
@@ -10,7 +11,8 @@ export function signalSnapshot(rows:SignalRow[],nowSec:number) {
  const visible=visibleSignals(rows),day=nyMeta(nowSec).dateKey;
  const today=visible.filter(s=>nyMeta(Date.parse(s.signal_ts)/1000).dateKey===day);
  const closed=visible.filter(s=>s.pnl_usd!==null&&s.exit_ts&&nyMeta(Date.parse(s.exit_ts)/1000).dateKey===day);
- const open=visible.filter(s=>s.status==="triggered"||s.status==="pending");
+ // A row past its session's flatten time is not open, whatever its stored status says.
+ const open=visible.filter(s=>isLiveOpen(s,nowSec));
  return {today:today.length,open:open.length,closed:closed.length,net:closed.reduce((a,s)=>a+s.pnl_usd!,0),recent:visible.slice(0,3)};
 }
 /** Keep the recent history window, plus every open/today row for exact headlines.

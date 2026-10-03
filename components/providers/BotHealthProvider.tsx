@@ -27,6 +27,7 @@ import {
   type EngineRunRow,
 } from "@/lib/neon/client";
 import { streamLabel } from "@/lib/engine/streams";
+import { COMPONENT_LABELS, failedComponents, type EngineComponent } from "@/lib/engine/markers";
 import { dataDelayed, engineScheduled, fmtStamp } from "@/lib/time/session";
 import { useData } from "./DataProvider";
 import { useZone } from "./ZoneProvider";
@@ -51,6 +52,8 @@ interface BotHealthValue {
   /** A scheduled run is overdue. Never true while `asleep`. */
   stale: boolean;
   delayed: boolean;
+  /** Best-effort parts of the latest pass that failed while the run still said ok. */
+  failing: EngineComponent[];
   alerts: BotAlert[];
   loading: boolean;
   refreshing: boolean;
@@ -137,6 +140,10 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
     !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
   const stale = !asleep && overdue;
   const delayed = dataDelayed(runs, Math.floor(Date.now() / 1000));
+  const failing = useMemo(
+    () => (lastRun?.status === "ok" ? failedComponents(lastRun.message) : []),
+    [lastRun]
+  );
 
   /* Everything the bell is allowed to claim, derived from real rows only. */
   const alerts = useMemo<BotAlert[]>(() => {
@@ -156,6 +163,13 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
         id: "delayed",
         tone: "warn",
         text: "Data delayed more than usual — signals catch up on the next pass",
+      });
+    const labels = [...new Set(failing.map((c) => COMPONENT_LABELS[c]))];
+    for (const label of labels)
+      out.push({
+        id: `component-${label}`,
+        tone: "warn",
+        text: `${label} had a problem on the last check. Trade ideas are still being checked.`,
       });
 
     const latest = new Map<string, BotPolicyRow>();
@@ -180,7 +194,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       });
 
     return out;
-  }, [loading, stale, lastRun, delayed, policy, events, zone]);
+  }, [loading, stale, lastRun, delayed, failing, policy, events, zone]);
 
   const value = useMemo<BotHealthValue>(
     () => ({
@@ -190,6 +204,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       asleep,
       stale,
       delayed,
+      failing,
       alerts,
       loading,
       refreshing,
@@ -205,6 +220,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       asleep,
       stale,
       delayed,
+      failing,
       alerts,
       loading,
       refreshing,
