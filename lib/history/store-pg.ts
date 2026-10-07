@@ -177,7 +177,7 @@ export class PgHistoryStore implements HistoryStore {
           params.push(studyId, e.mode, e.familyId, e.month, e.symbol, e.side, e.strategy, e.tier, iso(e.signalTs), iso(e.seenAt), iso(e.decidedAt), iso(e.infoCutoff),
             iso(e.labelReadyAt), json(e.features), e.reason, e.outcomeStatus, e.voidReason, e.standaloneQty, iso(e.fillTs), e.fillPrice, iso(e.exitTs),
             e.exitPrice, e.exitReason, e.ambiguous, e.grossPc, e.feesPc, e.slipPc, e.netPc, e.riskPc, e.quality, e.quarantined, e.snapshotHash, iso(e.ideaExitTs));
-        const values = part.map((_, r) => `(${Array.from({ length: COLS }, (_, k) => `${r * COLS + k + 1}`).join(",")})`).join(",");
+        const values = part.map((_, r) => `(${Array.from({ length: COLS }, (_, k) => "$" + (r * COLS + k + 1)).join(",")})`).join(",");
         await client.query(
           `INSERT INTO history_examples(study_id,mode,family_id,month,symbol,side,strategy,tier,signal_ts,seen_at,decided_at,info_cutoff,label_ready_at,features,
             reason,outcome_status,void_reason,standalone_qty,fill_ts,fill_price,exit_ts,exit_price,exit_reason,ambiguous,gross_pc,fees_pc,slip_pc,net_pc,risk_pc,

@@ -186,6 +186,22 @@ describe("operations", () => {
     await expect(pg.readBars("MES", "databento", 0, 2000, 1)).rejects.toThrow(/cap/);
   });
 
+  it("writes a chunk's examples in one insert whose placeholders match its values", async () => {
+    const calls: { sql: string; params?: unknown[] }[] = [];
+    const client = { query: async (sql: string, params?: unknown[]) => (calls.push({ sql, params }), { rows: [] }), release: () => {} };
+    const pg = new PgHistoryStore({ connect: async () => client } as never);
+    const ex = examples(5);
+    await pg.saveChunk("hist-x", { symbol: "MES", month: "2023-01", status: "done", barsRead: 1, bytesRead: 1, barsHash: "h", firstBar: 1, lastBar: 2,
+      quality: { bars: 1, ohlcBad: 0, duplicates: 0, unordered: 0, gaps: 0, missingBars: 0, discontinuities: 0, windows: 0 }, ideas: 5, examples: 5, runtimeMs: 1, error: null }, ex);
+    const ins = calls.filter((c) => c.sql.includes("INSERT INTO history_examples"));
+    expect(ins).toHaveLength(1);
+    const marks = [...ins[0].sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1]));
+    expect(marks.length).toBe(ins[0].params!.length);
+    expect(Math.max(...marks)).toBe(ex.length * 33);
+    expect(new Set(marks).size).toBe(marks.length);
+    expect(calls.map((c) => c.sql.trim().split(/\s+/)[0])).toEqual(["BEGIN", "INSERT", "INSERT", "COMMIT"]);
+  });
+
   it("registers once; reruns are no-ops", async () => {
     const store = setup();
     expect((await runStage({ store, stage: "register", invocationId: "a", researchCodeHash: "h" })).status).toBe("ok");
