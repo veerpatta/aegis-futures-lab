@@ -136,7 +136,7 @@ export default function ExperimentCard() {
           <StateAxes nowSec={nowSec} />
           <div className={styles.times}>
             <span>Last check {lastOk ? clockIn(lastOk, zone) : "—"}</span>
-            {lastTry && lastTry !== lastOk && <span>Latest attempt {clockIn(lastTry, zone)}</span>}
+            {lastTry && (lastOk === null || lastTry - lastOk > 60) && <span>Latest attempt {clockIn(lastTry, zone)}</span>}
             {next && <span>Next around {clockIn(next, zone)}</span>}
             {exp.fromSnapshot && exp.loadedAt && <span>Saved copy from {stampIn(exp.loadedAt / 1000, zone)}</span>}
           </div>

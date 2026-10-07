@@ -54,6 +54,11 @@ short sentences. The reader knows trading but not software. Always keep the
   `scripts/experiment/synthetic-run.ts` is the reproducible synthetic proof (memory, or a
   throwaway Neon branch with `--store pg`; it refuses the production endpoint). The learner is
   evidence collection, not a qualification path: it never edits standing or the promotion gate.
+  Applying a migration: `tsx scripts/experiment/apply-migration.ts <file>` (one transaction; the
+  Neon MCP statement splitter breaks dollar-quoted trigger bodies). New tables/views are invisible
+  to the browser (404) until the Data API schema cache is refreshed:
+  `PATCH https://console.neon.tech/api/v2/projects/floral-cell-79900814/branches/br-small-mode-b3y8iq6w/data-api/neondb`
+  with body `{}` (or `neon data-api refresh-schema --database neondb`).
 - `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
   `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
   Anthropic, the Yahoo fetcher and Telegram modules.

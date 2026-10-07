@@ -168,6 +168,11 @@ export function freshnessState(o: ExpOverview | null, nowSec: number, online: bo
   const last = sec(o.account.last_ok_tick_at);
   if (last !== null && engineScheduled(nowSec) && nowSec - last > 45 * 60) return { state: "stale", reason: "The last check is more than 45 minutes old." };
   if (last !== null && engineScheduled(nowSec) && nowSec - last > 20 * 60) return { state: "delayed", reason: "The last check is a little late." };
+  // The batch's own verdict on bar age (lib/experiment/step.ts freshnessOf).
+  const seen = (o.last_runs?.tick?.counts?.freshness ?? {}) as Record<string, string>;
+  const late = Object.entries(seen).filter(([, v]) => v === "delayed" || v === "stale").map(([s]) => s);
+  if (late.length && inEntryWindow(nowSec))
+    return { state: "delayed", reason: `Newest ${late.join(" and ")} prices are more than 20 minutes old at the last check. Still usable; trades wait if they pass 45.` };
   return { state: "current", reason: "Prices are as fresh as the delayed feed allows (10–15 minutes old)." };
 }
 
