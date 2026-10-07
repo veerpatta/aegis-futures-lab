@@ -111,5 +111,7 @@ export interface HistoryStore {
   setShadow(studyId: string, versionId: string, at: number): Promise<void>;
   /** Keys of legacy signal and shadow rows inside [fromSec, toSec), for the opportunity-family audit. */
   legacyKeys(fromSec: number, toSec: number): Promise<{ signals: string[]; shadows: string[] }>;
+  /** Wall-clock milliseconds of every finished replay run of the study (the active-time budget's source of truth). */
+  replayRunMs(studyId: string): Promise<number>;
   quotaInputs(): Promise<{ dbBytes: number | null; monthStudyBytes: number | null; monthRunSec: number | null; readAt: number }>;
 }

@@ -114,6 +114,9 @@ export class MemoryHistoryStore implements HistoryStore {
   }
   legacy: { signals: string[]; shadows: string[] } = { signals: [], shadows: [] };
   async legacyKeys() { return clone(this.legacy); }
+  async replayRunMs(studyId: string) {
+    return this.runs.filter((r) => r.studyId === studyId && r.stage === "replay").reduce((a, r) => a + r.durationMs, 0);
+  }
   async quotaInputs() {
     return {
       dbBytes: this.dbBytes, monthStudyBytes: this.runs.reduce((a, r) => a + r.bytes, 0), monthRunSec: this.runs.reduce((a, r) => a + r.durationMs / 1000, 0),

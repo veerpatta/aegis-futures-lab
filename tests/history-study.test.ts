@@ -207,6 +207,15 @@ describe("operations", () => {
     expect(quotaGate({ dbBytes: 0.75 * 1024 ** 3, monthStudyBytes: 0, monthRunSec: 0, readAt: 100 }, 100)).toBe("reduce");
   });
 
+  it("counts the recorded wall time of earlier replay runs against the 30-minute budget, not a self-reported figure", async () => {
+    const store = setup();
+    await runStage({ store, stage: "register", invocationId: "a", researchCodeHash: "h" });
+    store.runs.push({ id: 99, studyId: "hist-2026-10-07", stage: "replay", invocationId: "old", status: "partial", bytes: 0, durationMs: 30 * 60_000 });
+    const r = await runStage({ store, stage: "replay", invocationId: "r1" });
+    expect(r.message).toMatch(/budget used/);
+    expect((await store.latestStudy(HIST_RULES.version))!.status).toBe("partial");
+  });
+
   it("checkpoints chunks, retries a failed one, and never redoes finished work", async () => {
     const store = setup();
     await runStage({ store, stage: "register", invocationId: "a", researchCodeHash: "h" });

@@ -168,16 +168,23 @@ export class PgHistoryStore implements HistoryStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      for (const e of examples) {
+      // One multi-row insert per batch: the database is far from the runner, so a round trip per row dominated the job.
+      const COLS = 33, BATCH = 400;
+      for (let i = 0; i < examples.length; i += BATCH) {
+        const part = examples.slice(i, i + BATCH);
+        const params: unknown[] = [];
+        for (const e of part)
+          params.push(studyId, e.mode, e.familyId, e.month, e.symbol, e.side, e.strategy, e.tier, iso(e.signalTs), iso(e.seenAt), iso(e.decidedAt), iso(e.infoCutoff),
+            iso(e.labelReadyAt), json(e.features), e.reason, e.outcomeStatus, e.voidReason, e.standaloneQty, iso(e.fillTs), e.fillPrice, iso(e.exitTs),
+            e.exitPrice, e.exitReason, e.ambiguous, e.grossPc, e.feesPc, e.slipPc, e.netPc, e.riskPc, e.quality, e.quarantined, e.snapshotHash, iso(e.ideaExitTs));
+        const values = part.map((_, r) => `(${Array.from({ length: COLS }, (_, k) => `${r * COLS + k + 1}`).join(",")})`).join(",");
         await client.query(
           `INSERT INTO history_examples(study_id,mode,family_id,month,symbol,side,strategy,tier,signal_ts,seen_at,decided_at,info_cutoff,label_ready_at,features,
             reason,outcome_status,void_reason,standalone_qty,fill_ts,fill_price,exit_ts,exit_price,exit_reason,ambiguous,gross_pc,fees_pc,slip_pc,net_pc,risk_pc,
             quality,quarantined,snapshot_hash,idea_exit_ts)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
+           VALUES ${values}
            ON CONFLICT (study_id,mode,family_id) DO NOTHING`,
-          [studyId, e.mode, e.familyId, e.month, e.symbol, e.side, e.strategy, e.tier, iso(e.signalTs), iso(e.seenAt), iso(e.decidedAt), iso(e.infoCutoff),
-            iso(e.labelReadyAt), json(e.features), e.reason, e.outcomeStatus, e.voidReason, e.standaloneQty, iso(e.fillTs), e.fillPrice, iso(e.exitTs),
-            e.exitPrice, e.exitReason, e.ambiguous, e.grossPc, e.feesPc, e.slipPc, e.netPc, e.riskPc, e.quality, e.quarantined, e.snapshotHash, iso(e.ideaExitTs)]);
+          params);
       }
       await client.query(
         `INSERT INTO history_chunks(study_id,symbol,month,status,bars_read,bytes_read,bars_hash,first_bar,last_bar,quality,ideas,examples,runtime_ms,error)
@@ -245,6 +252,11 @@ export class PgHistoryStore implements HistoryStore {
   async legacyKeys(fromSec: number, toSec: number) {
     const q = (t: string) => this.pool.query(`SELECT dedupe_key FROM ${t} WHERE signal_ts >= to_timestamp($1) AND signal_ts < to_timestamp($2) AND symbol IN ('MES','MNQ')`, [fromSec, toSec]).then((r) => r.rows.map((x) => String(x.dedupe_key)));
     return { signals: await q("signals"), shadows: await q("shadow_signals") };
+  }
+
+  async replayRunMs(studyId: string): Promise<number> {
+    const r = await this.pool.query(`SELECT coalesce(sum(duration_ms),0)::bigint ms FROM history_runs WHERE study_id=$1 AND stage='replay'`, [studyId]);
+    return Number(r.rows[0]?.ms ?? 0);
   }
 
   async quotaInputs() {

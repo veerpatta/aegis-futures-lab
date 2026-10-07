@@ -111,7 +111,8 @@ async function replayStage(store: HistoryStore, study: StudyRow, nowSec: number,
   const manifest = study.manifest as { months: string[] };
   const done = await store.chunks(study.id);
   const doneKeys = new Set(done.filter((c) => c.status === "done").map((c) => `${c.symbol}:${c.month}`));
-  const activeMs = Number((study.budget as { replayActiveMs?: number }).replayActiveMs ?? 0);
+  // Active time = the recorded wall time of every earlier replay run (reads, replay AND writes), never a self-reported compute figure.
+  const activeMs = Math.max(Number((study.budget as { replayActiveMs?: number }).replayActiveMs ?? 0), await store.replayRunMs(study.id));
   // Initial validation order: the newest covered MES month, then MNQ, then oldest-first for the rest.
   const order: { symbol: "MES" | "MNQ"; month: string }[] = [];
   const newest = manifest.months.at(-1)!;
@@ -138,13 +139,14 @@ async function replayStage(store: HistoryStore, study: StudyRow, nowSec: number,
   if (study.status === "registered") await store.updateStudy(study.id, { status: "replaying" });
   const ctx = await store.contextRows();
   const jobMs = Math.min(input.jobMinutes ?? rules.budget.jobMinutes, rules.budget.jobMinutes) * 60_000; // the frozen cap wins
-  const deadline = Date.now() + jobMs;
+  const jobStart = Date.now();
+  const deadline = jobStart + jobMs;
   const maxChunks = input.maxChunks ?? Infinity;
   let processed = 0, finished = 0, examplesTotal = 0, runMs = 0;
   const measured: { symbol: string; month: string; ms: number; bars: number }[] = [];
   for (const c of pending) {
     if (processed >= maxChunks || Date.now() > deadline) break;
-    if (activeMs + runMs >= rules.budget.initialBatchActiveMinutes * 60_000) break;
+    if (activeMs + (Date.now() - jobStart) >= rules.budget.initialBatchActiveMinutes * 60_000) break;
     const t0 = Date.now();
     const { start, end } = monthBounds(c.month);
     const from = start - rules.warmupDays * DAY, to = end + rules.tailDays * DAY;
@@ -176,7 +178,7 @@ async function replayStage(store: HistoryStore, study: StudyRow, nowSec: number,
     processed++;
     if (row.status === "done") finished++;
     examplesTotal += examples.length;
-    runMs += row.runtimeMs;
+    runMs = Date.now() - jobStart;
     measured.push({ symbol: c.symbol, month: c.month, ms: row.runtimeMs, bars: row.barsRead });
   }
   const remaining = pending.length - finished; // a failed chunk is still owed
