@@ -59,6 +59,13 @@ short sentences. The reader knows trading but not software. Always keep the
   to the browser (404) until the Data API schema cache is refreshed:
   `PATCH https://console.neon.tech/api/v2/projects/floral-cell-79900814/branches/br-small-mode-b3y8iq6w/data-api/neondb`
   with body `{}` (or `neon data-api refresh-schema --database neondb`).
+  Redeploying the function after a change to `lib/experiment` (Vercel does NOT deploy it):
+  `node scripts/experiment/bundle-function.mjs`, then POST `dist/functions/aegisexp.zip` as
+  multipart field `zip` (plus `runtime=nodejs24`, `environment={"AEGIS_CODE_SHA":"<sha>",
+  "AEGIS_EXPERIMENT_LINEAGE":"learner"}`) to
+  `https://console.neon.tech/api/v2/projects/floral-cell-79900814/branches/br-small-mode-b3y8iq6w/functions/aegisexp/deployments`
+  with `Authorization: Bearer $NEON_API_KEY`. Invocation URL:
+  `https://br-small-mode-b3y8iq6w-aegisexp.compute.c-4.ap-southeast-1.aws.neon.tech/health`.
 - `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
   `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
   Anthropic, the Yahoo fetcher and Telegram modules.
