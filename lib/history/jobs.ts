@@ -207,7 +207,7 @@ async function studyStage(store: HistoryStore, study: StudyRow, rules: typeof HI
     legacySignalsMatched: legacy.signals.filter((k) => families.has(k)).length,
     shadowRowsInScope: legacy.shadows.length,
     shadowRowsMatched: legacy.shadows.filter((k) => families.has(k)).length,
-    note: "Legacy rows were computed on delayed Yahoo bars; the replay uses the Databento archive, so unmatched rows show feed differences, not lost ideas. Legacy outcomes are never used as labels.",
+    note: "Legacy signals were computed on delayed Yahoo bars; the replay uses the Databento archive, so unmatched signals show feed differences, not lost ideas. Shadow rows belong to other research methods (not the tier streams), so they are not expected to match. Legacy outcomes are never used as labels.",
   };
   const datasetSummary = {
     rawExamples: ds.rawExamples, families: ds.families, rows: ds.rows.length, sessions: ds.sessions.length, exclusions: ds.exclusions,

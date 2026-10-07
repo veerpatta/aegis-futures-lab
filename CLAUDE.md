@@ -87,7 +87,11 @@ short sentences. The reader knows trading but not software. Always keep the
   Campaign rules are now looked up by version (`rulesFor`, `PREREG_VERSIONS`); an imported
   candidate's lifecycle comes from `IMPORTED_LIFECYCLES` (pinned equal to
   `HIST_RULES.importedLifecycle`). Open question in the ledger: the Data page shows raw Databento
-  bars publicly; licence scope unverified.
+  bars publicly; licence scope unverified. RESULT (2026-10-07): replay 178/178 months, 1,897
+  eligible rows; all 3 trials passed fold coverage; the selected filter FAILED its one final look
+  (net −$8.76/idea, 48.8th pct vs random, p95 drawdown $4,617) — it only loses less than
+  take-every-idea by skipping losers. Not shadow-eligible; nothing entered the live experiment.
+  This study version is closed (its final period is used); a new search needs a new version.
 - `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
   `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
   Anthropic, the Yahoo fetcher and Telegram modules.

@@ -149,6 +149,17 @@ export function historyChecklist(h: HistOverview | null): ChecklistItem[] {
   return [data, historical, fresh, validated];
 }
 
+/** What the final verdict means, in one or two sentences. */
+export function finalExplainer(f: HistOverview["final"]): string | null {
+  if (!f) return null;
+  const c = f.checks ?? {};
+  if (f.verdict === "pass") return "It passed every check on older data. That earns it a fresh test, not a change: it still has to pass every check on new ideas.";
+  if (c.beatsIncumbent && (!c.beatsRandom || !c.beatsNoTrade))
+    return "It lost less than taking every idea, because it skipped some losers. But what it kept still lost money and did no better than random picks of the same size, so skipping is not an edge.";
+  if (f.verdict === "inconclusive") return "Not enough evidence either way. That earns a fresh test only; nothing changes.";
+  return "It did not clear the checks on older data, so it was not sent for fresh testing.";
+}
+
 /** The next gate the historical candidate has to clear, in one sentence. */
 export function nextGate(h: HistOverview | null): string {
   if (!h) return "The study has not been registered yet.";

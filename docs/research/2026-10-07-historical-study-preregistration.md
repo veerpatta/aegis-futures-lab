@@ -181,3 +181,54 @@ write-once/append-only triggers and the public `history_overview` totals view; i
 history_chunks, history_leases, history_runs, history_studies;` plus the guard functions.
 An imported shadow version, if one exists, stays in the experiment's append-only history
 (retire it through the normal lifecycle; never delete it).
+
+## Results (run 2026-10-07, appended after the one final look)
+
+Study `hist-2026-10-07`, manifest hash `0b96fd8a…6752`, rules hash `43f5447e…3f13`,
+registered at commit 46c583d; replay finished at 58299ba (throughput and budget-accounting
+fixes only — no rule, decision or execution change). Frozen observation delay: 1,525 s
+median (p25 1,098 s, p75 2,384 s, n = 133 live ideas).
+
+**Replay.** 178 of 178 market-months, 0 failed. 5,931 opportunity families (both modes:
+11,862 rows). Observation mode: 1,959 taken, 3,537 already over when seen, 273 too
+risky for one contract, 89 after the session, 73 stop under 2 points. 1,236 observation rows touched a flagged data fault (4,418 gap
+flags and 332 jump flags, counted per overlapping read window); most were already void,
+and 10 otherwise-eligible rows were excluded for it. Take-every-idea on this data, one
+contract, after costs: −$23,832 with the delay, −$23,246 at the setup time.
+
+**Dataset.** 1,897 eligible rows over 1,161 sessions (1,760 rsi-reversion, 137
+zone-v5; 976 MES, 921 MNQ). Split: development 2019-05-07 → 2023-08-11 (696 sessions,
+1,128 rows), validation 2023-08-14 → 2025-02-12 (232, 382), final 2025-02-14 →
+2026-09-21 (233, 387). Legacy audit: 121 of 138 live ideas in scope match replay
+families (the rest were priced on the Yahoo feed); 0 of 481 shadow rows match, as
+expected — they belong to other research methods (vwap-reversion, bollinger-breakout,
+ema-cross, orb), not the tier streams.
+
+**Trials.** All three passed fold coverage (5 of 5 folds; smallest fold trained on 176,
+90 and 176 rows). Development gain over the incumbent was positive for all three (lower
+bounds $1.87, $2.94, $2.14 per idea, n = 933); on validation every lower bound was
+negative (−$7.92, −$10.74, −$7.89, n = 382). Selected: trial 3 (window 120 sessions,
+v1, L2 0.01), highest validation lower bound.
+
+**Final period (opened once, development-exposed).** Fitted on 195 rows up to
+2025-02-06, scored on 387 ideas over 233 sessions. Gain over take-every-idea +$7.35 per
+idea (likely $2.15 to $13.10); net per idea −$8.76 (likely −$16.39 to −$0.82); 48.8th
+percentile against matched random picks; p95 drawdown $4,617; −$5,670 with costs
+doubled; Brier 0.2505 vs 0.2512 (base rate 0.2512), log loss 0.694 vs 0.696. Same-limits
+virtual account: −$2,088 on 73 trades vs −$1,990 on 78 for take-every-idea. Verdict:
+**fail** (beats no-trade, beats random, drawdown and doubled costs all failed). The
+filter loses less than taking everything only because it skips some losers; what it
+keeps still loses and is no better than random picks of the same size.
+
+**Shadow.** Not eligible (verdict fail); nothing was registered in the live experiment.
+The virtual account, its pointer and its history are unchanged.
+
+**Conclusion: No validated improvement yet.** Per the rules, this study version is
+closed: its final period has been used and cannot be used again for another search.
+A new study would need a new version registered first.
+
+**Measured budget.** Replay: 4 runs, 588.9 s of recorded wall time in total (27.5 s,
+304.4 s, 3.5 s for a run that failed on a placeholder bug and rolled back, 253.5 s) of
+the 30-minute cap; peak memory 295 MB; 200 MB of bars read across overlapping windows.
+Study 7.9 s, shadow 0.4 s. Database 315 MB after the study (history_examples 9 MB).
+$0: free GitHub runner, Neon Free, no downloads, no paid services.

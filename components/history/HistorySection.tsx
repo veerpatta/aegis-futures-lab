@@ -26,7 +26,7 @@ import ShowNumbers from "@/components/ui/ShowNumbers";
 import type { HistFold, HistOverview, HistPeriodMetrics } from "@/lib/history/view";
 import {
   EXCLUSION_WORDS, FINAL_VERDICT_WORDS, HIST_LEDE, HIST_NAME, STUDY_STATUS_WORDS, TRIAL_STATUS_WORDS,
-  dayWords, historyChecklist, historyHeadline, monthWords, nextGate, specLine,
+  dayWords, finalExplainer, historyChecklist, historyHeadline, monthWords, nextGate, specLine,
 } from "@/lib/plain/history";
 import { CHECK_WORDS, VERSION_STATUS_WORDS, skipWords } from "@/lib/plain/experiment";
 import { PREREG } from "@/lib/experiment/prereg";
@@ -236,8 +236,8 @@ export default function HistorySection() {
                     {ch?.failed ? ` · ${int(ch.failed)} to retry` : ""}
                   </dd>
                   <dt>Price bars checked</dt>
-                  <dd>{int(ch?.bars)}</dd>
-                  <dt>Gaps found (bars missing)</dt>
+                  <dd>{int(ch?.bars)} reads</dd>
+                  <dt>Gaps flagged (bars missing)</dt>
                   <dd>
                     {int(ch?.gaps)} ({int(ch?.missing_bars)} bars) — marked, never filled in
                   </dd>
@@ -245,6 +245,8 @@ export default function HistorySection() {
                   <dd>
                     {int(ch?.discontinuities)} jumps · {int(ch?.ohlc_bad)} bad bars · {int(ch?.duplicates)} duplicates
                   </dd>
+                  <dt>How these are counted</dt>
+                  <dd>Each month is read with the 60 days before it and 2 days after, so the same bar, gap or jump is usually counted in about three windows.</dd>
                   <dt>Ideas the methods produced</dt>
                   <dd>{int(ch?.ideas)}</dd>
                   <dt>Ideas with a finished result</dt>
@@ -281,9 +283,11 @@ export default function HistorySection() {
                     )}
                     {ds?.familyAudit && (
                       <p className={page.note}>
-                        Older live records in these dates: {int(ds.familyAudit.legacySignalsInScope)} ideas ({int(ds.familyAudit.legacySignalsMatched)} matched) and{" "}
-                        {int(ds.familyAudit.shadowRowsInScope)} shadow rows ({int(ds.familyAudit.shadowRowsMatched)} matched). They were priced on a different feed, so
-                        they are counted once and never used as answers to learn from.
+                        Older live records in these dates: {int(ds.familyAudit.legacySignalsInScope)} trade ideas, {int(ds.familyAudit.legacySignalsMatched)} of them the
+                        same ideas the replay found (the rest differ because the live engine priced them on a different feed). Also{" "}
+                        {int(ds.familyAudit.shadowRowsInScope)} shadow rows from other research methods that the learner does not trade, so{" "}
+                        {int(ds.familyAudit.shadowRowsMatched)} map onto these ideas. Each idea is counted once, and none of these older results is used as an answer to
+                        learn from.
                       </p>
                     )}
                   </ShowNumbers>
@@ -325,6 +329,7 @@ export default function HistorySection() {
                     </span>
                   </div>
                   <p className={exp.reason}>{specLine(fin.spec)}</p>
+                  {finalExplainer(fin) && <p className={exp.reason}>{finalExplainer(fin)}</p>}
                   <p className={page.note}>
                     Trained on {int(fin.train_rows)} ideas up to {dayWords(fin.train_cutoff)}, then frozen and tested once on {dayWords(h.split?.final.from)} to{" "}
                     {dayWords(h.split?.final.to)}.{" "}
