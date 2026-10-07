@@ -90,3 +90,24 @@ Rollback restores the previous model (or v1). A rolled-back version can never re
 Neon Free + Vercel Hobby + public-repo GitHub Actions. No paid data, no paid AI, no purchases.
 Quota guard: ≥ 70% of the free database or run-time budget reduces optional jobs, ≥ 85% stops new
 searches, ≥ 95% essential writes only (open trades still managed, new ideas recorded as skips).
+
+## Feasibility, measured at launch (2026-10-07) — no rule changed
+
+Replaying the 16 real, filled, visible ideas of the 10 days before launch through the
+live decision rules, each decided at the moment the learner would first have seen it
+(the next 15-minute check after the idea became visible):
+
+| Outcome | Ideas |
+|---|---|
+| taken | 7 |
+| skipped: the idea's own trade had already ended ("idea closed") | 6 |
+| skipped: one contract would risk more than $100 | 3 |
+
+About 1.6 ideas a day, 0.7 taken a day, and about 1 a day with a usable shadow outcome
+(taken plus risk-skipped). At that rate the learner needs roughly 2–3 months before it
+has the 50 finished trades to train its first candidate, and well over a year before
+any candidate could meet the 150 out-of-sample and fresh-window floors. "No validated
+improvement yet" is therefore the expected state for a long time. The floors stay as
+preregistered: lowering them to get a faster answer would defeat their purpose.
+
+The first live decision (09:25 UTC, MNQ) was an "idea closed" skip, labelled prospective.

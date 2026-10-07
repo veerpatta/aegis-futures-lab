@@ -66,6 +66,9 @@ short sentences. The reader knows trading but not software. Always keep the
   `https://console.neon.tech/api/v2/projects/floral-cell-79900814/branches/br-small-mode-b3y8iq6w/functions/aegisexp/deployments`
   with `Authorization: Bearer $NEON_API_KEY`. Invocation URL:
   `https://br-small-mode-b3y8iq6w-aegisexp.compute.c-4.ap-southeast-1.aws.neon.tech/health`.
+- The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
+  fires when no ok tick for 90 min inside the futures week or the last two ticks errored
+  (`findLearnerProblems`, pinned by `tests/experiment-watchdog.test.ts`).
 - `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
   `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
   Anthropic, the Yahoo fetcher and Telegram modules.

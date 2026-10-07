@@ -7,7 +7,8 @@
    never mask another (training freshness is `watchdog-learning`, and the
    `watchdog-components` check fires when the same best-effort part of a pass —
    research observer, paper broker, orphan sweep, excursion — failed on the two
-   newest runs while the heartbeat still said `ok`):
+   newest runs while the heartbeat still said `ok`, and `watchdog-learner`
+   fires when the experimental learner's Neon Function stops checking in):
 
      `watchdog`          the cron is dead — no heartbeat for 45 min inside the
                          run window, or the two newest runs both errored.
@@ -50,6 +51,7 @@ const GH_TOKEN = process.env.GITHUB_TOKEN || "";
 const LABEL = "watchdog";
 const SILENCE_LABEL = "watchdog-silence";
 const COMPONENT_LABEL = "watchdog-components";
+const LEARNER_LABEL = "watchdog-learner";
 
 /* Copy of COMPONENT_FAILED from lib/engine/markers.ts — this script runs on
    bare node and cannot import TypeScript. tests/component-failures.test.ts
@@ -469,6 +471,72 @@ async function checkComponents(now) {
   return !telegramOk && !issueOk;
 }
 
+/* ── Experimental learner check ───────────────────────────────────────────
+   The learner (lib/experiment) runs as its own Neon Function, not inside the
+   signal engine, so a healthy engine heartbeat says nothing about it. Its own
+   label and lifecycle: alert when, inside the futures week and past the
+   startup grace, the newest ok tick is more than LEARNER_STALE_MINUTES old (or
+   none ever ran), or the two newest ticks both errored. Pure part exported for
+   tests/experiment-watchdog.test.ts. */
+const LEARNER_STALE_MINUTES = Number(process.env.WATCHDOG_LEARNER_STALE_MINUTES || 90);
+
+export function findLearnerProblems(health, now, { staleMinutes = LEARNER_STALE_MINUTES, warmingUp = false, active = true } = {}) {
+  const problems = [];
+  for (const h of health ?? []) {
+    const ticks = (h.runs ?? []).filter((r) => r.job === "tick");
+    if (ticks.length >= 2 && ticks[0].status === "error" && ticks[1].status === "error")
+      problems.push({ lineage: h.lineage, reason: `the last two learner checks failed (${(ticks[0].message ?? "no message").slice(0, 120)})` });
+    if (!active || warmingUp) continue;
+    const last = Date.parse(h.last_ok_tick_at ?? "");
+    const age = Number.isFinite(last) ? (now.getTime() - last) / 60000 : Infinity;
+    const everRan = ticks.length > 0;
+    if (age > staleMinutes && (everRan || Number.isFinite(last)))
+      problems.push({ lineage: h.lineage, reason: `no successful learner check for ${age === Infinity ? "ever" : Math.round(age) + " min"}` });
+  }
+  return problems;
+}
+
+async function checkLearner(now, closedHolidays) {
+  let health = [];
+  try {
+    health = await neonGet("experiment_health?select=lineage,status,last_ok_tick_at,runs");
+  } catch (e) {
+    console.log(`learner check skipped (${e?.message ?? e})`);
+    return false;
+  }
+  const problems = findLearnerProblems(health, now, { warmingUp: withinStartupGrace(now), active: shouldBeRunning(now, closedHolidays) });
+  console.log(`learner: ${problems.length ? problems.map((p) => p.reason).join("; ") : "healthy"}`);
+  if (!problems.length) {
+    await resolveIssue(LEARNER_LABEL, `Recovered at ${now.toISOString()} — the experimental learner is checking in again.`);
+    return false;
+  }
+  const lines = problems.map((p) => `- ${p.lineage}: ${p.reason}`).join("\n");
+  const telegramOk = await sendTelegram(
+    `🧪 <b>Experimental learner</b> needs attention:
+${problems.map((p) => p.reason).join("\n")}
+Virtual only. Fallback: run the experiment-fallback workflow.`
+  );
+  const issueOk = await raiseIssue(
+    LEARNER_LABEL,
+    "fbca04",
+    "Watchdog: the experimental learner is not checking in",
+    `The learner's Neon Function (aegisexp) should run every 15 minutes through the futures week.
+
+${lines}
+
+` +
+      `- Detected: ${now.toISOString()}
+- Fallback: Actions → experiment-fallback → Run workflow (job: tick)
+- Health: https://br-small-mode-b3y8iq6w-aegisexp.compute.c-4.ap-southeast-1.aws.neon.tech/health
+
+` +
+      `Virtual only — nothing here touches real money. This issue closes itself when a later check is healthy.`,
+    `Still unhealthy at ${now.toISOString()}:
+${lines}`
+  );
+  return !telegramOk && !issueOk;
+}
+
 /* ── Main ────────────────────────────────────────────────────────────── */
 
 /** True when checkSilence needed to alert and every delivery path failed. */
@@ -500,6 +568,7 @@ async function main() {
   // Training and component alerts share one flag so every return path below
   // turns the run red when either lost its delivery.
   if (await checkComponents(now)) sideAlertLost = true;
+  if (await checkLearner(now, closedHolidays)) sideAlertLost = true;
 
   let runs = [];
   try {
