@@ -26,13 +26,37 @@ short sentences. The reader knows trading but not software. Always keep the
 
 ## Repo facts
 
-- Routes (plain-language mobile redesign, 2026-10-03): five phone tabs — Today `/`
-  (`components/today/TodayClient.tsx`), Ideas `/signals` (`components/signals/IdeasClient.tsx`),
-  Chart `/markets`, Bot `/brain` (`components/bot/BotClient.tsx`), More `/more`. URLs kept
-  their old paths on purpose. `components/nav/links.tsx` holds `NAV_LINKS` and `MORE_GROUPS`
-  (Your tools: Journal `/replay`, Review · Learn: Guide · Research room: Lab, Diagnostics, Data);
-  `SECONDARY_LINKS` is the flattened groups. Compare, the legacy dashboard (`/research-history`)
-  and `/brain/history` were removed; `next.config.ts` redirects them.
+- Routes (virtual trading and learning plan, 2026-10-07): five phone tabs — Today `/`
+  (`components/today/TodayClient.tsx`), Trades `/trades` + `/trades/[id]`
+  (`components/trades/*`), Learn `/brain` (`components/bot/BotClient.tsx` + `LearnSection.tsx`),
+  Chart `/markets`, More `/more`. URLs kept their old paths on purpose. `components/nav/links.tsx`
+  holds `NAV_LINKS` and `MORE_GROUPS` (Ideas and records: Ideas `/signals`, Practice money
+  `/brain#practice` · Your tools: Journal `/replay`, Review · Learn: Guide · Research room: Lab,
+  Diagnostics, Data); `MoreClient` finds groups by title, never by position. Compare, the legacy
+  dashboard (`/research-history`) and `/brain/history` were removed; `next.config.ts` redirects them.
+- EXPERIMENTAL LEARNER (2026-10-07, replaced the never-applied trial account): a virtual-only
+  $10,000 account in `lib/experiment/` (outside the research-code hash) that decides on every
+  visible, filled idea, simulates its own fills on `bars_5m` (next bar open after the decision,
+  stop-first when a bar touches both, gap fills at the open, flat by the session close, no
+  invented exits on stale data), gives every decision a one-contract shadow outcome, and learns
+  in batches: nightly versioned dataset + rollback monitor, weekly review of ≤3 preregistered
+  logistic challengers (`search.ts` grid) with purged walk-forward, session bootstrap, matched
+  random control and the adoption floors in `prereg.ts`
+  (`docs/research/2026-10-07-experiment-preregistration.md`). v1 is the frozen "take every idea"
+  control. Adoption and rollback move ONLY `experiment_pointer` (never `model_registry.deployed`,
+  never `paper_*`). Tables `experiment_*` (migration `db/migrations/20261007_experiment_learner.sql`,
+  triggers make history append-only/write-once and pointer/status changes need a change row);
+  read models `experiment_overview|trades|learning|health`. Runtime: Neon Function `aegisexp`
+  (`functions/aegisexp/index.ts`, bundle `node scripts/experiment/bundle-function.mjs`, triggers in
+  `scripts/experiment/triggers.json`, auth = Neon's `X-Neon-Trigger-Invocation-Id` header);
+  fallback `scripts/experiment/run.ts` via `experiment-fallback.yml`; owner pause/resume/stop/
+  new campaign via `experiment-control.yml` (no reset, lifetime totals keep old losses).
+  `scripts/experiment/synthetic-run.ts` is the reproducible synthetic proof (memory, or a
+  throwaway Neon branch with `--store pg`; it refuses the production endpoint). The learner is
+  evidence collection, not a qualification path: it never edits standing or the promotion gate.
+- `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
+  `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
+  Anthropic, the Yahoo fetcher and Telegram modules.
 - Plain-language layer: every jargon word on screen goes through `<Term k=…>`
   (`components/ui/Glossary.tsx`) backed by `lib/glossary.ts`, which also renders the Guide's
   word list and must match `docs/USER-MANUAL.md` word for word (tests/plain-language pins it).

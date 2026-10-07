@@ -10,12 +10,19 @@
      current would be worse than "offline". The screens keep their own last
      read for the session and say when it was taken.
 
-   Bump VERSION to drop every older cache on the next visit. */
-const VERSION = "aegis-v1";
+   Bump VERSION to drop every older cache on the next visit. A new worker
+   waits until the reader taps "Update now" (components/ui/ServiceWorker.tsx),
+   so an update never interrupts what they are doing. Offline the app is
+   read-only: nothing here queues a trade, a pause or any other command. */
+const VERSION = "aegis-v2";
 const SHELL = ["/offline", "/icon-192.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(SHELL)));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

@@ -1,0 +1,49 @@
+# Owner controls for the experimental learner. GitHub authenticates the owner;
+# the browser app has no write path.
+#
+#   pause  — stop new entries; open virtual trades keep being managed, nothing
+#            is deleted or rewritten.
+#   resume — start taking ideas again.
+#   stop   — end this campaign for good.
+#   start  — preregister the NEXT campaign after the current one is locked or
+#            stopped. There is no reset: earlier campaigns and their losses stay
+#            in the lifetime totals.
+#
+# Type the reason; it is stored with the change record. Virtual only.
+
+name: experiment-control
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "pause, resume, stop or start"
+        required: true
+        type: choice
+        options: [pause, resume, stop, start]
+      reason:
+        description: "Why (at least 8 characters, stored on the record)"
+        required: true
+        type: string
+
+concurrency:
+  group: experiment-control
+  cancel-in-progress: false
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Inputs go through env, never pasted into the shell line.
+      - run: npx tsx scripts/experiment/control.ts "$ACTION" "$REASON"
+        env:
+          ACTION: ${{ inputs.action }}
+          REASON: ${{ inputs.reason }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

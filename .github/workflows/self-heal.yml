@@ -22,17 +22,14 @@
 
 name: self-heal
 
+# MANUAL ONLY since 2026-10-07. The virtual trading and learning plan runs the
+# autonomous loop in strict zero-cost mode: no paid AI turns fire on their own.
+# The automatic `workflow_run` trigger (on failure of autopilot, claude-research,
+# nightly-learn, weekly-digest, weekly-challenger, monthly-tune or ci) was
+# removed; failures are now recovered deterministically (retries, cursors,
+# rollback) and surfaced on screen and by the watchdog. Run this by hand when a
+# person decides a diagnosis is worth it. tests/experiment-isolation pins this.
 on:
-  workflow_run:
-    workflows:
-      - autopilot
-      - claude-research
-      - nightly-learn
-      - weekly-digest
-      - weekly-challenger
-      - monthly-tune
-      - ci
-    types: [completed]
   workflow_dispatch:
 
 # THE HEALER CANNOT EDIT WORKFLOW FILES, AND NO permissions: KEY CAN CHANGE THAT.

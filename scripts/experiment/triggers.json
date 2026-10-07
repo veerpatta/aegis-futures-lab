@@ -1,0 +1,10 @@
+{
+  "function": "aegisexp",
+  "note": "Neon Function triggers for the experimental learner. Five-field UTC cron. Ticks are offset to :07/:22/:37/:52 so they land after the GitHub signal engine has usually archived the newest bars. Each job checks the schedule itself (engineScheduled), so a tick outside the futures week only writes a skipped run.",
+  "triggers": [
+    { "name": "aegisexp-tick-weekdays", "function_path": "/tick", "cron": "7,22,37,52 * * * 1-5" },
+    { "name": "aegisexp-tick-sunday-open", "function_path": "/tick", "cron": "7,22,37,52 22-23 * * 0" },
+    { "name": "aegisexp-learn-nightly", "function_path": "/learn", "cron": "45 6 * * 2-6" },
+    { "name": "aegisexp-review-weekly", "function_path": "/review", "cron": "0 7 * * 0" }
+  ]
+}

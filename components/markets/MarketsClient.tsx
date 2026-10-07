@@ -16,7 +16,8 @@ import { useData } from "@/components/providers/DataProvider";
 import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Badge } from "@/components/ui";
-import CandleChart, { token, type PriceLine, type ZoneBox } from "@/components/chart/CandleChart";
+import CandleChart, { token, type PriceLine, type TradeMarker, type ZoneBox } from "@/components/chart/CandleChart";
+import { useExperiment } from "@/components/providers/ExperimentProvider";
 import { zoneToBox } from "@/components/chart/zoneBoxes";
 import PriceArea from "./PriceArea";
 import page from "@/components/ui/page.module.css";
@@ -205,6 +206,57 @@ export default function MarketsClient() {
     return tf === 5 ? feedBars : aggregateMinutes(feedBars, tf);
   }, [feedBars, tf]);
 
+  /* The experimental learner's virtual trades on this market, as arrows
+     (entries) and dots (exits), snapped to the bar they fell in. One account,
+     one symbol at a time; labelled as virtual and delayed under the chart. */
+  const learner = useExperiment();
+  const learnerId = learner.data?.experiment.id ?? null;
+  const [botTrades, setBotTrades] = useState<{ fill_ts: string | null; exit_ts: string | null; side: string; net: number | null }[]>([]);
+  useEffect(() => {
+    if (!learnerId || (chartSymbol !== "MES" && chartSymbol !== "MNQ")) {
+      setBotTrades([]);
+      return;
+    }
+    let alive = true;
+    getNeon()
+      .from("experiment_trades")
+      .select("fill_ts,exit_ts,side,net")
+      .eq("experiment_id", learnerId)
+      .eq("symbol", chartSymbol)
+      .not("fill_ts", "is", null)
+      .order("decided_at", { ascending: false })
+      .limit(120)
+      .then((res) => {
+        if (alive && !res.error) setBotTrades((res.data ?? []) as typeof botTrades);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [learnerId, chartSymbol]);
+  const chartMarkers = useMemo<TradeMarker[]>(() => {
+    if (!chartBars.length || !botTrades.length) return [];
+    const times = chartBars.map((b) => b.time);
+    const snap = (iso: string | null) => {
+      if (!iso) return null;
+      const t = Date.parse(iso) / 1000;
+      if (t < times[0] || t > times[times.length - 1] + tf * 60) return null;
+      let lo = 0, hi = times.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (times[mid] <= t) lo = mid;
+        else hi = mid - 1;
+      }
+      return times[lo];
+    };
+    const out: TradeMarker[] = [];
+    for (const t of botTrades) {
+      const entry = snap(t.fill_ts);
+      if (entry !== null) out.push({ time: entry, kind: t.side === "LONG" ? "entryLong" : "entryShort", text: "Virtual" });
+      const exit = snap(t.exit_ts);
+      if (exit !== null) out.push({ time: exit, kind: "exit", text: t.net === null ? undefined : t.net >= 0 ? "+" : "−" });
+    }
+    return out.sort((a, b) => a.time - b.time);
+  }, [botTrades, chartBars, tf]);
   const tradingDay = tick === null ? null : tradingDayKey(tick);
   const whyNone = useMemo(
     () => (funnel === undefined || tradingDay === null ? null : summarizeDailyFunnel(funnel, tradingDay)),
@@ -365,9 +417,15 @@ export default function MarketsClient() {
                 bars={chartBars}
                 boxes={chartBoxes}
                 lines={chartLines}
+                markers={chartMarkers}
                 fitKey={`${chartSymbol}:${tf}`}
                 focusTime={focus}
               />
+              {chartMarkers.length > 0 && (
+                <p className={styles.note}>
+                  Arrows mark {botTrades.length} virtual trade{botTrades.length === 1 ? "" : "s"} of the experimental learner on this market (delayed, pretend money).
+                </p>
+              )}
             </div>
           )
         ) : (

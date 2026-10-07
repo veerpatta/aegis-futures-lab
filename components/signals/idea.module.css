@@ -238,7 +238,7 @@
 }
 
 /* What the trial account did with this idea (lib/plain/trial.ts). */
-.trialLine {
+.learnerLine {
   justify-self: start;
   padding: 3px 10px;
   border-radius: var(--radius-sm);

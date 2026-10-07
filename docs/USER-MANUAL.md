@@ -11,7 +11,7 @@ This manual is also inside the app on the **Guide** page (More → Guide).
 
 Aegis has a bot that watches two stock-index futures — the S&P micro (MES) and the Nasdaq micro (MNQ) — and tests trading methods on them. It shows you what it finds in plain words, and it keeps an honest score.
 
-The short version today: **no method has beaten chance yet**, so the bot is still testing and has not traded its practice money. The trade ideas you see are a record of what the methods do, not advice.
+The short version today: **no method has beaten chance yet**, so the bot has not traded its practice money. Meanwhile its **experimental learner** trades a separate $10,000 of **virtual money** by itself and learns under fixed rules, so you can watch it work. That is evidence being collected, not proof that anything makes money. The trade ideas you see are a record of what the methods do, not advice.
 
 > **Nothing here touches real money.** There is no broker connection. Prices are delayed 10–15 minutes and trade ideas arrive 5–15 minutes after the setup. Use the app to practice, learn and keep score — never as a live trade instruction.
 
@@ -19,11 +19,11 @@ The short version today: **no method has beaten chance yet**, so the bot is stil
 
 | Tab | What it answers |
 |---|---|
-| **Today** | Is the bot working and trading? The two markets, the practice money, the latest trade ideas and any big news coming up. |
-| **Ideas** | Every trade idea, open or finished. The verdict on the methods sits at the top; "For researchers" at the bottom holds every number behind the cards. |
-| **Chart** | Prices, the price areas the bot watches, why there is no idea right now, and the big news it steps aside for. |
-| **Bot** | Where the bot is on its Watch → Test → Practice path, its health, the practice money and each method's progress. |
-| **More** | Your Journal and Review, this Guide, settings (ET or IST, hide money) and the research room. |
+| **Today** | What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the two markets, the practice money, the latest trade ideas and any big news coming up. |
+| **Trades** | Every idea the learner decided on, taken or skipped, with the reason. Tap one for the evidence: the values saved when it decided, the simulated fill, the exit, costs and the result. |
+| **Learn** | The model in charge, the candidates being tested, every review's verdict and the full change history. Below that: the bot's health, its Watch → Test → Practice path and the practice money. |
+| **Chart** | Prices, the price areas the bot watches, the learner's virtual trades as arrows, why there is no idea right now, and the big news it steps aside for. |
+| **More** | Trade ideas (Ideas) and their history (Review), practice money, your Journal, this Guide, settings (ET or IST, hide money) and the research room. |
 
 Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
 
@@ -36,23 +36,38 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 5. **The ending.** Reached its target, Stopped out, Closed before stop or target, Open now — or "Not resolved yet" when the bot has not recorded how an old idea finished. Results are after costs.
 6. **Details.** Tap a card for why the bot took it and, under "How this kind of idea has done", the numbers with their sample sizes.
 
-## 4. Two kinds of money — never mixed
+## 4. The experimental learner
+
+The learner is the bot's own **virtual $10,000** account. Every 15 minutes it reads the newest finished price bars, manages its open trades and decides on every new trade idea: take it, or skip it with a reason. Skipped ideas are followed too, so it cannot learn only from its own winners.
+
+1. **Limits.** At most $100 at risk on one trade and $200 across open trades. A $400 daily loss stops it until the next session. A $2,000 drop from its best stops the campaign for good. It never raises risk after a loss, and a new campaign keeps the earlier losses on record.
+2. **Honest fills.** An order fills on the next price after the decision, with costs on both sides. A bar that touches both stop and target counts as the stop. A gap through the stop fills at the worse price. With no fresh price it takes no new trades and never invents an exit.
+3. **Nightly.** Finished trades go into a numbered learning record. Nothing is learned from a single loss.
+4. **Weekly.** It may test up to 3 new model versions from a fixed list, side by side with the current one on the same fresh ideas. A new version takes over only after 150 results it never trained on, 20 fresh trading days, 60 fresh ideas and two passing reviews at least 6 days apart. It must clearly beat the current model, not trading at all and random picks, after costs. The old version is kept and comes back automatically if the new one does worse.
+
+Three labels show its state, each with a reason. **Doing**: watching the market, managing trades, waiting, paused, stopped, last check failed or status unknown. **Learning**: collecting results, candidate ready, change adopted, candidate rejected or no proven gain yet. **Data**: current, late, stale or offline. A missing check reads "status unknown", never "running". "No proven gain yet" is an honest result, not a fault.
+
+Ideas seen more than 30 minutes late are labelled "caught up late" and never count as fresh evidence. Synthetic test prices, if ever used, are labelled on every screen and never count as evidence. Only the owner can pause it, through the project's GitHub controls. Offline, the app is read-only.
+
+## 5. Three kinds of money — never mixed
 
 **Trade ideas** are a simulated record: what each method would have done, followed to the end on delayed prices. Their results show on Today, Ideas and Review.
 
-**Practice money** is the bot's own $10,000 paper account. It only trades once a method has passed every test, so it has not traded yet. It shows on Today and Bot.
+**The experimental learner** trades its own virtual $10,000, separately. Its results show on Today, Trades and Learn, and are never added to the other two.
 
-## 5. How the bot earns the right to trade
+**Practice money** is the bot's own $10,000 paper account. It only trades once a method has passed every test, so it has not traded yet. It shows on Today and Learn.
+
+## 6. How the bot earns the right to trade
 
 1. **Watch.** Every 15 minutes, all futures week, the bot reads prices and posts any idea its methods spot. New ideas only start between 02:00 and 15:25 New York time (11:30–00:55 IST while the US is on summer time, 12:30–01:55 IST in winter), and everything is closed by 15:25 New York time.
 2. **Test.** A method must beat thousands of random entries on years of past prices, pass a separate confirmation period, then earn 60 new trades over 20 trading days and two weekly reviews. Past replays never count as new trades.
 3. **Practice.** Only then does it trade practice money — first at $50 of risk a trade, then up to $100 (1% of the account). All open trades together risk at most $200. A $400 daily loss stops it for the day, and a $2,000 drop from its high locks the account until someone resets it.
 
-Every week the bot also tests any method marked "Not tested yet" against random entries by itself, and reports the result on Bot. It never promotes a method on its own — a person has to.
+Every week the bot also tests any method marked "Not tested yet" against random entries by itself, and reports the result on Learn. It never promotes a method on its own — a person has to.
 
 Too little evidence is shown in amber, never red: too little data is not a loss. Red is only for a measured loss. Every rate is shown with its n, and below 30 trades it is marked "previewed, not judged".
 
-## 6. Is the bot working?
+## 7. Is the bot working?
 
 | Word | Meaning |
 |---|---|
@@ -64,34 +79,40 @@ Too little evidence is shown in amber, never red: too little data is not a loss.
 
 The bell in the header lists anything worth a look. Its dot is amber for a warning and red only when something failed. News notes alone do not light it.
 
-## 7. Your journal
+## 8. Your journal
 
 More → Journal is yours alone. Pick the trading day, type in a trade or import your broker's file (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time to match the chart. Sign in with your email to keep a private copy across devices; local saving always works.
 
 "Compare with the bot" re-runs the zone method over 60 days in your browser and shows what it did on your days. It takes a few seconds, so it only loads when you open it.
 
-## 8. ET or IST
+## 9. ET or IST
 
 Times follow the ET/IST switch in the header (also under More → Settings). Phones in India start on IST. Two things stay in New York time on purpose: trading days (a day's ideas group by the New York date) and journal entry times. Session rules print both clocks in the app.
 
-## 9. The research room
+## 10. The research room
 
 More → Research room holds the raw tools: the Strategy Lab (test a method on past prices yourself), Diagnostics (the beat-random test, market-year by market-year) and Data (import price files, replay a past day). They use statistics words on purpose; tap any underlined word, or see the list below.
 
 Methods carry their standing everywhere: **red "hasn't beaten chance"** means tested and failed; **amber "not tested yet"** means unknown. Lab results never become trade ideas.
 
-## 10. Put it on your phone
+## 11. Put it on your phone
 
 iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: open it in Chrome, tap ⋮, then Add to Home screen. It opens straight onto Today.
 
-## 11. Words you'll see
+## 12. Words you'll see
 
 | Word | Meaning |
 |---|---|
 | **Paper trading** | Practice trades with imaginary money. Every trade in this app is a paper trade. Nothing here touches real money. |
 | **Delayed prices** | Prices here are 10 to 15 minutes old, and trade ideas arrive 5 to 15 minutes after the setup. Never use them as a live order. |
 | **Practice money** | The bot's own $10,000 paper account. It only trades once a method has passed every test. Trade ideas are a separate record. |
-| **Trial account** | A second $10,000 paper account that copies every trade idea before any method has proven itself. It shows the bot's rules at work, not that the ideas are good. |
+| **Experimental learner** | The bot's own virtual $10,000 account. It takes trade ideas by itself, records every take and skip, and learns under fixed rules. Its results are evidence being collected, not proof. |
+| **Virtual equity** | What the learner's pretend account is worth now: $10,000 plus finished results plus an estimate for open trades. It is pretend money only. |
+| **Model version** | The rule the learner uses to take or skip ideas. Version 1 takes every idea. Later versions are small models trained on the learner's own finished trades. |
+| **Candidate** | A new model version tested side by side with the current one on the same fresh ideas. It takes over only after every check passes, twice. |
+| **Rolled back** | A version that took over was put back to the previous one because it did worse or gave an unusable answer. A rolled-back version can never return. |
+| **Shadow result** | What an idea would have done with one contract, whether the learner took it or not. It lets the learner learn from skipped ideas too. |
+| **Synthetic prices** | Made-up test prices used to prove the software works. Results on them never count as evidence that anything makes money. |
 | **Trade idea** | A buy or sell setup the bot spotted and then followed to its end on delayed prices. It is a simulated record, not a trade in the practice account. |
 | **MES · S&P micro** | The Micro E-mini S&P 500 future. Each 1-point move is worth $5 per contract. |
 | **MNQ · Nasdaq micro** | The Micro E-mini Nasdaq-100 future. Each 1-point move is worth $2 per contract. |
@@ -123,13 +144,14 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 | **Paused by the breaker** | When a kind of idea loses too often lately, the bot keeps simulating it but hides it from the results until it recovers. |
 | **Journal** | Your own trades, typed in or imported from your broker. They stay separate from the bot and are private to you. |
 
-## 12. If something looks wrong
+## 13. If something looks wrong
 
 - A warning with "Try again" means a read failed; the screen keeps the last good numbers.
 - An idea marked "Not resolved yet" is left out of every total until the bot records its end.
 - A dash (—) means there is no number yet, not zero.
-- Still stuck? Check the bell, then Bot → health. The research drawers on Ideas show every excluded row.
+- An open learner trade marked "~" or "stale" has no fresh price; its result is an estimate.
+- Still stuck? Check the bell, then Learn → health. The research drawers on Ideas show every excluded row.
 
 ---
 
-*Manual version: matches the app as of 2026-10-03 (plain-language mobile redesign). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-07 (virtual trading and learning). If the app has changed since, the in-app Guide is the source of truth.*

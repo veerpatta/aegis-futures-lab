@@ -29,7 +29,7 @@ export default function AppHeader() {
   const { alerts:engineAlerts, asleep } = useBotHealth();
   const paper=usePaper();
   const paperStatus=botState(paper.data,paper.errors.includes("Account"));
-  const alerts=[...engineAlerts,...(!paper.loading&&paperStatus.label==="Paused"?[{id:"paper-paused",tone:"warn" as const,text:paperStatus.reason}]:[]),...(!paper.loading&&!freshTraining(paper.data?.learning??null)?[{id:"training-stale",tone:"warn" as const,text:"Training needs attention. Check Bot for the last completed run."}]:[]),...(paper.errors.length?[{id:"paper-read",tone:"warn" as const,text:"Practice account information could not refresh. The displayed snapshot may be old."}]:[])];
+  const alerts=[...engineAlerts,...(!paper.loading&&paperStatus.label==="Paused"?[{id:"paper-paused",tone:"warn" as const,text:paperStatus.reason}]:[]),...(!paper.loading&&!freshTraining(paper.data?.learning??null)?[{id:"training-stale",tone:"warn" as const,text:"Training needs attention. Check Learn for the last completed run."}]:[]),...(paper.errors.length?[{id:"paper-read",tone:"warn" as const,text:"Practice account information could not refresh. The displayed snapshot may be old."}]:[])];
   const attention = alerts.some((a) => a.tone === "bad")
     ? "bad"
     : alerts.some((a) => a.tone === "warn")

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { GLOSSARY, GLOSSARY_KEYS } from "@/lib/glossary";
 import { PAPER_RISK } from "@/lib/paper/policy";
+import { EXP_RISK } from "@/lib/experiment/policy";
+import { PREREG } from "@/lib/experiment/prereg";
 import { etTimeLabel, etWindowLabel } from "@/lib/time/zones";
 import styles from "./guide.module.css";
 
 export const metadata: Metadata = {
   title: "How to use this app — Aegis Futures Lab",
   description:
-    "A plain-English guide to Aegis: the five tabs, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
+    "A plain-English guide to Aegis: the five tabs, the experimental learner and its virtual money, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
 };
 
 /* Session times print both clocks from the current US daylight-saving state
@@ -34,8 +36,10 @@ export default function GuidePage() {
           and tests trading methods on them. It shows you what it finds in plain words, and it keeps an honest score.
         </p>
         <p>
-          The short version today: <b>no method has beaten chance yet</b>, so the bot is still testing and has not
-          traded its practice money. The trade ideas you see are a record of what the methods do, not advice.
+          The short version today: <b>no method has beaten chance yet</b>, so the bot has not traded its practice money.
+          Meanwhile its <b>experimental learner</b> trades a separate {usd(EXP_RISK.capital)} of <b>virtual money</b> by
+          itself and learns under fixed rules, so you can watch it work. That is evidence being collected, not proof
+          that anything makes money. The trade ideas you see are a record of what the methods do, not advice.
         </p>
         <div className={styles.warn}>
           <b>Nothing here touches real money.</b> There is no broker connection. Prices are delayed 10–15 minutes and
@@ -49,23 +53,29 @@ export default function GuidePage() {
         <dl className={styles.dl}>
           <dt>Today</dt>
           <dd>
-            One sentence on whether the bot is working and trading, the two markets, the practice money, the latest
-            trade ideas and any big news coming up.
+            What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the
+            two markets, the practice money, the latest trade ideas and any big news coming up.
           </dd>
-          <dt>Ideas</dt>
+          <dt>Trades</dt>
           <dd>
-            Every trade idea, open or finished. The verdict on the methods sits at the top. &ldquo;For
-            researchers&rdquo; at the bottom holds every number behind the cards.
+            Every idea the learner decided on, taken or skipped, with the reason. Tap one for the evidence: the values
+            saved when it decided, the simulated fill, the exit, costs and the result.
+          </dd>
+          <dt>Learn</dt>
+          <dd>
+            The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
+            Below that: the bot&apos;s health, its Watch → Test → Practice path and the practice money.
           </dd>
           <dt>Chart</dt>
           <dd>
-            Prices, the price areas the bot watches, why there is no idea right now, and the big news it steps aside
-            for.
+            Prices, the price areas the bot watches, the learner&apos;s virtual trades as arrows, why there is no idea
+            right now, and the big news it steps aside for.
           </dd>
-          <dt>Bot</dt>
-          <dd>Where the bot is on its Watch → Test → Practice path, its health, the practice money and each method&apos;s progress.</dd>
           <dt>More</dt>
-          <dd>Your Journal and Review, this Guide, settings (ET or IST, hide money) and the research room.</dd>
+          <dd>
+            Trade ideas (Ideas) and their history (Review), practice money, your Journal, this Guide, settings (ET or
+            IST, hide money) and the research room.
+          </dd>
         </dl>
         <p className={styles.note}>
           Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
@@ -103,15 +113,64 @@ export default function GuidePage() {
         </ol>
       </section>
 
+      <section className={styles.card} id="learner">
+        <h2>The experimental learner</h2>
+        <p>
+          The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. Every 15 minutes it reads the
+          newest finished price bars, manages its open trades and decides on every new trade idea: take it, or skip it
+          with a reason. Skipped ideas are followed too, so it cannot learn only from its own winners.
+        </p>
+        <ol className={styles.steps}>
+          <li>
+            <b>Limits.</b> At most {usd(EXP_RISK.riskPerTrade)} at risk on one trade and {usd(EXP_RISK.totalOpenRisk)}{" "}
+            across open trades. A {usd(EXP_RISK.dailyLoss)} daily loss stops it until the next session. A{" "}
+            {usd(EXP_RISK.maxDrawdown)} drop from its best stops the campaign for good. It never raises risk after a loss,
+            and a new campaign keeps the earlier losses on record.
+          </li>
+          <li>
+            <b>Honest fills.</b> An order fills on the next price after the decision, with costs on both sides. A bar that
+            touches both stop and target counts as the stop. A gap through the stop fills at the worse price. With no fresh
+            price it takes no new trades and never invents an exit.
+          </li>
+          <li>
+            <b>Nightly.</b> Finished trades go into a numbered learning record. Nothing is learned from a single loss.
+          </li>
+          <li>
+            <b>Weekly.</b> It may test up to {PREREG.search.maxPerWeek} new model versions from a fixed list, side by side
+            with the current one on the same fresh ideas. A new version takes over only after {PREREG.gates.minOos} results
+            it never trained on, {PREREG.gates.freshSessions} fresh trading days, {PREREG.gates.freshDecisions} fresh ideas
+            and two passing reviews at least {PREREG.gates.reviewGapDays} days apart. It must clearly beat the current
+            model, not trading at all and random picks, after costs. The old version is kept and comes back automatically
+            if the new one does worse.
+          </li>
+        </ol>
+        <p>
+          Three labels show its state, each with a reason. <b>Doing</b>: watching the market, managing trades, waiting,
+          paused, stopped, last check failed or status unknown. <b>Learning</b>: collecting results, candidate ready, change
+          adopted, candidate rejected or no proven gain yet. <b>Data</b>: current, late, stale or offline. A missing check
+          reads &ldquo;status unknown&rdquo;, never &ldquo;running&rdquo;. &ldquo;No proven gain yet&rdquo; is an honest
+          result, not a fault.
+        </p>
+        <p className={styles.note}>
+          Ideas seen more than 30 minutes late are labelled &ldquo;caught up late&rdquo; and never count as fresh
+          evidence. Synthetic test prices, if ever used, are labelled on every screen and never count as evidence. Only the
+          owner can pause it, through the project&apos;s GitHub controls. Offline, the app is read-only.
+        </p>
+      </section>
+
       <section className={styles.card}>
-        <h2>Two kinds of money — never mixed</h2>
+        <h2>Three kinds of money — never mixed</h2>
         <p>
           <b>Trade ideas</b> are a simulated record: what each method would have done, followed to the end on delayed
           prices. Their results show on Today, Ideas and Review.
         </p>
         <p>
+          <b>The experimental learner</b> trades its own virtual {usd(EXP_RISK.capital)}, separately. Its results show on
+          Today, Trades and Learn, and are never added to the other two.
+        </p>
+        <p>
           <b>Practice money</b> is the bot&apos;s own {usd(PAPER_RISK.capital)} paper account. It only trades once a
-          method has passed every test, so it has not traded yet. It shows on Today and Bot.
+          method has passed every test, so it has not traded yet. It shows on Today and Learn.
         </p>
       </section>
 
@@ -138,7 +197,7 @@ export default function GuidePage() {
         </ol>
         <p>
           Every week the bot also tests any method marked &ldquo;Not tested yet&rdquo; against random entries by itself,
-          and reports the result on Bot. It never promotes a method on its own — a person has to.
+          and reports the result on Learn. It never promotes a method on its own — a person has to.
         </p>
         <p className={styles.note}>
           Too little evidence is shown in amber, never red: too little data is not a loss. Red is only for a measured
@@ -227,12 +286,13 @@ export default function GuidePage() {
           <li>A warning with &ldquo;Try again&rdquo; means a read failed; the screen keeps the last good numbers.</li>
           <li>An idea marked &ldquo;Not resolved yet&rdquo; is left out of every total until the bot records its end.</li>
           <li>A dash (—) means there is no number yet, not zero.</li>
-          <li>Still stuck? Check the bell, then Bot → health. The research drawers on Ideas show every excluded row.</li>
+          <li>An open learner trade marked &ldquo;~&rdquo; or &ldquo;stale&rdquo; has no fresh price; its result is an estimate.</li>
+          <li>Still stuck? Check the bell, then Learn → health. The research drawers on Ideas show every excluded row.</li>
         </ul>
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-03 (plain-language mobile redesign). A printable version of this guide lives in
+        Matches the app as of 2026-10-07 (virtual trading and learning). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

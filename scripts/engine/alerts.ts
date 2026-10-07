@@ -106,26 +106,3 @@ export function formatAlertMessage(alerts: SignalAlerts, maxLen = 3500): string 
   }
   return out;
 }
-
-/* Trial account lines, sent after the trial broker's pass. Practice money that
-   copies every idea, so every line carries "not proven". Positions are what
-   lib/trial/engine.ts returns. */
-export interface TrialAlertPosition {
-  symbol: string;
-  side: "LONG" | "SHORT";
-  qty: number;
-  entry: number;
-  risk: number;
-  pnl: number | null;
-}
-
-export function formatTrialMessage(run: { opened: TrialAlertPosition[]; closed: TrialAlertPosition[]; equity: number; locked: boolean }, maxLen = 3500): string | null {
-  const lines = [
-    ...run.opened.map((p) => `🧪 Trial took ${p.qty} ${escapeHtml(p.symbol)} ${p.side} @ ${p.entry.toFixed(2)} · risk $${p.risk.toFixed(0)}`),
-    ...run.closed.map((p) => `🧪 Trial closed ${p.qty} ${escapeHtml(p.symbol)} ${p.side}${p.pnl === null ? "" : ` · ${money(p.pnl)}`}`),
-    ...(run.locked ? ["⛔ Trial stopped: down $2,000 from its best balance. A new round needs the trial-reset workflow."] : []),
-  ];
-  if (!lines.length) return null;
-  const out = ["<b>Aegis trial account</b> — practice money, not proven", ...lines, `Balance $${run.equity.toFixed(2)}`].join("\n");
-  return out.length > maxLen ? out.slice(0, maxLen - 1) + "…" : out;
-}

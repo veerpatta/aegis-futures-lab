@@ -1,7 +1,7 @@
 /* Heartbeat markers for parts of an engine pass that can fail without failing
    the run.
 
-   The research observer, the paper and trial brokers, the orphan sweep and
+   The research observer, the paper broker, the orphan sweep and
    the excursion writer are all best effort: a failure there must not stop the signal feed,
    so each one is caught and the run still records `ok`. Before this marker
    their failures were free text inside that `ok` heartbeat — nothing alerted on
@@ -19,7 +19,6 @@ export const COMPONENT_FAILED = "component_failed";
 export type EngineComponent =
   | "research-observer"
   | "paper-broker"
-  | "trial-broker"
   | "orphan-check"
   | "stale-open"
   | "excursion";
@@ -27,7 +26,6 @@ export type EngineComponent =
 export const COMPONENT_LABELS: Record<EngineComponent, string> = {
   "research-observer": "Strategy testing",
   "paper-broker": "Practice account",
-  "trial-broker": "Trial account",
   "orphan-check": "Signal clean-up",
   "stale-open": "Signal clean-up",
   excursion: "Trade measurements",

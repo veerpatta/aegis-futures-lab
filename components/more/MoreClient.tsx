@@ -1,7 +1,8 @@
 "use client";
 
-/* The More tab: your own tools, help, settings and — last, and labelled — the
-   research room. Settings live here as well as in the header, so a reader who
+/* The More tab: trade ideas and the other records, your own tools, help,
+   settings and — last, and labelled — the research room. Groups are found by
+   title, never by position, so adding one cannot silently shuffle the page. Settings live here as well as in the header, so a reader who
    never noticed the small header chips can still find them by name. */
 
 import Link from "next/link";
@@ -14,7 +15,8 @@ import page from "@/components/ui/page.module.css";
 export default function MoreClient() {
   const { privacy, toggle } = usePrivacy();
   const { zone, setZone } = useZone();
-  const [tools, learn, research] = MORE_GROUPS;
+  const research = MORE_GROUPS.find((g) => g.title === "Research room");
+  const before = MORE_GROUPS.filter((g) => g !== research);
 
   const group = (g: (typeof MORE_GROUPS)[number]) => (
     <section key={g.title} className={page.stack} aria-label={g.title}>
@@ -43,11 +45,10 @@ export default function MoreClient() {
     <div className={page.page}>
       <header className={page.head}>
         <h1 className="pageTitle">More</h1>
-        <p className={page.lede}>Your journal, help, settings and the research room.</p>
+        <p className={page.lede}>Trade ideas, practice money, your journal, help, settings and the research room.</p>
       </header>
 
-      {group(tools)}
-      {group(learn)}
+      {before.map(group)}
 
       <section className={page.stack} aria-label="Settings">
         <div className={page.sectionHead}>
@@ -85,9 +86,9 @@ export default function MoreClient() {
         </div>
       </section>
 
-      {group(research)}
+      {research && group(research)}
 
-      <p className={page.note}>Paper trading on delayed prices. Nothing here touches real money.</p>
+      <p className={page.note}>Virtual and paper trading on delayed prices. Nothing here touches real money.</p>
     </div>
   );
 }

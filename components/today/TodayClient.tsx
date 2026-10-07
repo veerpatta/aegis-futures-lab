@@ -1,17 +1,19 @@
 "use client";
 
-/* Today — the first screen, answering in this order:
+/* Today — the first screen, built for a 20-second look, answering in order:
      1. Is the bot working?                                       (StatusHero)
-     2. What is the bot's money doing right now?                  (trial card)
+     2. What is the learner doing; what happened to its virtual
+        money; what has it learned?                               (learner card)
      3. Is the market open, and where are the two markets?        (market strip)
      4. Has a method earned the practice account yet?             (practice line)
      5. What are the latest trade ideas, and are they any good?   (idea cards)
      6. Anything big coming up?                                   (news pause)
 
    Three things stay apart on purpose: trade ideas are a simulated record;
-   the trial account copies every idea with trial money, labelled "Not proven";
-   practice money is the strict account that only trades a method that passed
-   every test. Every idea card still says whether its method beat chance.
+   the experimental learner trades its own VIRTUAL ONLY $10,000 and learns
+   under fixed rules; practice money is the strict account that only trades a
+   method that passed every test. Every idea card still says whether its
+   method beat chance.
 
    Deliberately light: no 60-day price history is downloaded here
    (e2e/feed-routing.spec.ts holds that line), only two thinned quotes. */
@@ -24,7 +26,7 @@ import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useData } from "@/components/providers/DataProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { useQuotes } from "@/components/providers/QuoteProvider";
-import TrialCard from "@/components/trial/TrialCard";
+import ExperimentCard from "@/components/experiment/ExperimentCard";
 import UpdatedAgo from "@/components/ui/UpdatedAgo";
 import { marketPhase, fmtStamp } from "@/lib/time/session";
 import { nyMeta } from "@/lib/time/ny";
@@ -96,13 +98,13 @@ export default function TodayClient() {
     <div className={page.page}>
       <header className={page.head}>
         <h1 className="pageTitle">Today</h1>
-        <p className={page.paperLine}>Practice only · Delayed prices · No real money</p>
+        <p className={page.paperLine}>Virtual only · Delayed prices · No real money</p>
         <UpdatedAgo at={feed.loadedAt} failed={feed.failed} />
       </header>
 
-      <StatusHero action={<Link href="/brain" className={page.linkButton}>See what the bot is testing →</Link>} />
+      <StatusHero action={<Link href="/brain" className={page.linkButton}>See what it has learned →</Link>} />
 
-      <TrialCard variant="today" />
+      <ExperimentCard />
 
       {showTour && (
         <section className={styles.tour} aria-label="Getting started">
@@ -160,7 +162,7 @@ export default function TodayClient() {
           <h2 className={page.cardTitle}>
             <Term k="practiceMoney">Practice money</Term>
           </h2>
-          <Link href="/brain" className={page.linkButton}>
+          <Link href="/brain#practice" className={page.linkButton}>
             Details →
           </Link>
         </div>
@@ -186,7 +188,7 @@ export default function TodayClient() {
           <Link href="/signals">All ideas →</Link>
         </div>
         <p className={page.note}>
-          A simulated record of what the methods would have done. Each card says what the trial account did with it.
+          A simulated record of what the methods would have done. Each card says what the learner did with it.
           {snapshot && ` ${snapshot.today} new today · ${snapshot.open} open now`}
           {snapshot && snapshot.closed > 0 && ` · today's closed ideas ${mask(money(snapshot.net))} (n=${snapshot.closed})`}
         </p>

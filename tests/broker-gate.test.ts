@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { shouldRunPaperBroker } from "@/lib/engine/broker-gate";
-import { formatTrialMessage } from "@/scripts/engine/alerts";
 import { componentWarning, failedComponents } from "@/lib/engine/markers";
 
 const sec = (iso: string) => Date.parse(iso) / 1000;
@@ -33,24 +32,8 @@ describe("paper broker gate", () => {
   });
 });
 
-describe("trial account alerts and markers", () => {
-  it("says nothing when the trial did nothing", () => {
-    expect(formatTrialMessage({ opened: [], closed: [], equity: 10000, locked: false })).toBeNull();
-  });
-
-  it("labels every message as practice money, not proven", () => {
-    const msg = formatTrialMessage({
-      opened: [{ symbol: "MNQ", side: "SHORT", qty: 1, entry: 31166.88, risk: 106.24, pnl: null }],
-      closed: [{ symbol: "MES", side: "LONG", qty: 2, entry: 6000, risk: 150, pnl: -42.5 }],
-      equity: 9957.5, locked: false,
-    })!;
-    expect(msg).toContain("practice money, not proven");
-    expect(msg).toContain("Trial took 1 MNQ SHORT @ 31166.88");
-    expect(msg).toContain("−$43");
-    expect(msg).toContain("Balance $9957.50");
-  });
-
-  it("reports a trial-broker failure as its own component", () => {
-    expect(failedComponents(componentWarning("trial-broker", "boom"))).toEqual(["trial-broker"]);
+describe("component markers", () => {
+  it("reports a paper-broker failure as its own component", () => {
+    expect(failedComponents(componentWarning("paper-broker", "boom"))).toEqual(["paper-broker"]);
   });
 });

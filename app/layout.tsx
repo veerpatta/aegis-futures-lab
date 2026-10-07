@@ -8,7 +8,7 @@ import { PrivacyProvider } from "@/components/providers/PrivacyProvider";
 import { BotHealthProvider } from "@/components/providers/BotHealthProvider";
 import "./globals.css";
 import { PaperProvider } from "@/components/providers/PaperProvider";
-import { TrialProvider } from "@/components/providers/TrialProvider";
+import { ExperimentProvider } from "@/components/providers/ExperimentProvider";
 import { QuoteProvider } from "@/components/providers/QuoteProvider";
 import { SignalFeedProvider } from "@/components/signals/useSignalFeed";
 import { GlossaryProvider } from "@/components/ui/Glossary";
@@ -18,7 +18,7 @@ import ServiceWorker from "@/components/ui/ServiceWorker";
 export const metadata: Metadata = {
   title: "Aegis Futures Lab",
   description:
-    "Practice-only futures lab: a bot tests trading methods on delayed S&P and Nasdaq micro prices and shows, in plain words, what it found. No real money.",
+    "Virtual-only futures lab: a bot trades pretend money on delayed S&P and Nasdaq micro prices, learns under fixed rules and shows, in plain words, what it found. No real money.",
   appleWebApp: {
     capable: true,
     title: "Aegis",
@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PrivacyProvider>
               <BotHealthProvider>
                 <PaperProvider>
-                  <TrialProvider>
+                  <ExperimentProvider>
                     <SignalFeedProvider>
                       <QuoteProvider>
                         <GlossaryProvider>
@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         </GlossaryProvider>
                       </QuoteProvider>
                     </SignalFeedProvider>
-                  </TrialProvider>
+                  </ExperimentProvider>
                 </PaperProvider>
               </BotHealthProvider>
             </PrivacyProvider>

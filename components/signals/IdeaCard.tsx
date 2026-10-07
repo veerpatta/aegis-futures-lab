@@ -3,7 +3,7 @@
 /* One trade idea, readable by someone who has never traded: which way, which
    market, how it was meant to end, how it did end — and, always, whether the
    method behind it has ever beaten chance. An open idea shows where the
-   delayed price is now; every idea says what the trial account did with it.
+   delayed price is now; every idea says what the experimental learner did with it.
    Tapping it opens SignalSheet. */
 
 import type { SignalRow } from "@/lib/neon/client";
@@ -13,8 +13,8 @@ import { fmtStamp } from "@/lib/time/session";
 import { money } from "@/lib/format";
 import { isStaleOpen } from "@/lib/signals/open-state";
 import { badgeForRow, ideaPlain, marketName, outcomeWords, runningPerContract, runningWords } from "@/lib/plain/idea";
-import { decisionLine } from "@/lib/plain/trial";
-import { useTrial } from "@/components/providers/TrialProvider";
+import { decisionLine } from "@/lib/plain/experiment";
+import { useExperiment } from "@/components/providers/ExperimentProvider";
 import { useQuotes } from "@/components/providers/QuoteProvider";
 import { EXECUTION } from "@/scripts/engine/tiers";
 import PriceLadder from "./PriceLadder";
@@ -31,7 +31,7 @@ export default function IdeaCard({
 }) {
   const { mask } = usePrivacy();
   const { zone } = useZone();
-  const trial = useTrial();
+  const learner = useExperiment();
   const quotes = useQuotes();
   const plain = ideaPlain(signal);
   const badge = badgeForRow(signal);
@@ -41,7 +41,7 @@ export default function IdeaCard({
   const tone = stale ? "dim" : closed ? (signal.pnl_usd! >= 0 ? "good" : "bad") : "info";
   const livePrice = !closed && !stale ? (quotes[signal.symbol as "MES" | "MNQ"]?.price ?? null) : null;
   const running = livePrice === null ? null : runningPerContract(signal, livePrice, EXECUTION.cost);
-  const trialLine = decisionLine(trial.decisionFor(signal.dedupe_key), mask, money);
+  const learnerLine = decisionLine(learner.decisionFor(signal.dedupe_key), mask, money);
 
   return (
     <button
@@ -73,7 +73,7 @@ export default function IdeaCard({
       {running !== null && (
         <span className={`${styles.running} ${running >= 0 ? styles.good : styles.bad}`}>{runningWords(running, mask)}</span>
       )}
-      {trialLine && <span className={styles.trialLine}>{trialLine}</span>}
+      {learnerLine && <span className={styles.learnerLine}>{learnerLine}</span>}
 
       <span className={styles.foot}>
         <span className={`${styles.outcome} ${styles[tone]}`}>

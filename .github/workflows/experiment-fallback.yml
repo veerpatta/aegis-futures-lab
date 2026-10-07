@@ -1,0 +1,58 @@
+# Fallback runner for the experimental learner (virtual only, zero cost).
+#
+# The learner's real scheduler is the Neon Function "aegisexp" with three
+# scheduled triggers (scripts/experiment/triggers.json). This workflow is the
+# safety net: a sparse schedule that runs the SAME job code only when Neon has
+# not produced a successful run recently (--if-stale), plus manual dispatch.
+# A duplicate run is harmless — runs are keyed by invocation, the batch holds
+# a per-experiment lock and every decision has a unique key.
+#
+# Standard hosted runner on a public repo: free. No paid API, no data
+# purchase, no Claude. The pooled Neon URL is the existing secret.
+
+name: experiment-fallback
+
+on:
+  schedule:
+    - cron: "40 */2 * * 1-5" # tick, every two hours, only if Neon's ticks went quiet
+    - cron: "20 8 * * 2-6" # learn, only if Neon's nightly run is missing
+    - cron: "30 9 * * 0" # review, only if Neon's weekly run is missing
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "tick, learn or review"
+        required: true
+        default: tick
+        type: choice
+        options: [tick, learn, review]
+
+concurrency:
+  group: experiment-fallback
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Pick the job
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT"; echo "flag=" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "20 8 * * 2-6" ]; then
+            echo "job=learn" >> "$GITHUB_OUTPUT"; echo "flag=--if-stale" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 9 * * 0" ]; then
+            echo "job=review" >> "$GITHUB_OUTPUT"; echo "flag=--if-stale" >> "$GITHUB_OUTPUT"
+          else
+            echo "job=tick" >> "$GITHUB_OUTPUT"; echo "flag=--if-stale" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npx tsx scripts/experiment/run.ts ${{ steps.pick.outputs.job }} ${{ steps.pick.outputs.flag }}
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

@@ -79,7 +79,7 @@ test("Today reaches a useful state without downloading any 60-day history", asyn
   await stubExternalData(page, historyRequests);
 
   await page.goto("/");
-  await expect(page.getByText("Practice only · Delayed prices · No real money")).toBeVisible();
+  await expect(page.getByText("Virtual only · Delayed prices · No real money")).toBeVisible();
   await page.waitForTimeout(500);
 
   expect(historyRequests).toEqual([]);

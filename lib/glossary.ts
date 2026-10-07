@@ -28,10 +28,40 @@ export const GLOSSARY = {
     meaning:
       "The bot's own $10,000 paper account. It only trades once a method has passed every test. Trade ideas are a separate record.",
   },
-  trialAccount: {
-    term: "Trial account",
+  experimentalLearner: {
+    term: "Experimental learner",
     meaning:
-      "A second $10,000 paper account that copies every trade idea before any method has proven itself. It shows the bot's rules at work, not that the ideas are good.",
+      "The bot's own virtual $10,000 account. It takes trade ideas by itself, records every take and skip, and learns under fixed rules. Its results are evidence being collected, not proof.",
+  },
+  virtualEquity: {
+    term: "Virtual equity",
+    meaning:
+      "What the learner's pretend account is worth now: $10,000 plus finished results plus an estimate for open trades. It is pretend money only.",
+  },
+  modelVersion: {
+    term: "Model version",
+    meaning:
+      "The rule the learner uses to take or skip ideas. Version 1 takes every idea. Later versions are small models trained on the learner's own finished trades.",
+  },
+  challenger: {
+    term: "Candidate",
+    meaning:
+      "A new model version tested side by side with the current one on the same fresh ideas. It takes over only after every check passes, twice.",
+  },
+  rolledBack: {
+    term: "Rolled back",
+    meaning:
+      "A version that took over was put back to the previous one because it did worse or gave an unusable answer. A rolled-back version can never return.",
+  },
+  shadowResult: {
+    term: "Shadow result",
+    meaning:
+      "What an idea would have done with one contract, whether the learner took it or not. It lets the learner learn from skipped ideas too.",
+  },
+  synthetic: {
+    term: "Synthetic prices",
+    meaning:
+      "Made-up test prices used to prove the software works. Results on them never count as evidence that anything makes money.",
   },
   tradeIdea: {
     term: "Trade idea",

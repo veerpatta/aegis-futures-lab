@@ -1,7 +1,8 @@
 "use client";
 
-/* Bot — what the bot is doing, how close it is to trading practice money,
-   and whether it is healthy.
+/* Learn (/brain) — what the experimental learner has tried, kept or
+   rejected (LearnSection), then the bot's health and how close a method is
+   to trading practice money.
 
    The path a method has to walk is drawn as three steps — Watch, Test,
    Practice — so "Researching" stops being jargon: the bot is stuck at Test
@@ -32,6 +33,7 @@ import { Button } from "@/components/ui";
 import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
 import page from "@/components/ui/page.module.css";
 import styles from "./bot.module.css";
+import LearnSection from "./LearnSection";
 
 type Sheet = "how" | "risk" | "learned" | Candidate | Position | null;
 
@@ -87,12 +89,12 @@ export default function BotClient() {
     <div className={page.page}>
       <header className={page.head}>
         <div className={page.titleRow}>
-          <h1 className="pageTitle">Bot</h1>
+          <h1 className="pageTitle">Learn</h1>
           <Button variant="ghost" onClick={() => setSheet("how")}>
             How it works
           </Button>
         </div>
-        <p className={page.paperLine}>Practice only · Delayed prices · No real orders</p>
+        <p className={page.paperLine}>Virtual and practice only · Delayed prices · No real orders</p>
       </header>
 
       {paper.errors.length > 0 && (
@@ -105,6 +107,12 @@ export default function BotClient() {
       )}
 
       <StatusHero />
+
+      <LearnSection />
+
+      <div className={page.sectionHead}>
+        <h2>The bot and practice money</h2>
+      </div>
 
       <section className={page.card} aria-label="Where the bot is">
         <ol className={styles.steps}>
@@ -133,7 +141,7 @@ export default function BotClient() {
         </p>
       </section>
 
-      <section className={page.list} aria-label="Health">
+      <section className={page.list} aria-label="Health" id="health">
         <div className={page.setting}>
           <span className={page.rowMain}>
             <b>Price checks</b>
@@ -169,7 +177,7 @@ export default function BotClient() {
         )}
       </section>
 
-      <section className={page.card} aria-label="Practice money">
+      <section className={page.card} aria-label="Practice money" id="practice">
         <div className={styles.cardHead}>
           <h2 className={page.cardTitle}>
             <Term k="practiceMoney">Practice money</Term>

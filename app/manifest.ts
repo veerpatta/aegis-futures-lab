@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 /* Installable app: "Add to Home Screen" opens on Today — the one screen that
    says whether the bot is working and what is new. Colours match --bg.
-   Long-pressing the icon offers shortcuts straight to Ideas and Bot. */
+   Long-pressing the icon offers shortcuts straight to Trades and Learn. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Aegis Futures Lab",
     short_name: "Aegis",
     description:
-      "Practice-only futures lab: a bot tests trading methods on delayed S&P and Nasdaq micro prices and shows, in plain words, what it found. No real money.",
+      "Virtual-only futures lab: a bot trades pretend money on delayed S&P and Nasdaq micro prices, learns under fixed rules and shows, in plain words, what it found. No real money.",
     id: "/",
     start_url: "/",
     scope: "/",
@@ -22,8 +22,9 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
+      { name: "Bot trades", short_name: "Trades", url: "/trades", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "What it has learned", short_name: "Learn", url: "/brain", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
       { name: "Trade ideas", short_name: "Ideas", url: "/signals", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-      { name: "Bot and trial account", short_name: "Bot", url: "/brain", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

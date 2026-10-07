@@ -29,7 +29,7 @@ import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { STALE_MARKER, inEntryWindow } from "@/lib/time/session";
-import { diffSignalAlerts, escapeHtml, formatAlertMessage, formatTrialMessage } from "./alerts";
+import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
 import { loadContextRows, updateContextDaily, vixBucketFor, type ContextRow } from "./context";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
@@ -861,18 +861,10 @@ async function main() {
     }
   } else console.log("paper broker: skipped — market quiet hours, no fresh bars");
 
-  // The trial account: practice money copying every idea on the Ideas tab
-  // (lib/trial/engine.ts). Its own block, so a failure here never touches the
-  // practice account or the signal feed.
-  try {
-    const { runTrialBroker } = await import("./trial-broker");
-    const trial = await runTrialBroker(bySymbol, nowSec);
-    console.log(`trial: round ${trial.round}, balance ${trial.equity.toFixed(2)}, ${trial.opened.length} opened, ${trial.closed.length} closed`);
-    const message = formatTrialMessage(trial);
-    if (message) await sendTelegram(message); // never throws
-  } catch (e) {
-    warnings.push(componentWarning("trial-broker", e));
-  }
+  // The experimental learner (lib/experiment) is NOT run from here: it is a
+  // separate Neon Function on its own schedule that reads the bars this pass
+  // archives and the ideas it writes, so nothing it does can slow or break
+  // the signal feed or the practice account.
 
   // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact
   // token the dashboard looks for (lib/time/session.ts dataDelayed) — newest

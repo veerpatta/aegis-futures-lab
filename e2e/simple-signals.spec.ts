@@ -77,7 +77,7 @@ for (const width of [360, 390, 430, 1440])
 
     if (width < 768) {
       const nav = page.getByRole("navigation", { name: /primary/i });
-      for (const tab of ["Today", "Ideas", "Chart", "Bot", "More"]) await expect(nav).toContainText(tab);
+      for (const tab of ["Today", "Trades", "Learn", "Chart", "More"]) await expect(nav).toContainText(tab);
     }
   });
 

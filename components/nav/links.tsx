@@ -1,15 +1,17 @@
 /* Shared nav definition for the Sidebar (desktop), the phone tab bar and the
    More page.
 
-   Five tabs, each answering one question in plain words:
-     Today — is the bot working, is it trading, anything new?
-     Ideas — what trade ideas exist and how did they end?
-     Chart — where is price, where are the key areas, what news is ahead?
-     Bot   — what is the bot testing, how close is it, is it healthy?
-     More  — your journal and review, the Guide, settings, the research room.
+   Five tabs, each answering one question in plain words (2026-10-07,
+   virtual trading and learning plan):
+     Today  — what is the learner doing, what happened to the virtual money?
+     Trades — every bot trade and skip, with the evidence behind it.
+     Learn  — what it has tried, kept or rejected; the bot's health.
+     Chart  — where is price, where are the key areas, what news is ahead?
+     More   — trade ideas, practice money, your journal, the Guide, settings.
 
-   URLs did not change when the labels did (/signals is Ideas, /markets is
-   Chart, /brain is Bot), so saved links and home-screen icons keep working.
+   URLs did not change when the labels did (/brain is Learn, /markets is
+   Chart, /signals is Ideas under More), so saved links and home-screen icons
+   keep working. /trades is new.
    Everything below the tabs lives in MORE_GROUPS; the Research room is the
    raw-numbers corner and says so. Icons are inline 20×20 stroke SVGs. */
 
@@ -53,13 +55,27 @@ export const NAV_LINKS: NavLink[] = [
     ),
   },
   {
-    href: "/signals",
-    label: "Ideas",
-    hint: "Trade ideas and how they ended",
+    href: "/trades",
+    label: "Trades",
+    hint: "Every bot trade and skip, with its evidence",
     icon: (
       <svg {...iconProps}>
-        <path d="M9 18h6M10 21h4" />
-        <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.95v.25h5.2v-.25c0-.8.4-1.5 1-1.95A6 6 0 0 0 12 3Z" />
+        <path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z" />
+        <path d="M9 8h6M9 11.5h6M9 15h3.5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/brain",
+    label: "Learn",
+    hint: "What the learner tried, kept or rejected",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="4.5" y="7.5" width="15" height="11" rx="3" />
+        <path d="M12 7.5V4.5M12 4.5h.01" />
+        <circle cx="9.3" cy="12.6" r="1.1" />
+        <circle cx="14.7" cy="12.6" r="1.1" />
+        <path d="M9.5 16h5" />
       </svg>
     ),
   },
@@ -76,23 +92,9 @@ export const NAV_LINKS: NavLink[] = [
     ),
   },
   {
-    href: "/brain",
-    label: "Bot",
-    hint: "What it is testing and its health",
-    icon: (
-      <svg {...iconProps}>
-        <rect x="4.5" y="7.5" width="15" height="11" rx="3" />
-        <path d="M12 7.5V4.5M12 4.5h.01" />
-        <circle cx="9.3" cy="12.6" r="1.1" />
-        <circle cx="14.7" cy="12.6" r="1.1" />
-        <path d="M9.5 16h5" />
-      </svg>
-    ),
-  },
-  {
     href: "/more",
     label: "More",
-    hint: "Journal, Guide, settings, research",
+    hint: "Ideas, practice money, journal, Guide, settings",
     icon: (
       <svg {...iconProps}>
         <circle cx="5" cy="12" r="1" />
@@ -104,6 +106,34 @@ export const NAV_LINKS: NavLink[] = [
 ];
 
 export const MORE_GROUPS: NavGroup[] = [
+  {
+    title: "Ideas and records",
+    note: "Separate records, never added together: trade ideas, practice money and the learner's virtual account.",
+    links: [
+  {
+    href: "/signals",
+    label: "Ideas",
+    hint: "Every trade idea the methods posted, and how it ended",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M9 18h6M10 21h4" />
+        <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.95v.25h5.2v-.25c0-.8.4-1.5 1-1.95A6 6 0 0 0 12 3Z" />
+      </svg>
+    ),
+  },
+      {
+        href: "/brain#practice",
+        label: "Practice money",
+        hint: "The strict account: trades only a method that passed every test",
+        icon: (
+          <svg {...iconProps}>
+            <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
+            <circle cx="12" cy="12" r="2.5" />
+          </svg>
+        ),
+      },
+    ],
+  },
   {
     title: "Your tools",
     links: [
@@ -121,7 +151,7 @@ export const MORE_GROUPS: NavGroup[] = [
       {
         href: "/review",
         label: "Review",
-        hint: "Calendar of results and when ideas did best",
+        hint: "Trade-idea history: calendar of results and when ideas did best",
         icon: (
           <svg {...iconProps}>
             <rect x="3.5" y="5" width="17" height="15.5" rx="2" />

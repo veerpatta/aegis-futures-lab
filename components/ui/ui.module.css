@@ -437,3 +437,47 @@
   .sampleNote { font-size: 11px; }
   .sampleFlag { font-size: 11px; }
 }
+
+/* "Update ready" bar (ServiceWorker.tsx): sits above the phone tab bar. */
+.updateBar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-tile, 14px);
+  background: var(--bg-lifted);
+  color: var(--text);
+  font-size: 13.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.updateBar span {
+  flex: 1;
+}
+.updateBar button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+}
+.updateBar button:first-of-type {
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 600;
+}
+@media (min-width: 900px) {
+  .updateBar {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    max-width: 420px;
+  }
+}
