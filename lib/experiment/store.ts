@@ -53,7 +53,7 @@ export interface EvaluationRecord {
 
 export type ChangeKind =
   | "created" | "campaign_started" | "paused" | "resumed" | "locked" | "stopped" | "day_halted"
-  | "challenger_registered" | "challenger_invalid" | "adopted" | "rejected" | "inconclusive" | "retired" | "rolled_back" | "quota_level";
+  | "challenger_registered" | "challenger_invalid" | "adopted" | "rejected" | "inconclusive" | "retired" | "rolled_back" | "quota_level" | "rules_amended";
 
 export interface ChangeRecord {
   id?: number;

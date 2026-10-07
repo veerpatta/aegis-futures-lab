@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mulberry32 } from "@/scripts/engine/montecarlo";
 import { nyTimeToUnix } from "@/lib/time/ny";
 import { buildStudyDataset, foldReport, rowsIn, splitSessions } from "@/lib/history/dataset";
@@ -16,6 +16,9 @@ import { createCampaign, importShadowCandidate, runJob } from "@/lib/experiment/
 import { COST_VERSION } from "@/lib/experiment/policy";
 import type { ReplayExample } from "@/lib/history/replay";
 import type { RegisterFacts } from "@/lib/history/store";
+
+// Several tests here train and bootstrap real models; under the full parallel suite they can exceed the 5 s default.
+vi.setConfig({ testTimeout: 30_000 });
 
 function days(from: string, n: number): string[] {
   const out: string[] = [];

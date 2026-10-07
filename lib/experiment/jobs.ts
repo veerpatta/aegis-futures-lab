@@ -20,7 +20,7 @@ import { opportunitiesFromSignals } from "./opportunities";
 import { syntheticBars, syntheticOpportunities } from "./synthetic";
 import { ModelOutputError, TAKE_ALL_V1, artifactHash, trainChallenger, validateArtifact } from "./models";
 import { quotaLevel, allowed, searchBudget, type QuotaLevel } from "./quota";
-import { PREREG, IMPORTED_LIFECYCLES, lifecycleFor, rulesFor } from "./prereg";
+import { PREREG, IMPORTED_LIFECYCLES, challengerSlots, lifecycleAt, lifecycleFor, recordedAmendments, retirementDecision, rulesFor } from "./prereg";
 import { walkForward, verdictOf, adoptionDecision, rollbackDecision, type EvalRow } from "./evaluate";
 import { brier } from "./stats";
 import { buildEvalRows, datasetFor, freshWindow, postAdoptionRows, weekKeyOf } from "./learning";
@@ -225,6 +225,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
   return store.learner(exp.id, `review:${invocationId}`, async (tx) => {
     const st = await tx.load();
     const P = rulesFor(st.exp.preregVersion);
+    const amendments = recordedAmendments(P.version, st.changes);
     const allowSynthetic = st.exp.mode === "synthetic";
     const weekKey = weekKeyOf(nowSec);
     const rows: EvalRow[] = buildEvalRows(st.decisions, st.outcomes, nowSec);
@@ -239,6 +240,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
     const shadowing = st.versions.filter((v) => v.status === "shadowing" && v.artifact?.kind === "logit");
     const adoptable: { v: VersionRecord; lo: number }[] = [];
     const verdicts: Record<string, string> = {};
+    const left = new Set<string>(); // versions that stop shadowing in this review
     for (const v of shadowing) {
       const spec = v.spec as ChallengerSpec;
       const wf = walkForward(rows, spec, incumbent, { seedKey: `${v.id}:${weekKey}`, comparisons: shadowing.length, allowSynthetic, prereg: P });
@@ -264,16 +266,25 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
         const kind = verdict.verdict === "fail" ? "rejected" : "challenger_invalid";
         await tx.insertChange({ kind, fromVersion: v.id, reason: verdict.reasons.join(", ") || verdict.verdict, evidence: { metrics: summary(wf.metrics) }, eventKey: `${kind}:${v.id}:${weekKey}` });
         await tx.updateVersion(v.id, { status: verdict.verdict === "fail" ? "rejected" : "invalid", statusReason: verdict.reasons.join(", ") });
+        left.add(v.id);
         continue;
       }
       if (adoption.adopt) { adoptable.push({ v, lo: wf.metrics.delta.lo }); continue; }
-      const inconclusiveRun = [verdict.verdict, ...previous.map((e) => e.verdict)].findIndex((x) => x !== "inconclusive");
-      const streak = inconclusiveRun === -1 ? previous.length + 1 : inconclusiveRun;
-      const life = lifecycleFor(P, v.artifact?.kind === "logit" ? v.artifact.origin : null, IMPORTED_LIFECYCLES);
-      const tooOld = nowSec - v.registeredAt > life.shadowWeeks * 7 * DAY && verdict.verdict !== "pass";
-      if (streak >= life.maxInconclusive || tooOld) {
-        await tx.insertChange({ kind: "retired", fromVersion: v.id, reason: tooOld ? "shadowed too long without passing" : "inconclusive too many times", eventKey: `retired:${v.id}:${weekKey}` });
-        await tx.updateVersion(v.id, { status: "retired", statusReason: tooOld ? "shadow-expired" : "inconclusive-limit" });
+      const life = lifecycleFor(P, { registeredAt: v.registeredAt, origin: v.artifact?.kind === "logit" ? v.artifact.origin : null }, IMPORTED_LIFECYCLES, amendments);
+      const retire = retirementDecision({
+        life, minOos: P.gates.minOos, registeredAt: v.registeredAt, nowSec,
+        reviews: [{ verdict: verdict.verdict, nOos: wf.metrics.nOos }, ...previous.map((e) => ({ verdict: e.verdict, nOos: e.nOos }))],
+      });
+      if (retire.retire) {
+        const tooOld = retire.reason === "shadow-expired";
+        const why = tooOld
+          ? `shadowed ${life.shadowWeeks} weeks without passing`
+          : life.inconclusiveCounts === "informative"
+            ? `inconclusive ${retire.streak} reviews running with at least ${P.gates.minOos} out-of-sample results`
+            : "inconclusive too many times";
+        await tx.insertChange({ kind: "retired", fromVersion: v.id, reason: why, evidence: { streak: retire.streak, shadowWeeks: life.shadowWeeks }, eventKey: `retired:${v.id}:${weekKey}` });
+        await tx.updateVersion(v.id, { status: "retired", statusReason: retire.reason });
+        left.add(v.id);
       } else if (verdict.verdict === "inconclusive") {
         await tx.insertChange({ kind: "inconclusive", fromVersion: v.id, reason: verdict.reasons.join(", ") || "not enough evidence yet", evidence: { metrics: summary(wf.metrics) }, eventKey: `inconclusive:${v.id}:${weekKey}` });
       }
@@ -289,11 +300,17 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
       await tx.swapPointer(best.v.id, changeId, nowSec);
       await tx.updateVersion(best.v.id, { status: "adopted", statusReason: "passed walk-forward, fresh window and two reviews" });
       await tx.updateVersion(incumbentVersion.id, { status: "retired", statusReason: `replaced by ${best.v.id}` });
+      left.add(best.v.id);
       counts.adopted = best.v.id;
     }
 
     // 3. Register and train new challengers inside the preregistered grid.
-    const budget = searchBudget(level, P.search.maxPerWeek) - st.versions.filter((v) => v.kind === "logit" && v.weekKey === weekKey).length;
+    const weekBudget = searchBudget(level, P.search.maxPerWeek) - st.versions.filter((v) => v.kind === "logit" && v.weekKey === weekKey).length;
+    // Imported historical candidates do not take a native slot.
+    const nativeShadowing = shadowing.filter((v) => !left.has(v.id) && !(v.artifact?.kind === "logit" && v.artifact.origin)).length;
+    const searchLife = lifecycleAt(P, amendments, nowSec);
+    const budget = challengerSlots(weekBudget, searchLife, nativeShadowing);
+    if (weekBudget > 0 && budget === 0) counts.searchWaiting = `${nativeShadowing} candidates already being tested (at most ${searchLife.maxShadowing} at a time); a new one is registered when a slot frees`;
     const trainRows = rows.map((r) => ({ features: r.features, win: r.win, net: r.net, sessionKey: r.session }));
     const registered: string[] = [];
     if (budget > 0 && trainRows.length >= P.gates.minTrainRows) {

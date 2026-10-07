@@ -671,7 +671,7 @@ CREATE TABLE IF NOT EXISTS public.experiment_changes (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   experiment_id text NOT NULL REFERENCES public.experiments(id),
   kind text NOT NULL CHECK (kind IN ('created','campaign_started','paused','resumed','locked','stopped','day_halted',
-    'challenger_registered','challenger_invalid','adopted','rejected','inconclusive','retired','rolled_back','quota_level')),
+    'challenger_registered','challenger_invalid','adopted','rejected','inconclusive','retired','rolled_back','quota_level','rules_amended')), -- rules_amended: db/migrations/20261007_experiment_lifecycle_amendment.sql
   from_status text,
   to_status text,
   from_version text,

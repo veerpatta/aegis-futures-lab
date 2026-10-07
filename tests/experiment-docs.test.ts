@@ -21,6 +21,9 @@ describe("the manual describes the learner the code runs", () => {
     expect(section).toContain(`${PREREG.gates.freshSessions} fresh trading days`);
     expect(section).toContain(`${PREREG.gates.freshDecisions} fresh ideas`);
     expect(section).toContain(`at least ${PREREG.gates.reviewGapDays} days apart`);
+    const L = PREREG.lifecycle;
+    expect(section).toContain(`At most ${L.maxShadowing} candidates are tested at a time, each for up to ${L.shadowWeeks} weeks`);
+    expect(section).toContain(`retired after ${L.maxInconclusive} inconclusive reviews in a row once it has ${PREREG.gates.minOos} results`);
   });
 
   it("lists the same five tabs as the guide and the nav, and both carry the same version line", () => {

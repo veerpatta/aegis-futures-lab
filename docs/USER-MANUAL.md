@@ -44,7 +44,8 @@ The learner is the bot's own **virtual $10,000** account. Every 15 minutes it re
 2. **Honest fills.** An order fills on the next price after the decision, with costs on both sides. A bar that touches both stop and target counts as the stop. A gap through the stop fills at the worse price. With no fresh price it takes no new trades and never invents an exit.
 3. **Nightly.** Finished trades go into a numbered learning record. Nothing is learned from a single loss.
 4. **Weekly.** It may test up to 3 new model versions from a fixed list, side by side with the current one on the same fresh ideas. A new version takes over only after 150 results it never trained on, 20 fresh trading days, 60 fresh ideas and two passing reviews at least 6 days apart. It must clearly beat the current model, not trading at all and random picks, after costs. The old version is kept and comes back automatically if the new one does worse.
-5. **Why 50 is not enough.** Training can start at 50 finished trades. A fair review splits the record into 6 blocks by date, and each of its 5 test periods needs 50 earlier trades to learn from — roughly 300. Periods that are too thin are shown and skipped, never counted. Ideas too risky for one contract are not counted at all.
+5. **How long a test lasts.** At most 3 candidates are tested at a time, each for up to 52 weeks, because fresh results come slowly — about one usable idea a day. A candidate is retired after 6 inconclusive reviews in a row once it has 150 results it never trained on, or after 52 weeks without a passing review. A new candidate takes the free place.
+6. **Why 50 is not enough.** Training can start at 50 finished trades. A fair review splits the record into 6 blocks by date, and each of its 5 test periods needs 50 earlier trades to learn from — roughly 300. Periods that are too thin are shown and skipped, never counted. Ideas too risky for one contract are not counted at all.
 
 Three labels show its state, each with a reason. **Doing**: watching the market, managing trades, waiting, paused, stopped, last check failed or status unknown. **Learning**: collecting results, candidate ready, change adopted, candidate rejected or no proven gain yet. **Data**: current, late, stale or offline. A missing check reads "status unknown", never "running". "No proven gain yet" is an honest result, not a fault.
 
@@ -174,4 +175,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-07 (historical practice). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-07 (candidate testing time). If the app has changed since, the in-app Guide is the source of truth.*

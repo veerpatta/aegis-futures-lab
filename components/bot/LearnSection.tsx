@@ -46,7 +46,7 @@ function Meter({ label, n, of }: { label: string; n: number; of: number }) {
 
 const TONE_CLASS: Record<string, string> = { good: "tl_good", warn: "tl_warn", bad: "tl_bad", dim: "" };
 const CHANGE_TONE: Record<string, string> = {
-  adopted: "good", campaign_started: "good", rejected: "dim", inconclusive: "warn", rolled_back: "bad", challenger_invalid: "bad", locked: "bad", day_halted: "warn", paused: "warn",
+  adopted: "good", campaign_started: "good", rejected: "dim", inconclusive: "warn", rolled_back: "bad", challenger_invalid: "bad", locked: "bad", day_halted: "warn", paused: "warn", rules_amended: "warn",
 };
 
 export default function LearnSection() {
@@ -95,7 +95,8 @@ export default function LearnSection() {
         <StateAxes nowSec={nowSec} />
         <p className={page.note}>
           It learns from finished trades in batches, never from the last loss. Each week it may test up to {PREREG.search.maxPerWeek} new
-          versions from a fixed list, side by side with the current one on the same ideas. A new version takes over only after every check below passes;
+          versions from a fixed list, side by side with the current one on the same ideas — at most {PREREG.lifecycle.maxShadowing} at a time, each for up
+          to {PREREG.lifecycle.shadowWeeks} weeks, because fresh results come slowly. A new version takes over only after every check below passes;
           the old one is kept so it can be put back.
         </p>
       </section>

@@ -66,6 +66,16 @@ short sentences. The reader knows trading but not software. Always keep the
   `https://console.neon.tech/api/v2/projects/floral-cell-79900814/branches/br-small-mode-b3y8iq6w/functions/aegisexp/deployments`
   with `Authorization: Bearer $NEON_API_KEY`. Invocation URL:
   `https://br-small-mode-b3y8iq6w-aegisexp.compute.c-4.ap-southeast-1.aws.neon.tech/health`.
+- RULE AMENDMENTS (2026-10-07): a running campaign's `experiments.prereg` is write-once, so a
+  correction is an amendment — declared in `AMENDMENTS` (`lib/experiment/prereg.ts`) and in force
+  only once a `rules_amended` change row records it; it may touch the LIFECYCLE only, applies to
+  challengers registered after the record, and a recorded amendment the code does not declare (or
+  whose rules differ) stops the review. Amendment 1 (`exp-amend-2026-10-07-lifecycle`, migration
+  `db/migrations/20261007_experiment_lifecycle_amendment.sql`): 52-week horizon, only inconclusive
+  reviews with ≥150 out-of-sample outcomes count toward the 6-in-a-row retirement, at most 3
+  native challengers shadowing at once. Learner-1's frozen v1 rules hash `50c2fd5d…4105` is pinned
+  by `tests/experiment-amendment.test.ts`; new campaigns use `exp-prereg-2026-10-07-v2` (same
+  floors, this lifecycle built in). Never edit `PREREG_2026_10_07`.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
   fires when no ok tick for 90 min inside the futures week or the last two ticks errored
   (`findLearnerProblems`, pinned by `tests/experiment-watchdog.test.ts`).

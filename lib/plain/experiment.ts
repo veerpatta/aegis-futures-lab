@@ -160,6 +160,7 @@ const CHANGE_WORDS: Record<string, string> = {
   retired: "Version retired",
   rolled_back: "Rolled back",
   quota_level: "Free limits level changed",
+  rules_amended: "Rules amended",
 };
 export const changeWords = (kind: string) => CHANGE_WORDS[kind] ?? kind;
 

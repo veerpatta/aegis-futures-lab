@@ -147,6 +147,13 @@ export default function GuidePage() {
             if the new one does worse.
           </li>
           <li>
+            <b>How long a test lasts.</b> At most {PREREG.lifecycle.maxShadowing} candidates are tested at a time, each for
+            up to {PREREG.lifecycle.shadowWeeks} weeks, because fresh results come slowly — about one usable idea a day. A
+            candidate is retired after {PREREG.lifecycle.maxInconclusive} inconclusive reviews in a row once it has{" "}
+            {PREREG.gates.minOos} results it never trained on, or after {PREREG.lifecycle.shadowWeeks} weeks without a
+            passing review. A new candidate takes the free place.
+          </li>
+          <li>
             <b>Why 50 is not enough.</b> Training can start at {PREREG.gates.minTrainRows} finished trades. A fair review
             splits the record into {PREREG.gates.folds + 1} blocks by date, and each of its {PREREG.gates.folds} test
             periods needs {PREREG.gates.minTrainRows} earlier trades to learn from — roughly{" "}
@@ -357,7 +364,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-07 (historical practice). A printable version of this guide lives in
+        Matches the app as of 2026-10-07 (candidate testing time). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

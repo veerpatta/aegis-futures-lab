@@ -151,7 +151,7 @@ sessions and ≥ 60 fresh decisions after registration, two passing reviews ≥ 
 apart with ≥ 10 new outcomes each. Historical replay counts for none of them. Lifecycle
 for an imported candidate: 52 weeks of shadowing or 52 inconclusive reviews
 (`IMPORTED_LIFECYCLES`), because the campaign's 6-week limit is shorter than the fresh
-window takes at the measured idea rate. Evidence floors stay the campaign's.
+window takes at the measured idea rate. Evidence floors stay the campaign's. (Since Amendment 1 to the campaign, native challengers registered after 2026-10-07 have a 52-week horizon too.)
 
 ## Budget (stage 6)
 

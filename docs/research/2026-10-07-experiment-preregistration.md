@@ -75,6 +75,7 @@ each with ≥ 10 new closed outcomes, **and** a fresh window after registration 
 adoption per review (highest interval lower bound). The previous model is kept.
 
 A challenger inconclusive 6 reviews running, or shadowing 6 weeks without passing, is retired.
+*(Original rule. Replaced for challengers registered after 2026-10-07 by **Amendment 1** below.)*
 
 ## Rollback (preregistered, never on one losing trade)
 
@@ -126,11 +127,54 @@ about 0.7 a day. Two further corrections:
 - A 10-day sample does not support a calendar forecast. The screens show actual eligible
   counts and elapsed fresh sessions instead of a date.
 
-Known consequence, recorded rather than fixed: under this campaign's frozen rules a
-native challenger retires after 6 weeks of shadowing, which at the measured idea rate is
-before it can reach 20 fresh sessions and 60 fresh decisions. The campaign rules are not
-changed. A candidate imported from the historical study runs under that study's own
+Known consequence: under this campaign's original rules a native challenger retires after
+6 weeks of shadowing, which at the measured idea rate is before it can reach 20 fresh
+sessions and 60 fresh decisions. Corrected by **Amendment 1** below (lifecycle only). A candidate imported from the historical study runs under that study's own
 registered lifecycle (52 weeks, `IMPORTED_LIFECYCLES` in `lib/experiment/prereg.ts`);
 the evidence floors are the campaign's, unchanged.
 
 The first live decision (09:25 UTC, MNQ) was an "idea closed" skip, labelled prospective.
+
+## Amendment 1 — challenger lifecycle (recorded 2026-10-07)
+
+**Declared** in `lib/experiment/prereg.ts` (`AMENDMENTS`, id `exp-amend-2026-10-07-lifecycle`);
+**recorded** by `db/migrations/20261007_experiment_lifecycle_amendment.sql` as a
+`rules_amended` row in learner-1's append-only change history. The stored campaign rules
+(`experiments.prereg`, hash `50c2fd5d…4105`) are untouched and pinned by
+`tests/experiment-amendment.test.ts`.
+
+**Why.** The original lifecycle made adoption impossible. At about 0.7–1 executable idea a
+trading day the learner needs ~50 closed outcomes before it can train anything, ~180
+before a walk-forward review can have 150 out-of-sample results, and 60 fresh decisions
+after a challenger's registration — months. A native challenger was retired after 6 weeks
+or 6 inconclusive reviews (and before 150 outcomes every review is "inconclusive" by
+definition), and with no limit on how many shadow at once the 18-spec grid was used up
+within 6 weeks. No native challenger existed when the amendment was recorded, so it
+cannot have been chosen in response to any challenger's results.
+
+**What changes (lifecycle only).**
+
+| | Original | Amendment 1 |
+|---|---|---|
+| Hard backstop | 6 weeks shadowing without a pass | 52 weeks shadowing without a pass |
+| Inconclusive retirement | 6 inconclusive reviews in a row | 6 in a row that already had ≥ 150 out-of-sample outcomes (earlier ones mean "too early", not "no gain") |
+| Shadowing at once | no limit | at most 3 native challengers; a new one fills a free slot (imported historical candidates do not take a slot) |
+| Weekly registrations | ≤ 3 | ≤ 3 (unchanged) |
+
+**What does not change.** Every evidence floor (150 out-of-sample outcomes, both lower
+bounds > 0, ≥ 95th percentile vs random, p95 drawdown < $2,000, positive with doubled
+costs, better Brier, two passing reviews ≥ 6 days apart with ≥ 10 new outcomes each, a
+fresh window of ≥ 20 sessions and ≥ 60 decisions after registration), the 18-spec grid,
+seeds, the rollback rule and the risk limits.
+
+**Scope.** Applies to challengers registered after the record (their `registered_at` is
+later than the record's time) and to search slots from the record on. A recorded
+amendment the code does not declare, or whose rules differ from the declaration, stops
+the review rather than being guessed. Campaigns registered from now on use
+`exp-prereg-2026-10-07-v2`: the same rules with this lifecycle built in.
+
+**Known limitation, recorded.** A longer life means more weekly looks at the same
+challenger. Each look still needs a Bonferroni-adjusted session-bootstrap pass, two of
+them at least 6 days apart, and a positive fresh window on decisions made after
+registration; the cap of 3 keeps the number of challengers judged together small. It
+does not remove the extra looks, so a pass remains evidence, not proof.
