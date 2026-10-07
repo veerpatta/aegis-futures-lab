@@ -1,7 +1,8 @@
 "use client";
 
 /* Learn (/brain) — what the experimental learner has tried, kept or
-   rejected (LearnSection), then the bot's health and how close a method is
+   rejected (LearnSection), the historical practice study (HistorySection,
+   #history), then the bot's health and how close a method is
    to trading practice money.
 
    The path a method has to walk is drawn as three steps — Watch, Test,
@@ -34,6 +35,7 @@ import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
 import page from "@/components/ui/page.module.css";
 import styles from "./bot.module.css";
 import LearnSection from "./LearnSection";
+import HistorySection from "@/components/history/HistorySection";
 
 type Sheet = "how" | "risk" | "learned" | Candidate | Position | null;
 
@@ -109,6 +111,8 @@ export default function BotClient() {
       <StatusHero />
 
       <LearnSection />
+
+      <HistorySection />
 
       <div className={page.sectionHead}>
         <h2>The bot and practice money</h2>

@@ -205,6 +205,11 @@ export interface LogitArtifact {
   seed: number;
   threshold: { rule: "ev-breakeven"; tau: number; avgWin: number; avgLoss: number };
   train: { n: number; from: string | null; to: string | null; cutoff: string; datasetId: string | null; rowsHash: string };
+  /** Set when the artifact was frozen by a historical study and imported as a shadow candidate. */
+  origin?: {
+    studyId: string; studyVersion: string; datasetHash: string | null; artifactHash: string; trainCutoff: string;
+    finalVerdict: string; developmentExposed: boolean; rulesVersion: string; manifestHash: string;
+  };
 }
 
 export type ModelArtifact = TakeAllArtifact | LogitArtifact;
@@ -225,4 +230,6 @@ export interface ExperimentConfig {
   /** Unix seconds; ideas before this belong to no campaign. */
   startedAt: number;
   seed: number;
+  /** The preregistration version this campaign was registered under. */
+  preregVersion?: string;
 }

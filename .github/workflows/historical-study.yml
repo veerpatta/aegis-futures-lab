@@ -1,0 +1,56 @@
+# The historical study (lib/history, docs/research/2026-10-07-historical-study-
+# preregistration.md). Manual only: one worker, one stage per run, bounded by
+# the study's frozen budget (5-minute replay jobs, 30 active replay minutes in
+# total, 100,000 bars per read, quota pauses). A restart resumes the same
+# registered study and trials; it never starts another search.
+#
+# Free standard runner on a public repository. Read-only on the archive and the
+# legacy tables; writes only the private history_* tables and, in the shadow
+# stage, one shadow model version in the live experiment. No paid data, no
+# paid AI, no purchases. Virtual only.
+
+name: historical-study
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "register, replay, study or shadow"
+        required: true
+        type: choice
+        options: [register, replay, study, shadow]
+      max_chunks:
+        description: "replay only: at most this many (symbol, month) chunks this run (blank = until the 5-minute cap)"
+        required: false
+        default: ""
+      minutes:
+        description: "replay only: job time cap in minutes (the study's frozen cap is 5)"
+        required: false
+        default: "5"
+
+concurrency:
+  group: historical-study
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run the stage
+        run: |
+          ARGS="$STAGE"
+          if [ -n "$MAX_CHUNKS" ]; then ARGS="$ARGS --max-chunks $MAX_CHUNKS"; fi
+          if [ -n "$MINUTES" ]; then ARGS="$ARGS --minutes $MINUTES"; fi
+          npx tsx scripts/history/run.ts $ARGS
+        env:
+          STAGE: ${{ inputs.stage }}
+          MAX_CHUNKS: ${{ inputs.max_chunks }}
+          MINUTES: ${{ inputs.minutes }}
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

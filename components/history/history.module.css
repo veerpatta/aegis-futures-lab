@@ -1,0 +1,78 @@
+/* Historical practice (Learn → #history). Tokens and rhythm follow
+   docs/design-language.md: amber for too little evidence, red only for a
+   measured loss, every rate with its n. */
+
+.checklist {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checklist li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 2px 10px;
+  align-items: start;
+}
+.mark {
+  grid-row: span 2;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+.mark_good { color: var(--green); border-color: var(--green); }
+.mark_warn { color: var(--amber); border-color: var(--amber); }
+.mark_bad { color: var(--red); border-color: var(--red); }
+.checklist b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.checklist small {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.headline {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.headline + .headline {
+  margin-top: 6px;
+  color: var(--text-dim);
+}
+.folds {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.folds th,
+.folds td {
+  padding: 4px 6px;
+  text-align: right;
+  border-bottom: 1px solid var(--border-strong);
+}
+.folds th:first-child,
+.folds td:first-child {
+  text-align: left;
+}
+.folds tr.thin td {
+  color: var(--amber);
+}
+.tableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.hash {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

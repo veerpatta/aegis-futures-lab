@@ -69,6 +69,25 @@ short sentences. The reader knows trading but not software. Always keep the
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
   fires when no ok tick for 90 min inside the futures week or the last two ticks errored
   (`findLearnerProblems`, pinned by `tests/experiment-watchdog.test.ts`).
+- HISTORICAL STUDY (2026-10-07, `lib/history/`, outside the research-code hash): a separate,
+  registered replay of the Databento MES/MNQ archive (2019-05-06 → 2026-09-23) through the
+  learner's own `stepTick` + execution simulator, decided at modelled observation times (frozen
+  measured delay). Rules in `lib/history/rules.ts` (`HIST_RULES`, version `hist-study-2026-10-07`),
+  write-up `docs/research/2026-10-07-historical-study-preregistration.md`. Stages, each idempotent:
+  `register` (manifest + 3 seeded trials, write-once) → `replay` (one symbol-month per chunk,
+  checkpointed, 5-min jobs, 30 active min total, quota pause) → `study` (60/20/20 session split,
+  fold-coverage rule, controls, ONE final look, labelled development-exposed) → `shadow` (copies a
+  pass/inconclusive candidate into the live experiment as a SHADOWING version via
+  `importShadowCandidate` — no ledger, pointer or balance change). Run ONLY through the manual
+  `historical-study.yml` workflow (`npx tsx scripts/history/run.ts <stage>` locally would hit
+  production). Tables `history_*` are private (RLS on, no grants); the browser reads the
+  `history_overview` totals view (Learn → `#history`, `components/history/HistorySection.tsx`,
+  words in `lib/plain/history.ts`). `lib/history` must never be imported by the function bundle
+  (it imports `scripts/engine/context.ts`); `tests/experiment-isolation.test.ts` pins that.
+  Campaign rules are now looked up by version (`rulesFor`, `PREREG_VERSIONS`); an imported
+  candidate's lifecycle comes from `IMPORTED_LIFECYCLES` (pinned equal to
+  `HIST_RULES.importedLifecycle`). Open question in the ledger: the Data page shows raw Databento
+  bars publicly; licence scope unverified.
 - `self-heal.yml` is MANUAL ONLY since 2026-10-07 (zero-cost autonomous mode; pinned by
   `tests/experiment-isolation.test.ts`). The learner's function bundle refuses Databento,
   Anthropic, the Yahoo fetcher and Telegram modules.

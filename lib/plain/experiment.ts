@@ -167,6 +167,7 @@ export const changeWords = (kind: string) => CHANGE_WORDS[kind] ?? kind;
 export function versionName(id: string | null | undefined): string {
   if (!id) return "—";
   if (id.endsWith(":v1-take-all")) return "v1 · take every idea";
+  if (id.includes(":hist:")) return "Historical candidate";
   const m = id.match(/:(\d{4})-W(\d{2}):c(\d)$/);
   return m ? `Week ${Number(m[2])} · candidate ${m[3]}` : id.split(":").slice(1).join(":");
 }

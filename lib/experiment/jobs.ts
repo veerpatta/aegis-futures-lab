@@ -20,7 +20,7 @@ import { opportunitiesFromSignals } from "./opportunities";
 import { syntheticBars, syntheticOpportunities } from "./synthetic";
 import { ModelOutputError, TAKE_ALL_V1, artifactHash, trainChallenger, validateArtifact } from "./models";
 import { quotaLevel, allowed, searchBudget, type QuotaLevel } from "./quota";
-import { PREREG } from "./prereg";
+import { PREREG, IMPORTED_LIFECYCLES, lifecycleFor, rulesFor } from "./prereg";
 import { walkForward, verdictOf, adoptionDecision, rollbackDecision, type EvalRow } from "./evaluate";
 import { brier } from "./stats";
 import { buildEvalRows, datasetFor, freshWindow, postAdoptionRows, weekKeyOf } from "./learning";
@@ -180,6 +180,7 @@ async function learnJob(store: ExperimentStore, exp: ExperimentConfig, runId: nu
   if (!allowed(level, "learn")) return { status: "skipped" as const, message: "Free quota nearly used; learning waits for the reset.", counts: { quota: level } };
   return store.learner(exp.id, `learn:${invocationId}`, async (tx) => {
     const st = await tx.load();
+    const P = rulesFor(st.exp.preregVersion);
     const allowSynthetic = st.exp.mode === "synthetic";
     const rows = buildEvalRows(st.decisions, st.outcomes, nowSec);
     const ds = datasetFor(st.exp.id, rows, nowSec);
@@ -197,15 +198,15 @@ async function learnJob(store: ExperimentStore, exp: ExperimentConfig, runId: nu
       const base = post.length ? post.reduce((a, r) => a + r.y, 0) / post.length : NaN;
       const brierPost = brier(post.map((r) => r.p ?? base), post.map((r) => r.y));
       const brierBase = brier(post.map(() => base), post.map((r) => r.y));
-      const worse = post.length >= PREREG.rollback.minPost && brierPost >= brierBase;
+      const worse = post.length >= P.rollback.minPost && brierPost >= brierBase;
       let streak = worse ? 1 : 0;
       for (const m of priorMonitors) { if (m.metrics.brierWorse) streak++; else break; }
-      const rb = rollbackDecision({ post, brierRegressions: streak, seedKey: `${active.id}:${weekKeyOf(nowSec)}` });
+      const rb = rollbackDecision({ post, brierRegressions: streak, seedKey: `${active.id}:${weekKeyOf(nowSec)}`, prereg: P });
       await tx.insertEvaluation(runId, {
         versionId: active.id, incumbentVersionId: null, datasetId: counts.dataset === "unchanged" ? st.latestDataset?.id ?? null : ds.id, kind: "monitor",
         windowFrom: st.pointer.updatedAt, windowTo: nowSec, nOos: post.length, nSessions: new Set(post.map((r) => r.session)).size, totalOutcomes: rows.length,
         metrics: { brierPost, brierBase, brierWorse: worse, drawdown: rb.drawdown, deltaPost: rb.delta ?? null }, seeds: {},
-        verdict: rb.rollback ? "fail" : post.length >= PREREG.rollback.minPost ? "pass" : "inconclusive", reasons: rb.reason ? [rb.reason] : [], createdAt: nowSec,
+        verdict: rb.rollback ? "fail" : post.length >= P.rollback.minPost ? "pass" : "inconclusive", reasons: rb.reason ? [rb.reason] : [], createdAt: nowSec,
       });
       if (rb.rollback) {
         await rollbackPointer(tx, active.id, st.pointer.previousVersionId, rb.reason!, nowSec, { postRows: post.length, drawdown: rb.drawdown });
@@ -223,6 +224,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
   if (!allowed(level, "review")) return { status: "skipped" as const, message: "Free quota nearly used; the review waits for the reset.", counts: { quota: level } };
   return store.learner(exp.id, `review:${invocationId}`, async (tx) => {
     const st = await tx.load();
+    const P = rulesFor(st.exp.preregVersion);
     const allowSynthetic = st.exp.mode === "synthetic";
     const weekKey = weekKeyOf(nowSec);
     const rows: EvalRow[] = buildEvalRows(st.decisions, st.outcomes, nowSec);
@@ -239,8 +241,8 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
     const verdicts: Record<string, string> = {};
     for (const v of shadowing) {
       const spec = v.spec as ChallengerSpec;
-      const wf = walkForward(rows, spec, incumbent, { seedKey: `${v.id}:${weekKey}`, comparisons: shadowing.length, allowSynthetic });
-      const verdict = verdictOf(wf.metrics);
+      const wf = walkForward(rows, spec, incumbent, { seedKey: `${v.id}:${weekKey}`, comparisons: shadowing.length, allowSynthetic, prereg: P });
+      const verdict = verdictOf(wf.metrics, P);
       const previous = st.evaluations.filter((e) => e.kind === "walk_forward" && e.versionId === v.id).sort((a, b) => b.createdAt - a.createdAt);
       const lastTotal = previous[0]?.totalOutcomes ?? rows.filter((r) => r.exitTs <= v.registeredAt).length;
       const newOutcomes = rows.length - lastTotal;
@@ -248,7 +250,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
       const adoption = adoptionDecision({
         current: { at: nowSec, verdict: verdict.verdict, newOutcomes },
         previous: previous.map((e) => ({ at: e.createdAt, verdict: e.verdict, newOutcomes: Number(e.metrics.newOutcomes ?? 0) })),
-        fresh, active: st.exp.status === "active",
+        fresh, active: st.exp.status === "active", prereg: P,
       });
       await tx.insertEvaluation(runId, {
         versionId: v.id, incumbentVersionId: incumbentVersion.id, datasetId, kind: "walk_forward",
@@ -267,8 +269,9 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
       if (adoption.adopt) { adoptable.push({ v, lo: wf.metrics.delta.lo }); continue; }
       const inconclusiveRun = [verdict.verdict, ...previous.map((e) => e.verdict)].findIndex((x) => x !== "inconclusive");
       const streak = inconclusiveRun === -1 ? previous.length + 1 : inconclusiveRun;
-      const tooOld = nowSec - v.registeredAt > PREREG.lifecycle.shadowWeeks * 7 * DAY && verdict.verdict !== "pass";
-      if (streak >= PREREG.lifecycle.maxInconclusive || tooOld) {
+      const life = lifecycleFor(P, v.artifact?.kind === "logit" ? v.artifact.origin : null, IMPORTED_LIFECYCLES);
+      const tooOld = nowSec - v.registeredAt > life.shadowWeeks * 7 * DAY && verdict.verdict !== "pass";
+      if (streak >= life.maxInconclusive || tooOld) {
         await tx.insertChange({ kind: "retired", fromVersion: v.id, reason: tooOld ? "shadowed too long without passing" : "inconclusive too many times", eventKey: `retired:${v.id}:${weekKey}` });
         await tx.updateVersion(v.id, { status: "retired", statusReason: tooOld ? "shadow-expired" : "inconclusive-limit" });
       } else if (verdict.verdict === "inconclusive") {
@@ -290,15 +293,15 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
     }
 
     // 3. Register and train new challengers inside the preregistered grid.
-    const budget = searchBudget(level, PREREG.search.maxPerWeek) - st.versions.filter((v) => v.kind === "logit" && v.weekKey === weekKey).length;
+    const budget = searchBudget(level, P.search.maxPerWeek) - st.versions.filter((v) => v.kind === "logit" && v.weekKey === weekKey).length;
     const trainRows = rows.map((r) => ({ features: r.features, win: r.win, net: r.net, sessionKey: r.session }));
     const registered: string[] = [];
-    if (budget > 0 && trainRows.length >= PREREG.gates.minTrainRows) {
+    if (budget > 0 && trainRows.length >= P.gates.minTrainRows) {
       const tried = new Set(st.versions.map((v) => v.specHash));
-      for (const [i, spec] of pickChallengers(weekKey, tried, budget).entries()) {
-        if (!inSearchSpace(spec)) continue;
+      for (const [i, spec] of pickChallengers(weekKey, tried, budget, P).entries()) {
+        if (!inSearchSpace(spec, P)) continue;
         const id = `${st.exp.id}:${weekKey}:c${i + 1}`;
-        const seed = PREREG.seed ^ i;
+        const seed = P.seed ^ i;
         const hash = specHash(spec);
         await tx.insertVersion({
           id, experimentId: st.exp.id, kind: "logit", spec, specHash: hash, weekKey, registeredAt: nowSec, datasetId, artifact: null, artifactHash: null,
@@ -320,7 +323,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
           await tx.insertChange({ kind: "challenger_invalid", fromVersion: id, reason: problems.join("; "), eventKey: `invalid:${id}` });
         }
       }
-    } else if (budget > 0) counts.searchWaiting = `${trainRows.length} of ${PREREG.gates.minTrainRows} closed outcomes needed to train`;
+    } else if (budget > 0) counts.searchWaiting = `${trainRows.length} closed outcomes; training needs at least ${P.gates.minTrainRows} per walk-forward fold`;
     counts.verdicts = verdicts;
     counts.registered = registered;
     const message = best ? `Adopted ${best.v.id}.` : shadowing.length ? `Reviewed ${shadowing.length} challenger(s); no change applied.` : "No challenger to review yet.";
@@ -343,7 +346,7 @@ export async function createCampaign(store: ExperimentStore, input: {
   const id = `${input.lineage}-${input.campaign}`;
   const exp: ExperimentConfig = {
     id, lineage: input.lineage, campaign: input.campaign, mode: input.mode, status: "active", capital: EXP_RISK.capital,
-    startedAt: input.startedAt, seed: input.seed ?? PREREG.seed,
+    startedAt: input.startedAt, seed: input.seed ?? PREREG.seed, preregVersion: PREREG.version,
   };
   const v1: VersionRecord = {
     id: `${id}:v1-take-all`, experimentId: id, kind: "take_all", spec: {}, specHash: stableHash({ kind: "take_all" }), weekKey: weekKeyOf(input.startedAt),
@@ -352,4 +355,47 @@ export async function createCampaign(store: ExperimentStore, input: {
   };
   await store.createExperiment({ exp, risk: { ...EXP_RISK }, prereg: { ...PREREG }, preregHash: stableHash(PREREG), v1, reason: input.reason });
   return exp;
+}
+
+// ── historical candidates ─────────────────────────────────────────────────
+
+/** Copy a frozen artifact from a historical study into the running campaign
+    as a SHADOW version, registered at its real time with its original hashes.
+    It scores future ideas beside the incumbent without changing the account;
+    its fresh confirmation window starts at this registration, and adoption
+    still needs every campaign gate. Idempotent by the artifact's original hash. */
+export async function importShadowCandidate(store: ExperimentStore, input: {
+  lineage: string; artifact: LogitArtifact; spec: ChallengerSpec; origin: NonNullable<LogitArtifact["origin"]>; invocationId: string; nowSec?: number;
+}): Promise<{ versionId: string | null; message: string }> {
+  const exp = await store.activeExperiment(input.lineage);
+  if (!exp) return { versionId: null, message: "No experiment is registered for this lineage." };
+  if (exp.status !== "active" && exp.status !== "paused") return { versionId: null, message: `Campaign ${exp.id} is ${exp.status}; nothing imported.` };
+  const nowSec = input.nowSec ?? Math.floor(Date.now() / 1000);
+  const res = await store.learner(exp.id, `import:${input.invocationId}`, async (tx) => {
+    const st = await tx.load();
+    const P = rulesFor(st.exp.preregVersion);
+    const existing = st.versions.find((v) => v.artifact?.kind === "logit" && v.artifact.origin?.artifactHash === input.origin.artifactHash);
+    if (existing) return { versionId: existing.id, message: `Already registered as ${existing.id}.` };
+    if (!inSearchSpace(input.spec, P)) return { versionId: null, message: "The candidate's specification is outside the campaign's preregistered grid." };
+    const id = `${st.exp.id}:hist:${input.origin.studyId.replace(/^hist-/, "")}`;
+    const artifact: LogitArtifact = { ...input.artifact, id, origin: input.origin };
+    const problems = validateArtifact(artifact);
+    if (problems.length) return { versionId: null, message: `Candidate refused: ${problems.join("; ")}` };
+    const weekKey = weekKeyOf(nowSec);
+    if (st.versions.filter((v) => v.kind === "logit" && v.weekKey === weekKey).length >= P.search.maxPerWeek)
+      return { versionId: null, message: "This week's challenger limit is used; retry next week." };
+    await tx.insertVersion({
+      id, experimentId: st.exp.id, kind: "logit", spec: input.spec, specHash: stableHash({ spec: input.spec, origin: input.origin.studyId }), weekKey,
+      registeredAt: nowSec, datasetId: null, artifact: null, artifactHash: null, trainedAt: null,
+      trainCutoff: Math.floor(Date.parse(input.origin.trainCutoff) / 1000), status: "registered", statusReason: null,
+    });
+    await tx.insertChange({
+      kind: "challenger_registered", toVersion: id,
+      reason: `historical candidate from ${input.origin.studyId}: trained to ${input.origin.trainCutoff.slice(0, 10)}, final ${input.origin.finalVerdict} (development-exposed); fresh confirmation starts now`,
+      evidence: { origin: input.origin, spec: input.spec }, eventKey: `registered:${id}`, createdAt: nowSec,
+    });
+    await tx.updateVersion(id, { artifact, artifactHash: artifactHash(artifact), trainedAt: nowSec, status: "shadowing", statusReason: "imported frozen historical candidate; shadowing fresh ideas" });
+    return { versionId: id, message: `Registered ${id} as a shadow candidate.` };
+  });
+  return res === "busy" ? { versionId: null, message: "The learner is busy; retry." } : res;
 }

@@ -63,6 +63,16 @@ export const GLOSSARY = {
     meaning:
       "Made-up test prices used to prove the software works. Results on them never count as evidence that anything makes money.",
   },
+  historicalPractice: {
+    term: "Historical practice",
+    meaning:
+      "The bot replays older market data, deciding each idea only with what it could have known then. It can prepare a candidate, but never counts as fresh trading days and never changes the virtual account.",
+  },
+  developmentExposed: {
+    term: "Already seen",
+    meaning:
+      "A stretch of older data that earlier research has already looked at. A result on it is practice, not proof, because the methods were shaped while looking at it.",
+  },
   tradeIdea: {
     term: "Trade idea",
     meaning:

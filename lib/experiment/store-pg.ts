@@ -44,6 +44,7 @@ function expFromRow(r: Row): ExperimentConfig {
   return {
     id: String(r.id), lineage: String(r.lineage), campaign: Number(r.campaign), mode: r.mode as ExperimentConfig["mode"],
     status: r.status as ExperimentStatus, capital: Number(r.capital), startedAt: sec(r.started_at)!, seed: Number(r.seed),
+    preregVersion: (r.prereg as { version?: string } | null)?.version,
   };
 }
 

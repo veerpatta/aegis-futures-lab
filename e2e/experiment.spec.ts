@@ -74,7 +74,7 @@ const learning = {
   latest_dataset: null,
 };
 
-async function stub(page: Page) {
+async function stub(page: Page, hist: unknown[] = [history]) {
   await page.route("**/api/events", (r) => r.fulfill({ json: { events: [], verified: true } }));
   await page.route("**/api/market?*", (r) => r.fulfill({ json: { price: 6001, previousClose: 5990, change: 11, dataTimestamp: now.toISOString(), bars: [] } }));
   await page.route("**/api/history?*", (r) => r.fulfill({ json: { bars: [] } }));
@@ -83,9 +83,46 @@ async function stub(page: Page) {
     if (path.endsWith("/experiment_overview")) return r.fulfill({ json: [overview] });
     if (path.endsWith("/experiment_learning")) return r.fulfill({ json: [learning] });
     if (path.endsWith("/experiment_trades")) return r.fulfill({ json: [trade] });
+    if (path.endsWith("/history_overview")) return r.fulfill({ json: hist });
     return r.fulfill({ json: [] });
   });
 }
+
+
+const folds = [1, 2, 3, 4, 5].map((fold) => ({ fold, trainRows: 60 * fold, purgedRows: 4, testRows: 40, trainSessions: 50 * fold, testSessions: 30, valid: true }));
+const period = (n: number) => ({
+  nOos: n, nSessions: 120, folds: 5, delta: { est: 1.2, lo: -2.1, hi: 4.4 }, expectancy: { est: 0.8, lo: -3.0, hi: 4.1 }, randomPct: 71, stressP95: 820, costStressNet: -140,
+  brierC: 0.243, brierInc: 0.251, brierBase: 0.249, logLossC: 0.68, logLossBase: 0.69, takeRate: 0.55, chalNet: 96, incNet: -40, maxDrawdown: 610, selected: Math.round(n * 0.55), costs: 455,
+  portfolio: { candidate: { net: 88, maxDrawdown: 590, trades: Math.round(n * 0.5) }, incumbent: { net: -52, maxDrawdown: 700, trades: n - 4 } },
+});
+const history = {
+  id: "hist-2026-10-07", version: "hist-study-2026-10-07", status: "evaluated", status_reason: "final inconclusive (development-exposed)", registered_at: iso(300), updated_at: iso(60),
+  observation_lag_sec: 1525, research_code_hash: "abc", code_sha: "sha",
+  scope: { source: "databento", symbols: ["MES", "MNQ"], from: "2019-05-06", to: "2026-09-23" },
+  prior_use: [{ from: "2019-05-06", to: "2026-07-29", use: "development", by: "Phase 1" }],
+  permissions: [{ source: "Databento MES/MNQ archive", status: "licence scope not verified", handling: "private", openQuestion: "Confirm the licence allows the Data page's public redisplay." }],
+  beginnings: { codeHistory: { date: "2026-07-17", evidence: "root" }, marketArchive: { date: "2019-05-06", evidence: "bar" }, experimentalLearner: { date: "2026-10-07", evidence: "run" } },
+  controls: ["incumbent"], budget_caps: { initialBatchActiveMinutes: 30 }, register: {}, planned_chunks: 178,
+  registered_trials: [{ windowSessions: 120, featureSet: "v1", l2: 0.001 }],
+  split: { development: { from: "2019-05-20", to: "2023-10-02", sessions: 600, rows: 700 }, validation: { from: "2023-10-03", to: "2025-03-11", sessions: 200, rows: 240 }, final: { from: "2025-03-12", to: "2026-09-22", sessions: 200, rows: 230 } },
+  dataset: { rawExamples: 5200, families: 2600, rows: 1170, sessions: 1000, exclusions: { "other-mode": 2600, "structural-void": 1300, "over-risk": 90, quarantined: 12, "duplicate-family": 0, "label-not-ready": 1, "no-features": 0 }, byStrategy: {}, bySymbol: {} },
+  dataset_hash: "d", final_accessed_at: iso(60), budget: { replayActiveMs: 420000 },
+  chunks: { done: 178, failed: 0, bars: 2100000, bytes: 1, runtime_ms: 420000, ideas: 5300, gaps: 31, missing_bars: 900, discontinuities: 4, ohlc_bad: 0, duplicates: 0, first_month: "2019-05", last_month: "2026-09" },
+  examples: { total: 5200, observation: 2600, closed: 1260, quarantined: 12, by_reason: { taken: 1260, "idea-closed": 1200, "risk-budget": 90 }, take_all_net_observation: -2400, take_all_net_strategy: -3100, first_signal: iso(9999), last_signal: iso(100) },
+  trials: [
+    { ordinal: 1, spec: { windowSessions: 120, featureSet: "v1", l2: 0.001 }, status: "selected", reason: null, folds, development: period(200), validation: period(240) },
+    { ordinal: 2, spec: { windowSessions: 60, featureSet: "v1", l2: 0.001 }, status: "failed_coverage", reason: "fold 1 has 41 training rows (needs 50)", folds: folds.map((f) => (f.fold === 1 ? { ...f, trainRows: 41, valid: false } : f)), development: null, validation: null },
+  ],
+  final: {
+    trial_ordinal: 1, spec: { windowSessions: 120, featureSet: "v1", l2: 0.001 }, artifact_id: "hist-2026-10-07:t1", artifact_hash: "0123456789abcdef0123", train_cutoff: "2025-03-04T20:00:00Z", train_rows: 900,
+    metrics: period(230), verdict: "inconclusive", reasons: ["beatsIncumbent"], checks: { enoughOutcomes: true, beatsIncumbent: false, beatsNoTrade: false, beatsRandom: false, drawdownOk: true, survivesDoubleCosts: false, betterCalibrated: true },
+    development_exposed: true, shadow_eligible: true, shadow_version_id: "learner-1:hist:2026-10-07", shadow_registered_at: iso(30), evaluated_at: iso(60),
+  },
+  shadow: { version_id: "learner-1:hist:2026-10-07", status: "shadowing", status_reason: null, registered_at: iso(30), scored: 2, fresh_closed: 0, fresh_sessions: 0, reviews_passed: 0 },
+  legacy_signals: { signals: 169, signals_closed: 167, signals_net: -1450, first_signal: iso(9999), last_signal: iso(10) },
+  legacy_shadows: { shadows: 574, shadows_closed: 547, shadows_net: -2900 },
+  last_run: { status: "ok", stage: "shadow", started_at: iso(30), finished_at: iso(30), message: "registered" },
+};
 
 const noSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
 
@@ -157,4 +194,42 @@ test("More holds Ideas and practice money, and the old URLs still work", async (
   await expect(page.getByRole("link", { name: /Practice money/ })).toBeVisible();
   await page.goto("/signals");
   await expect(page.getByRole("navigation", { name: /primary/i }).getByRole("link", { name: "More" })).toHaveClass(/tabActive/);
+});
+
+for (const width of [320, 390])
+  test(`${width}px Learn shows historical practice: the plan's copy, the checklist, and nothing added to the account`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stub(page);
+    await page.goto("/brain#history");
+    const sec = page.getByRole("region", { name: "Historical practice" });
+    await expect(sec).toContainText("Historical practice complete through 23 September. This result uses older market data and does not count as fresh trading days.");
+    await expect(sec).toContainText("New candidate is observing future ideas. No validated improvement yet. The current virtual account has not changed.");
+    const list = sec.getByRole("region", { name: "Evidence checklist" });
+    for (const item of ["Data ready", "Historical test complete", "Fresh confirmation collecting", "Validated paper improvement"]) await expect(list).toContainText(item);
+    await expect(list).toContainText("0 of 20 fresh trading days, 0 of 60 fresh finished ideas, 0 of 2 passing reviews");
+    await expect(sec.getByRole("region", { name: "Older data replayed" })).toContainText("178 of 178");
+    await expect(sec.getByRole("region", { name: "Candidate" })).toContainText("Inconclusive");
+    await expect(sec.getByRole("region", { name: "Candidate" })).toContainText("already seen");
+    await expect(sec.getByRole("region", { name: "Registered versions" })).toContainText("Too little data in a test period");
+    await expect(sec.getByRole("region", { name: "History and safety" })).toContainText("no refill, no reset, no older profit added");
+    // The verdict chip for "inconclusive" is amber, never green or red.
+    await expect(sec.getByRole("region", { name: "Candidate" }).getByText("Inconclusive", { exact: true })).toHaveClass(/chip_amber/);
+    expect(await noSideways(page)).toBe(true);
+  });
+
+test("historical practice before registration says so plainly", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await stub(page, []);
+  await page.goto("/brain#history");
+  const sec = page.getByRole("region", { name: "Historical practice" });
+  await expect(sec).toContainText("Historical practice has not started yet.");
+  await expect(sec).toContainText("The study has not been registered yet.");
+});
+
+test("More links to historical practice", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await stub(page);
+  await page.goto("/more");
+  await page.getByRole("link", { name: /Historical practice/ }).click();
+  await expect(page).toHaveURL(/\/brain#history$/);
 });

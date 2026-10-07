@@ -48,3 +48,43 @@ describe("zero-cost mode", () => {
     expect(yml).toMatch(/workflow_dispatch/);
   });
 });
+
+describe("historical study isolation", () => {
+  const historyFiles = readdirSync(join(root, "lib", "history")).filter((f) => f.endsWith(".ts")).map((f) => `lib/history/${f}`);
+
+  it("writes only its private history_* tables", () => {
+    for (const f of [...historyFiles, "scripts/history/run.ts"]) {
+      const src = read(f);
+      const writes = [...src.matchAll(/\b(INSERT\s+INTO|UPDATE(?!\s+SET\b)|DELETE\s+FROM)\s+([a-z_]+)/g)].map((m) => m[2].toLowerCase());
+      for (const table of writes) expect(table, `${f} writes ${table}`).toMatch(/^history_[a-z_]+$/);
+    }
+  });
+
+  it("downloads nothing and calls no paid service: it only reads the archive it already holds", () => {
+    for (const f of [...historyFiles, "scripts/history/run.ts"]) {
+      const src = read(f);
+      expect(src, f).not.toMatch(/\bfetch\(|fetchChart|from\s+"[^"]*(databento|anthropic|claude|telegram|notify|yahoo)[^"]*"/i);
+    }
+    const yml = read(".github/workflows/historical-study.yml");
+    expect(yml).toMatch(/workflow_dispatch/);
+    expect(yml).not.toMatch(/^\s*schedule:/m);
+    expect(yml).not.toMatch(/DATABENTO|ANTHROPIC|TELEGRAM/);
+  });
+
+  it("stays out of the research-code hash and out of the live function bundle", async () => {
+    expect(read("scripts/engine/research-code.ts")).not.toContain("lib/history");
+    const r = await build({
+      entryPoints: [join(root, "functions/aegisexp/index.ts")], bundle: true, platform: "node", target: "node24", format: "esm",
+      write: false, metafile: true, external: ["pg-native", "cloudflare:sockets"], tsconfig: join(root, "tsconfig.json"), logLevel: "silent",
+    });
+    expect(Object.keys(r.metafile!.inputs).filter((p) => /lib[\/]history[\/]/.test(p))).toEqual([]);
+  }, 60_000);
+
+  it("the new tables are private; only the totals view is public", () => {
+    const sql = read("db/migrations/20261007_historical_study.sql");
+    expect(sql).toContain("ARRAY['history_studies','history_runs','history_leases','history_chunks','history_examples','history_trials','history_finals']");
+    expect(sql).toMatch(/REVOKE ALL ON public.%I FROM anonymous, authenticated/);
+    const grants = [...sql.matchAll(/GRANT\s+\w+\s+ON\s+([^;]+?)\s+TO/g)].map((m) => m[1].trim());
+    expect(grants).toEqual(["public.history_overview"]);
+  });
+});

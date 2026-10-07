@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EXP_RISK } from "@/lib/experiment/policy";
 import { PREREG } from "@/lib/experiment/prereg";
+import { HIST_RULES } from "@/lib/history/rules";
+import { dayWords } from "@/lib/plain/history";
 
 const read = (p: string) => readFileSync(join(__dirname, "..", p), "utf8");
 const usd = (v: number) => `$${v.toLocaleString("en-US")}`;
@@ -26,12 +28,29 @@ describe("the manual describes the learner the code runs", () => {
       expect(manual).toContain(`| **${tab}** |`);
       expect(guide).toContain(`<dt>${tab}</dt>`);
     }
-    expect(manual).toContain("matches the app as of 2026-10-07 (virtual trading and learning)");
-    expect(guide).toContain("Matches the app as of 2026-10-07 (virtual trading and learning)");
+    const line = manual.match(/matches the app as of (\d{4}-\d{2}-\d{2} \([^)]+\))/)?.[1];
+    expect(line).toBeTruthy();
+    expect(guide).toContain(`Matches the app as of ${line}`);
   });
 
   it("keeps the no-real-money warning prominent", () => {
     expect(manual).toContain("**Nothing here touches real money.**");
     expect(guide).toContain("<b>Nothing here touches real money.</b>");
+  });
+});
+
+describe("the manual describes the historical study the code runs", () => {
+  const manual = read("docs/USER-MANUAL.md");
+  const guide = read("app/guide/page.tsx");
+
+  it("states the frozen scope, trial count and fresh gates, and that old data never counts as fresh", () => {
+    const section = manual.slice(manual.indexOf("## 5. Historical practice"), manual.indexOf("## 6."));
+    expect(section).toContain(`from ${dayWords(HIST_RULES.scope.from)} to ${dayWords(HIST_RULES.scope.to)}`);
+    expect(section).toContain(`the ${HIST_RULES.maxTrials} versions to try`);
+    expect(section).toContain(`${PREREG.gates.freshSessions} fresh trading days, ${PREREG.gates.freshDecisions} fresh ideas`);
+    expect(section).toContain("Old data counts for none of these.");
+    expect(section).toContain("never adds old profit to it");
+    expect(guide).toContain('id="history"');
+    expect(guide).toContain("Old data counts for none of these.");
   });
 });

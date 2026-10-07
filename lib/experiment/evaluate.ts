@@ -71,6 +71,8 @@ export interface Metrics {
   incNet: number;
   maxDrawdown: number;
   alpha: number;
+  /** Per-fold coverage: training rows after window and embargo, purged rows, test rows, unique sessions. */
+  foldDetail?: { fold: number; trainRows: number; purgedRows: number; testRows: number; trainSessions: number; testSessions: number; valid: boolean }[];
 }
 
 export interface WalkForwardResult {
@@ -103,6 +105,7 @@ export function walkForward(
   const sessions = [...new Set(rows.map((r) => r.session))].sort();
   const foldSize = Math.floor(sessions.length / (prereg.gates.folds + 1));
   const oos: OosRow[] = [];
+  const foldDetail: NonNullable<Metrics["foldDetail"]> = [];
   let folds = 0;
   const incCutoff = incumbent.kind === "logit" ? Date.parse(incumbent.train.cutoff) / 1000 : -Infinity;
   if (foldSize >= 1) {
@@ -112,11 +115,15 @@ export function walkForward(
       if (!test.length) continue;
       const testStart = Math.min(...test.map((r) => r.decidedAt));
       const firstTestSession = [...testSessions].sort()[0];
-      const train = windowRows(
-        rows.filter((r) => r.session < firstTestSession && pastEmbargo(r.exitTs, testStart)).map(trainRow),
-        spec.windowSessions,
-      );
-      if (train.length < prereg.gates.minTrainRows) continue;
+      const before = rows.filter((r) => r.session < firstTestSession);
+      const kept = before.filter((r) => pastEmbargo(r.exitTs, testStart));
+      const train = windowRows(kept.map(trainRow), spec.windowSessions);
+      const valid = train.length >= prereg.gates.minTrainRows;
+      foldDetail.push({
+        fold: f, trainRows: train.length, purgedRows: before.length - kept.length, testRows: test.length,
+        trainSessions: new Set(train.map((r) => r.sessionKey)).size, testSessions: testSessions.size, valid,
+      });
+      if (!valid) continue;
       folds++;
       const fit = fitLogit({ ...spec, windowSessions: null }, train);
       const baseRate = train.reduce((a, r) => a + r.win, 0) / train.length;
@@ -152,6 +159,7 @@ export function walkForward(
     incNet: oos.reduce((a, o) => a + (o.takeInc ? o.u : 0), 0),
     maxDrawdown: maxDrawdown(c.map((r) => r.value)),
     alpha,
+    foldDetail,
   };
   return { oos, metrics, seeds };
 }

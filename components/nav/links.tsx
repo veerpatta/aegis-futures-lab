@@ -132,6 +132,18 @@ export const MORE_GROUPS: NavGroup[] = [
           </svg>
         ),
       },
+      {
+        href: "/brain#history",
+        label: "Historical practice",
+        hint: "Older market data replayed honestly; never counted as fresh evidence",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+            <path d="M4 4v4h4" />
+            <path d="M12 8v4.5l3 1.8" />
+          </svg>
+        ),
+      },
     ],
   },
   {

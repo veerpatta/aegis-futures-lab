@@ -3,13 +3,15 @@ import { GLOSSARY, GLOSSARY_KEYS } from "@/lib/glossary";
 import { PAPER_RISK } from "@/lib/paper/policy";
 import { EXP_RISK } from "@/lib/experiment/policy";
 import { PREREG } from "@/lib/experiment/prereg";
+import { HIST_RULES } from "@/lib/history/rules";
+import { dayWords } from "@/lib/plain/history";
 import { etTimeLabel, etWindowLabel } from "@/lib/time/zones";
 import styles from "./guide.module.css";
 
 export const metadata: Metadata = {
   title: "How to use this app — Aegis Futures Lab",
   description:
-    "A plain-English guide to Aegis: the five tabs, the experimental learner and its virtual money, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
+    "A plain-English guide to Aegis: the five tabs, the experimental learner and its virtual money, historical practice, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
 };
 
 /* Session times print both clocks from the current US daylight-saving state
@@ -64,7 +66,8 @@ export default function GuidePage() {
           <dt>Learn</dt>
           <dd>
             The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
-            Below that: the bot&apos;s health, its Watch → Test → Practice path and the practice money.
+            Then historical practice on older market data. Below that: the bot&apos;s health, its Watch → Test →
+            Practice path and the practice money.
           </dd>
           <dt>Chart</dt>
           <dd>
@@ -73,8 +76,8 @@ export default function GuidePage() {
           </dd>
           <dt>More</dt>
           <dd>
-            Trade ideas (Ideas) and their history (Review), practice money, your Journal, this Guide, settings (ET or
-            IST, hide money) and the research room.
+            Trade ideas (Ideas) and their history (Review), practice money, historical practice, your Journal, this
+            Guide, settings (ET or IST, hide money) and the research room.
           </dd>
         </dl>
         <p className={styles.note}>
@@ -143,6 +146,13 @@ export default function GuidePage() {
             model, not trading at all and random picks, after costs. The old version is kept and comes back automatically
             if the new one does worse.
           </li>
+          <li>
+            <b>Why 50 is not enough.</b> Training can start at {PREREG.gates.minTrainRows} finished trades. A fair review
+            splits the record into {PREREG.gates.folds + 1} blocks by date, and each of its {PREREG.gates.folds} test
+            periods needs {PREREG.gates.minTrainRows} earlier trades to learn from — roughly{" "}
+            {PREREG.gates.minTrainRows * (PREREG.gates.folds + 1)}. Periods that are too thin are shown and skipped, never
+            counted. Ideas too risky for one contract are not counted at all.
+          </li>
         </ol>
         <p>
           Three labels show its state, each with a reason. <b>Doing</b>: watching the market, managing trades, waiting,
@@ -155,6 +165,57 @@ export default function GuidePage() {
           Ideas seen more than 30 minutes late are labelled &ldquo;caught up late&rdquo; and never count as fresh
           evidence. Synthetic test prices, if ever used, are labelled on every screen and never count as evidence. Only the
           owner can pause it, through the project&apos;s GitHub controls. Offline, the app is read-only.
+        </p>
+      </section>
+
+      <section className={styles.card} id="history">
+        <h2>Historical practice</h2>
+        <p>
+          The bot also replays its own older market archive — the S&amp;P and Nasdaq micros from{" "}
+          {dayWords(HIST_RULES.scope.from)} to {dayWords(HIST_RULES.scope.to)} — to prepare a better candidate. It is
+          practice on old data, kept apart from everything else.
+        </p>
+        <ol className={styles.steps}>
+          <li>
+            <b>Only what it could know then.</b> At each old idea it decides with the prices it could have seen at that
+            moment, about 25 minutes late like the live learner, at the next 15-minute check. Fills, costs, stops and
+            limits work exactly as in the live learner. Gaps and contract-roll jumps in the old data are marked and the
+            ideas near them left out — never patched.
+          </li>
+          <li>
+            <b>Counted once.</b> Each idea counts once, however many copies the records hold. Ideas too risky for one
+            contract under the {usd(EXP_RISK.riskPerTrade)} limit are not counted.
+          </li>
+          <li>
+            <b>Rules first.</b> The dates, the {HIST_RULES.maxTrials} versions to try and every check were frozen before
+            any old result was read. The oldest 60% of trading days trains, the next 20% checks, and the newest 20% is
+            tested once. All {HIST_RULES.maxTrials} versions are kept, including the ones that fail.
+          </li>
+          <li>
+            <b>Fair comparisons.</b> Each version is compared on the same ideas with the current model, a simple
+            average-rate guess, not trading at all and random picks — with costs doubled as a stress test and with the
+            same account limits.
+          </li>
+          <li>
+            <b>Already seen.</b> Earlier research has looked at all of these dates, so the result is marked &ldquo;already
+            seen&rdquo;: practice, not proof.
+          </li>
+          <li>
+            <b>Then fresh ideas.</b> A candidate that is not rejected is frozen and watches new ideas beside the current
+            model without changing a single decision. It must then pass every adoption check on fresh ideas —{" "}
+            {PREREG.gates.freshSessions} fresh trading days, {PREREG.gates.freshDecisions} fresh ideas and two passing
+            reviews — like any other candidate. Old data counts for none of these.
+          </li>
+        </ol>
+        <p>
+          Learn → Historical practice shows an evidence checklist: <b>Data ready</b>, <b>Historical test complete</b>,{" "}
+          <b>Fresh confirmation collecting</b> and <b>Validated paper improvement</b>. There is no maturity score, and the
+          last line never means proven for real money. &ldquo;No validated improvement yet&rdquo; is an honest result, not
+          a fault.
+        </p>
+        <p className={styles.note}>
+          The study never refills or resets the virtual account and never adds old profit to it. It runs at $0 on data the
+          project already holds, in short capped runs, and pauses itself when the free limits run low.
         </p>
       </section>
 
@@ -171,6 +232,10 @@ export default function GuidePage() {
         <p>
           <b>Practice money</b> is the bot&apos;s own {usd(PAPER_RISK.capital)} paper account. It only trades once a
           method has passed every test, so it has not traded yet. It shows on Today and Learn.
+        </p>
+        <p className={styles.note}>
+          Historical practice is not money at all: its results on older data stay on Learn and are never added to any of
+          the three.
         </p>
       </section>
 
@@ -292,7 +357,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-07 (virtual trading and learning). A printable version of this guide lives in
+        Matches the app as of 2026-10-07 (historical practice). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

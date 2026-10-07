@@ -73,6 +73,7 @@ export default function LearnSection() {
   useLiveRefresh(() => void load(), 5 * 60_000);
 
   const g = PREREG.gates;
+  const fairReview = g.minTrainRows * (g.folds + 1); // an illustration, not a rule: six date blocks, the first must train fold 1
   const active = data?.versions.find((v) => v.id === data.active_version_id) ?? null;
   const shadowing = data?.versions.filter((v) => v.status === "shadowing") ?? [];
   const lastEval = (id: string) => data?.evaluations.find((e) => e.model_version_id === id && e.kind === "walk_forward") ?? null;
@@ -117,13 +118,20 @@ export default function LearnSection() {
             <p className={styles.reason}>
               {specWords(active?.spec)} In charge since {exp.data?.model?.since ? dateShortIn(sec(exp.data.model.since), zone) : "—"}.
             </p>
-            {closed < g.minTrainRows ? (
-              <Meter label="Finished trades before the first new version can be trained" n={closed} of={g.minTrainRows} />
-            ) : (
-              <p className={page.note}>
-                {closed} finished trades in the learning record ({data.progress?.closed_prospective ?? 0} decided live over {data.progress?.sessions_prospective ?? 0} trading days).
-              </p>
-            )}
+            {closed < fairReview ? (
+              <>
+                <Meter label="Finished trades toward a fair first review (rough guide)" n={closed} of={fairReview} />
+                <p className={page.note}>
+                  Training can start at {g.minTrainRows}, but a review splits the record into {g.folds + 1} blocks by date and each of its {g.folds} test periods
+                  needs {g.minTrainRows} earlier trades to learn from — roughly {fairReview}, more after the 5-day gap. Periods that are too thin are shown
+                  and skipped, never counted.
+                </p>
+              </>
+            ) : null}
+            <p className={page.note}>
+              {closed} finished trades in the learning record ({data.progress?.closed_prospective ?? 0} decided live over {data.progress?.sessions_prospective ?? 0} trading days).
+              Ideas too risky for one contract are not counted.
+            </p>
             <p className={page.note}>State: {LEARNING_WORDS[state.state]} — {state.reason}</p>
           </section>
 
@@ -213,6 +221,17 @@ export default function LearnSection() {
                           <dd>
                             {e.window_from ? dateShortIn(sec(e.window_from), zone) : "—"} – {e.window_to ? dateShortIn(sec(e.window_to), zone) : "—"}
                           </dd>
+                          {Array.isArray(m.foldDetail) && (
+                            <>
+                              <dt>Test periods with enough data</dt>
+                              <dd>
+                                {(m.foldDetail as { valid: boolean }[]).filter((f) => f.valid).length} of {(m.foldDetail as unknown[]).length} ·{" "}
+                                {(m.foldDetail as { fold: number; trainRows: number; purgedRows: number; testRows: number; valid: boolean }[])
+                                  .map((f) => `${f.fold}: trained ${f.trainRows}, gap ${f.purgedRows}, tested ${f.testRows}${f.valid ? "" : " (too thin)"}`)
+                                  .join(" · ")}
+                              </dd>
+                            </>
+                          )}
                         </dl>
                       </ShowNumbers>
                     </article>
