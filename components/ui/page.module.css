@@ -10,6 +10,8 @@
   margin: 0 auto;
   padding-bottom: var(--space-5);
   min-width: 0;
+  /* Screens fade up when you switch tabs (globals.css riseIn; off under reduced motion). */
+  animation: riseIn 0.28s ease both;
 }
 
 .wide {
@@ -363,4 +365,110 @@
 }
 .verdict b {
   color: var(--red);
+}
+
+/* ── Phone pass, 2026-10-05 ──────────────────────────────────────────────
+   Touch targets reach 44px under a coarse pointer (design-language §10), and
+   the three-tile rows go 2 + 1 below 380px so a balance like $10,000.00 is
+   never cut off. */
+@media (pointer: coarse) {
+  .switch,
+  .seg,
+  .warning button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 379px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tiles > :nth-child(3):last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* "Updated 2 min ago" under a screen's title. */
+.updated {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Filter chips: a wrapping row of toggles (Ideas). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.chipButton {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chipButton[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--border-live);
+  background: var(--border);
+}
+@media (pointer: coarse) {
+  .chipButton {
+    min-height: 44px;
+  }
+}
+
+/* A day's header in a list of ideas: the date, then that day's result and n. */
+.dayHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.dayHead small {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+/* CSS Modules scope animation names to this file, so the globals.css keyframes
+   of the same name never matched here: the page fade and the loading pulse
+   did nothing. Local copies, identical to globals.css. */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Words that only make sense with a finger ("pull down to refresh"). */
+.touchOnly {
+  display: none;
+}
+@media (pointer: coarse) {
+  .touchOnly {
+    display: inline;
+  }
 }

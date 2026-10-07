@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { getNeon, type ZoneRow } from "@/lib/neon/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
@@ -14,10 +15,11 @@ import { points } from "@/lib/format";
 import { useData } from "@/components/providers/DataProvider";
 import { clockIn, dateTimeIn, ZONE_ABBR } from "@/lib/time/zones";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { Badge, Panel } from "@/components/ui";
-import CandleChart, { type ZoneBox } from "@/components/chart/CandleChart";
+import { Badge } from "@/components/ui";
+import CandleChart, { token, type PriceLine, type ZoneBox } from "@/components/chart/CandleChart";
 import { zoneToBox } from "@/components/chart/zoneBoxes";
 import PriceArea from "./PriceArea";
+import page from "@/components/ui/page.module.css";
 import styles from "./markets.module.css";
 
 type QuoteState =
@@ -74,6 +76,24 @@ function MiniSpark({ closes, up }: { closes: number[]; up: boolean }) {
   );
 }
 
+/* `?symbol=MES|MNQ&focus=<unix seconds>` — a link from an idea opens the chart
+   on that market, and with a focus time, on the candles around that moment.
+   Kept in its own Suspense boundary so reading the URL never holds back the
+   rest of the page's server render. */
+function LinkReader({ onLink }: { onLink: (symbol: FeedSymbol | null, focus: number | null) => void }) {
+  const params = useSearchParams();
+  const rawSymbol = params.get("symbol");
+  const rawFocus = params.get("focus");
+  useEffect(() => {
+    const upper = rawSymbol?.toUpperCase();
+    const symbol: FeedSymbol | null = upper === "MES" || upper === "MNQ" ? upper : null;
+    const n = rawFocus === null ? NaN : Number(rawFocus);
+    const focus = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    if (symbol !== null || focus !== null) onLink(symbol, focus);
+  }, [rawSymbol, rawFocus, onLink]);
+  return null;
+}
+
 export default function MarketsClient() {
   const data = useData();
   const { zone } = useZone();
@@ -89,6 +109,25 @@ export default function MarketsClient() {
   /* The hero opens on the design's line chart; candles are one tap away on the
      same card rather than a second chart further down the page. */
   const [chartStyle, setChartStyle] = useState<"line" | "candles">("line");
+  /* A moment a link asked to see (unix seconds). Cleared as soon as the reader
+     picks another market or timeframe themselves. */
+  const [focus, setFocus] = useState<number | null>(null);
+  const onLink = useCallback((symbol: FeedSymbol | null, at: number | null) => {
+    if (symbol) setChartSymbol(symbol);
+    if (at !== null) {
+      setFocus(at);
+      setTf(5);
+      setChartStyle("candles");
+    }
+  }, []);
+  const pickSymbol = (s: FeedSymbol) => {
+    setFocus(null);
+    setChartSymbol(s);
+  };
+  const pickTf = (id: number) => {
+    setFocus(null);
+    setTf(id);
+  };
   /* The engine's own count of today's checks — what it looked at and what
      turned ideas away — rather than a re-run here with default parameters,
      which could disagree with what the live engine actually did. */
@@ -158,11 +197,13 @@ export default function MarketsClient() {
     };
   }, []);
 
+  /* Keyed on this market's own bar array, so the other market's feed landing
+     does not hand the chart a fresh copy of the same candles. */
+  const feedBars = data.history[chartSymbol].bars;
   const chartBars = useMemo(() => {
-    const bars = data.history[chartSymbol].bars;
-    if (!bars.length) return [];
-    return tf === 5 ? bars : aggregateMinutes(bars, tf);
-  }, [data.history, chartSymbol, tf]);
+    if (!feedBars.length) return [];
+    return tf === 5 ? feedBars : aggregateMinutes(feedBars, tf);
+  }, [feedBars, tf]);
 
   const tradingDay = tick === null ? null : tradingDayKey(tick);
   const whyNone = useMemo(
@@ -215,6 +256,17 @@ export default function MarketsClient() {
   const heroUp = (heroQuote?.change ?? 0) >= 0;
   const otherUp = (otherQuote?.change ?? 0) >= 0;
 
+  /* Memoised on the number itself: the quote object is replaced every minute
+     and the page re-renders every second, and neither should touch the chart. */
+  const prevClose = heroQuote?.previousClose ?? null;
+  const chartLines = useMemo<PriceLine[]>(
+    () =>
+      prevClose === null
+        ? []
+        : [{ price: prevClose, color: token("--blue", "#5aa7ff"), title: "prev close", dashed: true }],
+    [prevClose]
+  );
+
   const nowSec = Date.now() / 1000;
   const upcoming = data.events
     .map((e) => ({ ...e, sec: new Date(e.time).getTime() / 1000 }))
@@ -223,12 +275,18 @@ export default function MarketsClient() {
     .slice(0, 8);
 
   return (
-    <>
-      <h1 className="pageTitle">Chart</h1>
-      <p className="pageSub">
-        Where the two markets are, the price areas the bot watches, and the news it steps aside for.{" "}
-        <Term k="delayed">Delayed prices</Term>, for practice only.
-      </p>
+    <div className={page.page}>
+      <Suspense fallback={null}>
+        <LinkReader onLink={onLink} />
+      </Suspense>
+
+      <header className={page.head}>
+        <h1 className="pageTitle">Chart</h1>
+        <p className={page.lede}>
+          Where the two markets are, the price areas the bot watches, and the news it steps aside for.{" "}
+          <Term k="delayed">Delayed prices</Term>, for practice only.
+        </p>
+      </header>
 
       {/* ── Session strip: which session, and how long is left in it ── */}
       <div className={styles.sessionStrip}>
@@ -246,264 +304,252 @@ export default function MarketsClient() {
         )}
       </div>
 
-      <div className={styles.grid}>
-        <div className={styles.mainCol}>
-          {/* ── Hero: the symbol you are looking at ── */}
-          <section className={styles.hero} aria-label={`${chartSymbol} price`}>
-            <div className={styles.heroHead}>
-              <div className={styles.heroName}>
-                <div className={styles.symToggle} role="group" aria-label="Select symbol">
-                  {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={s === chartSymbol ? `${styles.symPill} ${styles.symOn}` : styles.symPill}
-                      aria-pressed={s === chartSymbol}
-                      onClick={() => setChartSymbol(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-                <span className={styles.heroSub}>
-                  {SHORT_NAME[chartSymbol]}
-                  {heroQuote && (
-                    <>
-                      {" · data "}
-                      {clockIn(
-                        Math.floor(new Date(heroQuote.dataTimestamp).getTime() / 1000),
-                        zone
-                      )}{" "}
-                      {ZONE_ABBR[zone]}
-                    </>
-                  )}
-                </span>
-              </div>
-              <div className={styles.heroPrice}>
-                <b className={`${styles.heroPx} num`}>
-                  {heroQuote
-                    ? heroQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                    : "—"}
-                </b>
-                <span
-                  className={`${styles.heroChg} num ${heroUp ? styles.good : styles.bad}`}
-                >
-                  {heroQuote
-                    ? `${points(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
-                    : heroState.status === "error"
-                      ? "feed offline"
-                      : "loading…"}
-                </span>
-              </div>
-            </div>
-
-            {chartBars.length ? (
-              chartStyle === "line" ? (
-                <PriceArea
-                  bars={chartBars}
-                  previousClose={heroQuote?.previousClose ?? null}
-                  up={heroUp}
-                  label={`${chartSymbol} price over the loaded window, with the previous close marked`}
-                />
-              ) : (
-                <div className={styles.heroCandles}>
-                  <CandleChart
-                    bars={chartBars}
-                    height={300}
-                    boxes={chartBoxes}
-                    lines={
-                      heroQuote
-                        ? [
-                            {
-                              price: heroQuote.previousClose,
-                              color: "#5aa7ff",
-                              title: "prev close",
-                              dashed: true,
-                            },
-                          ]
-                        : []
-                    }
-                  />
-                </div>
-              )
-            ) : (
-              <span
-                className={
-                  data.history[chartSymbol].status === "error"
-                    ? styles.note
-                    : `${styles.note} pulse`
-                }
-              >
-                {data.history[chartSymbol].status === "error"
-                  ? `Feed error: ${data.history[chartSymbol].error}`
-                  : "Loading 60-day history…"}
-              </span>
-            )}
-
-            <div className={styles.tfRow} role="group" aria-label="Timeframe">
-              {TIMEFRAMES.map((t) => (
+      {/* ── Hero: the symbol you are looking at ── */}
+      <section className={styles.hero} aria-label={`${chartSymbol} price`}>
+        <div className={styles.heroHead}>
+          <div className={styles.heroName}>
+            <div className={styles.symToggle} role="group" aria-label="Select symbol">
+              {(["MES", "MNQ"] as FeedSymbol[]).map((s) => (
                 <button
-                  key={t.id}
+                  key={s}
                   type="button"
-                  className={t.id === tf ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
-                  aria-pressed={t.id === tf}
-                  onClick={() => setTf(t.id)}
+                  className={s === chartSymbol ? `${styles.symPill} ${styles.symOn}` : styles.symPill}
+                  aria-pressed={s === chartSymbol}
+                  onClick={() => pickSymbol(s)}
                 >
-                  {t.label}
+                  {s}
                 </button>
               ))}
             </div>
-
-            <div className={styles.heroFoot}>
-              <span className={styles.styleToggle} role="group" aria-label="Chart style">
-                {(["line", "candles"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={s === chartStyle ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
-                    aria-pressed={s === chartStyle}
-                    onClick={() => setChartStyle(s)}
-                  >
-                    {s === "line" ? "Line" : "Candles"}
-                  </button>
-                ))}
-              </span>
-              <Badge tone={heroState.status === "error" ? "red" : "amber"}>
-                {heroState.status === "error" ? "FEED OFFLINE" : "DELAYED"}
-              </Badge>
-            </div>
-          </section>
-
-          {/* ── Price areas to watch (the engine's zones) ── */}
-          <section className={styles.card} aria-label="Price areas to watch">
-            <h2 className={styles.cardTitle}>Price areas to watch</h2>
-            <p className={styles.note}>
-              <Term k="zone">Zones</Term> where strong buying or selling showed up before. The zone method looks for a
-              bounce when price comes back to one.
-            </p>
-            <div className={styles.zoneList}>
-              {nearZones.length ? (
-                nearZones.map(({ z, dist, inside, above }) => (
-                  <div key={z.id} className={`${styles.zoneRow} ${inside ? styles.zoneAt : ""}`}>
-                    <span
-                      className={`${styles.zoneTag} ${
-                        inside ? styles.warn : z.zone_type === "demand" ? styles.good : styles.bad
-                      }`}
-                    >
-                      {inside
-                        ? "AT ZONE"
-                        : `${(dist ?? 0).toFixed(1)}% ${above ? "ABOVE" : "BELOW"}`}
-                    </span>
-                    <span className={styles.zoneBody}>
-                      <b>{z.symbol === "MES" ? "S&P" : z.symbol === "MNQ" ? "Nasdaq" : z.symbol}</b>{" "}
-                      {z.zone_type === "demand" ? "buy" : "sell"} area{" "}
-                      <span className="num">
-                        {z.price_low.toFixed(0)}–{z.price_high.toFixed(0)}
-                      </span>
-                    </span>
-                    <span className={styles.zoneTf}>
-                      {z.timeframe}
-                      {z.fresh ? " · fresh" : ""}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <span className={styles.note}>No price areas near the delayed price right now.</span>
+            <span className={styles.heroSub}>
+              {SHORT_NAME[chartSymbol]}
+              {heroQuote && (
+                <>
+                  {" · data "}
+                  {clockIn(
+                    Math.floor(new Date(heroQuote.dataTimestamp).getTime() / 1000),
+                    zone
+                  )}{" "}
+                  {ZONE_ABBR[zone]}
+                </>
               )}
-            </div>
-          </section>
-
-          {/* ── The other contract, one tap away ── */}
-          <button
-            type="button"
-            className={`${styles.otherRow} press`}
-            onClick={() => setChartSymbol(otherSymbol)}
-            aria-label={`Show ${otherSymbol} in the chart`}
-          >
-            <span className={styles.otherName}>
-              <b>{otherSymbol}</b>
-              <span className={styles.otherSub}>{SHORT_NAME[otherSymbol]}</span>
             </span>
-            <MiniSpark
-              closes={(otherQuote?.bars ?? []).slice(-120).map((b) => b.close)}
-              up={otherUp}
+          </div>
+          <div className={styles.heroPrice}>
+            <b className={`${styles.heroPx} num`}>
+              {heroQuote
+                ? heroQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                : "—"}
+            </b>
+            <span className={`${styles.heroChg} num ${heroUp ? styles.good : styles.bad}`}>
+              {heroQuote
+                ? `${points(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
+                : heroState.status === "error"
+                  ? "feed offline"
+                  : "loading…"}
+            </span>
+          </div>
+        </div>
+
+        {chartBars.length ? (
+          chartStyle === "line" ? (
+            <PriceArea
+              bars={chartBars}
+              previousClose={prevClose}
+              up={heroUp}
+              label={`${chartSymbol} price over the loaded window, with the previous close marked. Touch the line to read a price and time.`}
             />
-            <span className={styles.otherVals}>
-              <b className="num">
-                {otherQuote
-                  ? otherQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                  : "—"}
-              </b>
-              <span className={`num ${otherUp ? styles.good : styles.bad}`}>
-                {otherPct === null
-                  ? "—"
-                  : `${otherUp ? "+" : "−"}${Math.abs(otherPct).toFixed(2)}%`}
-              </span>
-            </span>
-          </button>
-
-          <span className={styles.delayedNote}>Delayed 10–15 min · display only</span>
-        </div>
-
-        <div className={styles.sideCol}>
-          <Panel title="Why no idea right now?" hint="the engine's own count of its latest check">
-            {whyNone === null ? (
-              <span className={`${styles.note} pulse`}>Reading the latest check…</span>
-            ) : (
-              <>
-                {!phase.live && tick !== null && (
-                  <p className={styles.whySentence}>
-                    <b>The market is closed</b>, so no new ideas until it reopens. The last check said:
-                  </p>
-                )}
-                <p className={styles.whySentence}>
-                  {sentenceCase(whyNone.sentence)}
-                </p>
-                {whyNone.blockers.length > 0 && (
-                  <div className={styles.readout}>
-                    {whyNone.blockers.slice(0, 4).map((b) => (
-                      <div key={b.reason} className={styles.readoutRow}>
-                        <span className={styles.readoutLabel}>{b.label}</span>
-                        <span className="num">{b.count.toLocaleString("en-US")}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className={styles.note}>Turning ideas away is the methods being picky, not a fault.</p>
-              </>
-            )}
-          </Panel>
-
-          <Panel title="Big news ahead" hint={data.eventsSource ?? "calendar unavailable"}>
-            <p className={styles.note}>
-              <Term k="newsPause">The bot takes no new ideas 30 minutes either side of these.</Term>
-            </p>
-            <div className={styles.eventList}>
-              {upcoming.length ? (
-                upcoming.map((e) => {
-                  const locked = Math.abs(e.sec - nowSec) <= 1800;
-                  return (
-                    <div key={`${e.name}-${e.time}`} className={styles.eventRow}>
-                      <span className={styles.eventTime}>
-                        {dateTimeIn(e.sec, zone)} {ZONE_ABBR[zone]}
-                      </span>
-                      <span className={styles.eventBody}>
-                        <b>{e.name}</b>
-                        <span>{e.publisher}</span>
-                      </span>
-                      <Badge tone={locked ? "amber" : undefined}>
-                        {locked ? "PAUSED NOW" : "±30 MIN"}
-                      </Badge>
-                    </div>
-                  );
-                })
-              ) : (
-                <span className={styles.note}>No big news on the calendar right now.</span>
-              )}
+          ) : (
+            <div className={styles.heroCandles}>
+              <CandleChart
+                bars={chartBars}
+                boxes={chartBoxes}
+                lines={chartLines}
+                fitKey={`${chartSymbol}:${tf}`}
+                focusTime={focus}
+              />
             </div>
-          </Panel>
+          )
+        ) : (
+          <span
+            className={
+              data.history[chartSymbol].status === "error"
+                ? styles.note
+                : `${styles.note} pulse`
+            }
+          >
+            {data.history[chartSymbol].status === "error"
+              ? `Feed error: ${data.history[chartSymbol].error}`
+              : "Loading 60-day history…"}
+          </span>
+        )}
+
+        <div className={styles.tfRow} role="group" aria-label="Timeframe">
+          {TIMEFRAMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={t.id === tf ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
+              aria-pressed={t.id === tf}
+              onClick={() => pickTf(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
-    </>
+
+        <div className={styles.heroFoot}>
+          <span className={styles.styleToggle} role="group" aria-label="Chart style">
+            {(["line", "candles"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={s === chartStyle ? `${styles.tfPill} ${styles.tfOn}` : styles.tfPill}
+                aria-pressed={s === chartStyle}
+                onClick={() => setChartStyle(s)}
+              >
+                {s === "line" ? "Line" : "Candles"}
+              </button>
+            ))}
+          </span>
+          <Badge tone={heroState.status === "error" ? "red" : "amber"}>
+            {heroState.status === "error" ? "FEED OFFLINE" : "DELAYED"}
+          </Badge>
+        </div>
+      </section>
+
+      {/* ── Price areas to watch (the engine's zones) ── */}
+      <section className={page.card} aria-label="Price areas to watch">
+        <h2 className={page.cardTitle}>Price areas to watch</h2>
+        <p className={page.note}>
+          <Term k="zone">Zones</Term> where strong buying or selling showed up before. The zone method looks for a
+          bounce when price comes back to one.
+        </p>
+        <div className={styles.zoneList}>
+          {nearZones.length ? (
+            nearZones.map(({ z, dist, inside, above }) => (
+              <div key={z.id} className={`${styles.zoneRow} ${inside ? styles.zoneAt : ""}`}>
+                <span
+                  className={`${styles.zoneTag} ${
+                    inside ? styles.warn : z.zone_type === "demand" ? styles.good : styles.bad
+                  }`}
+                >
+                  {inside
+                    ? "AT ZONE"
+                    : `${(dist ?? 0).toFixed(1)}% ${above ? "ABOVE" : "BELOW"}`}
+                </span>
+                <span className={styles.zoneBody}>
+                  <b>{z.symbol === "MES" ? "S&P" : z.symbol === "MNQ" ? "Nasdaq" : z.symbol}</b>{" "}
+                  {z.zone_type === "demand" ? "buy" : "sell"} area{" "}
+                  <span className="num">
+                    {z.price_low.toFixed(0)}–{z.price_high.toFixed(0)}
+                  </span>
+                </span>
+                <span className={styles.zoneTf}>
+                  {z.timeframe}
+                  {z.fresh ? " · fresh" : ""}
+                </span>
+              </div>
+            ))
+          ) : (
+            <span className={page.note}>No price areas near the delayed price right now.</span>
+          )}
+        </div>
+      </section>
+
+      {/* ── The other contract, one tap away ── */}
+      <button
+        type="button"
+        className={`${styles.otherRow} press`}
+        onClick={() => pickSymbol(otherSymbol)}
+        aria-label={`Show ${otherSymbol} in the chart`}
+      >
+        <span className={styles.otherName}>
+          <b>{otherSymbol}</b>
+          <span className={styles.otherSub}>{SHORT_NAME[otherSymbol]}</span>
+        </span>
+        <MiniSpark
+          closes={(otherQuote?.bars ?? []).slice(-120).map((b) => b.close)}
+          up={otherUp}
+        />
+        <span className={styles.otherVals}>
+          <b className="num">
+            {otherQuote
+              ? otherQuote.price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+              : "—"}
+          </b>
+          <span className={`num ${otherUp ? styles.good : styles.bad}`}>
+            {otherPct === null
+              ? "—"
+              : `${otherUp ? "+" : "−"}${Math.abs(otherPct).toFixed(2)}%`}
+          </span>
+        </span>
+      </button>
+
+      <span className={styles.delayedNote}>Delayed 10–15 min · display only</span>
+
+      {/* ── Why no idea right now? ── */}
+      <section className={page.card} aria-label="Why no idea right now?">
+        <h2 className={page.cardTitle}>Why no idea right now?</h2>
+        {whyNone === null ? (
+          <p className={`${page.note} pulse`}>Reading the latest check…</p>
+        ) : (
+          <>
+            {!phase.live && tick !== null && (
+              <p className={styles.whySentence}>
+                <b>The market is closed</b>, so no new ideas until it reopens. The last check said:
+              </p>
+            )}
+            <p className={styles.whySentence}>{sentenceCase(whyNone.sentence)}</p>
+            {whyNone.blockers.length > 0 && (
+              <div className={styles.readout}>
+                {whyNone.blockers.slice(0, 4).map((b) => (
+                  <div key={b.reason} className={styles.readoutRow}>
+                    <span className={styles.readoutLabel}>{b.label}</span>
+                    <span className="num">{b.count.toLocaleString("en-US")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className={page.note}>
+              From the engine&apos;s own count at its latest check. Turning ideas away is the methods being picky,
+              not a fault.
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* ── Big news ahead ── */}
+      <section className={page.card} aria-label="Big news ahead">
+        <h2 className={page.cardTitle}>Big news ahead</h2>
+        <p className={page.note}>
+          <Term k="newsPause">The bot takes no new ideas 30 minutes either side of these.</Term>
+        </p>
+        <div className={styles.eventList}>
+          {upcoming.length ? (
+            upcoming.map((e) => {
+              const locked = Math.abs(e.sec - nowSec) <= 1800;
+              return (
+                <div key={`${e.name}-${e.time}`} className={styles.eventRow}>
+                  <span className={styles.eventTime}>
+                    {dateTimeIn(e.sec, zone)} {ZONE_ABBR[zone]}
+                  </span>
+                  <span className={styles.eventBody}>
+                    <b>{e.name}</b>
+                    <span>{e.publisher}</span>
+                  </span>
+                  <Badge tone={locked ? "amber" : undefined}>
+                    {locked ? "PAUSED NOW" : "±30 MIN"}
+                  </Badge>
+                </div>
+              );
+            })
+          ) : (
+            <span className={page.note}>No big news on the calendar right now.</span>
+          )}
+        </div>
+        <p className={page.note}>Calendar: {data.eventsSource ?? "unavailable right now"}</p>
+      </section>
+    </div>
   );
 }

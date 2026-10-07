@@ -143,6 +143,7 @@ export default function ResultsPanel({
       {Object.keys(result.byInstrument).length > 0 && (
         <Panel title="Per instrument">
           <DataTable
+            mobileCards={{ titleIndexes: [0] }}
             columns={["Instrument", "Trades", "Net", "Win rate", "PF", "Avg R"]}
             rows={Object.entries(result.byInstrument).map(([s, im]) => [
               s,

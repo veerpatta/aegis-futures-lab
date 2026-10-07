@@ -1,0 +1,161 @@
+/* Trial account card (TrialCard.tsx). Tokens only; extends page.module.css
+   .card and the Bot/Today tile and row idioms (design-language §10). */
+
+.card {
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.headLink {
+  margin-left: auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 40%);
+  align-items: end;
+  gap: var(--space-3);
+}
+.hero > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.heroLabel {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.heroValue {
+  font-family: var(--font-mono);
+  font-size: clamp(26px, 8vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heroSub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.spark {
+  width: 100%;
+  height: 44px;
+  overflow: visible;
+}
+.spark polyline {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.sparkUp {
+  stroke: var(--green);
+}
+.sparkDown {
+  stroke: var(--red);
+}
+
+.sentence {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  overflow: hidden;
+}
+.list li + li {
+  border-top: 1px solid var(--border);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  padding: 8px var(--space-3);
+  border: 0;
+  background: var(--bg-inset);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.rowMain {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.rowMain b {
+  font-weight: 600;
+}
+.rowMain small {
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buy,
+.sell {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 700;
+}
+.buy {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+.sell {
+  color: var(--red);
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}
+
+.chart {
+  min-width: 0;
+}
+
+.subTitle {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sheet {
+  display: grid;
+  gap: var(--space-3);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.sheet p,
+.sheet ul {
+  margin: 0;
+}
+.sheet ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}

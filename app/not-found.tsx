@@ -17,10 +17,10 @@ export default function NotFound() {
       </p>
       <div className={styles.actions}>
         <Link href="/" className={styles.action}>
-          Back to the dashboard
+          Back to Today
         </Link>
         <Link href="/signals" className={styles.action}>
-          Today&rsquo;s signals
+          Trade ideas
         </Link>
       </div>
     </div>

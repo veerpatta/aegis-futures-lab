@@ -8,7 +8,12 @@ import { PrivacyProvider } from "@/components/providers/PrivacyProvider";
 import { BotHealthProvider } from "@/components/providers/BotHealthProvider";
 import "./globals.css";
 import { PaperProvider } from "@/components/providers/PaperProvider";
+import { TrialProvider } from "@/components/providers/TrialProvider";
+import { QuoteProvider } from "@/components/providers/QuoteProvider";
+import { SignalFeedProvider } from "@/components/signals/useSignalFeed";
 import { GlossaryProvider } from "@/components/ui/Glossary";
+import PullToRefresh from "@/components/ui/PullToRefresh";
+import ServiceWorker from "@/components/ui/ServiceWorker";
 
 export const metadata: Metadata = {
   title: "Aegis Futures Lab",
@@ -48,16 +53,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PrivacyProvider>
               <BotHealthProvider>
                 <PaperProvider>
-                  <GlossaryProvider>
-                    <div className="shell">
-                      <Sidebar />
-                      <div className="contentCol">
-                        <AppHeader />
-                        <main className="main">{children}</main>
-                      </div>
-                    </div>
-                    <MobileTabBar />
-                  </GlossaryProvider>
+                  <TrialProvider>
+                    <SignalFeedProvider>
+                      <QuoteProvider>
+                        <GlossaryProvider>
+                          <div className="shell">
+                            <Sidebar />
+                            <div className="contentCol">
+                              <AppHeader />
+                              <PullToRefresh />
+                              <main className="main">{children}</main>
+                            </div>
+                          </div>
+                          <MobileTabBar />
+                          <ServiceWorker />
+                        </GlossaryProvider>
+                      </QuoteProvider>
+                    </SignalFeedProvider>
+                  </TrialProvider>
                 </PaperProvider>
               </BotHealthProvider>
             </PrivacyProvider>

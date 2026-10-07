@@ -9,7 +9,6 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 11px 14px;
-  margin-bottom: var(--space-4);
 }
 
 .sessionDot {
@@ -132,6 +131,77 @@
   margin-top: 12px;
 }
 
+/* ── The line view (PriceArea.tsx) ─────────────────────────────────────────
+   Faint price levels on the right edge, start/end times underneath, and a
+   readout of the price and time under the finger. */
+
+.areaWrap {
+  position: relative;
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.areaSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* a vertical drag still scrolls the page; a sideways drag scrubs */
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.areaGrid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.areaTick {
+  fill: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.areaPrev {
+  stroke: var(--blue-line);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.areaCross {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.areaDot {
+  stroke: var(--bg-raised);
+  stroke-width: 2;
+}
+
+.areaReadout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.areaReadout b {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* Timeframe pills — five across, equal width, like the design. */
 .tfRow {
   display: flex;
@@ -242,53 +312,12 @@
 
 .delayedNote {
   display: block;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-faint);
   text-align: center;
 }
 
-/* ── Cards + grid ─────────────────────────────────────────────────────────── */
-
-.card {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: 16px;
-}
-
-.cardTitle {
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 11px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.mainCol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-@media (max-width: 1100px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.sideCol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
+/* The cards themselves are page.module.css .card, shared with the other tabs. */
 
 .chartControls {
   display: flex;
@@ -322,7 +351,7 @@
 }
 
 .readoutLabel {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -386,7 +415,7 @@
 }
 
 .zoneTag {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.07em;
   white-space: nowrap;
@@ -399,7 +428,7 @@
 }
 
 .zoneTf {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;
 }
@@ -434,8 +463,24 @@
 
 /* "Why no idea right now?" headline sentence (2026-10-03). */
 .whySentence {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   font-size: 13.5px;
   line-height: 1.55;
   color: var(--text);
+}
+
+/* ── Touch sizing (2026-10-05) ─────────────────────────────────────────────
+   44px targets for the symbol, timeframe and Line/Candles pills. */
+@media (pointer: coarse) {
+  .symPill {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+  .tfPill,
+  .styleToggle .tfPill {
+    min-height: 44px;
+  }
+  .styleToggle .tfPill {
+    padding: 0 16px;
+  }
 }

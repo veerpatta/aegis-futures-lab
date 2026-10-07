@@ -23,13 +23,16 @@ import {
   yearHeatmap,
   type SliceStat,
 } from "@/lib/review/aggregate";
-import { expectancy, fmtPf, profitFactor, rateFromPnls } from "@/lib/stats";
+import { expectancy, fmtPf, profitFactor, rateFromPnls, rateReadout } from "@/lib/stats";
 import { money } from "@/lib/format";
 import { nyMeta } from "@/lib/time/ny";
+import { dayKeyLabel } from "@/lib/time/zones";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { Panel, Rate, SampleNote } from "@/components/ui";
 import ShowNumbers from "@/components/ui/ShowNumbers";
 import { Term } from "@/components/ui/Glossary";
+import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
+import page from "@/components/ui/page.module.css";
 import { liveOnly } from "@/lib/signals/live";
 import styles from "./review.module.css";
 
@@ -37,6 +40,8 @@ type State =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; rows: SignalRow[] };
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const MONTH_LABEL = (m: string) =>
   new Date(`${m}-01T12:00:00Z`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -84,6 +89,27 @@ export default function ReviewClient() {
   const months = useMemo(() => monthsWithData(days), [days]);
   const shownMonth = month ?? months[0] ?? nyMeta(Math.floor(Date.now() / 1000)).dateKey.slice(0, 7);
   const calendar = useMemo(() => monthCalendar(days, shownMonth), [days, shownMonth]);
+  /* The market is shut at weekends, so Saturday and Sunday columns are dropped
+     unless one of them actually holds a result. Five columns instead of seven
+     is what lets each day be a 44px tap target on a 360px phone. */
+  const showWeekend = calendar.some((c, i) => i % 7 >= 5 && c.net !== null);
+  const calCells = useMemo(() => {
+    const out: typeof calendar = [];
+    for (let i = 0; i < calendar.length; i += 7) {
+      const week = showWeekend ? calendar.slice(i, i + 7) : calendar.slice(i, i + 5);
+      if (week.some((c) => c.dateKey !== null)) out.push(...week);
+    }
+    return out;
+  }, [calendar, showWeekend]);
+  /* Tap a day for its numbers. Losses come from the same daily grouping run
+     over the losing rows only, so a day here can never disagree with the
+     calendar square it was opened from. */
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const dayByKey = useMemo(() => new Map(days.map((d) => [d.dateKey, d])), [days]);
+  const lossesByKey = useMemo(
+    () => new Map(dailyPnl(rows.filter((r) => (r.pnl_usd ?? 0) < 0)).map((d) => [d.dateKey, d.trades])),
+    [rows]
+  );
   const heat = useMemo(
     () => yearHeatmap(days, nyMeta(Math.floor(Date.now() / 1000)).dateKey, narrow ? 13 : 27),
     [days, narrow]
@@ -113,6 +139,11 @@ export default function ReviewClient() {
     const step = intensity > 0.66 ? 3 : intensity > 0.33 ? 2 : 1;
     return net > 0 ? styles[`up${step}`] : styles[`down${step}`];
   };
+
+  const closeDay = () => setOpenDay(null);
+  const sheetDay = openDay ? (dayByKey.get(openDay) ?? null) : null;
+  const sheetLosses = openDay ? (lossesByKey.get(openDay) ?? 0) : 0;
+  const sheetFlat = sheetDay ? Math.max(0, sheetDay.trades - sheetDay.wins - sheetLosses) : 0;
 
   if (state.status === "loading")
     return (
@@ -203,31 +234,38 @@ export default function ReviewClient() {
           <p className={styles.empty}>No closed trades yet — the calendar fills in as they land.</p>
         ) : (
           <>
-            <div className={styles.weekHead} aria-hidden>
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+            <div className={`${styles.weekHead} ${showWeekend ? "" : styles.weekdaysOnly}`} aria-hidden>
+              {(showWeekend ? WEEKDAYS : WEEKDAYS.slice(0, 5)).map((d) => (
                 <span key={d}>{d}</span>
               ))}
             </div>
-            <div className={styles.calendar} role="grid" aria-label={`P&L for ${MONTH_LABEL(shownMonth)}`}>
-              {calendar.map((c, i) => (
-                <div
-                  key={c.dateKey ?? `pad-${i}`}
-                  className={`${styles.calCell} ${c.dateKey ? tone(c.net) : styles.cellPad}`}
-                  title={
-                    c.dateKey
-                      ? c.net === null
-                        ? `${c.dateKey} — no trades`
-                        : `${c.dateKey} — ${money(c.net)} over ${c.trades} trade${c.trades === 1 ? "" : "s"}`
-                      : undefined
-                  }
-                >
-                  {c.dateKey && <span className={styles.calDay}>{Number(c.dateKey.slice(-2))}</span>}
-                  {c.dateKey && c.net !== null && (
-                    <span className={styles.calNet}>{mask(money(c.net, false))}</span>
-                  )}
-                </div>
-              ))}
+            <div
+              className={`${styles.calendar} ${showWeekend ? "" : styles.weekdaysOnly}`}
+              role="group"
+              aria-label={`Result by day for ${MONTH_LABEL(shownMonth)}. Tap a day for its numbers.`}
+            >
+              {calCells.map((c, i) =>
+                c.dateKey ? (
+                  <button
+                    key={c.dateKey}
+                    type="button"
+                    className={`${styles.calCell} ${tone(c.net)}`}
+                    onClick={() => setOpenDay(c.dateKey)}
+                    aria-label={
+                      c.net === null
+                        ? `${dayKeyLabel(c.dateKey)}: no closed ideas`
+                        : `${dayKeyLabel(c.dateKey)}: ${c.net >= 0 ? "made" : "lost"} ${mask(money(Math.abs(c.net), false))} over ${c.trades} idea${c.trades === 1 ? "" : "s"}`
+                    }
+                  >
+                    <span className={styles.calDay}>{Number(c.dateKey.slice(-2))}</span>
+                    {c.net !== null && <span className={styles.calNet}>{mask(money(c.net, false))}</span>}
+                  </button>
+                ) : (
+                  <div key={`pad-${i}`} className={`${styles.calCell} ${styles.cellPad}`} aria-hidden />
+                )
+              )}
             </div>
+            <p className={styles.calHint}>Tap a day to see its result, how many ideas closed, and how many won.</p>
           </>
         )}
       </Panel>
@@ -274,6 +312,50 @@ export default function ReviewClient() {
         <SliceTable title="By market" hint="S&P micro against Nasdaq micro" rows={bySymbol(rows)} mask={mask} />
         <SliceTable title="By market mood" hint="conditions at entry" rows={byRegime(rows)} mask={mask} />
       </ShowNumbers>
+
+      <BottomSheet
+        open={openDay !== null}
+        onClose={closeDay}
+        title={openDay ? `Trade ideas on ${dayKeyLabel(openDay)}` : "One day"}
+      >
+        <div className={styles.sheetHead}>
+          <b className={styles.sheetTitle}>{openDay ? dayKeyLabel(openDay) : ""}</b>
+          <SheetClose onClose={closeDay} />
+        </div>
+        {sheetDay ? (
+          <>
+            <p className={styles.sheetLede}>Trade ideas that closed on this New York trading day, after costs.</p>
+            <div className={page.tiles}>
+              <div className={page.tile}>
+                <span>Result</span>
+                <b className={sheetDay.net > 0 ? page.good : sheetDay.net < 0 ? page.bad : undefined}>
+                  {mask(money(sheetDay.net))}
+                </b>
+              </div>
+              <div className={page.tile}>
+                <span>Ideas closed</span>
+                <b>{sheetDay.trades}</b>
+              </div>
+              <div className={page.tile}>
+                <span>Won · lost</span>
+                <b>
+                  {sheetDay.wins} · {sheetLosses}
+                </b>
+                {sheetFlat > 0 && <small>{sheetFlat} broke even</small>}
+              </div>
+            </div>
+            <div className={styles.sheetRate}>
+              <span className={styles.statLabel}>Win rate</span>
+              <Rate readout={rateReadout(sheetDay.wins, sheetDay.trades)} valueClassName="num" />
+            </div>
+          </>
+        ) : (
+          <p className={styles.empty}>No trade idea closed on this day.</p>
+        )}
+        <p className={styles.sheetNote}>
+          Simulated trade ideas, not practice-account trades. Nothing here touches real money.
+        </p>
+      </BottomSheet>
     </>
   );
 }

@@ -2,6 +2,7 @@
 import {createContext,useContext,useState,useEffect,useCallback,useRef} from "react";
 import {getNeon} from "@/lib/neon/client";
 import type {BotOverview,Candidate,Activity} from "@/lib/paper/overview";
+import {useLiveRefresh} from "@/lib/hooks/useLiveRefresh";
 type State={data:BotOverview|null;candidates:Candidate[];activity:Activity[];errors:string[];loadedAt:string|null;loading:boolean;refresh:()=>void};
 const Context=createContext<State>({data:null,candidates:[],activity:[],errors:[],loadedAt:null,loading:true,refresh:()=>{}});
 export function PaperProvider({children}:{children:React.ReactNode}) {
@@ -17,7 +18,8 @@ export function PaperProvider({children}:{children:React.ReactNode}) {
    });setErrors(failed);
   }catch{if(mounted.current)setErrors(["Account","Research","Activity"]);}finally{busy.current=false;if(mounted.current)setLoading(false);}
  },[]);
- useEffect(()=>{mounted.current=true;void refresh();const timer=setInterval(()=>void refresh(),60000);return()=>{mounted.current=false;clearInterval(timer);};},[refresh]);
+ useEffect(()=>{mounted.current=true;void refresh();return()=>{mounted.current=false;};},[refresh]);
+ useLiveRefresh(()=>void refresh(),60000);
  return <Context.Provider value={{data,candidates,activity,errors,loadedAt,loading,refresh}}>{children}</Context.Provider>;
 }
 export const usePaper=()=>useContext(Context);

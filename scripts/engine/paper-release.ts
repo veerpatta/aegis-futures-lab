@@ -1,10 +1,20 @@
 import { transaction } from "@/lib/neon/server";
 import { RESEARCH_IDS } from "@/lib/strategies/research-v2";
-import { releaseEligible, freshWeeklyEvidence, type ForwardEvidence } from "@/lib/paper/policy";
+import { PAPER_RISK, releaseEligible, freshWeeklyEvidence, type ForwardEvidence } from "@/lib/paper/policy";
 import { ALL_RESEARCH_IDS, candidateKey, researchConfigHash } from "./research-observer";
 import { stableHash } from "./learning-audit";
 import { nyMeta } from "@/lib/time/ny";
 import { researchCodeHash } from "./research-code";
+
+/* Reasons shown on the Bot screen. The dollar figures come from PAPER_RISK, so a
+   risk-cap change (2026-10-03: $50 -> $100 per trade, $25 -> $50 probation)
+   cannot leave the screen quoting the old sizes. */
+export const RELEASE_REASONS = Object.freeze({
+  probation: `Every historical and forward gate passed; $${PAPER_RISK.probationRisk} risk probation`,
+  activated: `Fresh weekly pass after probation; $${PAPER_RISK.riskPerTrade} risk`,
+  retained: `Fresh weekly qualification retained; $${PAPER_RISK.riskPerTrade} risk`,
+  paused: "Weekly evidence no longer qualifies",
+});
 
 /** The only automatic release route. Executable candidates must exist in this deployed registry. */
 export async function evaluatePaperReleases() {
@@ -41,14 +51,14 @@ export async function evaluatePaperReleases() {
       const active=await c.query("SELECT * FROM paper_releases WHERE status IN ('probation','active') FOR UPDATE");
       if(inserted.rows.length && pass && codeHash!=="unverified") {
         if(!active.rows.length) await c.query(`INSERT INTO paper_releases(candidate_key,evaluation_id,code_hash,config_hash,status,reason)
-          VALUES($1,$2,$3,$4,'probation','Every historical and forward gate passed; $25 risk probation')`,[key,inserted.rows[0].id,codeHash,researchConfigHash]);
+          VALUES($1,$2,$3,$4,'probation',$5)`,[key,inserted.rows[0].id,codeHash,researchConfigHash,RELEASE_REASONS.probation]);
         else if(active.rows[0].candidate_key===key && active.rows[0].status==="probation" && prior && freshWeeklyEvidence(prior,evidence))
-          await c.query("UPDATE paper_releases SET status='active',evaluation_id=$2,reason='Fresh weekly pass after probation; $50 risk' WHERE id=$1",[active.rows[0].id,inserted.rows[0].id]);
+          await c.query("UPDATE paper_releases SET status='active',evaluation_id=$2,reason=$3 WHERE id=$1",[active.rows[0].id,inserted.rows[0].id,RELEASE_REASONS.activated]);
         else if(active.rows[0].candidate_key===key && active.rows[0].status==="active")
-          await c.query("UPDATE paper_releases SET evaluation_id=$2,reason='Fresh weekly qualification retained; $50 risk' WHERE id=$1",[active.rows[0].id,inserted.rows[0].id]);
+          await c.query("UPDATE paper_releases SET evaluation_id=$2,reason=$3 WHERE id=$1",[active.rows[0].id,inserted.rows[0].id,RELEASE_REASONS.retained]);
       } else if(active.rows[0]?.candidate_key===key && (!pass || !inserted.rows.length)) {
         // Repeated unchanged evidence never promotes; only an actual failed fresh evaluation pauses.
-        if(inserted.rows.length && !pass) await c.query("UPDATE paper_releases SET status='paused',reason='Weekly evidence no longer qualifies' WHERE id=$1",[active.rows[0].id]);
+        if(inserted.rows.length && !pass) await c.query("UPDATE paper_releases SET status='paused',reason=$2 WHERE id=$1",[active.rows[0].id,RELEASE_REASONS.paused]);
       }
       decisions.push({candidate:key,closed:evidence.closed,days:evidence.days,net:evidence.net,eligible:!!pass});
     }

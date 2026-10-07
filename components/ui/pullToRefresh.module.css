@@ -1,0 +1,42 @@
+/* Tokens only. The strip grows with the finger, then holds 40px while the
+   refresh runs. Hidden entirely on mouse-only screens (no height ever set). */
+.strip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  padding-bottom: var(--space-2);
+  transition: height 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.arrow {
+  display: inline-block;
+  color: var(--blue);
+  transition: transform 0.18s;
+}
+
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--blue);
+  animation: spin 0.8s linear infinite;
+}
+
+@media (min-width: 769px) {
+  .strip {
+    display: none;
+  }
+}
+
+/* Local copy: CSS Modules scope animation names to this file. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

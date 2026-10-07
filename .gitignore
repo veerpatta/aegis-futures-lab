@@ -4,3 +4,10 @@ node_modules/
 .next/
 *.tsbuildinfo
 supabase/.temp/
+
+.vercel
+.env*
+test-results/
+playwright-report/
+.codex-remote-attachments/
+dist/

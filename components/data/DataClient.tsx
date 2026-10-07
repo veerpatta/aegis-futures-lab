@@ -301,6 +301,7 @@ export default function DataClient() {
               regimes</b>. Nothing here is a trade idea.
             </p>
             <DataTable
+              mobileCards={{ titleIndexes: [0, 6] }}
               columns={["Stream", "Signals", "Closed", "Net", "PF", "Ex-doubtful", "Ready?"]}
               rows={(shadow ?? []).map(({ strategy, symbol, report: r }) => [
                 <span key="s">

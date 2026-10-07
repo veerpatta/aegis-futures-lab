@@ -1,15 +1,26 @@
-# One-shot historical backfill into bars_5m. MANUAL ONLY — there is no schedule.
+# Databento downloads into bars_5m. MANUAL ONLY — there is no schedule.
 #
 # The Neon database URL stays in a GitHub secret for this server-side job.
 #
-# THIS SPENDS DATABENTO CREDIT. The free tier is $125 and expires six months
-# from signup, so the pull is effectively one-shot. Run `--estimate` first —
-# it calls only the free metadata endpoints and prints both the credit cost and
-# the projected Neon storage, which on a free project is the binding
-# constraint long before the dollars are.
+# Every mode without "quote"/"estimate" in its name SPENDS DATABENTO CREDIT.
+# All paid modes go through the purchase ledger (scripts/engine/databento-purchase.ts):
+# the run is quoted first and refused, before anything is bought, when the
+# quote plus a 25% reserve exceeds the remaining attested credit. Run the
+# matching free mode first and read its number.
 #
-# The estimate and the run share the same --symbols and --window arguments, so
-# the number you read is the number you spend. An estimate built from different
+#   estimate         free. Cost + projected storage for `symbols` over `window`
+#                    (or `from`..`to`).
+#   run              SPENDS. Monthly backfill of `symbols` over `window` (or
+#                    `from`..`to`), plus roll-day fills for every quarterly
+#                    expiry of an equity-index symbol (MES, MNQ, M2K, MYM).
+#   refresh-quote    free. Daily refresh of `roots` from `from` (default
+#                    2026-07-30) to `cutoff`, priced against the ledger.
+#   refresh          SPENDS. The same daily refresh; roll fills on expiry days.
+#   roll-fill-quote  free. Price only the expiry-day fills in `roll_days`.
+#   roll-fill        SPENDS. Buy only those fills.
+#
+# The estimate and the run share the same symbols and window, so the number
+# you read is the number you spend. An estimate built from different
 # parameters is not an estimate.
 #
 # Paper only, delayed data — nothing here touches real money or real orders.
@@ -20,21 +31,46 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "estimate (free, spends nothing) or run (SPENDS CREDIT)"
+        description: "estimate / refresh-quote / roll-fill-quote are free; run / refresh / roll-fill SPEND CREDIT"
         required: true
         type: choice
-        options: [estimate, run]
+        options: [estimate, run, refresh-quote, refresh, roll-fill-quote, roll-fill]
         default: estimate
       window:
-        description: "Window label: overlap-only | 6-month | 1-year | 2-year | 5-year | max"
+        description: "estimate/run window label: overlap-only | 6-month | 1-year | 2-year | 5-year | max (ignored when from/to are set)"
         required: true
         type: string
         default: max
       symbols:
-        description: "Comma-separated vendor symbols, e.g. MGC.c.0,SI.c.0"
+        description: "estimate/run vendor symbols, e.g. MGC.c.0,SI.c.0 or M2K.c.0,MYM.c.0"
         required: true
         type: string
         default: MGC.c.0,SI.c.0
+      from:
+        description: "estimate/run: custom window start YYYY-MM-DD (needs `to`). refresh: first day (blank = 2026-07-30)"
+        required: false
+        type: string
+        default: ""
+      to:
+        description: "estimate/run: custom window end YYYY-MM-DD, exclusive, not in the future"
+        required: false
+        type: string
+        default: ""
+      roots:
+        description: "refresh/roll-fill: quarterly equity-index roots, e.g. MES,MNQ"
+        required: false
+        type: string
+        default: MES,MNQ
+      cutoff:
+        description: "refresh: exclusive end — an ISO time, or last-complete-week"
+        required: false
+        type: string
+        default: last-complete-week
+      roll_days:
+        description: "roll-fill: one expiry date (2026-09-18) or a range A..B (end exclusive)"
+        required: false
+        type: string
+        default: "2026-09-18"
 
 # Read-only on the repo: this job writes to the database, never to the code.
 permissions:
@@ -47,7 +83,7 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -56,22 +92,44 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: Backfill
+      - name: Download
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           MODE: ${{ inputs.mode }}
           WINDOW: ${{ inputs.window }}
           SYMBOLS: ${{ inputs.symbols }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          ROOTS: ${{ inputs.roots }}
+          CUTOFF: ${{ inputs.cutoff }}
+          ROLL_DAYS: ${{ inputs.roll_days }}
         run: |
           set -euo pipefail
           if [ -z "${DATABENTO_API_KEY:-}" ]; then
             echo "DATABENTO_API_KEY secret is not set — add it before running." >&2
             exit 1
           fi
-          if [ "$MODE" = "estimate" ]; then
-            npx tsx scripts/engine/databento-backfill.ts --estimate --symbols "$SYMBOLS"
-          else
-            echo "Spending credit: window=$WINDOW symbols=$SYMBOLS"
-            npx tsx scripts/engine/databento-backfill.ts --run --window "$WINDOW" --symbols "$SYMBOLS"
-          fi
+          range=()
+          if [ -n "$FROM" ] || [ -n "$TO" ]; then range=(--from "$FROM" --to "$TO"); fi
+          refresh_from="${FROM:-2026-07-30}"
+          case "$MODE" in
+            estimate)
+              npx tsx scripts/engine/databento-backfill.ts --estimate --symbols "$SYMBOLS" "${range[@]}" ;;
+            run)
+              if [ ${#range[@]} -gt 0 ]; then WINDOW=custom; fi
+              echo "Spending credit: window=$WINDOW symbols=$SYMBOLS ${range[*]}"
+              npx tsx scripts/engine/databento-backfill.ts --run --window "$WINDOW" --symbols "$SYMBOLS" "${range[@]}" ;;
+            refresh-quote)
+              DATA_CUTOFF="$CUTOFF" npx tsx scripts/engine/refresh-contract-data.ts --quote --symbols "$ROOTS" --from "$refresh_from" ;;
+            refresh)
+              echo "Spending credit: daily refresh roots=$ROOTS from=$refresh_from cutoff=$CUTOFF"
+              DATA_CUTOFF="$CUTOFF" npx tsx scripts/engine/refresh-contract-data.ts --symbols "$ROOTS" --from "$refresh_from" ;;
+            roll-fill-quote)
+              npx tsx scripts/engine/refresh-contract-data.ts --quote --roll-fill "$ROLL_DAYS" --symbols "$ROOTS" ;;
+            roll-fill)
+              echo "Spending credit: roll-day fills $ROLL_DAYS roots=$ROOTS"
+              npx tsx scripts/engine/refresh-contract-data.ts --roll-fill "$ROLL_DAYS" --symbols "$ROOTS" ;;
+            *)
+              echo "Unknown mode $MODE" >&2; exit 1 ;;
+          esac

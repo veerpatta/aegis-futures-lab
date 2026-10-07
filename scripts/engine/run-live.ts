@@ -22,13 +22,14 @@ import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { planStaleOpen, type ComputedOutcome } from "@/lib/engine/stale-open";
 import { componentWarning } from "@/lib/engine/markers";
+import { shouldRunPaperBroker } from "@/lib/engine/broker-gate";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
 import { STALE_MARKER, inEntryWindow } from "@/lib/time/session";
-import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
+import { diffSignalAlerts, escapeHtml, formatAlertMessage, formatTrialMessage } from "./alerts";
 import { loadContextRows, updateContextDaily, vixBucketFor, type ContextRow } from "./context";
 import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
@@ -849,11 +850,28 @@ async function main() {
   } catch (e) {
     warnings.push(componentWarning("research-observer", e));
   }
+  // Skipped in the market's own quiet hours, when old bars are expected and
+  // the broker would otherwise pause a release for good (lib/engine/broker-gate.ts).
+  if (shouldRunPaperBroker(bySymbol, nowSec)) {
+    try {
+      const { runPaperBroker } = await import("./paper-broker");
+      await runPaperBroker(bySymbol, nowSec);
+    } catch (e) {
+      warnings.push(componentWarning("paper-broker", e));
+    }
+  } else console.log("paper broker: skipped — market quiet hours, no fresh bars");
+
+  // The trial account: practice money copying every idea on the Ideas tab
+  // (lib/trial/engine.ts). Its own block, so a failure here never touches the
+  // practice account or the signal feed.
   try {
-    const { runPaperBroker } = await import("./paper-broker");
-    await runPaperBroker(bySymbol, nowSec);
+    const { runTrialBroker } = await import("./trial-broker");
+    const trial = await runTrialBroker(bySymbol, nowSec);
+    console.log(`trial: round ${trial.round}, balance ${trial.equity.toFixed(2)}, ${trial.opened.length} opened, ${trial.closed.length} closed`);
+    const message = formatTrialMessage(trial);
+    if (message) await sendTelegram(message); // never throws
   } catch (e) {
-    warnings.push(componentWarning("paper-broker", e));
+    warnings.push(componentWarning("trial-broker", e));
   }
 
   // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact

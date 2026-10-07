@@ -12,6 +12,7 @@
    which reloads engine state and bumps `revision`; pages that own their own
    queries (Home's signals and zones) re-run them when it changes. */
 
+import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import {
   createContext,
   useCallback,
@@ -121,9 +122,9 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     load(false);
-    const id = setInterval(() => load(false), AUTO_REFRESH_MS);
-    return () => clearInterval(id);
   }, [load]);
+  // Every AUTO_REFRESH_MS while visible, and at once on return to the app.
+  useLiveRefresh(() => load(false), AUTO_REFRESH_MS);
 
   const refresh = useCallback(() => {
     setRevision((r) => r + 1);
@@ -135,11 +136,22 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
      so a Friday-evening-to-Monday-morning silence is the schedule working, not
      a missed check. Reporting it as "has not checked in recently" was the
      single loudest false alarm on the dashboard. */
-  const asleep = !engineScheduled(Math.floor(Date.now() / 1000));
+  /* The clock is read after mount, never during render: pages are pre-built,
+     so a render-time Date.now() made the server say "asleep" while the phone
+     said "checking", and React threw away the whole page (hydration error
+     #418 on every screen). Until mounted, nothing time-based is claimed. */
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const clock = nowMs ?? 0;
+  const asleep = nowMs !== null && !engineScheduled(Math.floor(clock / 1000));
   const overdue =
-    !lastRun || Date.now() - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000;
+    nowMs !== null && (!lastRun || clock - new Date(lastRun.ran_at).getTime() > STALE_AFTER_MIN * 60_000);
   const stale = !asleep && overdue;
-  const delayed = dataDelayed(runs, Math.floor(Date.now() / 1000));
+  const delayed = nowMs !== null && dataDelayed(runs, Math.floor(clock / 1000));
   const failing = useMemo(
     () => (lastRun?.status === "ok" ? failedComponents(lastRun.message) : []),
     [lastRun]
@@ -184,7 +196,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const next = events
-      .filter((e) => new Date(e.time).getTime() > Date.now())
+      .filter((e) => new Date(e.time).getTime() > clock)
       .sort((a, b) => a.time.localeCompare(b.time))[0];
     if (next)
       out.push({
@@ -194,7 +206,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       });
 
     return out;
-  }, [loading, stale, lastRun, delayed, failing, policy, events, zone]);
+  }, [loading, stale, lastRun, delayed, failing, policy, events, zone, clock]);
 
   const value = useMemo<BotHealthValue>(
     () => ({

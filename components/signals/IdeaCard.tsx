@@ -2,7 +2,9 @@
 
 /* One trade idea, readable by someone who has never traded: which way, which
    market, how it was meant to end, how it did end — and, always, whether the
-   method behind it has ever beaten chance. Tapping it opens SignalSheet. */
+   method behind it has ever beaten chance. An open idea shows where the
+   delayed price is now; every idea says what the trial account did with it.
+   Tapping it opens SignalSheet. */
 
 import type { SignalRow } from "@/lib/neon/client";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
@@ -10,7 +12,11 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import { fmtStamp } from "@/lib/time/session";
 import { money } from "@/lib/format";
 import { isStaleOpen } from "@/lib/signals/open-state";
-import { badgeForRow, ideaPlain, marketName, outcomeWords } from "@/lib/plain/idea";
+import { badgeForRow, ideaPlain, marketName, outcomeWords, runningPerContract, runningWords } from "@/lib/plain/idea";
+import { decisionLine } from "@/lib/plain/trial";
+import { useTrial } from "@/components/providers/TrialProvider";
+import { useQuotes } from "@/components/providers/QuoteProvider";
+import { EXECUTION } from "@/scripts/engine/tiers";
 import PriceLadder from "./PriceLadder";
 import styles from "./idea.module.css";
 
@@ -25,12 +31,17 @@ export default function IdeaCard({
 }) {
   const { mask } = usePrivacy();
   const { zone } = useZone();
+  const trial = useTrial();
+  const quotes = useQuotes();
   const plain = ideaPlain(signal);
   const badge = badgeForRow(signal);
   const stale = nowSec !== null && isStaleOpen(signal, nowSec);
   const long = signal.direction === "long";
   const closed = signal.exit_price !== null && signal.pnl_usd !== null;
   const tone = stale ? "dim" : closed ? (signal.pnl_usd! >= 0 ? "good" : "bad") : "info";
+  const livePrice = !closed && !stale ? (quotes[signal.symbol as "MES" | "MNQ"]?.price ?? null) : null;
+  const running = livePrice === null ? null : runningPerContract(signal, livePrice, EXECUTION.cost);
+  const trialLine = decisionLine(trial.decisionFor(signal.dedupe_key), mask, money);
 
   return (
     <button
@@ -54,11 +65,15 @@ export default function IdeaCard({
         stop={signal.stop_price}
         entry={signal.entry_price}
         target={signal.target_price}
-        marker={closed ? signal.exit_price : null}
-        markerLabel="Exited at"
+        marker={closed ? signal.exit_price : livePrice}
+        markerLabel={closed ? "Exited at" : "Latest price"}
       />
 
       <span className={styles.sentence}>{plain.exits}</span>
+      {running !== null && (
+        <span className={`${styles.running} ${running >= 0 ? styles.good : styles.bad}`}>{runningWords(running, mask)}</span>
+      )}
+      {trialLine && <span className={styles.trialLine}>{trialLine}</span>}
 
       <span className={styles.foot}>
         <span className={`${styles.outcome} ${styles[tone]}`}>

@@ -28,6 +28,11 @@ export const GLOSSARY = {
     meaning:
       "The bot's own $10,000 paper account. It only trades once a method has passed every test. Trade ideas are a separate record.",
   },
+  trialAccount: {
+    term: "Trial account",
+    meaning:
+      "A second $10,000 paper account that copies every trade idea before any method has proven itself. It shows the bot's rules at work, not that the ideas are good.",
+  },
   tradeIdea: {
     term: "Trade idea",
     meaning:

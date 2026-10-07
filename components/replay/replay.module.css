@@ -171,6 +171,31 @@
   font: inherit;
   padding: 5px 8px;
   min-width: 0;
+  width: 100%;
+  /* the native time picker and its clock icon follow the dark theme */
+  color-scheme: dark;
+}
+
+/* The short help line under the journal form, and the pre-fill notice. */
+.formNote {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/* Delete asks first: the ✕ turns into "Delete this trade? Yes / No". */
+.deleteCell {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.deleteAsk {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .note {
@@ -438,4 +463,22 @@
   font: inherit;
   font-size: 16px;
   color-scheme: dark;
+}
+
+/* ── Touch sizing (2026-10-05) ─────────────────────────────────────────────
+   16px text stops iOS zooming into a field on focus; 44px is the tap floor. */
+@media (pointer: coarse) {
+  .field input,
+  .field select,
+  .syncEmail input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .deleteCell button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .dayInput {
+    min-height: 44px;
+  }
 }

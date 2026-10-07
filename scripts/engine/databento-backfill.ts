@@ -1,8 +1,15 @@
 /* Databento historical backfill for the bars_5m archive.
    ─────────────────────────────────────────────────────────────────────────
-   THIS FILE CURRENTLY ONLY ESTIMATES. `--estimate` calls Databento's free
-   metadata endpoints and spends nothing; the credit-spending `--run` path
-   lands in the next commit, after a human has seen a real number.
+   `--estimate` calls Databento's free metadata endpoints and spends nothing.
+   `--run` SPENDS CREDIT: it quotes the whole run first and refuses above the
+   remaining credit in the purchase ledger (scripts/engine/databento-purchase.ts),
+   then buys month by month, one ledger row per month, plus the roll-day fills
+   for every quarterly expiry of an equity-index symbol in the window.
+
+   Long history for a new symbol, e.g. the micro Russell and Dow:
+     npx tsx scripts/engine/databento-backfill.ts --estimate --symbols M2K.c.0,MYM.c.0 --from 2019-05-06 --to 2026-10-03
+     npx tsx scripts/engine/databento-backfill.ts --run --window custom --symbols M2K.c.0,MYM.c.0 --from 2019-05-06 --to 2026-10-03
+   (CI only: .github/workflows/databento-backfill.yml.)
 
    Why an estimate step exists at all: the free credit is $125 and expires six
    months from signup, so the historical pull is a one-shot decision. Guessing
@@ -24,7 +31,21 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { FeedSymbol } from "@/lib/market/contracts";
+import {
+  budgetCheck,
+  CREDIT_CAP,
+  ledgerEntry,
+  ledgerUsed,
+  markImported,
+  metadata,
+  purchaseId,
+  quoteCost,
+  RESERVE_FACTOR,
+  reserveBudget,
+  type DataRequest,
+} from "./databento-purchase";
+import { importRollFill } from "./refresh-contract-data";
+import { expiryDaysBetween, isEquityIndexRoot, rollFillPlan, type RollFillPlan } from "@/lib/data/roll-fill";
 import {
   CHUNK_TAIL_SEC,
   DATABENTO_SUNDAY_GAP,
@@ -61,8 +82,16 @@ const STYPE_IN = "continuous";
 
    `.v.0` is the volume rank: whichever contract is actually trading. Its
    download is 273.7 MB against `.c.0`'s 69.8 MB over the same window, which is
-   the same fact stated in bytes. */
-const ALL_SYMBOLS = ["MES.c.0", "MNQ.c.0", "MGC.v.0", "SI.v.0"] as const;
+   the same fact stated in bytes.
+
+   M2K (Micro Russell 2000) and MYM (Micro Dow) list quarterly exactly like
+   MES/MNQ, so they take `.c.0` too — and the same expiry-day gap: `.c.0`
+   follows the expiring contract for the whole UTC date after it stops at the
+   09:30 ET settlement. A `--run` over an equity-index symbol therefore also
+   buys the roll-day fills for every quarterly expiry in its window
+   (lib/data/roll-fill.ts, scripts/engine/refresh-contract-data.ts). Their
+   contract specs live in lib/costs; nothing here needs a point value. */
+const ALL_SYMBOLS = ["MES.c.0", "MNQ.c.0", "M2K.c.0", "MYM.c.0", "MGC.v.0", "SI.v.0"] as const;
 
 /* --symbols MGC.c.0,SI.c.0 restricts the pull.
 
@@ -251,8 +280,10 @@ async function estimate(): Promise<void> {
   const database = new Client({ connectionString: databaseUrl.toString() });
   await database.connect();
   let currentDbBytes: number;
+  let ledgerUsed: number;
   try {
     currentDbBytes = Number((await database.query("SELECT pg_database_size(current_database()) AS bytes")).rows[0].bytes);
+    ledgerUsed = Number((await database.query("SELECT coalesce(sum(reserved_usd),0) AS n FROM private_research.data_purchases")).rows[0].n);
   } finally {
     await database.end();
   }
@@ -260,7 +291,11 @@ async function estimate(): Promise<void> {
     `Databento cost estimate — ${DATASET} ${SCHEMA}, stype_in=${STYPE_IN}, ` +
       `symbols ${SYMBOLS.join(" + ")}`
   );
-  console.log(`Free credit for framing: ${fmtUsd(FREE_CREDIT_USD)}\n`);
+  console.log(`Free credit for framing: ${fmtUsd(FREE_CREDIT_USD)}`);
+  console.log(
+    `Purchase ledger (what --run is held to): ${fmtUsd(ledgerUsed)} reserved of the ${fmtUsd(CREDIT_CAP)} attested credit, ` +
+      `${fmtUsd(CREDIT_CAP - ledgerUsed)} left; a window needs cost x ${RESERVE_FACTOR} of that.\n`
+  );
   console.log("These calls are metadata only. Nothing below spends credit.\n");
 
   const rows: { label: string; cost: number | null; bytes: number | null; note: string }[] = [];
@@ -287,8 +322,14 @@ async function estimate(): Promise<void> {
         `dl ${(bytes === null ? "—" : fmtBytes(bytes)).padEnd(9)} ` +
         `store ~${fmtBytes(store.bytes).padEnd(8)} ` +
         `db→${fmtBytes(dbAfter)} of ${fmtBytes(NEON_FREE_TIER_BYTES)}` +
-        `${dbAfter > NEON_FREE_TIER_BYTES ? "  ⚠ OVER FREE TIER" : ""}`
+        `${dbAfter > NEON_FREE_TIER_BYTES ? "  ⚠ OVER FREE TIER" : ""}` +
+        `${cost !== null && !budgetCheck([cost], ledgerUsed).fits ? "  ⚠ OVER LEDGER CREDIT" : ""}`
     );
+    const fills = rollFillPlans(w.start, w.end);
+    if (fills.length)
+      note +=
+        `\n${"".padEnd(14)} + up to ${fills.length} roll-day fill(s) (${fills.map((p) => p.contract).slice(0, 4).join(", ")}${fills.length > 4 ? ", …" : ""}),` +
+        ` each 6 hours of one contract, quoted and bought at run time only where the continuous series has a gap`;
     console.log(`${"".padEnd(14)} ${note}\n`);
   }
 
@@ -342,9 +383,14 @@ async function estimate(): Promise<void> {
 
 const UPSERT_CHUNK = 1000; // matches archiveNewBars in run-live.ts
 
-const FEED_SYMBOL: Record<string, FeedSymbol> = {
+/* bars_5m.symbol for each vendor symbol. Plain strings rather than FeedSymbol:
+   the archive may hold a series before the app can chart or trade it (M2K and
+   MYM land here first; lib/market/contracts.ts decides when they are fetchable). */
+const FEED_SYMBOL: Record<string, string> = {
   "MES.c.0": "MES",
   "MNQ.c.0": "MNQ",
+  "M2K.c.0": "M2K",
+  "MYM.c.0": "MYM",
   "MGC.v.0": "MGC",
   /* Full-size silver, not micro. It is a CONFIRMATION series — never traded,
      only read for its zone structure — and specs.ts role-locks SIL against
@@ -355,14 +401,16 @@ const FEED_SYMBOL: Record<string, FeedSymbol> = {
 
 const isoZ = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-async function fetchOhlcv1mCsv(
-  key: string,
-  symbol: string,
-  from: Date,
-  to: Date
-): Promise<string> {
+/** One chunk's request. The SAME object is quoted, reserved in the purchase
+    ledger and downloaded, so the number reserved is the number spent — and an
+    interrupted run can tell from the ledger which chunks it already paid for. */
+function chunkRequest(symbol: string, from: Date, to: Date): DataRequest {
+  return rangeParams(isoZ(from), isoZ(new Date(to.getTime() + CHUNK_TAIL_SEC * 1000)), [symbol]);
+}
+
+async function fetchOhlcv1mCsv(key: string, request: DataRequest): Promise<string> {
   const params = new URLSearchParams({
-    ...rangeParams(isoZ(from), isoZ(new Date(to.getTime() + CHUNK_TAIL_SEC * 1000)), [symbol]),
+    ...request,
     encoding: "csv",
     // Ask for decimal prices explicitly, and tell the parser so — the two must
     // agree or assertPlausible fires (which is the point).
@@ -381,9 +429,20 @@ async function fetchOhlcv1mCsv(
   const text = await res.text();
   if (!res.ok)
     throw new Error(
-      `timeseries.get_range ${symbol} ${isoZ(from)} -> HTTP ${res.status}: ${text.slice(0, 300)}`
+      `timeseries.get_range ${request.symbols} ${request.start} -> HTTP ${res.status}: ${text.slice(0, 300)}`
     );
   return text;
+}
+
+/** The roll-day fills a window over the selected symbols needs: every
+    quarterly expiry in [start, end) for each equity-index symbol (metals are
+    volume-rolled `.v.0` and have no such gap). */
+function rollFillPlans(start: string, end: string): RollFillPlan[] {
+  const endMs = Date.parse(`${end}T00:00:00Z`);
+  return SYMBOLS.map((s) => FEED_SYMBOL[s])
+    .filter((feed): feed is string => !!feed && isEquityIndexRoot(feed))
+    .flatMap((root) => expiryDaysBetween(start, end).map((day) => rollFillPlan(root, day)!))
+    .filter((p) => Date.parse(p.request.end) <= endMs);
 }
 
 /** UTC date keys ('YYYY-MM-DD') that have no bars at all in this slice. */
@@ -397,27 +456,30 @@ function emptyDayKeys(bars: { time: number }[], from: Date, to: Date): string[] 
   return out;
 }
 
+/* BUDGET. Every chunk goes through the same purchase ledger as the daily
+   refresh (scripts/engine/databento-purchase.ts): the whole run is quoted
+   first, for free, and refused — before a byte is bought — if the quotes plus
+   the 25% reserve would pass the remaining attested credit. Each chunk is then
+   reserved in the ledger before its download and marked imported after, so an
+   interrupted run never pays twice for a month it already stored, and a chunk
+   whose download outcome is unknown stops the next run until a person
+   reconciles it (the same rule purchase() applies).
+
+   This replaces the 2026-09-25 requirement of a DATABENTO_VERIFIED_CREDIT_USD
+   checked within the hour, which nothing in CI could supply. When that
+   variable IS set, it still applies as an extra ceiling. */
 async function run(windowLabel: string): Promise<void> {
   const w = WINDOWS.find((x) => x.label === windowLabel);
   if (!w) throw new Error(`Unknown window "${windowLabel}". Known: ${WINDOWS.map((x) => x.label).join(", ")}`);
 
   const key = loadApiKey();
-  loadSecret("DATABASE_URL", "<Neon pooled database URL>");
-  const credit = Number(process.env.DATABENTO_VERIFIED_CREDIT_USD);
-  const verified = Date.parse(process.env.DATABENTO_CREDIT_VERIFIED_AT ?? "");
-  if (!Number.isFinite(credit) || credit <= 0 || !Number.isFinite(verified) || Date.now() - verified > 3600000 || verified > Date.now())
-    throw new Error("Existing-credit-only: a current verified credit balance is required. No paid download started.");
-  const range = await postForm("metadata.get_dataset_range", key, { dataset: DATASET });
+  // The ledger helpers read both from the environment.
+  process.env.DATABENTO_API_KEY ??= key;
+  process.env.DATABASE_URL ??= loadSecret("DATABASE_URL", "<Neon pooled database URL>");
+  const range = await metadata("metadata.get_dataset_range", { dataset: DATASET });
   const availableEnd = range.schemas?.[SCHEMA]?.end ?? range.end;
   if (!availableEnd || Date.parse(w.end) > Date.parse(availableEnd)) throw new Error("Requested data is not yet available for this schema");
-  const priced = await postForm("metadata.get_cost", key, { ...rangeParams(w.start, w.end, SYMBOLS), mode: "historical-streaming" });
-  const cost = typeof priced === "number" ? priced : Number(priced?.cost ?? priced);
-  if (!Number.isFinite(cost) || cost < 0 || cost * 1.25 > credit) throw new Error("Estimated cost plus 25% reserve exceeds verified existing credit");
-  const { transaction } = await import("@/lib/neon/server");
-  const size = await transaction(c => c.query("SELECT pg_database_size(current_database()) AS bytes"));
-  if (Number(size.rows[0].bytes) + projectStorage(w.start, w.end, SYMBOLS.length).bytes > NEON_FREE_TIER_BYTES)
-    throw new Error("Import would exceed the existing storage budget; no download started");
-  const { createClient } = await import("@/lib/neon/server");
+  const { createClient, transaction } = await import("@/lib/neon/server");
   const supabase = createClient();
 
   // Fail before spending anything if the schema is not ready. Without the
@@ -439,10 +501,9 @@ async function run(windowLabel: string): Promise<void> {
   const months = monthBoundaries(w.start, w.end);
   // Cheap, and it is the assumption the whole seam design rests on.
   assertAligned(months);
-  const knownSundayGaps: string[] = [];
-  const unexpectedGaps: string[] = [];
-  let totalRows = 0;
 
+  /* ── Plan: the chunks still to buy ─────────────────────────────────────── */
+  const chunks: { vendorSymbol: string; feed: string; from: Date; to: Date; request: DataRequest; id: string }[] = [];
   for (const vendorSymbol of SYMBOLS) {
     const feed = FEED_SYMBOL[vendorSymbol];
     if (!feed) throw new Error(`No feed symbol mapped for ${vendorSymbol}`);
@@ -499,48 +560,103 @@ async function run(windowLabel: string): Promise<void> {
       // Skip whole months already stored. `to` rather than `from` so a month
       // that was only partially written is re-fetched and completed.
       if (resumeFrom !== null && to.getTime() / 1000 <= resumeFrom) continue;
-
-      const csv = await fetchOhlcv1mCsv(key, vendorSymbol, from, to);
-      const bars = bars5mFromOhlcv1mCsv(csv, { rawPrices: false }, vendorSymbol);
-
-      // Trim the overlap tail: bars at or past `to` belong to the next chunk,
-      // which will fetch them with their full complement of minutes.
-      const inChunk = bars.filter((b) => b.time < to.getTime() / 1000);
-
-      for (const day of emptyDayKeys(inChunk, from, to)) {
-        const daySec = Date.parse(`${day}T12:00:00Z`) / 1000;
-        // Saturday has no session at all, so it is not a gap and never gets
-        // listed. Sunday IS a session (the Globex reopen) that Databento's
-        // continuous feed is known to omit, so it is counted and reported.
-        if (isUtcSaturday(daySec)) continue;
-        if (isUtcSunday(daySec)) knownSundayGaps.push(`${feed} ${day}`);
-        else unexpectedGaps.push(`${feed} ${day}`);
-      }
-
-      for (let i = 0; i < inChunk.length; i += UPSERT_CHUNK) {
-        const rows = inChunk.slice(i, i + UPSERT_CHUNK).map((b) => ({
-          symbol: feed,
-          source: "databento",
-          time: b.time,
-          open: b.open,
-          high: b.high,
-          low: b.low,
-          close: b.close,
-          volume: b.volume ?? 0,
-        }));
-        const { error } = await supabase
-          .from("bars_5m")
-          .upsert(rows, { onConflict: "symbol,source,time" });
-        if (error) throw new Error(`bars_5m upsert ${feed} ${isoZ(from)}: ${error.message}`);
-      }
-      totalRows += inChunk.length;
-      console.log(
-        `${feed} ${isoZ(from).slice(0, 7)}: ${inChunk.length} 5m bars (running total ${totalRows})`
-      );
+      const request = chunkRequest(vendorSymbol, from, to);
+      const id = purchaseId(request);
+      const prior = await ledgerEntry(id);
+      if (prior?.status === "imported") continue; // paid for and stored by an earlier run
+      if (prior)
+        throw new Error(
+          `${feed} ${isoZ(from).slice(0, 7)}: an earlier purchase (${id}) has an uncertain result (status ${prior.status}). ` +
+            "Reconcile it against Databento's usage page before re-running. Nothing was bought."
+        );
+      chunks.push({ vendorSymbol, feed, from, to, request, id });
     }
   }
 
+  /* ── Quote everything first (free); refuse above the remaining credit ── */
+  const fills: RollFillPlan[] = [];
+  const fillQuotes: number[] = [];
+  for (const p of rollFillPlans(w.start, w.end)) {
+    const prior = await ledgerEntry(purchaseId(p.request));
+    if (prior?.status === "imported") continue;
+    fills.push(p);
+    if (!prior) fillQuotes.push(await quoteCost(p.request));
+  }
+  const quotes = new Map<string, number>();
+  for (const c of chunks) quotes.set(c.id, await quoteCost(c.request));
+  const budget = budgetCheck([...quotes.values(), ...fillQuotes], await ledgerUsed());
+  console.log(
+    `Quote: ${chunks.length} monthly chunk(s) ${fmtUsd([...quotes.values()].reduce((a, b) => a + b, 0))}` +
+      ` + ${fillQuotes.length} roll-day fill(s) ${fmtUsd(fillQuotes.reduce((a, b) => a + b, 0))};` +
+      ` with the ${RESERVE_FACTOR}x reserve ${fmtUsd(budget.reserve)} of ${fmtUsd(budget.remaining)} remaining (cap ${fmtUsd(budget.cap)}).`
+  );
+  if (!budget.fits)
+    throw new Error("REFUSED: this run's quote plus the 25% reserve exceeds the remaining attested credit. Nothing was bought.");
+  const verifiedCredit = Number(process.env.DATABENTO_VERIFIED_CREDIT_USD);
+  if (process.env.DATABENTO_VERIFIED_CREDIT_USD && (!Number.isFinite(verifiedCredit) || budget.reserve > verifiedCredit))
+    throw new Error("REFUSED: quote plus 25% reserve exceeds DATABENTO_VERIFIED_CREDIT_USD. Nothing was bought.");
+  const size = await transaction((c) => c.query("SELECT pg_database_size(current_database()) AS bytes"));
+  const projected = chunks.reduce((n, c) => n + projectStorage(isoZ(c.from), isoZ(c.to), 1).bytes, 0);
+  if (Number(size.rows[0].bytes) + projected > NEON_FREE_TIER_BYTES)
+    throw new Error(
+      `Import would exceed the existing storage budget (${fmtBytes(Number(size.rows[0].bytes))} now + ~${fmtBytes(projected)} projected > ` +
+        `${fmtBytes(NEON_FREE_TIER_BYTES)}); no download started. Run fewer symbols or a shorter window.`
+    );
+
+  /* ── Buy and store, one ledger row per chunk ─────────────────────────── */
+  const knownSundayGaps: string[] = [];
+  const unexpectedGaps: string[] = [];
+  let totalRows = 0;
+  for (const { vendorSymbol, feed, from, to, request, id } of chunks) {
+    await reserveBudget(request, quotes.get(id)!, projectStorage(isoZ(from), isoZ(to), 1).bytes);
+    const csv = await fetchOhlcv1mCsv(key, request);
+    const bars = bars5mFromOhlcv1mCsv(csv, { rawPrices: false }, vendorSymbol);
+
+    // Trim the overlap tail: bars at or past `to` belong to the next chunk,
+    // which will fetch them with their full complement of minutes.
+    const inChunk = bars.filter((b) => b.time < to.getTime() / 1000);
+
+    for (const day of emptyDayKeys(inChunk, from, to)) {
+      const daySec = Date.parse(`${day}T12:00:00Z`) / 1000;
+      // Saturday has no session at all, so it is not a gap and never gets
+      // listed. Sunday IS a session (the Globex reopen) that Databento's
+      // continuous feed is known to omit, so it is counted and reported.
+      if (isUtcSaturday(daySec)) continue;
+      if (isUtcSunday(daySec)) knownSundayGaps.push(`${feed} ${day}`);
+      else unexpectedGaps.push(`${feed} ${day}`);
+    }
+
+    for (let i = 0; i < inChunk.length; i += UPSERT_CHUNK) {
+      const rows = inChunk.slice(i, i + UPSERT_CHUNK).map((b) => ({
+        symbol: feed,
+        source: "databento",
+        time: b.time,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume ?? 0,
+      }));
+      const { error } = await supabase
+        .from("bars_5m")
+        .upsert(rows, { onConflict: "symbol,source,time" });
+      if (error) throw new Error(`bars_5m upsert ${feed} ${isoZ(from)}: ${error.message}`);
+    }
+    await markImported(id, { kind: "monthly-backfill", feed, bars: inChunk.length, first: inChunk[0]?.time, last: inChunk.at(-1)?.time });
+    totalRows += inChunk.length;
+    console.log(
+      `${feed} ${isoZ(from).slice(0, 7)}: ${inChunk.length} 5m bars (running total ${totalRows})`
+    );
+  }
+
   console.log(`\nDone. ${totalRows} rows written as source='databento'.`);
+
+  /* Quarterly expiry days: `.c.0` has no prices after the 09:30 ET settlement.
+     After the months are in, buy the next contract for exactly those bars;
+     each fill is its own ledger row and is printed as a substitution. */
+  const filled = [];
+  for (const p of fills) filled.push(await importRollFill(p.root, p.expiry));
+  if (filled.length) console.log(`\nRoll-day fills: ${JSON.stringify(filled)}`);
 
   /* The known Databento issue is Sunday-shaped, so Sunday gaps are reported
      and moved on from. Anything else is either a CME holiday or a real hole,

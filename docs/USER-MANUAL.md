@@ -91,6 +91,7 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 | **Paper trading** | Practice trades with imaginary money. Every trade in this app is a paper trade. Nothing here touches real money. |
 | **Delayed prices** | Prices here are 10 to 15 minutes old, and trade ideas arrive 5 to 15 minutes after the setup. Never use them as a live order. |
 | **Practice money** | The bot's own $10,000 paper account. It only trades once a method has passed every test. Trade ideas are a separate record. |
+| **Trial account** | A second $10,000 paper account that copies every trade idea before any method has proven itself. It shows the bot's rules at work, not that the ideas are good. |
 | **Trade idea** | A buy or sell setup the bot spotted and then followed to its end on delayed prices. It is a simulated record, not a trade in the practice account. |
 | **MES · S&P micro** | The Micro E-mini S&P 500 future. Each 1-point move is worth $5 per contract. |
 | **MNQ · Nasdaq micro** | The Micro E-mini Nasdaq-100 future. Each 1-point move is worth $2 per contract. |

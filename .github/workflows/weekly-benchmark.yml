@@ -5,7 +5,13 @@
 # It never promotes, never edits strategy standing or tiers, and never tunes:
 # scripts/diag/auto-benchmark.ts explains why. A method is measured once per
 # research-code version, so quiet weeks are normal once every untested method
-# has a result. Paper only, delayed data. Nothing here touches real money.
+# has a result. A trial that was preregistered but never measured (a run that
+# died halfway) is RESUMED by the next run, not skipped and not re-registered.
+# Paper only, delayed data. Nothing here touches real money.
+#
+# Manual runs may measure up to four methods at once (input `count`); each one
+# still gets its own preregistered trial, baseline rows, issue and Telegram
+# message. The schedule always measures one.
 
 name: weekly-benchmark
 
@@ -19,6 +25,12 @@ on:
         description: Matched-random iterations per cell
         required: false
         default: "200"
+      count:
+        description: How many untested methods to measure in this run (1-4). The weekly schedule always measures 1.
+        required: false
+        type: choice
+        options: ["1", "2", "3", "4"]
+        default: "1"
 
 permissions:
   contents: read
@@ -31,13 +43,19 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # One method takes ~30 minutes (2026-10-04: MES alone was 15). Four need
+    # room; a run that is cut off leaves its current trial resumable.
+    timeout-minutes: 300
     env:
       BAR_SOURCE: databento
       DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       GITHUB_TOKEN: ${{ github.token }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Passed through env, not pasted into the script line. Scheduled runs
+      # have no inputs, so these fall back to one method at 200 iterations.
+      ITERATIONS: ${{ inputs.iterations || '200' }}
+      BENCHMARK_COUNT: ${{ inputs.count || '1' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -45,12 +63,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Measure the next untested method
-        run: npx tsx scripts/diag/auto-benchmark.ts --iterations "${{ inputs.iterations || '200' }}"
+      - name: Measure the next untested method(s)
+        run: npx tsx scripts/diag/auto-benchmark.ts --iterations "$ITERATIONS" --count "$BENCHMARK_COUNT"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: auto-benchmark
-          path: artifacts/auto-benchmark.json
+          path: artifacts/auto-benchmark*.json
           if-no-files-found: ignore
           retention-days: 90

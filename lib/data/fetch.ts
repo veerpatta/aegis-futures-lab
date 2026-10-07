@@ -80,6 +80,9 @@ export const fetchArchive = (symbol: FeedSymbol, from?: number, to?: number) =>
   );
 export const fetchMarket = (symbol: FeedSymbol) =>
   getJson<MarketPayload>(`/api/market?symbol=${symbol}`);
+/** Price plus a thinned line (≤120 points) — for screens that only show a quote. */
+export const fetchQuote = (symbol: FeedSymbol) =>
+  getJson<MarketPayload>(`/api/market?symbol=${symbol}&view=quote`);
 export const fetchEvents = () => getJson<EventsPayload>("/api/events");
 
 export function eventTimesSec(events: CalendarEvent[]): number[] {

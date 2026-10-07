@@ -105,7 +105,26 @@ export function outcomeWords(status: string, stale: boolean): string {
       return "Open now";
     case "pending":
       return "Waiting for its entry price";
+    case "cancelled":
+      return "Cancelled before it started";
     default:
       return status;
   }
+}
+
+/** Running result of an open idea at the latest delayed price, per contract,
+    after the round-trip commission — the same footing as a closed idea's result. */
+export function runningPerContract(
+  row: Pick<SignalRow, "symbol" | "direction" | "entry_price">,
+  price: number,
+  costPerContract: number,
+): number | null {
+  const pv = POINT_VALUES[row.symbol as FeedSymbol];
+  if (pv === undefined || !Number.isFinite(price)) return null;
+  return (price - row.entry_price) * (row.direction === "long" ? 1 : -1) * pv - costPerContract;
+}
+
+/** "Up $42 so far per contract, after costs" / "Down $18 …". */
+export function runningWords(perContract: number, mask: (s: string) => string = (s) => s): string {
+  return `${perContract >= 0 ? "Up" : "Down"} ${mask(usd(Math.abs(perContract)))} so far per contract, after costs`;
 }

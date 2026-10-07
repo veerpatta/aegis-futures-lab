@@ -24,7 +24,10 @@ const asOf = process.argv.includes("--as-of") ? process.argv[process.argv.indexO
 if (confirmation && (!Number.isFinite(Date.parse(asOf)) || Date.parse(asOf) > Date.now() || Date.parse(asOf) <= Date.parse("2026-07-30"))) throw new Error("Confirmation requires a valid --as-of cutoff");
 const end = Date.parse(confirmation ? asOf : "2026-07-30T00:00:00Z") / 1000;
 const confirmationFrom = "2026-07-30T00:00:00Z";
-const decisionRule = "Frozen rules; all existing promotion gates, stressed drawdown below $1000, untouched confirmation data and 60 forward closes over 20 trading days, two weekly passes with 10 new closes. No parameter tuning.";
+// The drawdown limit is the one releaseEligible() enforces (PAPER_RISK.maxDrawdown,
+// $2,000 since 2026-10-03), not a copy of it: the old literal "$1000" outlived the
+// risk-cap change. Already-registered trials keep their own write-once text.
+const decisionRule = `Frozen rules; all existing promotion gates, stressed drawdown below $${PAPER_RISK.maxDrawdown.toLocaleString("en-US")}, untouched confirmation data and 60 forward closes over 20 trading days, two weekly passes with 10 new closes. No parameter tuning.`;
 async function main() {
   const specs = ALL_RESEARCH_IDS.flatMap(id => (["MES", "MNQ"] as const).map(symbol => ({ id, symbol, key: candidateKey(id, symbol) })));
   await transaction(async c => {

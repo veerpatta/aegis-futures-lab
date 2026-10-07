@@ -27,6 +27,16 @@
  *   code hash, so a method is not re-measured weekly on the same code. Every
  *   trial counts toward the multiple-testing total later research must clear,
  *   which is correct and is the reason re-runs are not free.
+ * - Resumable, not repeatable: a run that dies after preregistering leaves
+ *   the trial registered/running with NO outcome. The next run finishes that
+ *   same row (lib/research/auto-benchmark.ts planBenchmarks) instead of
+ *   skipping the method forever or registering a second trial for it. A
+ *   trial with an outcome, or one marked abandoned, is never picked again.
+ * - Database reads and the idempotent writes retry transient connection
+ *   errors (2s/4s/8s backoff, lib/research/retry.ts). Measuring blocks the
+ *   event loop for minutes, long enough for Neon to drop the idle connection
+ *   the next read is handed — that is how the first run (2026-10-04) died.
+ *   If it still fails, the trial stays resumable and the run exits non-zero.
  * - Same machinery and cost model as Phase 1 and the gold benchmark
  *   (runGrossNet, runNullDistribution, verdictFor; LEGACY_MODEL), so its
  *   percentiles are comparable with the existing baselines.
@@ -34,7 +44,10 @@
  *
  * Run: BAR_SOURCE=databento DATABASE_URL=… npx tsx scripts/diag/auto-benchmark.ts
  *   --iterations 200   matched-random iterations per cell (default 200)
- *   --dry-run          choose and describe the method, measure nothing, write nothing
+ *   --count 1          methods to measure this run, 1-4 (default 1, or BENCHMARK_COUNT).
+ *                      Each one still gets its own preregistered trial, baseline
+ *                      rows, issue and Telegram message.
+ *   --dry-run          choose and describe the methods, measure nothing, write nothing
  */
 
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -58,13 +71,22 @@ import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL } from "@/scripts/engi
 import { stableHash } from "@/scripts/engine/learning-audit";
 import { researchCodeHash } from "@/scripts/engine/research-code";
 import { sendTelegram } from "@/scripts/engine/notify";
-import { autoBenchmarkOutcome, type CellResult } from "@/lib/research/auto-benchmark";
+import {
+  autoBenchmarkOutcome,
+  parseBenchmarkCount,
+  planBenchmarks,
+  type BenchmarkPick,
+  type CellResult,
+  type TrialState,
+} from "@/lib/research/auto-benchmark";
+import { withRetry } from "@/lib/research/retry";
 
 const arg = (flag: string, fallback: string): string => {
   const i = process.argv.indexOf(flag);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
 const ITERATIONS = Number(arg("--iterations", "200"));
+const COUNT = parseBenchmarkCount(arg("--count", process.env.BENCHMARK_COUNT ?? "1"));
 const DRY_RUN = process.argv.includes("--dry-run");
 const BAR_SOURCE = parseBarSource(process.env.BAR_SOURCE);
 const SYMBOLS: FeedSymbol[] = ["MES", "MNQ"];
@@ -108,22 +130,57 @@ function configHashFor(strategy: Strategy<unknown>): string {
   });
 }
 
-async function pickStrategy(): Promise<Strategy<unknown> | null> {
+/* Reads go through the query-chain client (pool.query), which handles a
+   connection that dies mid-query and discards it. `transaction()` checks a
+   client out without an error listener, so it must never be the FIRST
+   database call after minutes of synchronous measuring: a connection Neon
+   dropped meanwhile would surface as an uncaught 'error' event instead of a
+   catchable failure. `reconnect()` runs first and flushes it. */
+async function readTrials(hashes: string[]): Promise<TrialState[]> {
+  return withRetry("research_trials read", async () => {
+    const { data, error } = await supabase
+      .from("research_trials")
+      .select("config_hash, trial_key, status, outcome")
+      .in("config_hash", hashes);
+    if (error) throw new Error(`research_trials read: ${error.message}`);
+    return ((data ?? []) as { config_hash: string; trial_key: string; status: string; outcome: unknown }[]).map((r) => ({
+      configHash: r.config_hash,
+      trialKey: r.trial_key,
+      status: r.status,
+      hasOutcome: r.outcome !== null && r.outcome !== undefined,
+    }));
+  });
+}
+
+async function reconnect(): Promise<void> {
+  await withRetry("database reconnect", async () => {
+    const { error } = await supabase.from("research_trials").select("id").limit(1);
+    if (error) throw new Error(`database reconnect: ${error.message}`);
+  });
+}
+
+async function pickStrategies(count: number): Promise<BenchmarkPick<Strategy<unknown>>[]> {
   const eligible = STRATEGIES.filter(
     (s) => isUnmeasured(s.id) && !OWN_PIPELINE.has(s.id) && feedsFor(s).every((f) => SYMBOLS.includes(f))
   );
-  for (const s of eligible) {
-    const { rows } = await transaction((c) =>
-      c.query("SELECT 1 FROM research_trials WHERE config_hash=$1 LIMIT 1", [configHashFor(s)])
-    );
-    if (!rows.length) return s;
-  }
-  return null;
+  if (!eligible.length) return [];
+  const trials = await readTrials(eligible.map(configHashFor));
+  return planBenchmarks(eligible, configHashFor, trials, count);
 }
 
+/* Loaded once per run and shared by every method measured in it: the archive
+   is the same for all of them, and each full read is ~500,000 rows. */
+const barCache = new Map<FeedSymbol, Bar[]>();
 async function archiveBars(symbol: FeedSymbol): Promise<Bar[]> {
-  const raw = await fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE });
-  return alignArchiveSlice(assertArchivePresent(raw, { symbol, source: BAR_SOURCE, minBars: 100_000 }));
+  const cached = barCache.get(symbol);
+  if (cached) return cached;
+  // The whole read restarts on a transient error: a half-read archive must
+  // never be measured, and fetchArchiveBars already throws rather than
+  // returning a short series.
+  const raw = await withRetry(`bars_5m read for ${symbol}`, () => fetchArchiveBars(supabase, { symbol, source: BAR_SOURCE }));
+  const bars = alignArchiveSlice(assertArchivePresent(raw, { symbol, source: BAR_SOURCE, minBars: 100_000 }));
+  barCache.set(symbol, bars);
+  return bars;
 }
 
 function sliceByYear(bars: Bar[]): Map<string, Bar[]> {
@@ -151,47 +208,86 @@ async function openIssue(title: string, body: string): Promise<void> {
   }
 }
 
-async function main() {
-  const strategy = await pickStrategy();
-  if (!strategy) {
-    console.log("Every untested method has already been measured on this code. Nothing to do.");
-    return;
-  }
-  const params = defaultParams(strategy);
-  const configHash = configHashFor(strategy);
-  const day = new Date().toISOString().slice(0, 10);
-  const trialKey = `auto-benchmark.${day}:${strategy.id}`;
-  const hypothesis = `${strategy.name} (${strategy.id}) entries carry information beyond matched random entries on MES and MNQ.`;
-  const prediction =
-    "If the entries carry information, the real book's average R sits at or above the 95th percentile of matched random entries in the all-years cell of each market.";
-  const decisionRule =
-    "beats-random only if every judged all-years cell (n >= 30) is at or above the 95th percentile AND at least half of the judged symbol-years are too; " +
-    "no-edge if any judged all-years cell is below the 95th percentile; insufficient-sample if no all-years cell has 30 trades. " +
-    "A screen, not the promotion gate: gate.promote is always false.";
+const HYPOTHESIS = (strategy: Strategy<unknown>) =>
+  `${strategy.name} (${strategy.id}) entries carry information beyond matched random entries on MES and MNQ.`;
+const PREDICTION =
+  "If the entries carry information, the real book's average R sits at or above the 95th percentile of matched random entries in the all-years cell of each market.";
+const DECISION_RULE =
+  "beats-random only if every judged all-years cell (n >= 30) is at or above the 95th percentile AND at least half of the judged symbol-years are too; " +
+  "no-edge if any judged all-years cell is below the 95th percentile; insufficient-sample if no all-years cell has 30 trades. " +
+  "A screen, not the promotion gate: gate.promote is always false.";
 
-  console.log(`\nAuto-benchmark: ${strategy.name} (${strategy.id}) · source=${BAR_SOURCE} · iterations=${ITERATIONS}\n`);
-  if (DRY_RUN) {
-    console.log({ trialKey, configHash, params, hypothesis, prediction, decisionRule });
-    return;
-  }
+interface Measured {
+  strategyId: string;
+  trialKey: string;
+  configHash: string;
+  resumed: boolean;
+  outcome: ReturnType<typeof autoBenchmarkOutcome>;
+  cells: CellResult[];
+}
 
-  // Preregistration first, committed before anything is measured.
-  await transaction((c) =>
-    c.query(
-      `INSERT INTO research_trials(trial_key,hypothesis,prediction,decision_rule,config_hash,params,dataset,code_sha,status)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'running')`,
-      [
-        trialKey,
-        hypothesis,
-        prediction,
-        decisionRule,
-        configHash,
-        JSON.stringify(params),
-        JSON.stringify({ source: BAR_SOURCE, symbols: SYMBOLS, iterations: ITERATIONS, costModel: LEGACY_MODEL.id }),
-        process.env.GITHUB_SHA ?? null,
-      ]
+/* Preregister, or take over the outcome-less trial a failed run left behind.
+   Returns the trial key to record against, or null when the trial turned out
+   not to be ours to measure (someone recorded or abandoned it meanwhile). */
+async function claimTrial(pick: BenchmarkPick<Strategy<unknown>>, day: string): Promise<{ trialKey: string; resumed: boolean } | null> {
+  const { strategy, configHash } = pick;
+  if (!pick.resume) {
+    const trialKey = `auto-benchmark.${day}:${strategy.id}`;
+    // ON CONFLICT keeps the retry idempotent: if a lost acknowledgement hid a
+    // committed insert, the second attempt inserts nothing and the row is
+    // re-read below instead of being registered twice.
+    const inserted = await withRetry("preregistration", () =>
+      transaction((c) =>
+        c.query(
+          `INSERT INTO research_trials(trial_key,hypothesis,prediction,decision_rule,config_hash,params,dataset,code_sha,status)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,'running') ON CONFLICT (config_hash) DO NOTHING RETURNING trial_key`,
+          [
+            trialKey,
+            HYPOTHESIS(strategy),
+            PREDICTION,
+            DECISION_RULE,
+            configHash,
+            JSON.stringify(defaultParams(strategy)),
+            JSON.stringify({ source: BAR_SOURCE, symbols: SYMBOLS, iterations: ITERATIONS, costModel: LEGACY_MODEL.id }),
+            process.env.GITHUB_SHA ?? null,
+          ]
+        )
+      )
+    );
+    if (inserted.rows.length) return { trialKey, resumed: false };
+    const [existing] = await readTrials([configHash]);
+    if (!existing || existing.hasOutcome || !["registered", "running"].includes(existing.status)) return null;
+    pick = { ...pick, resume: existing };
+  }
+  // Resume: the SAME row. Only status moves here; the research_trials trigger
+  // keeps hypothesis, prediction, decision_rule and config_hash write-once.
+  const resume = pick.resume!;
+  const updated = await withRetry("trial resume", () =>
+    transaction((c) =>
+      c.query(
+        `UPDATE research_trials SET status='running'
+         WHERE config_hash=$1 AND outcome IS NULL AND status IN ('registered','running') RETURNING trial_key`,
+        [configHash]
+      )
     )
   );
+  if (!updated.rows.length) return null;
+  console.log(`  resuming preregistered trial ${resume.trialKey} (status ${resume.status}, no outcome yet) — no new trial is registered`);
+  return { trialKey: String(updated.rows[0].trial_key), resumed: true };
+}
+
+async function measure(pick: BenchmarkPick<Strategy<unknown>>, day: string): Promise<Measured | null> {
+  const { strategy, configHash } = pick;
+  const params = defaultParams(strategy);
+  console.log(`\nAuto-benchmark: ${strategy.name} (${strategy.id}) · source=${BAR_SOURCE} · iterations=${ITERATIONS}\n`);
+
+  // Preregistration first, committed before anything is measured.
+  const claim = await claimTrial(pick, day);
+  if (!claim) {
+    console.log(`  ${strategy.id}: its trial was completed or abandoned by someone else meanwhile — skipped.`);
+    return null;
+  }
+  const { trialKey, resumed } = claim;
 
   const cells: CellResult[] = [];
   const baselines: { symbol: string; gross: unknown; net: unknown; random: unknown; from: string; to: string }[] = [];
@@ -256,41 +352,109 @@ async function main() {
   }
 
   const outcome = autoBenchmarkOutcome(strategy.id, cells);
-  await transaction(async (c) => {
-    await c.query(`UPDATE research_trials SET outcome=$2,status='complete',decided_at=now() WHERE trial_key=$1 AND outcome IS NULL`, [
-      trialKey,
-      JSON.stringify(outcome),
-    ]);
-    for (const b of baselines)
+  // The measurement just held the event loop for minutes; flush any pooled
+  // connection Neon dropped meanwhile before the transaction checks one out.
+  await reconnect();
+  // Idempotent, so safe to retry: the outcome UPDATE only lands while outcome
+  // IS NULL (and the trigger makes it write-once), and the baselines insert is
+  // ON CONFLICT DO NOTHING.
+  await withRetry("outcome write", () =>
+    transaction(async (c) => {
       await c.query(
-        `INSERT INTO research_baselines(baseline_key,config_hash,code_sha,bar_source,symbol,window_from,window_to,gross,net,random_entry,provenance)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (baseline_key, config_hash) DO NOTHING`,
-        [
-          `auto:${strategy.id}:${b.symbol}`,
-          configHash,
-          process.env.GITHUB_SHA ?? null,
-          BAR_SOURCE,
-          b.symbol,
-          b.from,
-          b.to,
-          JSON.stringify(b.gross ?? {}),
-          JSON.stringify(b.net),
-          JSON.stringify(b.random),
-          `Weekly auto-benchmark ${day}: ${ITERATIONS} matched-random iterations per cell, ${LEGACY_MODEL.id} costs. Trial ${trialKey}.`,
-        ]
+        `UPDATE research_trials SET outcome=$2,status='complete',decided_at=now() WHERE config_hash=$1 AND outcome IS NULL`,
+        [configHash, JSON.stringify(outcome)]
       );
-  });
+      for (const b of baselines)
+        await c.query(
+          `INSERT INTO research_baselines(baseline_key,config_hash,code_sha,bar_source,symbol,window_from,window_to,gross,net,random_entry,provenance)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (baseline_key, config_hash) DO NOTHING`,
+          [
+            `auto:${strategy.id}:${b.symbol}`,
+            configHash,
+            process.env.GITHUB_SHA ?? null,
+            BAR_SOURCE,
+            b.symbol,
+            b.from,
+            b.to,
+            JSON.stringify(b.gross ?? {}),
+            JSON.stringify(b.net),
+            JSON.stringify(b.random),
+            `Weekly auto-benchmark ${day}: ${ITERATIONS} matched-random iterations per cell, ${LEGACY_MODEL.id} costs. Trial ${trialKey}` +
+              `${resumed ? " (preregistered by an earlier run that failed before measuring; resumed, not re-registered)" : ""}.`,
+          ]
+        );
+    })
+  );
 
   const summary =
     `${outcome.headline}\n\n` +
     cells.map((c) => `- ${c.cell}: n=${c.n}, ${c.percentile === null ? "—" : `${c.percentile.toFixed(1)}th percentile`}, ${c.verdict}`).join("\n") +
-    `\n\n${outcome.nextStep}\n\nTrial \`${trialKey}\` · config \`${configHash.slice(0, 12)}\` · paper only, delayed data.`;
+    `\n\n${outcome.nextStep}\n\nTrial \`${trialKey}\`${resumed ? " (resumed: preregistered by an earlier run that failed before measuring)" : ""} · config \`${configHash.slice(0, 12)}\` · paper only, delayed data.`;
   console.log(`\n${summary}\n`);
   mkdirSync("artifacts", { recursive: true });
-  writeFileSync("artifacts/auto-benchmark.json", JSON.stringify({ trialKey, configHash, outcome, cells }, null, 2));
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Weekly auto-benchmark\n\n${summary}\n`);
+  writeFileSync(`artifacts/auto-benchmark-${strategy.id}.json`, JSON.stringify({ trialKey, configHash, resumed, outcome, cells }, null, 2));
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Weekly auto-benchmark: ${strategy.name}\n\n${summary}\n\n`);
   await sendTelegram(`🔬 <b>Weekly auto-benchmark</b>: ${outcome.headline}`);
   await openIssue(`Auto-benchmark: ${strategy.name} — ${outcome.verdict}`, summary);
+  return { strategyId: strategy.id, trialKey, configHash, resumed, outcome, cells };
+}
+
+async function main() {
+  const picks = await pickStrategies(COUNT);
+  if (!picks.length) {
+    console.log("Every untested method has already been measured on this code. Nothing to do.");
+    return;
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  console.log(
+    `Measuring ${picks.length} of the ${COUNT} requested: ` +
+      picks.map((p) => `${p.strategy.id}${p.resume ? ` (resume ${p.resume.trialKey})` : ""}`).join(", ")
+  );
+  if (DRY_RUN) {
+    for (const p of picks)
+      console.log({
+        strategy: p.strategy.id,
+        trialKey: p.resume?.trialKey ?? `auto-benchmark.${day}:${p.strategy.id}`,
+        resume: p.resume,
+        configHash: p.configHash,
+        params: defaultParams(p.strategy),
+        hypothesis: HYPOTHESIS(p.strategy),
+        prediction: PREDICTION,
+        decisionRule: DECISION_RULE,
+      });
+    return;
+  }
+
+  const done: Measured[] = [];
+  for (const [i, pick] of picks.entries()) {
+    try {
+      const result = await measure(pick, day);
+      if (result) done.push(result);
+    } catch (error) {
+      // Stop here: the next method would only meet the same broken connection
+      // and register a trial it cannot finish. Nothing is marked complete, so
+      // every unfinished trial is picked up again by the next run.
+      const notTried = picks.slice(i + 1).map((p) => p.strategy.id);
+      const message =
+        `Auto-benchmark of ${pick.strategy.id} FAILED: ${error instanceof Error ? error.message : String(error)}\n` +
+        `Its preregistered trial keeps status 'running' with no outcome, so the next run resumes that same trial ` +
+        `(no duplicate is registered and nothing was recorded as a result).` +
+        (notTried.length ? `\nNot attempted this run: ${notTried.join(", ")}.` : "") +
+        (done.length ? `\nCompleted before the failure: ${done.map((d) => d.strategyId).join(", ")}.` : "");
+      if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Weekly auto-benchmark failed\n\n${message}\n`);
+      writeArtifact(done, { strategyId: pick.strategy.id, notTried, message });
+      throw new Error(message, { cause: error });
+    }
+  }
+  writeArtifact(done, null);
+}
+
+function writeArtifact(done: Measured[], failed: { strategyId: string; notTried: string[]; message: string } | null) {
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    "artifacts/auto-benchmark.json",
+    JSON.stringify({ requested: COUNT, results: done.map(({ cells: _cells, ...rest }) => rest), failed }, null, 2)
+  );
 }
 
 main().catch((e) => {

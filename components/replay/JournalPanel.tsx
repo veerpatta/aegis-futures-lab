@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   journalTradesToCsv,
   parseJournalCsv,
@@ -36,6 +37,24 @@ function parseClock(raw: string): number | null {
   if (h > 23 || min > 59) return null;
   return h * 60 + min;
 }
+
+/* "9:5" or "09:35" → "09:35", the only shape <input type="time"> accepts. */
+function padClock(raw: string | null): string | null {
+  if (raw === null) return null;
+  const min = parseClock(raw);
+  if (min === null) return null;
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+
+function positivePrice(raw: string | null): string | null {
+  if (raw === null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? String(n) : null;
+}
+
+/* Stored sides stay LONG/SHORT (CSV, cloud sync and the matcher all read
+   them); the screen says what a trader says. */
+const SIDE_WORD: Record<"LONG" | "SHORT", string> = { LONG: "Buy", SHORT: "Sell" };
 
 function dedupeKey(t: JournalTrade): string {
   return `${t.symbol}|${t.side}|${t.entryTime}|${t.entryPrice}`;
@@ -88,6 +107,41 @@ export default function JournalPanel({
     exitPrice: "",
     notes: "",
   });
+  const [prefilled, setPrefilled] = useState(false);
+  /* The row whose ✕ was tapped — it asks before anything is deleted. */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  /* A trade idea can open the journal pre-filled:
+     ?side=long|short&entry=…&stop=…&sym=MES|MNQ&t=HH:MM (ET), next to the
+     existing ?d=… day. It fills the new-trade form only — nothing is saved
+     until the trader presses Add. The journal has no stop column, so the
+     idea's stop goes into the notes. */
+  const searchParams = useSearchParams();
+  const pSide = searchParams.get("side");
+  const pEntry = searchParams.get("entry");
+  const pStop = searchParams.get("stop");
+  const pSym = searchParams.get("sym");
+  const pTime = searchParams.get("t");
+  useEffect(() => {
+    const sideL = pSide?.toLowerCase();
+    const side: "LONG" | "SHORT" | null = sideL === "long" ? "LONG" : sideL === "short" ? "SHORT" : null;
+    const symU = pSym?.toUpperCase();
+    const symbol: FeedSymbol | null = symU === "MES" || symU === "MNQ" ? symU : null;
+    const entryPrice = positivePrice(pEntry);
+    const stop = positivePrice(pStop);
+    const entryClock = padClock(pTime);
+    if (!side && !symbol && !entryPrice && !stop && !entryClock) return;
+    setForm((f) => ({
+      ...f,
+      ...(side ? { side } : {}),
+      ...(symbol ? { symbol } : {}),
+      ...(entryPrice ? { entryPrice } : {}),
+      // The default exit (10:00) could sit before a pre-filled entry; leave it for the trader.
+      ...(entryClock ? { entryClock, exitClock: "" } : {}),
+      ...(stop ? { notes: `Idea's stop: ${stop}` } : {}),
+    }));
+    setPrefilled(true);
+  }, [pSide, pEntry, pStop, pSym, pTime]);
 
   const commit = (trades: JournalTrade[], deletedId?: string) => {
     const store: JournalStore = { version: 1, trades };
@@ -204,7 +258,8 @@ export default function JournalPanel({
     const qty = Math.floor(Number(form.qty));
     const entryPrice = Number(form.entryPrice);
     const exitPrice = Number(form.exitPrice);
-    if (entryMin === null || exitMin === null) return setError("Times must be HH:MM (ET).");
+    if (entryMin === null || exitMin === null)
+      return setError("Enter both the entry and the exit time, in New York time (ET).");
     if (exitMin < entryMin) return setError("Exit time is before entry time.");
     if (!Number.isFinite(qty) || qty <= 0) return setError("Quantity must be a positive number.");
     if (!Number.isFinite(entryPrice) || !Number.isFinite(exitPrice) || entryPrice <= 0 || exitPrice <= 0)
@@ -223,6 +278,7 @@ export default function JournalPanel({
     };
     commit([...journal.trades, trade].sort((a, b) => a.entryTime - b.entryTime));
     setForm((f) => ({ ...f, entryPrice: "", exitPrice: "", notes: "" }));
+    setPrefilled(false);
   };
 
   const importCsv = async (file: File) => {
@@ -372,14 +428,14 @@ export default function JournalPanel({
             value={form.side}
             onChange={(e) => setForm((f) => ({ ...f, side: e.target.value as "LONG" | "SHORT" }))}
           >
-            <option value="LONG">LONG</option>
-            <option value="SHORT">SHORT</option>
+            <option value="LONG">{SIDE_WORD.LONG}</option>
+            <option value="SHORT">{SIDE_WORD.SHORT}</option>
           </select>
         </label>
         <label className={styles.field}>
           Qty
           <input
-            inputMode="numeric"
+            inputMode="decimal"
             value={form.qty}
             onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
           />
@@ -387,7 +443,8 @@ export default function JournalPanel({
         <label className={styles.field}>
           Entry (ET){istEcho(form.entryClock, zone)}
           <input
-            placeholder="09:35"
+            type="time"
+            step={60}
             value={form.entryClock}
             onChange={(e) => setForm((f) => ({ ...f, entryClock: e.target.value }))}
           />
@@ -403,7 +460,8 @@ export default function JournalPanel({
         <label className={styles.field}>
           Exit (ET){istEcho(form.exitClock, zone)}
           <input
-            placeholder="10:00"
+            type="time"
+            step={60}
             value={form.exitClock}
             onChange={(e) => setForm((f) => ({ ...f, exitClock: e.target.value }))}
           />
@@ -425,19 +483,21 @@ export default function JournalPanel({
           />
         </label>
       </div>
+      {prefilled && (
+        <p className={styles.formNote} role="status">
+          Filled in from a trade idea. Check the numbers, add your exit, then press Add.
+        </p>
+      )}
       <div className={styles.formActions}>
         <Button variant="primary" small onClick={addManual}>
           Add to {selectedDay}
         </Button>
-        <span className={styles.note}>
-          Times are typed as New York (ET) wall clock, matching the chart — that stays
-          true whichever clock the rest of the app is showing. Import accepts the
-          journal schema (entry_time, exit_time, symbol, side, qty, entry, exit[, notes])
-          or a Tradovate/Topstep performance export — MES/MNQ rows are picked out
-          automatically.
-        </span>
       </div>
       {error && <div className={styles.error}>{error}</div>}
+      <p className={styles.formNote}>
+        Times are New York time (ET), to match the chart. Import takes this app&apos;s CSV or a Tradovate or
+        Topstep export; only MES and MNQ rows are kept.
+      </p>
 
       <div style={{ marginTop: "var(--space-3)" }}>
         <DataTable
@@ -449,16 +509,41 @@ export default function JournalPanel({
               `${clockIn(t.entryTime, zone)}–${clockIn(t.exitTime, zone)} ${ZONE_ABBR[zone]}`,
               t.symbol,
               <Badge key="s" tone={t.side === "LONG" ? "green" : "red"}>
-                {t.side}
+                {SIDE_WORD[t.side]}
               </Badge>,
               t.qty,
               `${t.entryPrice.toFixed(2)} → ${t.exitPrice.toFixed(2)}`,
               <span key="p" style={{ color: netPnl >= 0 ? "var(--green)" : "var(--red)" }}>
                 {money(netPnl)}
               </span>,
-              <Button key="x" small variant="ghost" onClick={() => remove(t.id)}>
-                ✕
-              </Button>,
+              <span key="x" className={styles.deleteCell}>
+                {confirmId === t.id ? (
+                  <>
+                    <span className={styles.deleteAsk}>Delete this trade?</span>
+                    <Button
+                      small
+                      onClick={() => {
+                        setConfirmId(null);
+                        remove(t.id);
+                      }}
+                    >
+                      Yes
+                    </Button>
+                    <Button small variant="ghost" onClick={() => setConfirmId(null)}>
+                      No
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    small
+                    variant="ghost"
+                    aria-label={`Delete the ${SIDE_WORD[t.side]} ${t.symbol} trade at ${clockIn(t.entryTime, zone)} ${ZONE_ABBR[zone]}`}
+                    onClick={() => setConfirmId(t.id)}
+                  >
+                    ✕
+                  </Button>
+                )}
+              </span>,
             ];
           })}
           empty={`No journal trades on ${selectedDay} — add one above or import a CSV.`}

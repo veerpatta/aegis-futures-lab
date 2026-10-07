@@ -1,27 +1,31 @@
 "use client";
 
 /* Today — the first screen, answering in this order:
-     1. Is the bot working, and is it trading practice money?   (StatusHero)
-     2. Is the market open, and where are the two markets?       (market strip)
-     3. What is the practice money doing?                        (practice card)
-     4. What are the latest trade ideas, and are they any good?  (idea cards)
-     5. Anything big coming up?                                  (news pause)
+     1. Is the bot working?                                       (StatusHero)
+     2. What is the bot's money doing right now?                  (trial card)
+     3. Is the market open, and where are the two markets?        (market strip)
+     4. Has a method earned the practice account yet?             (practice line)
+     5. What are the latest trade ideas, and are they any good?   (idea cards)
+     6. Anything big coming up?                                   (news pause)
 
-   Two kinds of money stay apart on purpose: "Practice money" is the bot's
-   paper account; trade ideas are a separate simulated record, and every idea
-   card says whether its method has ever beaten chance.
+   Three things stay apart on purpose: trade ideas are a simulated record;
+   the trial account copies every idea with trial money, labelled "Not proven";
+   practice money is the strict account that only trades a method that passed
+   every test. Every idea card still says whether its method beat chance.
 
    Deliberately light: no 60-day price history is downloaded here
-   (e2e/feed-routing.spec.ts holds that line), only two delayed quotes. */
+   (e2e/feed-routing.spec.ts holds that line), only two thinned quotes. */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { SignalRow } from "@/lib/neon/client";
-import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { usePaper } from "@/components/providers/PaperProvider";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useData } from "@/components/providers/DataProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
+import { useQuotes } from "@/components/providers/QuoteProvider";
+import TrialCard from "@/components/trial/TrialCard";
+import UpdatedAgo from "@/components/ui/UpdatedAgo";
 import { marketPhase, fmtStamp } from "@/lib/time/session";
 import { nyMeta } from "@/lib/time/ny";
 import { signalSnapshot } from "@/lib/signals/snapshot";
@@ -47,7 +51,7 @@ export default function TodayClient() {
   const { events } = useData();
   const ledger = useConditionLedger();
   const [sheet, setSheet] = useState<SignalRow | null>(null);
-  const [quotes, setQuotes] = useState<Partial<Record<"MES" | "MNQ", MarketPayload>>>({});
+  const quotes = useQuotes();
   const [showTour, setShowTour] = useState(false);
 
   useEffect(() => {
@@ -65,18 +69,6 @@ export default function TodayClient() {
       /* fine */
     }
   };
-
-  useEffect(() => {
-    const load = () => {
-      for (const symbol of ["MES", "MNQ"] as const)
-        fetchMarket(symbol)
-          .then((q) => setQuotes((prev) => ({ ...prev, [symbol]: q })))
-          .catch(() => undefined);
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, []);
 
   const snapshot = useMemo(
     () => (nowSec === null || feed.loading ? null : signalSnapshot(feed.rows, nowSec)),
@@ -105,9 +97,12 @@ export default function TodayClient() {
       <header className={page.head}>
         <h1 className="pageTitle">Today</h1>
         <p className={page.paperLine}>Practice only · Delayed prices · No real money</p>
+        <UpdatedAgo at={feed.loadedAt} failed={feed.failed} />
       </header>
 
       <StatusHero action={<Link href="/brain" className={page.linkButton}>See what the bot is testing →</Link>} />
+
+      <TrialCard variant="today" />
 
       {showTour && (
         <section className={styles.tour} aria-label="Getting started">
@@ -172,28 +167,17 @@ export default function TodayClient() {
         {accountFailed ? (
           <p className={page.note}>The practice account couldn&apos;t be checked just now.</p>
         ) : (
-          <div className={page.tiles}>
-            <div className={page.tile}>
-              <span>
-                <Term k="equity">Balance</Term>
-              </span>
-              <b>{paper.loading ? "—" : cash(account?.equity)}</b>
-            </div>
-            <div className={page.tile}>
-              <span>Today</span>
-              <b>{account && account.day_key === todayKey ? cash(account.daily_pnl) : "—"}</b>
-            </div>
-            <div className={page.tile}>
-              <span>Open trades</span>
-              <b>{paper.loading ? "—" : openPositions.length}</b>
-            </div>
-          </div>
+          <p className={styles.practiceLine}>
+            <b className="num">{paper.loading ? "—" : cash(account?.equity)}</b>
+            <span>
+              {openPositions.length
+                ? `${openPositions.length} practice trade${openPositions.length === 1 ? "" : "s"} open now${
+                    account && account.day_key === todayKey ? ` · ${cash(account.daily_pnl)} today` : ""
+                  }.`
+                : "Waiting for a method to pass every test — it has not traded yet."}
+            </span>
+          </p>
         )}
-        <p className={page.note}>
-          {openPositions.length
-            ? `${openPositions.length} practice trade${openPositions.length === 1 ? "" : "s"} open now.`
-            : "No practice trade is open. The bot only trades practice money after a method passes every test."}
-        </p>
       </section>
 
       <section className={page.stack} aria-label="Latest trade ideas">
@@ -202,7 +186,7 @@ export default function TodayClient() {
           <Link href="/signals">All ideas →</Link>
         </div>
         <p className={page.note}>
-          A simulated record of what the methods would have done — not practice-account trades.
+          A simulated record of what the methods would have done. Each card says what the trial account did with it.
           {snapshot && ` ${snapshot.today} new today · ${snapshot.open} open now`}
           {snapshot && snapshot.closed > 0 && ` · today's closed ideas ${mask(money(snapshot.net))} (n=${snapshot.closed})`}
         </p>

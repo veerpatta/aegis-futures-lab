@@ -62,8 +62,14 @@
   margin-bottom: 5px;
 }
 
+/* Weekends dropped (no result on them): five wider columns. */
+.weekHead.weekdaysOnly,
+.calendar.weekdaysOnly {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .weekHead span {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -81,21 +87,37 @@
   padding: 4px 5px;
   min-width: 0;
   overflow: hidden;
+  /* day cells are buttons: reset the browser look, keep the square */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.calCell:hover {
+  border-color: var(--text-faint);
+}
+
+.calHint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
 .cellPad {
   border-color: transparent;
   background: transparent;
+  cursor: default;
 }
 
 .calDay {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .calNet {
-  font-size: 10.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   align-self: flex-end;
@@ -244,4 +266,52 @@
   margin: 0;
   font-size: 12.5px;
   color: var(--text-faint);
+}
+
+/* ── One day, in a sheet (2026-10-05) ──────────────────────────────────────
+   What a tap on a calendar square opens: the day's result, how many ideas
+   closed, won and lost, and the win rate with its n. */
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.sheetTitle {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sheetLede {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.sheetRate {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: var(--space-4);
+}
+
+.sheetNote {
+  margin: var(--space-4) 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ── Touch sizing (2026-10-05) ──────────────────────────────────────────── */
+@media (pointer: coarse) {
+  .calCell {
+    min-height: 44px;
+  }
+  .monthPick {
+    min-height: 44px;
+    font-size: 16px;
+  }
 }
