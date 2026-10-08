@@ -49,7 +49,7 @@ for (const width of [360, 390, 430, 1440])
     await stub(page);
 
     await page.goto("/");
-    await expect(page.getByRole("region", { name: "Bot status" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Experimental learner" })).toBeVisible();
     const ideas = page.getByRole("region", { name: "Latest trade ideas" });
     await expect(ideas).toContainText("Method hasn't beaten chance");
     await expect(ideas).toContainText("47.60");
@@ -62,8 +62,8 @@ for (const width of [360, 390, 430, 1440])
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // A tapped word opens its meaning, and Escape closes just that sheet.
-    await page.getByRole("button", { name: /Practice money — what this means/ }).first().click();
-    await expect(page.getByRole("dialog")).toContainText("paper account");
+    await page.getByRole("button", { name: /Experimental learner — what this means/ }).first().click();
+    await expect(page.getByRole("dialog")).toContainText("virtual $10,000 account");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
 

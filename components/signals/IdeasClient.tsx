@@ -62,8 +62,8 @@ export default function IdeasClient() {
       <header className={page.head}>
         <h1 className="pageTitle">Ideas</h1>
         <p className={page.lede}>
-          Buy and sell setups the methods spotted, each followed to its end on delayed prices. A simulated record — not
-          trades in the <Term k="practiceMoney">practice account</Term>.
+          Buy and sell setups the methods spotted, each followed to its end on delayed prices. This research record
+          stays separate from the <Term k="experimentalLearner">virtual account</Term>.
         </p>
         <p className={page.paperLine}>Practice only · Delayed prices · No real money</p>
       </header>

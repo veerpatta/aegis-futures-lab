@@ -45,7 +45,7 @@ export default function MoreClient() {
     <div className={page.page}>
       <header className={page.head}>
         <h1 className="pageTitle">More</h1>
-        <p className={page.lede}>Trade ideas, practice money, your journal, help, settings and the research room.</p>
+        <p className={page.lede}>Trade ideas, method research, your journal, help and settings.</p>
       </header>
 
       {before.map(group)}

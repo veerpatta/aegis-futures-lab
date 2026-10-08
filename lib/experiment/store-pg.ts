@@ -16,6 +16,12 @@ import { Pool, type PoolClient } from "pg";
 import type { Bar } from "@/lib/types";
 import type { SignalRow } from "@/lib/neon/client";
 import { COST_VERSION } from "./policy";
+import { EXP_RISK } from "./policy";
+import { PREREG } from "./prereg";
+import { TAKE_ALL_V1, artifactHash } from "./models";
+import { stableHash } from "./hash";
+import { weekKeyOf } from "./learning";
+import { DELAYED_EXECUTION_VERSION } from "./delayed";
 import type {
   ChangeRecord, DatasetRecord, EvaluationRecord, ExperimentStore, LearnState, LearnTx, PointerRecord, RunStatus, ShadowScoreRecord, TickState, TickTx, VersionRecord,
 } from "./store";
@@ -45,6 +51,8 @@ function expFromRow(r: Row): ExperimentConfig {
     id: String(r.id), lineage: String(r.lineage), campaign: Number(r.campaign), mode: r.mode as ExperimentConfig["mode"],
     status: r.status as ExperimentStatus, capital: Number(r.capital), startedAt: sec(r.started_at)!, seed: Number(r.seed),
     preregVersion: (r.prereg as { version?: string } | null)?.version,
+    executionClock: (r.execution_clock as ExperimentConfig["executionClock"]) ?? "wall_clock",
+    executionVersion: String(r.execution_version ?? "wall-clock-v1"), simulationFrom: sec(r.simulation_from) ?? sec(r.started_at)!,
   };
 }
 
@@ -54,6 +62,7 @@ function accountFromRow(r: Row): Account {
     peak: Number(r.peak), dayKey: String(r.day_key ?? ""), dayStartEquity: Number(r.day_start_equity), dailyPnl: Number(r.daily_pnl),
     openRisk: Number(r.open_risk), dayHalted: !!r.day_halted, lockedAt: sec(r.locked_at), cursor: (r.cursor as Account["cursor"]) ?? {},
     staleSymbols: ((r.stale_symbols as string[]) ?? []) as ExpSymbol[], lastOkTickAt: sec(r.last_ok_tick_at),
+    dataAsOf: sec(r.data_as_of), backlogCount: Number(r.backlog_count ?? 0),
   };
 }
 
@@ -86,6 +95,7 @@ function decisionFromRow(r: Row): Decision {
   return {
     key: String(r.decision_key), opportunityKey: String(r.opportunity_key), signalId: num(r.signal_id), symbol: r.symbol as ExpSymbol, side: r.side as Decision["side"],
     sessionKey: String(r.session_key), seenAt: sec(r.seen_at)!, infoCutoff: sec(r.info_cutoff)!, decidedAt: sec(r.decided_at)!,
+    observedAt: sec(r.observed_at) ?? sec(r.seen_at)!,
     provenance: r.provenance as Decision["provenance"], modelVersionId: String(r.model_version_id), pWin: num(r.p_win), threshold: num(r.threshold),
     action: r.action as Decision["action"], reason: r.reason as Decision["reason"], qty: Number(r.qty), estRisk: num(r.est_risk), refPrice: num(r.ref_price),
     idea: r.idea as Decision["idea"], features: (r.features as Decision["features"]) ?? null, featureVersion: String(r.feature_version), snapshotHash: String(r.snapshot_hash),
@@ -199,6 +209,13 @@ export class PgStore implements ExperimentStore {
             [symbol, fromSec, toSec],
           )).rows.map((r) => ({ time: Number(r.time), open: Number(r.open), high: Number(r.high), low: Number(r.low), close: Number(r.close), volume: Number(r.volume ?? 0) }) as Bar),
         signals: async (sinceSec) => (await c.query("SELECT * FROM signals WHERE signal_ts >= $1 ORDER BY signal_ts, id", [iso(sinceSec)])).rows as SignalRow[],
+        published: async () => {
+          const row = (await c.query("SELECT id,watermarks FROM experiment_source_batches ORDER BY published_at DESC,id DESC LIMIT 1")).rows[0];
+          return row ? { id: String(row.id), watermarks: row.watermarks } : null;
+        },
+        publishedSignals: async (sinceSec) => (await c.query(
+          "SELECT signal_row FROM experiment_source_ideas WHERE signal_ts >= $1 ORDER BY signal_ts,opportunity_key", [iso(sinceSec)]
+        )).rows.map((r) => r.signal_row as SignalRow),
         decided: async (keys) => {
           if (!keys.length) return new Set();
           const r = await c.query("SELECT opportunity_key FROM experiment_decisions WHERE experiment_id=$1 AND opportunity_key = ANY($2)", [experimentId, keys]);
@@ -220,11 +237,12 @@ export class PgStore implements ExperimentStore {
     for (const d of r.decisions) {
       await c.query(
         `INSERT INTO experiment_decisions(decision_key,experiment_id,opportunity_key,signal_id,symbol,side,session_key,seen_at,info_cutoff,decided_at,provenance,
-          model_version_id,p_win,threshold,action,reason,qty,est_risk,ref_price,idea,features,feature_version,snapshot_hash,run_id)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+          model_version_id,p_win,threshold,action,reason,qty,est_risk,ref_price,idea,features,feature_version,snapshot_hash,run_id,observed_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
         [d.key, experimentId, d.opportunityKey, d.signalId, d.symbol, d.side, d.sessionKey, iso(d.seenAt), iso(d.infoCutoff), iso(d.decidedAt), d.provenance,
-          d.modelVersionId, d.pWin, d.threshold, d.action, d.reason, d.qty, d.estRisk, d.refPrice, json(d.idea), json(d.features), d.featureVersion, d.snapshotHash, runId],
+          d.modelVersionId, d.pWin, d.threshold, d.action, d.reason, d.qty, d.estRisk, d.refPrice, json(d.idea), json(d.features), d.featureVersion, d.snapshotHash, runId, iso(d.observedAt ?? d.seenAt)],
       );
+      // observed_at is written on INSERT, without editing append-only decisions.
     }
     const newIds = new Set(r.newPositionIds);
     for (const p of r.positions) {
@@ -251,8 +269,8 @@ export class PgStore implements ExperimentStore {
         );
       } else {
         await c.query(
-          `UPDATE experiment_outcomes SET outcome_status=$2, void_reason=$3, ${SIM_COLS.map((col, i) => `${col}=$${i + 4}`).join(",")}, updated_at=now() WHERE decision_key=$1`,
-          [o.decisionKey, o.status, o.voidReason, ...simValues(o.sim)],
+          `UPDATE experiment_outcomes SET outcome_status=$2, void_reason=$3, standalone_qty=$4, ${SIM_COLS.map((col, i) => `${col}=$${i + 5}`).join(",")}, updated_at=now() WHERE decision_key=$1`,
+          [o.decisionKey, o.status, o.voidReason, o.standaloneQty, ...simValues(o.sim)],
         );
       }
     }
@@ -280,9 +298,10 @@ export class PgStore implements ExperimentStore {
     const a = r.account;
     await c.query(
       `UPDATE experiment_account SET equity=$2, realized=$3, unrealized=$4, unpriced_positions=$5, peak=$6, day_key=$7, day_start_equity=$8, daily_pnl=$9,
-        open_risk=$10, day_halted=$11, locked_at=$12, cursor=$13, stale_symbols=$14, last_ok_tick_at=$15, version=version+1, updated_at=now() WHERE experiment_id=$1`,
+        open_risk=$10, day_halted=$11, locked_at=$12, cursor=$13, stale_symbols=$14, last_ok_tick_at=$15,
+        data_as_of=$16,backlog_count=$17, version=version+1, updated_at=now() WHERE experiment_id=$1`,
       [experimentId, a.equity, a.realized, a.unrealized, a.unpricedPositions, a.peak, a.dayKey, a.dayStartEquity, a.dailyPnl, Math.max(0, a.openRisk),
-        a.dayHalted, iso(a.lockedAt), json(a.cursor), a.staleSymbols, iso(a.lastOkTickAt)],
+        a.dayHalted, iso(a.lockedAt), json(a.cursor), a.staleSymbols, iso(a.lastOkTickAt), iso(a.dataAsOf), a.backlogCount ?? 0],
     );
     if (writeEquity) await insertEquity(c, experimentId, runId, "tick", nowSec, a);
   }
@@ -383,13 +402,48 @@ export class PgStore implements ExperimentStore {
   }
 
   async createExperiment(input: { exp: ExperimentConfig; risk: Record<string, unknown>; prereg: Record<string, unknown>; preregHash: string; v1: VersionRecord; reason: string }) {
+    await this.tx((c) => this.registerExperiment(c, input));
+  }
+
+  /** Atomic, idempotent cutover; refuses to hide any booked result or position. */
+  async upgradeDelayed(lineage = "learner") {
+    return this.tx(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:upgrade:' || $1,0))", [lineage]);
+      const old = (await c.query("SELECT * FROM experiments WHERE lineage=$1 ORDER BY campaign DESC LIMIT 1 FOR UPDATE", [lineage])).rows[0];
+      if (!old) throw new Error("The existing account is required for this migration.");
+      if (old.execution_clock === "delayed_market") return { id: old.id, alreadyUpgraded: true };
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:' || $1,0))", [old.id]);
+      const a = (await c.query("SELECT * FROM experiment_account WHERE experiment_id=$1 FOR UPDATE", [old.id])).rows[0];
+      const live = (await c.query("SELECT count(*)::int n FROM experiment_positions WHERE experiment_id=$1 AND status IN ('pending_fill','open')", [old.id])).rows[0].n;
+      const paper = (await c.query("SELECT (SELECT count(*) FROM paper_positions) + (SELECT count(*) FROM paper_releases) AS n")).rows[0].n;
+      if (!a || Number(a.realized) !== 0 || Number(a.unrealized) !== 0 || Number(a.equity) !== EXP_RISK.capital || live || Number(paper))
+        throw new Error("Cutover requires the verified untouched balance and no practice releases or positions; refusing to reset history.");
+      if (old.status !== "stopped") {
+        const changeId = await insertChange(c, old.id, { kind: "stopped", fromStatus: old.status, toStatus: "stopped", actor: "owner",
+          reason: "Execution repaired: original attempts archived; one account now follows the delayed market clock.", eventKey: `delayed-cutover:${old.id}` });
+        await c.query("UPDATE experiments SET status='stopped',status_reason=$2,last_change_id=$3 WHERE id=$1", [old.id, "Replaced by delayed-market execution; history preserved", changeId]);
+      }
+      const now = Math.floor(Date.now() / 1000), id = `${lineage}-${Number(old.campaign) + 1}`;
+      const exp: ExperimentConfig = { id, lineage, campaign: Number(old.campaign) + 1, mode: "live", status: "active", capital: EXP_RISK.capital,
+        startedAt: now, seed: PREREG.seed, preregVersion: PREREG.version, executionClock: "delayed_market",
+        executionVersion: DELAYED_EXECUTION_VERSION, simulationFrom: sec(old.started_at)! };
+      const v1: VersionRecord = { id: `${id}:v1-take-all`, experimentId: id, kind: "take_all", spec: {}, specHash: stableHash({ kind: "take_all" }),
+        weekKey: weekKeyOf(now), registeredAt: now, datasetId: null, artifact: TAKE_ALL_V1, artifactHash: artifactHash(TAKE_ALL_V1), trainedAt: null,
+        trainCutoff: null, status: "adopted", statusReason: "frozen control; delayed-market simulation" };
+      await this.registerExperiment(c, { exp, v1, risk: { ...EXP_RISK }, prereg: { ...PREREG }, preregHash: stableHash(PREREG),
+        reason: "Owner requested one virtual account and replay from its original October 7 start. Registration time is actual; all results are replay evidence." });
+      return { id, alreadyUpgraded: false, simulationFrom: exp.simulationFrom };
+    });
+  }
+
+  private async registerExperiment(c: PoolClient, input: { exp: ExperimentConfig; risk: Record<string, unknown>; prereg: Record<string, unknown>; preregHash: string; v1: VersionRecord; reason: string }) {
     const { exp, v1 } = input;
-    await this.tx(async (c) => {
       await c.query(
-        `INSERT INTO experiments(id,lineage,campaign,mode,status,capital,risk,prereg,prereg_hash,data_label,seed,started_at)
-         VALUES($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$11)`,
+        `INSERT INTO experiments(id,lineage,campaign,mode,status,capital,risk,prereg,prereg_hash,data_label,seed,started_at,execution_clock,execution_version,simulation_from)
+         VALUES($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [exp.id, exp.lineage, exp.campaign, exp.mode, exp.capital, json(input.risk), json(input.prereg), input.preregHash,
-          exp.mode === "synthetic" ? "synthetic" : "delayed", exp.seed, iso(exp.startedAt)],
+          exp.mode === "synthetic" ? "synthetic" : "delayed", exp.seed, iso(exp.startedAt), exp.executionClock ?? "wall_clock",
+          exp.executionVersion ?? "wall-clock-v1", iso(exp.simulationFrom ?? exp.startedAt)],
       );
       await c.query(
         `INSERT INTO experiment_account(experiment_id,equity,peak,day_start_equity) VALUES($1,$2,$2,$2)`, [exp.id, exp.capital]);
@@ -404,7 +458,6 @@ export class PgStore implements ExperimentStore {
       });
       await c.query(`INSERT INTO experiment_pointer(experiment_id,model_version_id,change_id,updated_at) VALUES($1,$2,$3,$4)`, [exp.id, v1.id, changeId, iso(exp.startedAt)]);
       await c.query("UPDATE experiments SET last_change_id=$2 WHERE id=$1", [exp.id, changeId]);
-    });
   }
 }
 

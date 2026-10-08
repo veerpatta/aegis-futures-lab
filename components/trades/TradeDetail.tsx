@@ -110,8 +110,9 @@ export default function TradeDetail({ id }: { id: string }) {
         <h2 className={page.cardTitle}>What happened</h2>
         {taken ? (
           <dl className={styles.facts}>
-            <dt>Decided</dt>
+            <dt>{row.execution_clock === "delayed_market" ? "Simulated decision" : "Decided"}</dt>
             <dd>{when(row.decided_at)}</dd>
+            {row.observed_at && <><dt>Idea received</dt><dd>{when(row.observed_at)}</dd></>}
             <dt>Filled</dt>
             <dd>{row.fill_ts ? `${px(row.fill_price)} at ${when(row.fill_ts)}` : row.position_status === "cancelled" ? cancelWords(row.cancel_reason) : "Waiting for the next price"}</dd>
             <dt>Exit</dt>

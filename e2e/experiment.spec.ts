@@ -9,11 +9,11 @@ const iso = (minAgo: number) => new Date(now.getTime() - minAgo * 60_000).toISOS
 
 const overview = {
   lineage: "learner",
-  experiment: { id: "learner-1", lineage: "learner", campaign: 1, mode: "live", status: "active", status_reason: null, capital: 10000, started_at: iso(60 * 24 * 3), data_label: "delayed" },
+  experiment: { id: "learner-1", lineage: "learner", campaign: 1, mode: "live", status: "active", status_reason: null, capital: 10000, started_at: iso(60 * 24 * 3), data_label: "delayed", execution_clock: "delayed_market" },
   risk: { capital: 10000, riskPerTrade: 100, totalOpenRisk: 200, dailyLoss: 400, maxDrawdown: 2000 },
   account: {
     equity: 9984.6, realized: -18.2, unrealized: 2.8, unpriced_positions: 0, peak: 10012, day_key: "2026-10-07", day_start_equity: 10000,
-    daily_pnl: -15.4, open_risk: 61.2, day_halted: false, locked_at: null, stale_symbols: [], last_ok_tick_at: iso(6), updated_at: iso(6),
+    daily_pnl: -15.4, open_risk: 61.2, day_halted: false, locked_at: null, stale_symbols: [], last_ok_tick_at: iso(6), updated_at: iso(6), data_as_of: iso(20), backlog_count: 0,
   },
   model: { version_id: "learner-1:v1-take-all", previous_version_id: null, since: iso(60 * 24 * 3), kind: "take_all", spec: {}, status: "adopted" },
   open_positions: [
@@ -49,7 +49,7 @@ const trade = {
   position_id: "learner-1:A:zone-v5:MNQ:7", position_status: "closed", cancel_reason: null, fill_ts: iso(200), fill_price: 20500, entry_slip: 0.25, risk: 44,
   mark: 20508, mark_ts: iso(150), stale: false, exit_ts: iso(150), exit_price: 20508, exit_slip: 0.25, exit_reason: "stop", ambiguous: true, gross: -16, fees: 2.4,
   net: -18.4, shadow_status: "closed", shadow_void_reason: null, shadow_qty: 2, shadow_exit_reason: "stop", shadow_net_per_contract: -18.4, shadow_ambiguous: true,
-  mode: "live", data_label: "delayed", campaign: 1, lineage: "learner",
+  mode: "live", data_label: "delayed", campaign: 1, lineage: "learner", execution_clock: "delayed_market", observed_at: iso(170), recorded_at: iso(6),
 };
 
 const learning = {
@@ -139,8 +139,9 @@ for (const width of [320, 390, 430])
     await expect(card.getByRole("button", { name: /^Learning: Candidate rejected/ })).toBeVisible();
     await expect(card.getByRole("button", { name: /^Data:/ })).toBeVisible();
     await expect(card).toContainText("1 open virtual trade");
-    // Practice money stays its own card.
-    await expect(page.getByRole("region", { name: "Practice money" })).toBeVisible();
+    await expect(card).toContainText("Market data through");
+    await expect(card).toContainText("One virtual account");
+    await expect(page.getByRole("region", { name: "Practice money" })).toHaveCount(0);
     expect(await noSideways(page)).toBe(true);
   });
 
@@ -155,6 +156,8 @@ test("Trades lists bot decisions and a trade shows its evidence", async ({ page 
   await expect(page).toHaveURL(/\/trades\/7$/);
   await expect(page.getByRole("region", { name: "What happened" })).toContainText("Stopped out");
   await expect(page.getByRole("region", { name: "What happened" })).toContainText("touched both the stop and the target");
+  await expect(page.getByText("Simulated decision", { exact: true })).toBeVisible();
+  await expect(page.getByText("Idea received", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Why it entered" })).toContainText("frozen control");
   await expect(page.getByRole("region", { name: "What was learned" })).toContainText("One result is not a pattern");
   expect(await noSideways(page)).toBe(true);
@@ -165,7 +168,7 @@ test("Learn shows the active model, verdicts with failed checks and the change h
   await stub(page);
   await page.goto("/brain");
   await expect(page.getByRole("heading", { name: "Learn", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Bot status" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Experimental learner" })).toContainText("$9,984.60");
   await expect(page.getByRole("region", { name: "Active model" })).toContainText("v1 · take every idea");
   await expect(page.getByRole("region", { name: "Reviews" })).toContainText("Rejected");
   await expect(page.getByRole("region", { name: "Reviews" })).toContainText("Clearly better than the current model");
@@ -186,12 +189,15 @@ test("offline, the learner card says so and keeps the last figures read-only", a
   await context.setOffline(false);
 });
 
-test("More holds Ideas and practice money, and the old URLs still work", async ({ page }) => {
+test("More opens method research without a second account balance", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await stub(page);
   await page.goto("/more");
   await expect(page.getByRole("link", { name: /Ideas/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Practice money/ })).toBeVisible();
+  await page.getByRole("link", { name: /Method research/ }).click();
+  await expect(page.locator("#research")).toHaveAttribute("open", "");
+  await expect(page.getByRole("heading", { name: "Method qualification" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Practice money" })).toHaveCount(0);
   await page.goto("/signals");
   await expect(page.getByRole("navigation", { name: /primary/i }).getByRole("link", { name: "More" })).toHaveClass(/tabActive/);
 });
@@ -203,9 +209,9 @@ for (const width of [320, 390])
     await page.goto("/brain#history");
     const sec = page.getByRole("region", { name: "Historical practice" });
     await expect(sec).toContainText("Historical practice complete through 23 September. This result uses older market data and does not count as fresh trading days.");
-    await expect(sec).toContainText("New candidate is observing future ideas. No validated improvement yet. The current virtual account has not changed.");
+    await expect(sec).toContainText("The older candidate remains saved. Delayed simulations do not supply fresh confirmation. No validated improvement yet.");
     const list = sec.getByRole("region", { name: "Evidence checklist" });
-    for (const item of ["Data ready", "Historical test complete", "Fresh confirmation collecting", "Validated paper improvement"]) await expect(list).toContainText(item);
+    for (const item of ["Data ready", "Historical test complete", "Fresh confirmation waiting", "Validated paper improvement"]) await expect(list).toContainText(item);
     await expect(list).toContainText("0 of 20 fresh trading days, 0 of 60 fresh finished ideas, 0 of 2 passing reviews");
     await expect(sec.getByRole("region", { name: "Older data replayed" })).toContainText("178 of 178");
     await expect(sec.getByRole("region", { name: "Candidate" })).toContainText("Inconclusive");

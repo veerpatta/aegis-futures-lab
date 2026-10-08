@@ -24,7 +24,8 @@ async function main() {
   const now = Math.floor(Date.now() / 1000);
   if (action === "start") {
     if (exp && (exp.status === "active" || exp.status === "paused")) throw new Error(`Campaign ${exp.id} is still ${exp.status}; stop it first.`);
-    const next = await createCampaign(store, { lineage, campaign: (exp?.campaign ?? 0) + 1, mode, startedAt: now, reason });
+    const next = await createCampaign(store, { lineage, campaign: (exp?.campaign ?? 0) + 1, mode, startedAt: now, reason,
+      executionClock: mode === "live" ? "delayed_market" : "wall_clock" });
     console.log(`Preregistered ${next.id} (${mode}).`);
   } else {
     if (!exp) throw new Error(`No experiment in lineage ${lineage}.`);

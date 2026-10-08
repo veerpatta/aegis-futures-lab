@@ -120,6 +120,8 @@ export interface TickTx {
   load(): Promise<TickState>;
   bars(symbol: ExpSymbol, fromSec: number, toSec: number): Promise<Bar[]>;
   signals(sinceSec: number): Promise<SignalRow[]>;
+  published(): Promise<{ id: string; watermarks: Partial<Record<ExpSymbol, number>> } | null>;
+  publishedSignals(sinceSec: number): Promise<SignalRow[]>;
   decided(opportunityKeys: string[]): Promise<Set<string>>;
   persist(runId: number, state: TickState, result: TickResult, nowSec: number, writeEquity: boolean): Promise<void>;
   /** Swap the pointer back and record why (inside the same transaction). */

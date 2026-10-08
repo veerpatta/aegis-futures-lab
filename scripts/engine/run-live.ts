@@ -22,7 +22,6 @@ import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { planStaleOpen, type ComputedOutcome } from "@/lib/engine/stale-open";
 import { componentWarning } from "@/lib/engine/markers";
-import { shouldRunPaperBroker } from "@/lib/engine/broker-gate";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta, tradingDayKey } from "@/lib/time/ny";
@@ -841,7 +840,6 @@ async function main() {
   phaseStart = Date.now();
 
   // New registered strategies collect separately from refuted controls.
-  // Two blocks, not one: an observer failure used to skip the broker silently.
   try {
     const { observeResearch } = await import("./research-observer");
     // Opts in to the 30-minute catch-up (the observer default is the legacy
@@ -850,21 +848,11 @@ async function main() {
   } catch (e) {
     warnings.push(componentWarning("research-observer", e));
   }
-  // Skipped in the market's own quiet hours, when old bars are expected and
-  // the broker would otherwise pause a release for good (lib/engine/broker-gate.ts).
-  if (shouldRunPaperBroker(bySymbol, nowSec)) {
-    try {
-      const { runPaperBroker } = await import("./paper-broker");
-      await runPaperBroker(bySymbol, nowSec);
-    } catch (e) {
-      warnings.push(componentWarning("paper-broker", e));
-    }
-  } else console.log("paper broker: skipped — market quiet hours, no fresh bars");
+  // One account now executes virtual trades. Qualification remains research;
+  // the retired paper account is retained for audit and is never funded again.
 
-  // The experimental learner (lib/experiment) is NOT run from here: it is a
-  // separate Neon Function on its own schedule that reads the bars this pass
-  // archives and the ideas it writes, so nothing it does can slow or break
-  // the signal feed or the practice account.
+  // The workflow publishes this completed pass and advances the learner after
+  // this process exits. The Neon schedule is an independent retry path.
 
   // 3) Heartbeat, with per-symbol data freshness. STALE_MARKER is the exact
   // token the dashboard looks for (lib/time/session.ts dataDelayed) — newest

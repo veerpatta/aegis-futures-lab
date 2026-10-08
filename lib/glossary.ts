@@ -26,7 +26,7 @@ export const GLOSSARY = {
   practiceMoney: {
     term: "Practice money",
     meaning:
-      "The bot's own $10,000 paper account. It only trades once a method has passed every test. Trade ideas are a separate record.",
+      "The earlier qualification account, now retired. Virtual trading uses the learner's single account; the qualification tests remain available.",
   },
   experimentalLearner: {
     term: "Experimental learner",
@@ -194,11 +194,11 @@ export const GLOSSARY = {
   qualify: {
     term: "Qualify",
     meaning:
-      "To trade practice money a method needs: a passed history test, a separate confirmation, 60 new trades over 20 trading days, and two weekly reviews.",
+      "A method earns qualification with a passed history test, a separate confirmation, 60 new trades over 20 trading days, and two weekly reviews. Delayed simulations never count as fresh proof.",
   },
   probation: {
     term: "Probation",
-    meaning: "A newly qualified method trades practice money at half risk ($50 per trade) until another weekly review passes.",
+    meaning: "The earlier qualification account used half risk ($50 per trade) for newly qualified methods. That account is now retired; the single virtual account follows its own fixed limits.",
   },
   tier: {
     term: "Zone setup and daily flow",

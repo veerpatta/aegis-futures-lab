@@ -1,27 +1,12 @@
 "use client";
 
-/* Today — the first screen, built for a 20-second look, answering in order:
-     1. Is the bot working?                                       (StatusHero)
-     2. What is the learner doing; what happened to its virtual
-        money; what has it learned?                               (learner card)
-     3. Is the market open, and where are the two markets?        (market strip)
-     4. Has a method earned the practice account yet?             (practice line)
-     5. What are the latest trade ideas, and are they any good?   (idea cards)
-     6. Anything big coming up?                                   (news pause)
-
-   Three things stay apart on purpose: trade ideas are a simulated record;
-   the experimental learner trades its own VIRTUAL ONLY $10,000 and learns
-   under fixed rules; practice money is the strict account that only trades a
-   method that passed every test. Every idea card still says whether its
-   method beat chance.
-
-   Deliberately light: no 60-day price history is downloaded here
+/* Today shows the single virtual account, markets and source ideas.
+   No 60-day price history is downloaded here
    (e2e/feed-routing.spec.ts holds that line), only two thinned quotes. */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { SignalRow } from "@/lib/neon/client";
-import { usePaper } from "@/components/providers/PaperProvider";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useData } from "@/components/providers/DataProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -29,11 +14,9 @@ import { useQuotes } from "@/components/providers/QuoteProvider";
 import ExperimentCard from "@/components/experiment/ExperimentCard";
 import UpdatedAgo from "@/components/ui/UpdatedAgo";
 import { marketPhase, fmtStamp } from "@/lib/time/session";
-import { nyMeta } from "@/lib/time/ny";
 import { signalSnapshot } from "@/lib/signals/snapshot";
 import { MARKET_NAMES } from "@/lib/plain/idea";
 import { money } from "@/lib/format";
-import StatusHero from "@/components/ui/StatusHero";
 import { Term } from "@/components/ui/Glossary";
 import IdeaCard from "@/components/signals/IdeaCard";
 import SignalSheet from "@/components/signals/SignalSheet";
@@ -47,7 +30,6 @@ const GUIDE_SEEN_KEY = "aegis.guideSeen.v1";
 export default function TodayClient() {
   const nowSec = useNowSec();
   const feed = useSignalFeed();
-  const paper = usePaper();
   const { mask } = usePrivacy();
   const { zone } = useZone();
   const { events } = useData();
@@ -85,15 +67,6 @@ export default function TodayClient() {
     [events]
   );
 
-  const account = paper.data?.account ?? null;
-  const todayKey = nowSec === null ? null : nyMeta(nowSec).dateKey;
-  const openPositions = (paper.data?.positions ?? []).filter((p) => !p.closed_at);
-  const accountFailed = paper.errors.includes("Account");
-  const cash = (v: number | null | undefined) =>
-    v === null || v === undefined || !Number.isFinite(v)
-      ? "—"
-      : mask(v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }));
-
   return (
     <div className={page.page}>
       <header className={page.head}>
@@ -102,7 +75,7 @@ export default function TodayClient() {
         <UpdatedAgo at={feed.loadedAt} failed={feed.failed} />
       </header>
 
-      <StatusHero action={<Link href="/brain" className={page.linkButton}>See what it has learned →</Link>} />
+
 
       <ExperimentCard />
 
@@ -155,31 +128,6 @@ export default function TodayClient() {
         <p className={page.note}>
           <Term k="delayed">Delayed 10–15 minutes</Term> · for practice and learning only
         </p>
-      </section>
-
-      <section className={page.card} aria-label="Practice money">
-        <div className={styles.cardHead}>
-          <h2 className={page.cardTitle}>
-            <Term k="practiceMoney">Practice money</Term>
-          </h2>
-          <Link href="/brain#practice" className={page.linkButton}>
-            Details →
-          </Link>
-        </div>
-        {accountFailed ? (
-          <p className={page.note}>The practice account couldn&apos;t be checked just now.</p>
-        ) : (
-          <p className={styles.practiceLine}>
-            <b className="num">{paper.loading ? "—" : cash(account?.equity)}</b>
-            <span>
-              {openPositions.length
-                ? `${openPositions.length} practice trade${openPositions.length === 1 ? "" : "s"} open now${
-                    account && account.day_key === todayKey ? ` · ${cash(account.daily_pnl)} today` : ""
-                  }.`
-                : "Waiting for a method to pass every test — it has not traded yet."}
-            </span>
-          </p>
-        )}
       </section>
 
       <section className={page.stack} aria-label="Latest trade ideas">

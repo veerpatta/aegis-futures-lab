@@ -492,6 +492,15 @@ export function findLearnerProblems(health, now, { staleMinutes = LEARNER_STALE_
     const everRan = ticks.length > 0;
     if (age > staleMinutes && (everRan || Number.isFinite(last)))
       problems.push({ lineage: h.lineage, reason: `no successful learner check for ${age === Infinity ? "ever" : Math.round(age) + " min"}` });
+    if (h.execution_clock === "delayed_market" && now.getTime() - Date.parse(h.registered_at ?? "") > 60 * 60000) {
+      const source = Date.parse(h.source_data_as_of ?? "");
+      const cursor = Date.parse(h.data_as_of ?? "");
+      if (!Number.isFinite(source)) problems.push({ lineage: h.lineage, reason: "no completed source batch has been published" });
+      else if (!Number.isFinite(cursor) || source - cursor > 60 * 60000)
+        problems.push({ lineage: h.lineage, reason: `virtual trading is behind the published prices (${h.backlog_count ?? 0} events waiting)` });
+      if (Number(h.stuck_orders) > 0)
+        problems.push({ lineage: h.lineage, reason: `${h.stuck_orders} virtual order(s) have not progressed for over 60 minutes` });
+    }
   }
   return problems;
 }
@@ -499,7 +508,7 @@ export function findLearnerProblems(health, now, { staleMinutes = LEARNER_STALE_
 async function checkLearner(now, closedHolidays) {
   let health = [];
   try {
-    health = await neonGet("experiment_health?select=lineage,status,last_ok_tick_at,runs");
+    health = await neonGet("experiment_health?select=lineage,status,last_ok_tick_at,runs,execution_clock,registered_at,data_as_of,backlog_count,stuck_orders,source_data_as_of");
   } catch (e) {
     console.log(`learner check skipped (${e?.message ?? e})`);
     return false;
@@ -519,7 +528,7 @@ Virtual only. Fallback: run the experiment-fallback workflow.`
   const issueOk = await raiseIssue(
     LEARNER_LABEL,
     "fbca04",
-    "Watchdog: the experimental learner is not checking in",
+    "Watchdog: virtual trading needs attention",
     `The learner's Neon Function (aegisexp) should run every 15 minutes through the futures week.
 
 ${lines}

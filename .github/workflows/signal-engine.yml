@@ -60,3 +60,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Ring 1 kill switch: "1" freezes breakers/veto (existing pauses stay).
           BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
+      - name: Publish complete market batch and process virtual account
+        run: |
+          npx tsx scripts/experiment/publish.ts
+          npx tsx scripts/experiment/run.ts tick
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

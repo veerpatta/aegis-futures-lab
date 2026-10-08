@@ -136,11 +136,13 @@ export default function ExperimentCard() {
           <StateAxes nowSec={nowSec} />
           <div className={styles.times}>
             <span>Last check {lastOk ? clockIn(lastOk, zone) : "—"}</span>
+            {a?.data_as_of && <span>Market data through {stampIn(Date.parse(a.data_as_of) / 1000, zone)}</span>}
             {lastTry && (lastOk === null || lastTry - lastOk > 60) && <span>Latest attempt {clockIn(lastTry, zone)}</span>}
             {next && <span>Next around {clockIn(next, zone)}</span>}
             {exp.fromSnapshot && exp.loadedAt && <span>Saved copy from {stampIn(exp.loadedAt / 1000, zone)}</span>}
           </div>
 
+          {o?.experiment.execution_clock === "delayed_market" && <p className={page.note}>One virtual account · Fills simulated in delayed market order. Replay results are not fresh proof.</p>}
           <div className={styles.hero}>
             <div>
               <span className={styles.heroLabel}>

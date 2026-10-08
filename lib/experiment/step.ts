@@ -84,7 +84,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const done = (t: SimTrade) => t.status === "closed" || t.status === "cancelled";
 
 /* Reasons where no fill is definable, so the shadow outcome is void. */
-const VOID_REASONS = new Set<DecisionReason>(["stale-data", "session-over", "idea-closed", "stop-breached", "target-passed", "stop-too-small", "no-risk", "model-invalid"]);
+const VOID_REASONS = new Set<DecisionReason>(["stale-data", "session-over", "idea-closed", "stop-breached", "target-passed", "stop-too-small", "no-risk", "model-invalid", "late-source"]);
 
 function fillRecords(before: SimTrade, after: SimTrade, positionId: string): Fill[] {
   const out: Fill[] = [];
@@ -170,7 +170,7 @@ export function stepTick(input: TickInput): TickResult {
   };
 
   // 1. Replay newly closed bars in time order.
-  const cursorOf = (s: ExpSymbol) => account.cursor[s] ?? exp.startedAt;
+  const cursorOf = (s: ExpSymbol) => account.cursor[s] ?? exp.simulationFrom ?? exp.startedAt;
   const times = [...new Set(EXP_SYMBOLS.flatMap((s) => barsBy[s].filter((b) => b.time >= cursorOf(s)).map((b) => b.time)))].sort((a, b) => a - b);
   for (const t of times) {
     rollDay(t);
@@ -180,13 +180,19 @@ export function stepTick(input: TickInput): TickResult {
       barsProcessed++;
       for (const p of [...positions.values()]) {
         if (p.symbol !== s || done(p)) continue;
-        if (p.status === "pending_fill") update(p, fillEntry(p, bar, { maxRisk: EXP_RISK.riskPerTrade }));
+        if (p.status === "pending_fill") {
+          const others = Math.max(0, openRisk() - (p.risk ?? 0));
+          const cap = exp.executionClock === "delayed_market" ? Math.max(0, Math.min(EXP_RISK.riskPerTrade, EXP_RISK.totalOpenRisk - others,
+            EXP_RISK.dailyLoss + equityNow() - account.dayStartEquity)) : EXP_RISK.riskPerTrade;
+          update(p, fillEntry(p, bar, { maxRisk: cap }));
+        }
         else update(p, stepOpen(p, bar));
       }
       for (const o of outcomes.values()) {
         if (o.sim.symbol !== s || o.status === "closed" || o.status === "void") continue;
         const sim = o.sim.status === "pending_fill" ? fillEntry(o.sim, bar) : stepOpen(o.sim, bar);
         if (sim !== o.sim) {
+          if (exp.executionClock === "delayed_market" && o.sim.fillTs === null && sim.fillTs !== null && sim.risk !== null) o.standaloneQty = standaloneQty(sim.risk);
           o.sim = sim;
           o.status = sim.status === "open" ? "open" : sim.status === "closed" ? "closed" : sim.status === "cancelled" ? "void" : "pending";
           if (sim.status === "cancelled") o.voidReason = sim.cancelReason;
@@ -238,7 +244,8 @@ export function stepTick(input: TickInput): TickResult {
     else if (account.dayHalted) accountReason = "daily-loss";
     else if (input.quota === "essential") accountReason = "quota";
     let structural: SkipReason | null = null;
-    if (account.staleSymbols.includes(op.symbol) || refPrice === null) structural = "stale-data";
+    if (op.lateSource) structural = "late-source";
+    else if (account.staleSymbols.includes(op.symbol) || refPrice === null) structural = "stale-data";
     else if (nowSec >= flattenAtSession(sessionKey) || !inEntryWindow(nowSec)) structural = "session-over";
     else if (op.exitTs !== null && op.exitTs <= nowSec) structural = "idea-closed";
     else if (d > 0 ? refPrice <= op.stop : refPrice >= op.stop) structural = "stop-breached";
@@ -280,7 +287,7 @@ export function stepTick(input: TickInput): TickResult {
     }
 
     const decision: Decision = {
-      key, opportunityKey: op.key, signalId: op.signalId, symbol: op.symbol, side: op.side, sessionKey, seenAt: op.seenAt, infoCutoff,
+      key, opportunityKey: op.key, signalId: op.signalId, symbol: op.symbol, side: op.side, sessionKey, seenAt: op.seenAt, observedAt: op.observedAt ?? op.seenAt, infoCutoff,
       decidedAt: nowSec, provenance, modelVersionId: input.model.versionId, pWin, threshold, action: reason === "taken" ? "take" : "skip",
       reason: reason!, qty, estRisk, refPrice, idea: op, features, featureVersion: EXP_FEATURE_VERSION,
       snapshotHash: stableHash({ idea: op, features }),

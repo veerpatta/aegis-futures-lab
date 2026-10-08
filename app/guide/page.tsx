@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { GLOSSARY, GLOSSARY_KEYS } from "@/lib/glossary";
-import { PAPER_RISK } from "@/lib/paper/policy";
 import { EXP_RISK } from "@/lib/experiment/policy";
 import { PREREG } from "@/lib/experiment/prereg";
 import { HIST_RULES } from "@/lib/history/rules";
@@ -11,7 +10,7 @@ import styles from "./guide.module.css";
 export const metadata: Metadata = {
   title: "How to use this app — Aegis Futures Lab",
   description:
-    "A plain-English guide to Aegis: the five tabs, the experimental learner and its virtual money, historical practice, how to read a trade idea, the practice money, and how the bot earns the right to trade.",
+    "A plain-English guide to Aegis: the five tabs, one virtual account on delayed prices, historical practice, trade ideas, and how a method earns trust.",
 };
 
 /* Session times print both clocks from the current US daylight-saving state
@@ -38,10 +37,7 @@ export default function GuidePage() {
           and tests trading methods on them. It shows you what it finds in plain words, and it keeps an honest score.
         </p>
         <p>
-          The short version today: <b>no method has beaten chance yet</b>, so the bot has not traded its practice money.
-          Meanwhile its <b>experimental learner</b> trades a separate {usd(EXP_RISK.capital)} of <b>virtual money</b> by
-          itself and learns under fixed rules, so you can watch it work. That is evidence being collected, not proof
-          that anything makes money. The trade ideas you see are a record of what the methods do, not advice.
+          Aegis uses one <b>virtual {usd(EXP_RISK.capital)} account</b>. Its <b>experimental learner</b> simulates trades on delayed prices and keeps an honest record of fills, costs and skips. <b>No method has beaten chance yet.</b> Virtual trading is practice, not proof that anything makes money. Trade ideas are not advice.
         </p>
         <div className={styles.warn}>
           <b>Nothing here touches real money.</b> There is no broker connection. Prices are delayed 10–15 minutes and
@@ -56,7 +52,7 @@ export default function GuidePage() {
           <dt>Today</dt>
           <dd>
             What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the
-            two markets, the practice money, the latest trade ideas and any big news coming up.
+            two markets, the latest trade ideas and any big news coming up.
           </dd>
           <dt>Trades</dt>
           <dd>
@@ -66,8 +62,7 @@ export default function GuidePage() {
           <dt>Learn</dt>
           <dd>
             The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
-            Then historical practice on older market data. Below that: the bot&apos;s health, its Watch → Test →
-            Practice path and the practice money.
+            Then historical practice on older market data. Method research sits behind a separate panel; it does not show another account balance.
           </dd>
           <dt>Chart</dt>
           <dd>
@@ -76,7 +71,7 @@ export default function GuidePage() {
           </dd>
           <dt>More</dt>
           <dd>
-            Trade ideas (Ideas) and their history (Review), practice money, historical practice, your Journal, this
+            Trade ideas (Ideas) and their history (Review), method research, historical practice, your Journal, this
             Guide, settings (ET or IST, hide money) and the research room.
           </dd>
         </dl>
@@ -119,9 +114,7 @@ export default function GuidePage() {
       <section className={styles.card} id="learner">
         <h2>The experimental learner</h2>
         <p>
-          The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. Every 15 minutes it reads the
-          newest finished price bars, manages its open trades and decides on every new trade idea: take it, or skip it
-          with a reason. Skipped ideas are followed too, so it cannot learn only from its own winners.
+          The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. It decides after the idea&apos;s bar closes and fills on the next available bar. It does not wait again just because the feed arrived late. Skipped ideas are followed too, so it cannot learn only from its own winners.
         </p>
         <ol className={styles.steps}>
           <li>
@@ -169,9 +162,7 @@ export default function GuidePage() {
           result, not a fault.
         </p>
         <p className={styles.note}>
-          Ideas seen more than 30 minutes late are labelled &ldquo;caught up late&rdquo; and never count as fresh
-          evidence. Synthetic test prices, if ever used, are labelled on every screen and never count as evidence. Only the
-          owner can pause it, through the project&apos;s GitHub controls. Offline, the app is read-only.
+          The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled &ldquo;Simulated on delayed prices&rdquo;. The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project&apos;s GitHub controls. Offline, the app is read-only.
         </p>
       </section>
 
@@ -185,8 +176,7 @@ export default function GuidePage() {
         <ol className={styles.steps}>
           <li>
             <b>Only what it could know then.</b> At each old idea it decides with the prices it could have seen at that
-            moment, about 25 minutes late like the live learner, at the next 15-minute check. Fills, costs, stops and
-            limits work exactly as in the live learner. Gaps and contract-roll jumps in the old data are marked and the
+            moment, using the historical study&apos;s original receipt-time rules, about 25 minutes late at the next 15-minute check. This study stays separate from the virtual account&apos;s delayed market clock. Gaps and contract-roll jumps in the old data are marked and the
             ideas near them left out — never patched.
           </li>
           <li>
@@ -211,12 +201,13 @@ export default function GuidePage() {
             <b>Then fresh ideas.</b> A candidate that is not rejected is frozen and watches new ideas beside the current
             model without changing a single decision. It must then pass every adoption check on fresh ideas —{" "}
             {PREREG.gates.freshSessions} fresh trading days, {PREREG.gates.freshDecisions} fresh ideas and two passing
-            reviews — like any other candidate. Old data counts for none of these.
+            reviews — like any other candidate. Old data counts for none of these. Fresh confirmation waits while
+            the account uses delayed simulations. The older candidate remains saved.
           </li>
         </ol>
         <p>
           Learn → Historical practice shows an evidence checklist: <b>Data ready</b>, <b>Historical test complete</b>,{" "}
-          <b>Fresh confirmation collecting</b> and <b>Validated paper improvement</b>. There is no maturity score, and the
+          <b>Fresh confirmation waiting</b> and <b>Validated paper improvement</b>. There is no maturity score, and the
           last line never means proven for real money. &ldquo;No validated improvement yet&rdquo; is an honest result, not
           a fault.
         </p>
@@ -227,27 +218,15 @@ export default function GuidePage() {
       </section>
 
       <section className={styles.card}>
-        <h2>Three kinds of money — never mixed</h2>
-        <p>
-          <b>Trade ideas</b> are a simulated record: what each method would have done, followed to the end on delayed
-          prices. Their results show on Today, Ideas and Review.
-        </p>
-        <p>
-          <b>The experimental learner</b> trades its own virtual {usd(EXP_RISK.capital)}, separately. Its results show on
-          Today, Trades and Learn, and are never added to the other two.
-        </p>
-        <p>
-          <b>Practice money</b> is the bot&apos;s own {usd(PAPER_RISK.capital)} paper account. It only trades once a
-          method has passed every test, so it has not traded yet. It shows on Today and Learn.
-        </p>
-        <p className={styles.note}>
-          Historical practice is not money at all: its results on older data stay on Learn and are never added to any of
-          the three.
-        </p>
+        <h2>One virtual account and separate records</h2>
+        <p><b>The experimental learner</b> uses the only active virtual account. Today, Trades and Learn show the same balance and trade history.</p>
+        <p><b>Trade ideas</b> are the methods&apos; separate research record. Their own results are never added to the account balance.</p>
+        <p><b>Your journal</b> records your own decisions. It does not change the bot&apos;s money.</p>
+        <p>The earlier qualification account is retired. Its old record is kept for audit, and the qualification tests remain under More → Method research. Historical practice on years of older data stays separate and never adds old profit to the account.</p>
       </section>
 
       <section className={styles.card}>
-        <h2>How the bot earns the right to trade</h2>
+        <h2>How a method earns trust</h2>
         <ol className={styles.steps}>
           <li>
             <b>Watch.</b> Every 15 minutes, all futures week, the bot reads prices and posts any idea its methods spot.
@@ -259,12 +238,8 @@ export default function GuidePage() {
             never count as new trades.
           </li>
           <li>
-            <b>Practice.</b> Only then does it trade practice money — first at {usd(PAPER_RISK.probationRisk)} of risk
-            a trade, then up to {usd(PAPER_RISK.riskPerTrade)} (
-            {Math.round((PAPER_RISK.riskPerTrade / PAPER_RISK.capital) * 1000) / 10}% of the account). All open trades
-            together risk at most{" "}
-            {usd(PAPER_RISK.totalOpenRisk)}. A {usd(PAPER_RISK.dailyLoss)} daily loss stops it for the day, and a{" "}
-            {usd(PAPER_RISK.maxDrawdown)} drop from its high locks the account until someone resets it.
+            <b>Qualification.</b> Passing every check records a research result. It does not start a second account
+            or turn replay results into fresh proof. The virtual account keeps the limits listed above.
           </li>
         </ol>
         <p>
@@ -287,7 +262,7 @@ export default function GuidePage() {
           <dt>Prices delayed / Running late</dt>
           <dd>The feed or a check is behind. Ideas catch up on the next pass.</dd>
           <dt>Needs attention</dt>
-          <dd>Part of a check had a problem, such as the practice account update. Trade ideas are still checked.</dd>
+          <dd>Part of a check had a problem, such as the virtual account update. Trade ideas are still checked.</dd>
           <dt>Last check failed</dt>
           <dd>The newest check errored. The next one runs within 15 minutes; a watchdog alerts if it keeps failing.</dd>
         </dl>
@@ -364,7 +339,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-07 (candidate testing time). A printable version of this guide lives in
+        Matches the app as of 2026-10-08 (one virtual account and delayed-market trading). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

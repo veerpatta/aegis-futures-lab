@@ -22,17 +22,18 @@ import { stampIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
 import styles from "@/components/experiment/experiment.module.css";
 
-type Filter = "all" | "taken" | "skipped" | "open" | "closed";
+type Filter = "all" | "taken" | "skipped" | "open" | "closed" | "earlier";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "taken", label: "Taken" },
   { key: "skipped", label: "Skipped" },
   { key: "open", label: "Open" },
   { key: "closed", label: "Closed" },
+  { key: "earlier", label: "Earlier attempts" },
 ];
 const PAGE = 40;
 const COLUMNS =
-  "id,decision_key,symbol,side,decided_at,provenance,action,reason,qty,model_version_id,position_status,cancel_reason,exit_reason,exit_ts,net,stale,mode,campaign";
+  "id,decision_key,symbol,side,decided_at,provenance,action,reason,qty,model_version_id,position_status,cancel_reason,exit_reason,exit_ts,net,stale,mode,campaign,execution_clock,observed_at,recorded_at";
 
 export function outcomeLine(r: Pick<ExpTradeRow, "action" | "reason" | "position_status" | "cancel_reason" | "exit_reason">): string {
   if (r.action !== "take") return skipWords(r.reason);
@@ -59,7 +60,8 @@ export default function TradesClient() {
       if (!experimentId) return;
       setLoading(true);
       try {
-        let q = getNeon().from("experiment_trades").select(COLUMNS).eq("experiment_id", experimentId);
+        let q = getNeon().from("experiment_trades").select(COLUMNS);
+        q = filter === "earlier" ? q.eq("lineage", "learner").neq("experiment_id", experimentId) : q.eq("experiment_id", experimentId);
         if (filter === "taken") q = q.eq("action", "take");
         if (filter === "skipped") q = q.eq("action", "skip");
         if (filter === "open") q = q.in("position_status", ["open", "pending_fill"]);
@@ -80,9 +82,8 @@ export default function TradesClient() {
   );
 
   useEffect(() => {
-    setRows([]);
     void load(0);
-  }, [load]);
+  }, [load, exp.loadedAt]);
 
   const closed = exp.data?.campaign_totals;
   return (
@@ -102,7 +103,7 @@ export default function TradesClient() {
             <b>{exp.data?.account ? mask(money(exp.data.account.equity, false)) : "—"}</b>
           </div>
           <div>
-            <small>Closed this campaign</small>
+            <small>Closed virtual trades</small>
             <b>{closed ? `${closed.closed} · ${mask(money(closed.net))}` : "—"}</b>
           </div>
           <div>
@@ -114,6 +115,7 @@ export default function TradesClient() {
           Every idea the learner saw, taken or skipped, with the reason. Results are after modeled costs on delayed prices. Your own journal stays
           separate.
         </p>
+        {exp.data?.account?.data_as_of && <p className={page.note}>Market data through {stampIn(Date.parse(exp.data.account.data_as_of) / 1000, zone)}. Fills are simulated in market-time order.</p>}
       </section>
 
       <div className={styles.filters} role="group" aria-label="Show">

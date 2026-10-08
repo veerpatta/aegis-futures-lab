@@ -15,7 +15,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {usePaper} from "@/components/providers/PaperProvider";
-import {botState,freshTraining} from "@/lib/paper/overview";
+import {freshTraining} from "@/lib/paper/overview";
+import { useExperiment } from "@/components/providers/ExperimentProvider";
 import ZoneToggle from "./ZoneToggle";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useBotHealth } from "@/components/providers/BotHealthProvider";
@@ -28,8 +29,14 @@ export default function AppHeader() {
   const { privacy, toggle } = usePrivacy();
   const { alerts:engineAlerts, asleep } = useBotHealth();
   const paper=usePaper();
-  const paperStatus=botState(paper.data,paper.errors.includes("Account"));
-  const alerts=[...engineAlerts,...(!paper.loading&&paperStatus.label==="Paused"?[{id:"paper-paused",tone:"warn" as const,text:paperStatus.reason}]:[]),...(!paper.loading&&!freshTraining(paper.data?.learning??null)?[{id:"training-stale",tone:"warn" as const,text:"Training needs attention. Check Learn for the last completed run."}]:[]),...(paper.errors.length?[{id:"paper-read",tone:"warn" as const,text:"Practice account information could not refresh. The displayed snapshot may be old."}]:[])];
+  const learner = useExperiment();
+  const alerts = [...engineAlerts,
+    ...(learner.failed ? [{ id: "virtual-read", tone: "warn" as const, text: "Virtual account information could not refresh. Showing the previous update." }] : []),
+    ...(learner.data?.last_runs.tick?.status === "error" ? [{ id: "virtual-tick", tone: "bad" as const, text: "The virtual account's last check failed. The next check retries from where it stopped." }] : []),
+    ...(["paused", "locked"].includes(learner.data?.experiment.status ?? "") ? [{ id: "virtual-paused", tone: "warn" as const, text: learner.data?.experiment.status_reason ?? "Virtual trading is paused. Open Learn for the reason." }] : []),
+    ...(!paper.loading && !freshTraining(paper.data?.learning ?? null) ? [{ id: "training-stale", tone: "warn" as const, text: "Research training needs attention. Open Method research for the last completed run." }] : []),
+    ...(paper.errors.length ? [{ id: "research-read", tone: "warn" as const, text: "Method research could not refresh. Its displayed results may be old." }] : []),
+  ];
   const attention = alerts.some((a) => a.tone === "bad")
     ? "bad"
     : alerts.some((a) => a.tone === "warn")

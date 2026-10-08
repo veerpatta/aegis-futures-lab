@@ -1,9 +1,7 @@
 /* The experimental learner, in plain words.
 
-   "Virtual money" is the learner's own $10,000 pretend account. It is never
-   called "practice money" — that name belongs to the strict account that only
-   trades a method that passed every test — and it is never added to the trade
-   ideas' record. Every place it appears says VIRTUAL ONLY and, for live data,
+   "Virtual money" is the learner's single $10,000 pretend account. Its
+   results stay separate from source ideas. Every place says VIRTUAL ONLY and,
    "delayed". Copy is rendered from the limits, never typed as numbers. */
 
 import { EXP_RISK } from "@/lib/experiment/policy";
@@ -13,7 +11,7 @@ const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 
 export const EXP_NAME = "Experimental learner";
 export const EXP_BADGE = "Virtual only";
-export const EXP_BADGE_LONG = "Virtual only — pretend money, its own record, separate from practice money and trade ideas";
+export const EXP_BADGE_LONG = "Virtual only — one pretend account, separate from research results and your journal";
 
 const SKIPS: Record<string, string> = {
   "model-skip": "its current model said the odds were not good enough",
@@ -31,6 +29,7 @@ const SKIPS: Record<string, string> = {
   "no-risk": "its risk could not be worked out",
   "model-invalid": "the model gave an unusable answer",
   quota: "free service limits were nearly used",
+  "late-source": "this idea was published after that market period had already been processed",
 };
 
 export function skipWords(reason: string): string {
@@ -60,7 +59,7 @@ export const cancelWords = (reason: string | null) => (reason ? CANCELS[reason] 
 export const PROVENANCE: Record<string, { label: string; note: string }> = {
   prospective: { label: "Decided live", note: "Decided before its result was known, on delayed prices. Counts as fresh evidence." },
   late: { label: "Caught up late", note: "Seen more than 30 minutes after the setup. Kept apart; never counts as fresh evidence." },
-  replay: { label: "Replay", note: "Archived prices fed in order. Research only, never shown as a trade placed at that time." },
+  replay: { label: "Simulated on delayed prices", note: "Prices processed in market-time order. These are virtual fills, not orders placed at that time, and never count as fresh evidence." },
   synthetic: { label: "Synthetic", note: "Generated test prices. Proves the software works, not that anything makes money." },
 };
 
@@ -191,9 +190,8 @@ export const EXP_LIMITS: string[] = [
 ];
 
 export const EXP_WHY =
-  "No method has passed every test, so the practice account has not traded. The experimental learner trades anyway, with pretend money " +
-  "and its own record, so the bot's rules and its learning can be watched working. Its results are evidence being collected, not proof " +
-  "that anything works, and a losing trade is not automatically a mistake.";
+  "The experimental learner simulates ideas in price-time order in one pretend account. It records fills, costs and skips under fixed limits. " +
+  "No method has passed every qualification test. Delayed simulations never count as fresh proof, and a losing trade is not automatically a mistake.";
 
 /** One-line take on an idea card: what the learner did with this idea. */
 export function decisionLine(d: { action: string; reason: string; qty: number; position_status: string | null; net: number | null } | null, mask: (s: string) => string, money: (v: number) => string): string | null {

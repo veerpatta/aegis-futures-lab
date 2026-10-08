@@ -27,4 +27,14 @@ describe("watchdog: experimental learner", () => {
   it("does not alert for a campaign registered before its first scheduled check", () => {
     expect(findLearnerProblems([health({ last_ok_tick_at: null, runs: [] })], now)).toEqual([]);
   });
+
+  it("detects a stalled delayed ledger even when ticks stay green", () => {
+    const h = health({ execution_clock: "delayed_market", registered_at: ago(180), source_data_as_of: ago(15), data_as_of: ago(100), backlog_count: 17, stuck_orders: 1 });
+    const problems = findLearnerProblems([h], now);
+    expect(problems.map((p: { reason: string }) => p.reason).join(" ")).toMatch(/behind the published prices.*17 events waiting/);
+    expect(problems).toHaveLength(2);
+    expect(findLearnerProblems([{ ...h, data_as_of: ago(15), backlog_count: 0, stuck_orders: 0 }], now)).toEqual([]);
+    expect(findLearnerProblems([{ ...h, registered_at: ago(2) }], now)).toEqual([]);
+    expect(findLearnerProblems([h], now, { active: false })).toEqual([]);
+  });
 });

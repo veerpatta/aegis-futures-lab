@@ -162,7 +162,10 @@ export default function HistorySection() {
   const money = (v: number) =>
     Number.isFinite(v) ? mask(v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })) : "—";
   const head = historyHeadline(data);
-  const checklist = historyChecklist(data);
+  const delayed = learner.data?.experiment.execution_clock === "delayed_market";
+  const checklist = historyChecklist(data).map((c) => c.key === "fresh" && delayed
+    ? { ...c, label: "Fresh confirmation waiting", state: "waiting", tone: "warn" as const,
+      reason: `${c.reason} Delayed simulations do not advance these counts.` } : c);
   const h = data;
   const ds = h?.dataset ?? null;
   const ch = h?.chunks ?? null;
@@ -184,7 +187,9 @@ export default function HistorySection() {
 
       <section className={`${page.card} ${exp.card}`} aria-label="Where it stands">
         <p className={styles.headline}>{head.first}</p>
-        {head.second && <p className={styles.headline}>{head.second}</p>}
+        {head.second && <p className={styles.headline}>{learner.data?.experiment.execution_clock === "delayed_market"
+          ? "The older candidate remains saved. Delayed simulations do not supply fresh confirmation. No validated improvement yet."
+          : head.second}</p>}
         <p className={page.note}>{HIST_LEDE}</p>
       </section>
 
@@ -310,7 +315,7 @@ export default function HistorySection() {
                   <dt>Passing weekly reviews</dt>
                   <dd>{h.shadow ? `${int(h.shadow.reviews_passed)} of 2` : "—"}</dd>
                   <dt>Next step</dt>
-                  <dd>{nextGate(h)}</dd>
+                  <dd>{delayed ? "Fresh confirmation is waiting. Delayed simulations do not count as fresh evidence." : nextGate(h)}</dd>
                 </dl>
                 <p className={page.note}>
                   Status: {STUDY_STATUS_WORDS[h.status]}

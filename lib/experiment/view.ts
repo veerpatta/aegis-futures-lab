@@ -41,11 +41,13 @@ export interface ExpPositionRow {
 
 export interface ExpOverview {
   lineage: string;
-  experiment: { id: string; lineage: string; campaign: number; mode: "live" | "synthetic"; status: "active" | "paused" | "locked" | "stopped"; status_reason: string | null; capital: number; started_at: string; data_label: string };
+  experiment: { id: string; lineage: string; campaign: number; mode: "live" | "synthetic"; status: "active" | "paused" | "locked" | "stopped"; status_reason: string | null; capital: number; started_at: string; data_label: string;
+    execution_clock?: "wall_clock" | "delayed_market"; execution_version?: string; simulation_from?: string | null };
   risk: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; capital: number } | null;
   account: {
     equity: number; realized: number; unrealized: number; unpriced_positions: number; peak: number; day_key: string; day_start_equity: number;
     daily_pnl: number; open_risk: number; day_halted: boolean; locked_at: string | null; stale_symbols: string[]; last_ok_tick_at: string | null; updated_at: string;
+    data_as_of?: string | null; backlog_count?: number;
   } | null;
   model: { version_id: string; previous_version_id: string | null; since: string; kind: "take_all" | "logit"; spec: Record<string, unknown>; status: string } | null;
   open_positions: ExpPositionRow[];
@@ -63,6 +65,11 @@ export interface ExpOverview {
 }
 
 export interface ExpTradeRow {
+  execution_clock?: "wall_clock" | "delayed_market";
+  execution_version?: string;
+  observed_at?: string | null;
+  recorded_at?: string;
+  market_decided_at?: string | null;
   id: number;
   decision_key: string;
   experiment_id: string;
@@ -186,12 +193,15 @@ export function executionState(o: ExpOverview | null, nowSec: number): AxisState
   if (o.quota_level === "essential") return { state: "blocked", reason: "Free service limits are nearly used. It waits for the monthly reset rather than spend money." };
   if (!tick) return { state: "starting", reason: "Registered. The first check runs at the next scheduled time." };
   if (tick.status === "error") return { state: "error", reason: "The last check failed. The next one retries from where it stopped." };
+  if (o.account.backlog_count) return { state: "managing", reason: `Processing earlier market prices. ${o.account.backlog_count} events remain.` };
   if (engineScheduled(nowSec) && (lastOk === null || nowSec - lastOk > 2 * 3600)) return { state: "unknown", reason: "No check has reported in for over two hours." };
   if (o.open_positions.some((p) => p.status === "open" || p.status === "pending_fill")) return { state: "managing", reason: "Managing open virtual trades." };
   if (!engineScheduled(nowSec)) return { state: "waiting", reason: "Market closed. It wakes up when Globex reopens." };
   if (o.account.day_halted) return { state: "waiting", reason: "Daily loss limit reached. It starts again next session." };
   if (o.account.stale_symbols?.length && inEntryWindow(nowSec)) return { state: "waiting", reason: "No fresh data. New trades wait." };
   if (o.account.open_risk >= (o.risk?.totalOpenRisk ?? 200)) return { state: "waiting", reason: "Most risk allowed at once is already in use." };
+  const reasons = o.today_reasons ?? {};
+  if (Object.keys(reasons).length && !reasons.taken) return { state: "waiting", reason: "Today's ideas were skipped. Open Trades to see each reason." };
   if (!inEntryWindow(nowSec)) return { state: "waiting", reason: "Outside the 02:00–15:25 New York entry window." };
   return { state: "scanning", reason: "Watching for a setup. Quiet hours are normal." };
 }

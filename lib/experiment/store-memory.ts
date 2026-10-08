@@ -32,6 +32,7 @@ export class MemoryStore implements ExperimentStore {
   runs: Run[] = [];
   bars: Partial<Record<ExpSymbol, Bar[]>> = {};
   signalRows: SignalRow[] = [];
+  publishedBatch: { id: string; watermarks: Partial<Record<ExpSymbol, number>> } | null = null;
   dbBytes: number | null = 50 * 1024 ** 2;
   locked = new Set<string>();
   /** Throw inside persist to simulate a crash before commit. */
@@ -98,6 +99,8 @@ export class MemoryStore implements ExperimentStore {
         load: async () => this.tickState(experimentId),
         bars: async (s, from, to) => clone((this.bars[s] ?? []).filter((b) => b.time >= from && b.time + 300 <= to)),
         signals: async (since) => clone(this.signalRows.filter((r) => Date.parse(r.signal_ts) / 1000 >= since)),
+        published: async () => clone(this.publishedBatch),
+        publishedSignals: async (since) => clone(this.signalRows.filter((r) => Date.parse(r.signal_ts) / 1000 >= since)),
         decided: async (keys) => new Set(keys.filter((k) => [...this.decisions.values()].some((d) => d.experimentId === experimentId && d.opportunityKey === k))),
         persist: async (_runId, state, result, nowSec, writeEquity) => this.persist(experimentId, state, result, nowSec, writeEquity),
         rollback: async (change, to, at) => {

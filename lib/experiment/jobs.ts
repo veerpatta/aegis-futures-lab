@@ -16,6 +16,7 @@
 import type { Bar } from "@/lib/types";
 import { engineScheduled } from "@/lib/time/session";
 import { stepTick, type ScoredModel, type TickResult } from "./step";
+import { stepDelayed, DELAYED_EXECUTION_VERSION } from "./delayed";
 import { opportunitiesFromSignals } from "./opportunities";
 import { syntheticBars, syntheticOpportunities } from "./synthetic";
 import { ModelOutputError, TAKE_ALL_V1, artifactHash, trainChallenger, validateArtifact } from "./models";
@@ -99,11 +100,15 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
     return { status: "skipped" as const, message: "Market closed; nothing scheduled.", counts: {} };
   return store.tick(exp.id, async (tx) => {
     let state = await tx.load();
+    const delayed = state.exp.executionClock === "delayed_market";
+    const publication = delayed ? await tx.published() : null;
+    if (delayed && !publication) return { status: "skipped" as const, message: "Waiting for the first completed market batch.", counts: {} };
+    const marketFrom = state.exp.simulationFrom ?? state.exp.startedAt;
     const bars: Partial<Record<ExpSymbol, Bar[]>> = {};
     for (const s of EXP_SYMBOLS) {
-      const cursor = state.account.cursor[s] ?? state.exp.startedAt;
+      const cursor = state.account.cursor[s] ?? marketFrom;
       const from = Math.max(0, cursor - WARMUP_SEC);
-      bars[s] = state.exp.mode === "synthetic" ? syntheticBars(state.exp.seed, s, from, nowSec) : await tx.bars(s, from, nowSec);
+      bars[s] = state.exp.mode === "synthetic" ? syntheticBars(state.exp.seed, s, from, nowSec) : await tx.bars(s, from, delayed ? publication!.watermarks[s] ?? marketFrom : nowSec);
     }
     let opportunities: Opportunity[];
     if (state.exp.mode === "synthetic") {
@@ -112,9 +117,9 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
       const decided = await tx.decided(all.map((o) => o.key));
       opportunities = all.filter((o) => !decided.has(o.key)).sort((a, b) => a.signalTs - b.signalTs || a.key.localeCompare(b.key));
     } else {
-      const rows = await tx.signals(Math.max(state.exp.startedAt, nowSec - SIGNAL_WINDOW_SEC));
+      const rows = delayed ? await tx.publishedSignals(marketFrom) : await tx.signals(Math.max(state.exp.startedAt, nowSec - SIGNAL_WINDOW_SEC));
       const decided = await tx.decided(rows.map((r) => r.dedupe_key));
-      opportunities = opportunitiesFromSignals(rows, state.exp.startedAt, decided, nowSec);
+      opportunities = opportunitiesFromSignals(rows, marketFrom, decided, nowSec);
     }
 
     const counts: Record<string, unknown> = {};
@@ -133,13 +138,13 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
     };
     let result: TickResult;
     try {
-      result = stepTick({ ...input, model });
+      result = delayed ? stepDelayed({ ...input, model }, publication!.watermarks) : stepTick({ ...input, model });
     } catch (err) {
       if (!(err instanceof ModelOutputError)) throw err;
       await rollbackPointer(tx, state.pointer.versionId, state.pointer.previousVersionId, "invalid-output", nowSec);
       state = await tx.load();
       model = modelOf(state.versions, state.pointer.versionId) ?? { versionId: state.pointer.versionId, artifact: TAKE_ALL_V1 };
-      result = stepTick({ ...input, model });
+      result = delayed ? stepDelayed({ ...input, model }, publication!.watermarks) : stepTick({ ...input, model });
       counts.rolledBack = "invalid-output";
     }
     await tx.persist(runId, state, result, nowSec, allowed(level, "equity-row"));
@@ -148,6 +153,9 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
     Object.assign(counts, {
       bars: result.barsProcessed, decisions: result.decisions.length, taken: result.newPositionIds.length, reasons,
       fills: result.fills.length, events: result.events.map((e) => e.kind), freshness: result.freshness, equity: result.account.equity, model: model.versionId,
+      entries: result.fills.filter((f) => f.kind === "entry").length, exits: result.fills.filter((f) => f.kind === "exit").length,
+      cancelled: result.positions.filter((p) => p.status === "cancelled").length, publication: publication?.id ?? null,
+      backlog: result.account.backlogCount ?? 0, dataAsOf: result.account.dataAsOf ?? null,
     });
     const message = result.decisions.length
       ? `${result.decisions.length} idea(s) decided, ${result.newPositionIds.length} taken.`
@@ -359,11 +367,14 @@ function summary(m: { nOos: number; delta: { est: number; lo: number; hi: number
     totals. */
 export async function createCampaign(store: ExperimentStore, input: {
   lineage: string; campaign: number; mode: "live" | "synthetic"; startedAt: number; reason: string; seed?: number;
+  executionClock?: ExperimentConfig["executionClock"]; simulationFrom?: number;
 }): Promise<ExperimentConfig> {
   const id = `${input.lineage}-${input.campaign}`;
   const exp: ExperimentConfig = {
     id, lineage: input.lineage, campaign: input.campaign, mode: input.mode, status: "active", capital: EXP_RISK.capital,
     startedAt: input.startedAt, seed: input.seed ?? PREREG.seed, preregVersion: PREREG.version,
+    executionClock: input.executionClock ?? "wall_clock", simulationFrom: input.simulationFrom ?? input.startedAt,
+    executionVersion: input.executionClock === "delayed_market" ? DELAYED_EXECUTION_VERSION : "wall-clock-v1",
   };
   const v1: VersionRecord = {
     id: `${id}:v1-take-all`, experimentId: id, kind: "take_all", spec: {}, specHash: stableHash({ kind: "take_all" }), weekKey: weekKeyOf(input.startedAt),

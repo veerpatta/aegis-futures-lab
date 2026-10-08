@@ -40,7 +40,8 @@ export type SkipReason =
   | "session-over"
   | "no-risk"
   | "model-invalid"
-  | "quota";
+  | "quota"
+  | "late-source";
 
 export type DecisionReason = "taken" | SkipReason;
 
@@ -57,6 +58,9 @@ export interface Opportunity {
   signalTs: number;
   /** Unix seconds the idea first became visible to the experiment. */
   seenAt: number;
+  /** Real receipt time when the decision uses the simulated market clock. */
+  observedAt?: number;
+  lateSource?: boolean;
   exitTs: number | null;
   strategy: string;
   tier: string | null;
@@ -88,6 +92,7 @@ export interface Decision {
   side: ExpSide;
   sessionKey: string;
   seenAt: number;
+  observedAt?: number;
   infoCutoff: number;
   decidedAt: number;
   provenance: Provenance;
@@ -181,6 +186,8 @@ export interface Account {
   cursor: Partial<Record<ExpSymbol, number>>;
   staleSymbols: ExpSymbol[];
   lastOkTickAt: number | null;
+  dataAsOf?: number | null;
+  backlogCount?: number;
 }
 
 /** A frozen decision rule. v1 takes every eligible idea; challengers are
@@ -232,4 +239,9 @@ export interface ExperimentConfig {
   seed: number;
   /** The preregistration version this campaign was registered under. */
   preregVersion?: string;
+  /** Absent preserves the originally registered wall-clock execution. */
+  executionClock?: "wall_clock" | "delayed_market";
+  executionVersion?: string;
+  /** Market history start, independent of the real registration time. */
+  simulationFrom?: number;
 }

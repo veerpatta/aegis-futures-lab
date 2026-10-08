@@ -7,7 +7,7 @@
      Trades — every bot trade and skip, with the evidence behind it.
      Learn  — what it has tried, kept or rejected; the bot's health.
      Chart  — where is price, where are the key areas, what news is ahead?
-     More   — trade ideas, practice money, your journal, the Guide, settings.
+     More   — trade ideas, method research, your journal, the Guide, settings.
 
    URLs did not change when the labels did (/brain is Learn, /markets is
    Chart, /signals is Ideas under More), so saved links and home-screen icons
@@ -94,7 +94,7 @@ export const NAV_LINKS: NavLink[] = [
   {
     href: "/more",
     label: "More",
-    hint: "Ideas, practice money, journal, Guide, settings",
+    hint: "Ideas, research, journal, Guide, settings",
     icon: (
       <svg {...iconProps}>
         <circle cx="5" cy="12" r="1" />
@@ -108,7 +108,7 @@ export const NAV_LINKS: NavLink[] = [
 export const MORE_GROUPS: NavGroup[] = [
   {
     title: "Ideas and records",
-    note: "Separate records, never added together: trade ideas, practice money and the learner's virtual account.",
+    note: "One virtual account; research results and your own journal stay separate.",
     links: [
   {
     href: "/signals",
@@ -122,9 +122,9 @@ export const MORE_GROUPS: NavGroup[] = [
     ),
   },
       {
-        href: "/brain#practice",
-        label: "Practice money",
-        hint: "The strict account: trades only a method that passed every test",
+        href: "/brain#research",
+        label: "Method research",
+        hint: "The qualification checks behind each method",
         icon: (
           <svg {...iconProps}>
             <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
