@@ -21,11 +21,20 @@ Aegis uses one **virtual $10,000 account**. Its **experimental learner** simulat
 |---|---|
 | **Today** | What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the two markets, the latest trade ideas and any big news coming up. |
 | **Trades** | Every idea the learner decided on, taken or skipped, with the reason. Tap one for the evidence: the values saved when it decided, the simulated fill, the exit, costs and the result. |
-| **Learn** | The model in charge, the candidates being tested, every review's verdict and the full change history. Then historical practice on older market data. Method research sits behind a separate panel; it does not show another account balance. |
+| **Learn** | The model in charge, the candidates being tested, every review's verdict and the full change history. Open Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance. |
 | **Chart** | Prices, the price areas the bot watches, the learner's virtual trades as arrows, why there is no idea right now, and the big news it steps aside for. |
 | **More** | Trade ideas (Ideas) and their history (Review), method research, historical practice, your Journal, this Guide, settings (ET or IST, hide money) and the research room. |
 
 Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
+
+### Read the widgets
+
+- **Account journey.** The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.
+- **Trade cards.** The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.
+- **Find a trade.** Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.
+- **Open risk.** The bar shows how much of the account's risk allowance is in use. It is not a forecast of the next loss.
+- **Learning progress.** The ring counts finished examples toward a rough first-review target. It is not a score of skill or profitability. Fresh results and fresh days are shown separately.
+- **More detail, when needed.** Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone's reduced-motion setting turns off the animations. Hide money also hides the account chart.
 
 ## 3. How to read a trade idea
 
@@ -175,4 +184,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-08 (one virtual account and delayed-market trading). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-08 (mobile trading widgets). If the app has changed since, the in-app Guide is the source of truth.*

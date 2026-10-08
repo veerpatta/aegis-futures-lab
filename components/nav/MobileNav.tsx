@@ -14,14 +14,13 @@ import styles from "./MobileNav.module.css";
 export function MobileTabBar() {
   const pathname = usePathname();
   const activeIndex = activeTabIndex(pathname);
-  const width = 100 / MOBILE_LINKS.length;
 
   return (
     <nav className={styles.tabBar} aria-label="Primary">
       {activeIndex >= 0 && (
         <i
           className={styles.indicator}
-          style={{ width: `${width}%`, transform: `translateX(${activeIndex * 100}%)` }}
+          style={{ width: `calc((100% - 8px) / ${MOBILE_LINKS.length})`, transform: `translateX(${activeIndex * 100}%)` }}
           aria-hidden
         />
       )}

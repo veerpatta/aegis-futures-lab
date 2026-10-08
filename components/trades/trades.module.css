@@ -1,0 +1,28 @@
+.summary { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border-live); border-radius: var(--radius-hero); background: radial-gradient(ellipse at 100% 0, var(--blue-soft), transparent 65%), var(--bg-raised); box-shadow: var(--shadow-card); }
+.summaryTop { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-dim); font-size: 12px; }
+.summaryTop > span:first-child { display: flex; align-items: center; gap: 8px; }
+.summaryTop svg { color: var(--blue); }
+.mode { padding: 4px 10px; border: 1px solid var(--amber-line); border-radius: 999px; color: var(--amber); font-size: 10px; }
+.balance { display: grid; gap: 4px; }
+.activityTitle { min-height: 28px; margin-top: 0; }
+.balanceRow { display: grid; grid-template-columns: minmax(0, 1fr) 90px; align-items: center; gap: 8px; }
+.balance > span { color: var(--text-dim); font-size: 12px; }
+.balance > b { font: 600 clamp(26px, 7.5vw, 38px) var(--font-mono); letter-spacing: -.05em; line-height: 1.2; white-space: nowrap; }
+.balance small { color: var(--text-dim); font-size: 10.5px; }
+.balance strong { font-weight: 500; }
+.dataStamp { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 10.5px; margin: 0; }
+.dataStamp svg { flex: none; width: 14px; height: 14px; }
+.loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 160px; border: 1px dashed var(--border-strong); border-radius: var(--radius-card); color: var(--blue); }
+.detailHero { display: grid; gap: 16px; background: radial-gradient(ellipse at 100% 0, var(--blue-soft), transparent 70%), var(--bg-raised); }
+.detailPrice { padding: 16px 12px 8px; border-radius: var(--radius-tile); background: var(--bg-inset); }
+.journey { margin: 0; padding: 0; display: grid; gap: 0; list-style: none; }
+.journey li { display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; position: relative; padding-bottom: 20px; }
+.journey li:last-child { padding-bottom: 0; }
+.journey li:not(:last-child)::before { content: ""; position: absolute; left: 15px; top: 28px; bottom: 0; width: 1px; background: var(--border-live); }
+.journeyIcon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--border-live); border-radius: 50%; color: var(--blue); background: var(--bg-elevated); }
+.journeyIcon svg { width: 16px; height: 16px; }
+.journeyText { display: grid; gap: 3px; min-width: 0; }
+.journeyText b { font-size: 13px; font-weight: 600; }
+.journeyText span { color: var(--text-dim); font-size: 12px; }
+.journeyText small { color: var(--text-dim); font-size: 11px; }
+@media (max-width: 359px) { .balanceRow { grid-template-columns: minmax(0, 1fr) 64px; } }

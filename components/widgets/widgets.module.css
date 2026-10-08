@@ -1,0 +1,62 @@
+.good { color: var(--green); }
+.bad { color: var(--red); }
+.blue { color: var(--blue); }
+.warn { color: var(--amber); }
+.muted { color: var(--text-dim); }
+.spark { display: block; width: 100%; height: 84px; overflow: visible; }
+.baseline { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 3 5; opacity: .5; }
+.chartEmpty { display: grid; place-items: center; min-height: 84px; font-size: 12px; color: var(--text-dim); border-bottom: 1px dashed var(--border-strong); }
+.equityChart { min-width: 0; }
+.smallChart .spark { height: 60px; }
+.smallChart .chartEmpty { min-height: 60px; font-size: 10px; text-align: center; }
+.chartCaption { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--text-dim); font-size: 10.5px; }
+.chartCaption span:last-child { text-align: right; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); container-type: inline-size; }
+.metric { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px 8px; border: 1px solid var(--border); border-radius: var(--radius-tile); background: var(--bg-lifted); text-align: left; color: var(--text); font: inherit; transition: border-color .18s, background .18s, transform .18s; }
+button.metric { cursor: pointer; }
+button.metric:active { transform: scale(.98); }
+button.metric[aria-pressed="true"] { border-color: var(--blue-line); background: var(--blue-soft); }
+.metricLabel { display: flex; align-items: center; gap: 6px; min-height: 28px; color: var(--text-dim); font-size: 11px; }
+.metricLabel svg { width: 15px; height: 15px; flex: none; }
+.metricValue { font: 600 clamp(11px, 4.8cqw, 22px) var(--font-mono); letter-spacing: -.04em; white-space: nowrap; }
+.metric small { color: var(--text-dim); font-size: 10.5px; }
+.tradeGrid { display: grid; gap: var(--space-3); }
+.trade { --widget-delay: 0ms; display: grid; gap: 14px; padding: 18px; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-card); background: linear-gradient(145deg, var(--bg-elevated), var(--bg-raised) 65%); box-shadow: var(--shadow-card); color: var(--text); transition: border-color .18s, transform .18s, box-shadow .18s; animation: widgetEnter .38s var(--ease-out) both; animation-delay: var(--widget-delay); }
+.trade:active { transform: scale(.985); }
+.trade:hover { border-color: var(--border-live); }
+.tradeTop { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.marketIcon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid var(--blue-line); border-radius: var(--radius-icon); background: var(--blue-soft); color: var(--blue); font: 700 11px var(--font-display); }
+.nasdaq { color: var(--violet); border-color: color-mix(in srgb, var(--violet) 28%, transparent); background: color-mix(in srgb, var(--violet) 10%, transparent); }
+.tradeName { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.tradeName b { font-family: var(--font-display); font-size: 15px; }
+.tradeName small { color: var(--text-dim); font-size: 11px; }
+.status { flex: none; max-width: 35%; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 10px; font-weight: 600; text-align: center; background: var(--bg-inset); }
+.tradeResult { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tradeResult > span { font-size: 12px; color: var(--text-dim); }
+.tradeResult > b { font: 600 clamp(20px, 5.5vw, 26px) var(--font-mono); letter-spacing: -.04em; }
+.priceWidget { padding: 14px 10px 8px; border-radius: var(--radius-tile); background: var(--bg-inset); }
+.tradeReason { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.tradeSteps { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--text-faint); }
+.tradeSteps span { display: flex; align-items: center; gap: 6px; }
+.tradeSteps i { width: 6px; height: 6px; border-radius: 50%; border: 1px solid currentColor; }
+.tradeSteps .stepDone { color: var(--text-dim); }
+.stepDone i { background: var(--blue); border-color: var(--blue); }
+.tradeFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 10.5px; }
+.tradeFoot > span:last-child { white-space: nowrap; }
+.tradeFoot span[aria-hidden] { margin-left: 5px; color: var(--blue); }
+.compact { padding: 14px; gap: 10px; }
+.compact .tradeResult > b { font-size: 20px; }
+.ring { width: 112px; height: 112px; flex: none; position: relative; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); fill: none; stroke-width: 7; }
+.ringTrack { stroke: var(--border); }
+.ringFill { stroke: var(--amber); stroke-linecap: round; transition: stroke-dasharray .6s var(--ease-out); }
+.ring > span { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring b { font: 600 26px var(--font-mono); }
+.ring small { color: var(--text-dim); font-size: 11px; }
+.learningHero { display: flex; align-items: center; gap: 20px; padding: 8px 0; }
+.learningHero h3 { margin: 0 0 6px; font: 600 18px var(--font-display); }
+.learningHero p { margin: 0; color: var(--text-dim); font-size: 12px; }
+@keyframes widgetEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (min-width: 640px) { .tradeGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 359px) { .trade { padding: 14px; } .marketIcon { width: 32px; height: 32px; } .tradeName b { font-size: 13px; } .metric { padding: 12px 8px; } .metricLabel { font-size: 10px; gap: 4px; } .learningHero { gap: 12px; } .ring { width: 92px; height: 92px; } }
+@media (prefers-reduced-motion: reduce) { .trade:active, button.metric:active { transform: none; } }

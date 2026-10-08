@@ -62,7 +62,7 @@ export default function GuidePage() {
           <dt>Learn</dt>
           <dd>
             The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
-            Then historical practice on older market data. Method research sits behind a separate panel; it does not show another account balance.
+            Open Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance.
           </dd>
           <dt>Chart</dt>
           <dd>
@@ -78,6 +78,18 @@ export default function GuidePage() {
         <p className={styles.note}>
           Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
         </p>
+      </section>
+
+      <section className={styles.card}>
+        <h2>Read the widgets</h2>
+        <ul>
+          <li><b>Account journey.</b> The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.</li>
+          <li><b>Trade cards.</b> The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.</li>
+          <li><b>Find a trade.</b> Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.</li>
+          <li><b>Open risk.</b> The bar shows how much of the account&apos;s risk allowance is in use. It is not a forecast of the next loss.</li>
+          <li><b>Learning progress.</b> The ring counts finished examples toward a rough first-review target. It is not a score of skill or profitability. Fresh results and fresh days are shown separately.</li>
+          <li><b>More detail, when needed.</b> Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone&apos;s reduced-motion setting turns off the animations. Hide money also hides the account chart.</li>
+        </ul>
       </section>
 
       <section className={styles.card}>
@@ -342,7 +354,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-08 (one virtual account and delayed-market trading). A printable version of this guide lives in
+        Matches the app as of 2026-10-08 (mobile trading widgets). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

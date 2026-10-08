@@ -64,7 +64,7 @@ All from `app/globals.css:7-83`.
 |---|---|---|
 | `--text` | `#e8eef8` | primary — body copy, values |
 | `--text-dim` | `#93a1b8` | secondary copy |
-| `--text-faint` | `#5b6a83` | uppercase eyebrow labels, timestamps |
+| `--text-faint` | `#8190a7` | uppercase eyebrow labels, timestamps |
 
 ### Semantic accents
 
@@ -403,4 +403,15 @@ Copy rules: sentence case, short sentences, "practice money" for the paper accou
 and "trade ideas" for simulated signals — never one word for both. UI copy lives in
 `lib/plain/`, never in a folder covered by the research code hash.
 
-*Derived from the repository as of 2026-07-31; §10 added 2026-10-03.*
+## 11. Trading widgets (2026-10-08)
+
+`components/widgets/TradingWidgets.tsx` extends the existing price ladder, numeric readouts and cards. Today, Trades and trade details share the same card pattern. More uses a two-column tool grid, and the phone navigation uses a moving inset highlight.
+
+- Account curves use actual recorded points joined by straight lines. The caption distinguishes daily closes from the latest estimate; no decorative market paths are invented. Privacy mode removes the account curve and masks money in text.
+- Trade cards distinguish skipped, waiting, cancelled, open and closed states. Only filled trades show an entry price. Open results are labelled estimates; stale estimates are muted and marked. The timeline never marks an unfilled order complete.
+- The learning ring counts examples, is amber, and is labelled as a rough review target. It never implies profitability or readiness for real money.
+- Widget entry uses opacity and an 8px translation for 380ms; stagger is capped at 175ms. Tap feedback uses a small transform. Reduced motion removes entry delays and press transforms.
+- `--shadow-card` and `--ease-out` unify depth and motion. `--text-faint` is now `#8190a7` for readable secondary text on dark surfaces. Existing semantic colours and radii remain in use.
+- Timing, learning explanations and the older-data study expand on demand. Account warnings and measured verdicts remain visible on their relevant surfaces.
+
+*Derived from the repository as of 2026-07-31; §10 added 2026-10-03; §11 added 2026-10-08.*

@@ -17,7 +17,7 @@
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, 40%);
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: var(--space-3);
 }
@@ -32,9 +32,9 @@
 }
 .heroValue {
   font-family: var(--font-mono);
-  font-size: clamp(26px, 8vw, 36px);
+  font-size: clamp(30px, 8.5vw, 42px);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.05em;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
@@ -180,6 +180,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
 }
+.stateBlock { display: grid; gap: 10px; }
+.axisTitle { display: flex; align-items: center; gap: 5px; }
+.axisTitle svg { width: 14px; height: 14px; color: var(--text-dim); }
 .axis {
   display: grid;
   gap: 2px;
@@ -188,17 +191,17 @@
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-tile);
-  background: var(--bg-inset);
+  background: var(--bg-lifted);
   font: inherit;
   color: var(--text);
   text-align: left;
 }
 .axis small {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .axis b {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -262,18 +265,23 @@
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  border-radius: var(--radius-tile);
+  scrollbar-width: none;
 }
 .filters button {
   flex: none;
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-inset);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--text-dim);
   font: inherit;
   font-size: 13px;
+  transition: background .18s, color .18s, transform .18s;
 }
 .filters button[aria-pressed="true"] {
   color: var(--text);
@@ -370,8 +378,40 @@
   min-height: 44px;
 }
 @media (max-width: 360px) {
-  .axes,
   .split {
     grid-template-columns: 1fr;
   }
 }
+
+.dashboard { display: grid; gap: var(--space-3); min-width: 0; }
+.wallet { display: grid; gap: 16px; padding: 20px; border: 1px solid var(--border-live); border-radius: var(--radius-hero); background: radial-gradient(ellipse at 100% 0, var(--green-soft), transparent 58%), var(--bg-raised); box-shadow: var(--shadow-card); }
+.walletTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.walletLabel { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; }
+.walletLabel svg { color: var(--green); }
+.rulesButton { display: flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 8px; margin: -8px -8px -8px 0; border: 0; border-radius: var(--radius-sm); color: var(--text-dim); background: transparent; font-size: 11px; cursor: pointer; }
+.rulesButton svg { width: 14px; height: 14px; }
+.wallet .banner { gap: 6px; font-size: 10px; font-weight: 400; letter-spacing: 0; }
+.wallet .banner b { padding: 3px 6px; border-radius: var(--radius-sm); background: var(--amber-soft); font-size: 9px; }
+.walletCompact .heroValue { font-size: 28px; }
+.walletCompact { gap: 12px; }
+.riskStrip { display: grid; gap: 8px; }
+.riskStrip > span { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; }
+.riskStrip svg { width: 14px; height: 14px; }
+.riskStrip b { margin-left: auto; color: var(--text); font-size: 10.5px; font-weight: 500; }
+.riskStrip > div { height: 4px; border-radius: 999px; overflow: hidden; background: var(--border); }
+.riskStrip i { display: block; height: 100%; background: var(--blue); border-radius: inherit; transition: width .4s var(--ease-out); }
+.accountDetails { border-top: 1px solid var(--border); padding-top: 4px; }
+.accountDetails summary { display: flex; align-items: center; gap: 5px; min-height: 44px; color: var(--text-dim); font-size: 10.5px; cursor: pointer; list-style: none; }
+.accountDetails summary::-webkit-details-marker { display: none; }
+.accountDetails summary > svg { width: 14px; height: 14px; flex: none; }
+.accountDetails summary > span { margin-left: auto; color: var(--blue); white-space: nowrap; }
+.accountDetails .times { padding-bottom: 8px; color: var(--text-dim); }
+.replayNote { margin: -4px 0 0; color: var(--text-dim); font-size: 10.5px; line-height: 1.5; }
+.learningLink { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-raised); }
+.learningIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-icon); background: var(--amber-soft); color: var(--amber); flex: none; }
+.learningLink .rowMain b { font-size: 12px; }
+.learningLink .rowMain small { white-space: normal; color: var(--text-dim); font-size: 11px; }
+.tradeButton { display: flex; align-items: center; justify-content: space-between; padding: 0 18px; min-height: 48px; border-radius: var(--radius-btn); color: var(--green); background: var(--green-soft); border: 1px solid var(--green-line); font-size: 13px; font-weight: 600; transition: background .18s, transform .18s; }
+.tradeButton:active { transform: scale(.985); }
+@media (max-width: 359px) { .wallet { padding: 16px; } .axis { padding: 8px; } .axis b { font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .linkRow:active, .tradeButton:active { transform: none; } }

@@ -11,6 +11,7 @@ import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { DISPLAY_ZONES, ZONE_NAME } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
+import styles from "./more.module.css";
 
 export default function MoreClient() {
   const { privacy, toggle } = usePrivacy();
@@ -24,16 +25,16 @@ export default function MoreClient() {
         <h2>{g.title}</h2>
       </div>
       {g.note && <p className={page.note}>{g.note}</p>}
-      <div className={page.list}>
+      <div className={styles.tools}>
         {g.links.map((l) => (
-          <Link key={l.href} href={l.href} className={page.row}>
-            <span className={page.rowIcon}>{l.icon}</span>
+          <Link key={l.href} href={l.href} className={styles.tool}>
+            <span className={styles.icon}>{l.icon}</span>
             <span className={page.rowMain} style={{ flex: 1 }}>
               <b>{l.label}</b>
               <span>{l.hint}</span>
             </span>
-            <span className={page.chev} aria-hidden>
-              ›
+            <span className={styles.chevron} aria-hidden>
+              ↗
             </span>
           </Link>
         ))}

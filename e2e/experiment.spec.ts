@@ -126,6 +126,70 @@ const history = {
 
 const noSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
 
+for (const width of [320, 390])
+  test(`${width}px trade widgets show actual fills, progress and masked money`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await stub(page);
+    await page.goto("/trades");
+    const summary = page.getByRole("region", { name: "Learner summary" });
+    await expect(summary).toContainText("$9,984.60");
+    const card = page.getByRole("region", { name: "Bot trades" }).getByRole("link").first();
+    await expect(card).toContainText("−$18.40");
+    await expect(card).toContainText("20,500.00");
+    await expect(card.getByLabel("Trade progress")).toContainText("Filled");
+    await expect(card.getByLabel("Trade progress")).toContainText("Closed");
+    expect(await noSideways(page)).toBe(true);
+    await page.getByRole("button", { name: "Hide money figures" }).click();
+    await expect(summary).toContainText("Account chart hidden");
+    await expect(card).toContainText("••••");
+    await expect(card).not.toContainText("$18.40");
+    await expect(card).toContainText("20,500.00");
+  });
+
+test("trade filters ignore an older response and reduced motion has no stagger", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await stub(page);
+  await page.route("https://*.neon.tech/**/rest/v1/experiment_trades*", async r => {
+    const query = new URL(r.request().url()).searchParams;
+    if (query.get("action") === "eq.skip") {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return r.fulfill({ json: [{ ...trade, id: 999, action: "skip", reason: "risk-budget", position_status: null, net: null }] });
+    }
+    return r.fulfill({ json: [trade] });
+  });
+  await page.goto("/trades");
+  await expect(page.getByRole("region", { name: "Bot trades" })).toContainText("Stopped out");
+  const slow = page.waitForResponse(r => r.url().includes("experiment_trades") && r.url().includes("action=eq.skip"));
+  await page.getByRole("button", { name: "Skipped", exact: true }).click();
+  await page.getByRole("button", { name: "Closed", exact: true }).click();
+  await slow;
+  const card = page.getByRole("region", { name: "Bot trades" }).getByRole("link").first();
+  await expect(card).toHaveAttribute("href", "/trades/7");
+  await expect(card).toContainText("Stopped out");
+  const motion = await card.evaluate(el => ({ duration: getComputedStyle(el).animationDuration, delay: getComputedStyle(el).animationDelay }));
+  expect(parseFloat(motion.duration)).toBeLessThan(.01);
+  expect(parseFloat(motion.delay)).toBe(0);
+});
+
+test("open and unfilled cards keep estimated and unbooked results distinct", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stub(page);
+  await page.route("https://*.neon.tech/**/rest/v1/experiment_trades*", r => r.fulfill({ json: [
+    { ...trade, id: 10, position_status: "open", side: "LONG", fill_price: 20500, mark: 20510, net: null, qty: 2, stale: true },
+    { ...trade, id: 11, position_status: "pending_fill", fill_price: null, fill_ts: null, net: null },
+    { ...trade, id: 12, position_status: "cancelled", fill_price: null, fill_ts: null, net: null, cancel_reason: "risk-budget" },
+  ] }));
+  await page.goto("/trades");
+  const ledger = page.getByRole("region", { name: "Bot trades" });
+  await expect(ledger.getByRole("link").nth(0)).toContainText("~+$35.20");
+  await expect(ledger.getByRole("link").nth(0)).toContainText("stale");
+  await expect(ledger.getByRole("link").nth(1)).toContainText("Pending");
+  await expect(ledger.getByRole("link").nth(2)).toContainText("No fill");
+  await expect(ledger.getByRole("link").nth(2).getByLabel("Trade progress")).toHaveCount(0);
+  expect(await noSideways(page)).toBe(true);
+});
+
 for (const width of [320, 390, 430])
   test(`${width}px Today shows the learner plainly and separately`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -212,7 +276,7 @@ for (const width of [320, 390])
     await expect(sec).toContainText("The older candidate remains saved. Delayed simulations do not supply fresh confirmation. No validated improvement yet.");
     const list = sec.getByRole("region", { name: "Evidence checklist" });
     for (const item of ["Data ready", "Historical test complete", "Fresh confirmation waiting", "Validated paper improvement"]) await expect(list).toContainText(item);
-    await expect(list).toContainText("0 of 20 fresh trading days, 0 of 60 fresh finished ideas, 0 of 2 passing reviews");
+    await expect(list).toContainText("Delayed simulations do not advance fresh confirmation");
     await expect(sec.getByRole("region", { name: "Older data replayed" })).toContainText("178 of 178");
     await expect(sec.getByRole("region", { name: "Candidate" })).toContainText("Inconclusive");
     await expect(sec.getByRole("region", { name: "Candidate" })).toContainText("already seen");

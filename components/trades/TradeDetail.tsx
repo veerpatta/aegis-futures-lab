@@ -12,14 +12,17 @@ import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { Term } from "@/components/ui/Glossary";
 import ShowNumbers from "@/components/ui/ShowNumbers";
+import PriceLadder from "@/components/signals/PriceLadder";
+import { WidgetIcon } from "@/components/widgets/TradingWidgets";
 import type { ExpTradeRow } from "@/lib/experiment/view";
 import { PROVENANCE, cancelWords, exitWords, skipWords, versionName } from "@/lib/plain/experiment";
 import { marketName } from "@/lib/plain/idea";
-import { pointValue } from "@/lib/experiment/policy";
+import { COMMISSION_RT, pointValue } from "@/lib/experiment/policy";
 import { money } from "@/lib/format";
 import { stampIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
 import styles from "@/components/experiment/experiment.module.css";
+import visual from "./trades.module.css";
 import { outcomeLine } from "./TradesClient";
 
 const px = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -69,6 +72,9 @@ export default function TradeDetail({ id }: { id: string }) {
 
   const taken = row.action === "take";
   const closed = row.position_status === "closed";
+  const open = row.position_status === "open";
+  const unrealized = open && row.mark !== null && row.fill_price !== null ? (row.mark - row.fill_price) * (row.side === "LONG" ? 1 : -1) * pointValue(row.symbol) * row.qty - COMMISSION_RT * row.qty : null;
+  const shownResult = closed ? row.net : unrealized;
   const slipDollars = ((row.entry_slip ?? 0) + (row.exit_slip ?? 0)) * pointValue(row.symbol) * (row.qty || 1);
   const idea = row.idea;
   const prov = PROVENANCE[row.provenance];
@@ -88,19 +94,20 @@ export default function TradeDetail({ id }: { id: string }) {
         </p>
       </header>
 
-      <section className={`${page.card} ${styles.card}`} aria-label="Result">
+      <section className={`${page.card} ${visual.detailHero}`} aria-label="Result">
         <div className={styles.hero}>
           <div>
             <span className={styles.heroLabel}>
               {marketName(row.symbol)} · {row.side === "LONG" ? "Long" : "Short"}
               {taken ? ` · ${row.qty} contract${row.qty === 1 ? "" : "s"}` : ""} · {versionName(row.model_version_id)}
             </span>
-            <b className={`${styles.heroValue} num ${closed ? ((row.net ?? 0) >= 0 ? page.good : page.bad) : ""}`}>
-              {closed && row.net !== null ? `${mask(money(row.net))}` : taken ? "—" : "Not taken"}
+            <b className={`${styles.heroValue} num ${shownResult === null || (!closed && row.stale) ? page.dim : shownResult > 0 ? page.good : shownResult < 0 ? page.bad : page.dim}`}>
+              {shownResult !== null ? `${!closed && row.stale ? "~" : ""}${mask(money(shownResult))}` : taken ? row.position_status === "cancelled" ? "Not filled" : "Waiting" : "Not taken"}
             </b>
-            <span className={styles.heroSub}>{closed ? "after costs" : outcomeLine(row)}</span>
+            <span className={styles.heroSub}>{closed ? "Final result · after costs" : open ? row.stale ? "Last estimate · stale price · after costs" : "Open estimate · after costs" : outcomeLine(row)}</span>
           </div>
         </div>
+        {idea && row.fill_price !== null && (open || closed) && <div className={visual.detailPrice}><PriceLadder stop={idea.stop} entry={row.fill_price} target={idea.target} marker={closed ? row.exit_price : row.mark} markerLabel={closed ? "Exit price" : "Last delayed price"} /></div>}
         <p className={page.note}>
           {prov?.label}: {prov?.note}
         </p>
@@ -109,14 +116,11 @@ export default function TradeDetail({ id }: { id: string }) {
       <section className={`${page.card} ${styles.card}`} aria-label="What happened">
         <h2 className={page.cardTitle}>What happened</h2>
         {taken ? (
-          <dl className={styles.facts}>
-            <dt>{row.execution_clock === "delayed_market" ? "Simulated decision" : "Decided"}</dt>
-            <dd>{when(row.decided_at)}</dd>
-            {row.observed_at && <><dt>Idea received</dt><dd>{when(row.observed_at)}</dd></>}
-            <dt>Filled</dt>
-            <dd>{row.fill_ts ? `${px(row.fill_price)} at ${when(row.fill_ts)}` : row.position_status === "cancelled" ? cancelWords(row.cancel_reason) : "Waiting for the next price"}</dd>
-            <dt>Exit</dt>
-            <dd>{row.exit_ts && closed ? `${exitWords(row.exit_reason)} · ${px(row.exit_price)} at ${when(row.exit_ts)}` : row.position_status === "open" ? "Open now" : "—"}</dd>
+          <><ol className={visual.journey}>
+            <li><span className={visual.journeyIcon}><WidgetIcon name="learn" /></span><div className={visual.journeyText}><b>{row.execution_clock === "delayed_market" ? "Simulated decision" : "Decided"}</b><small>{when(row.decided_at)}</small>{row.observed_at && <><span>Idea received</span><small>{when(row.observed_at)}</small></>}</div></li>
+            <li><span className={visual.journeyIcon}><WidgetIcon name={row.fill_ts ? "check" : "clock"} /></span><div className={visual.journeyText}><b>{row.fill_ts ? `Filled · ${px(row.fill_price)}` : row.position_status === "cancelled" ? "Not filled" : "Waiting for a price"}</b><small>{row.fill_ts ? when(row.fill_ts) : row.position_status === "cancelled" ? cancelWords(row.cancel_reason) : "No fill recorded yet"}</small></div></li>
+            {row.fill_ts && <li><span className={visual.journeyIcon}><WidgetIcon name={closed ? "check" : "activity"} /></span><div className={visual.journeyText}><b>{closed ? `${exitWords(row.exit_reason)} · ${px(row.exit_price)}` : "Open now"}</b><small>{closed ? when(row.exit_ts) : "The bot is managing the stop and target"}</small></div></li>}
+          </ol><dl className={styles.facts}>
             {closed && (
               <>
                 <dt>Price move</dt>
@@ -142,7 +146,7 @@ export default function TradeDetail({ id }: { id: string }) {
                 </dd>
               </>
             )}
-          </dl>
+          </dl></>
         ) : (
           <p className={styles.reason}>{skipWords(row.reason)}.</p>
         )}

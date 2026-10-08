@@ -12,6 +12,7 @@ import { useData } from "@/components/providers/DataProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { useQuotes } from "@/components/providers/QuoteProvider";
 import ExperimentCard from "@/components/experiment/ExperimentCard";
+import { Sparkline, WidgetIcon } from "@/components/widgets/TradingWidgets";
 import UpdatedAgo from "@/components/ui/UpdatedAgo";
 import { marketPhase, fmtStamp } from "@/lib/time/session";
 import { signalSnapshot } from "@/lib/signals/snapshot";
@@ -103,7 +104,7 @@ export default function TodayClient() {
           </span>
           <span className={page.note}>{phase?.detail ?? ""}</span>
         </div>
-        {(["MES", "MNQ"] as const).map((symbol) => {
+        <div className={styles.quoteGrid}>{(["MES", "MNQ"] as const).map((symbol) => {
           const q = quotes[symbol];
           const pct = q && q.previousClose ? (q.change / q.previousClose) * 100 : null;
           return (
@@ -112,8 +113,8 @@ export default function TodayClient() {
                 <Term k={symbol === "MES" ? "mes" : "mnq"}>{MARKET_NAMES[symbol]}</Term>
                 <small> {symbol}</small>
               </span>
-              <span className="num">
-                {q ? q.price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}
+              <span className={styles.quoteValue}>
+                <strong className="num">{q ? q.price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</strong>
                 {pct !== null && (
                   <b className={pct >= 0 ? page.good : page.bad}>
                     {" "}
@@ -122,9 +123,11 @@ export default function TodayClient() {
                   </b>
                 )}
               </span>
+              <Sparkline points={(q?.bars ?? []).map(b => ({ t: b.time, y: b.close }))} label={`${MARKET_NAMES[symbol]} delayed price history`} tone={pct === null ? "blue" : pct >= 0 ? "good" : "bad"} />
+              <Link href="/markets" className={styles.chartLink}>Open chart <WidgetIcon name="arrow" /></Link>
             </div>
           );
-        })}
+        })}</div>
         <p className={page.note}>
           <Term k="delayed">Delayed 10–15 minutes</Term> · for practice and learning only
         </p>

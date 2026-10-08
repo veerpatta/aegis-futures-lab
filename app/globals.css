@@ -19,7 +19,7 @@
   /* text */
   --text: #e8eef8;
   --text-dim: #93a1b8;
-  --text-faint: #5b6a83;
+  --text-faint: #8190a7;
 
   /* accents */
   --green: #2dd4a0;
@@ -80,6 +80,8 @@
   --sidebar-w: 220px;
   --tabbar-h: 64px;
   --appbar-h: 56px;
+  --shadow-card: 0 8px 28px rgba(0, 0, 0, .16), inset 0 1px 0 rgba(255, 255, 255, .025);
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
 }
 
 * {
@@ -213,6 +215,7 @@ a {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }

@@ -15,8 +15,8 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { Term } from "@/components/ui/Glossary";
 import ShowNumbers from "@/components/ui/ShowNumbers";
-import { StateAxes } from "@/components/experiment/ExperimentCard";
-import { useNowSec } from "@/components/signals/useSignalFeed";
+import { ProgressRing, MetricTile } from "@/components/widgets/TradingWidgets";
+import widgets from "@/components/widgets/widgets.module.css";
 import type { ExpLearning } from "@/lib/experiment/view";
 import { learningState } from "@/lib/experiment/view";
 import { PREREG } from "@/lib/experiment/prereg";
@@ -52,7 +52,6 @@ const CHANGE_TONE: Record<string, string> = {
 export default function LearnSection() {
   const exp = useExperiment();
   const { zone } = useZone();
-  const nowSec = useNowSec();
   const [data, setData] = useState<ExpLearning | null>(null);
   const [failed, setFailed] = useState(false);
   const [allChanges, setAllChanges] = useState(false);
@@ -92,13 +91,13 @@ export default function LearnSection() {
       <p className={page.paperLine}>VIRTUAL ONLY · {data?.mode === "synthetic" ? "Synthetic prices" : "Delayed data"}</p>
 
       <section className={`${page.card} ${styles.card}`} aria-label="Learning state">
-        <StateAxes nowSec={nowSec} />
-        <p className={page.note}>
+        <p className={page.note}>Finished trades build the learning record. A new version takes over only after every check passes.</p>
+        <details className={styles.accountDetails}><summary>How learning works <span>Details +</span></summary><p className={page.note}>
           It learns from finished trades in batches, never from the last loss. Each week it may test up to {PREREG.search.maxPerWeek} new
           versions from a fixed list, side by side with the current one on the same ideas — at most {PREREG.lifecycle.maxShadowing} at a time, each for up
           to {PREREG.lifecycle.shadowWeeks} weeks, because fresh results come slowly. A new version takes over only after every check below passes;
           the old one is kept so it can be put back.
-        </p>
+        </p></details>
       </section>
 
       {failed && !data ? (
@@ -109,10 +108,11 @@ export default function LearnSection() {
           </button>
         </p>
       ) : !data ? (
-        <p className={page.loading}>{exp.data ? "Loading learning history…" : "The learner is not set up yet."}</p>
+        <p className={page.loading}>{exp.loading || exp.data ? "Loading learning history…" : "The learner is not set up yet."}</p>
       ) : (
         <>
           <section className={`${page.card} ${styles.card}`} aria-label="Active model">
+            <div className={widgets.learningHero}><ProgressRing value={closed} of={fairReview} label="finished trades toward a first review, rough guide" /><div><h3>{LEARNING_WORDS[state.state]}</h3><p>{closed < g.minTrainRows ? `${Math.max(0, g.minTrainRows - closed)} more finished trades before training can start.` : "Training has enough results to begin. Each review still needs every check to pass."}</p></div></div>
             <h3 className={page.cardTitle}>
               <Term k="modelVersion">Active model</Term> · {versionName(active?.id)}
             </h3>
@@ -120,20 +120,18 @@ export default function LearnSection() {
               {specWords(active?.spec)} In charge since {exp.data?.model?.since ? dateShortIn(sec(exp.data.model.since), zone) : "—"}.
             </p>
             {closed < fairReview ? (
-              <>
+              <details className={styles.accountDetails}>
+                <summary>How the first review is counted <span>Details +</span></summary>
                 <Meter label="Finished trades toward a fair first review (rough guide)" n={closed} of={fairReview} />
                 <p className={page.note}>
                   Training can start at {g.minTrainRows}, but a review splits the record into {g.folds + 1} blocks by date and each of its {g.folds} test periods
                   needs {g.minTrainRows} earlier trades to learn from — roughly {fairReview}, more after the 5-day gap. Periods that are too thin are shown
                   and skipped, never counted.
                 </p>
-              </>
+              </details>
             ) : null}
-            <p className={page.note}>
-              {closed} finished trades in the learning record ({data.progress?.closed_prospective ?? 0} decided live over {data.progress?.sessions_prospective ?? 0} trading days).
-              Ideas too risky for one contract are not counted.
-            </p>
-            <p className={page.note}>State: {LEARNING_WORDS[state.state]} — {state.reason}</p>
+            <div className={widgets.metrics}><MetricTile icon="learn" label="Candidates" value={String(shadowing.length)} note="Being tested" tone="warn" /><MetricTile icon="check" label="Fresh results" value={String(data.progress?.closed_prospective ?? 0)} note="Replay excluded" /><MetricTile icon="clock" label="Fresh days" value={String(data.progress?.sessions_prospective ?? 0)} note="Toward validation" /></div>
+            <p className={page.note}>{closed} finished examples. Ideas too risky for one contract are not counted.</p>
           </section>
 
           <section className={page.stack} aria-label="Candidates">

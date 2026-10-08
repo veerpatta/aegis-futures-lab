@@ -20,7 +20,8 @@
 
 .head {
   display: grid;
-  gap: 4px;
+  gap: 6px;
+  padding: 4px 2px;
 }
 .head h1 {
   margin: 0;
@@ -81,17 +82,18 @@
   padding: var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  background: var(--bg-raised);
+  background: linear-gradient(145deg, var(--bg-lifted), var(--bg-raised) 65%);
+  box-shadow: var(--shadow-card);
   min-width: 0;
 }
 
 .cardTitle {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  color: var(--text);
 }
 
 .stack {
@@ -333,12 +335,15 @@
 }
 
 .details {
-  border-top: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 0 var(--space-4) var(--space-2);
+  background: var(--bg-raised);
   margin-top: var(--space-3);
 }
 .details > summary {
   min-height: 48px;
-  padding: 14px 0;
+  padding: 16px 0;
   color: var(--text-dim);
   font-size: 13.5px;
   font-weight: 600;
