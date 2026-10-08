@@ -13,6 +13,7 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import { useQuotes } from "@/components/providers/QuoteProvider";
 import ExperimentCard from "@/components/experiment/ExperimentCard";
 import { Sparkline, WidgetIcon } from "@/components/widgets/TradingWidgets";
+import { TodayPulse } from "@/components/widgets/TodayPulse";
 import UpdatedAgo from "@/components/ui/UpdatedAgo";
 import { marketPhase, fmtStamp } from "@/lib/time/session";
 import { signalSnapshot } from "@/lib/signals/snapshot";
@@ -63,9 +64,9 @@ export default function TodayClient() {
   const nextNews = useMemo(
     () =>
       events
-        .filter((e) => new Date(e.time).getTime() > Date.now())
+        .filter((e) => nowSec !== null && new Date(e.time).getTime() > nowSec * 1000)
         .sort((a, b) => a.time.localeCompare(b.time))[0] ?? null,
-    [events]
+    [events, nowSec]
   );
 
   return (
@@ -78,6 +79,7 @@ export default function TodayClient() {
 
 
 
+      <TodayPulse now={nowSec} />
       <ExperimentCard />
 
       {showTour && (
@@ -124,7 +126,7 @@ export default function TodayClient() {
                 )}
               </span>
               <Sparkline points={(q?.bars ?? []).map(b => ({ t: b.time, y: b.close }))} label={`${MARKET_NAMES[symbol]} delayed price history`} tone={pct === null ? "blue" : pct >= 0 ? "good" : "bad"} />
-              <Link href="/markets" className={styles.chartLink}>Open chart <WidgetIcon name="arrow" /></Link>
+              <Link href={`/markets?symbol=${symbol}`} className={styles.chartLink}>Open chart <WidgetIcon name="arrow" /></Link>
             </div>
           );
         })}</div>

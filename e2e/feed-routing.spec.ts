@@ -99,6 +99,24 @@ test("Chart loads only the market on screen", async ({ page }) => {
   await expect(page.getByText("Why no idea right now?")).toBeVisible();
 });
 
+for (const width of [320, 390]) test(`${width}px Chart shows the loaded range and retains touch controls`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await stubExternalData(page, []);
+  await page.goto("/markets");
+  await expect(page.getByRole("region", { name: "Market clock" })).toBeVisible();
+  const range = page.getByRole("region", { name: "Range on this chart" });
+  await expect(range).toContainText("80 candles");
+  await expect(range).toContainText("4,999.00");
+  await expect(range).toContainText("5,020.75");
+  await expect(range).toContainText("Loaded candles, not a forecast");
+  await page.getByRole("group", { name: "Timeframe" }).getByRole("button", { name: "1H", exact: true }).click();
+  await expect(range).not.toContainText("80 candles");
+  await page.getByRole("button", { name: "Candles", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Candles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test("Lab deep links request only the strategy-specific metals history", async ({ page }) => {
   const historyRequests: string[] = [];
   await stubExternalData(page, historyRequests);

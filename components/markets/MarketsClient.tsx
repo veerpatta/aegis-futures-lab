@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { fetchMarket, type MarketPayload } from "@/lib/data/fetch";
 import { getNeon, type ZoneRow } from "@/lib/neon/client";
 import { CONTRACT_LABELS, FEED_SYMBOLS, type FeedSymbol } from "@/lib/market/contracts";
-import { fmtCountdown, marketPhase, sessionRemainingSec } from "@/lib/time/session";
+import { marketPhase } from "@/lib/time/session";
 import { aggregateMinutes } from "@/lib/strategies/zone-v5/engine";
 import { DAILY_FUNNEL_STAT_KEY, parseDailyFunnel, summarizeDailyFunnel, type DailyFunnelPayload } from "@/lib/signals/daily-funnel";
 import { tradingDayKey } from "@/lib/time/ny";
@@ -20,6 +20,7 @@ import CandleChart, { token, type PriceLine, type TradeMarker, type ZoneBox } fr
 import { useExperiment } from "@/components/providers/ExperimentProvider";
 import { zoneToBox } from "@/components/chart/zoneBoxes";
 import PriceArea from "./PriceArea";
+import { PriceRange, SessionClock } from "@/components/widgets/MarketWidgets";
 import page from "@/components/ui/page.module.css";
 import styles from "./markets.module.css";
 
@@ -292,7 +293,6 @@ export default function MarketsClient() {
   );
 
   const phase = marketPhase(tick ?? 0);
-  const remaining = tick === null ? null : sessionRemainingSec(tick);
 
   /* Hero = the contract in the chart; the other one gets the compact row under
      the zones, and tapping it swaps the two. */
@@ -319,7 +319,7 @@ export default function MarketsClient() {
     [prevClose]
   );
 
-  const nowSec = Date.now() / 1000;
+  const nowSec = tick ?? 0;
   const upcoming = data.events
     .map((e) => ({ ...e, sec: new Date(e.time).getTime() / 1000 }))
     .filter((e) => e.sec > nowSec - 1800)
@@ -335,26 +335,12 @@ export default function MarketsClient() {
       <header className={page.head}>
         <h1 className="pageTitle">Chart</h1>
         <p className={page.lede}>
-          Where the two markets are, the price areas the bot watches, and the news it steps aside for.{" "}
-          <Term k="delayed">Delayed prices</Term>, for practice only.
+          Your market view · <Term k="delayed">Delayed prices</Term> · Virtual only
         </p>
       </header>
 
       {/* ── Session strip: which session, and how long is left in it ── */}
-      <div className={styles.sessionStrip}>
-        <i
-          className={`${styles.sessionDot} ${styles[phase.tone]} ${
-            phase.live ? styles.sessionLive : ""
-          }`}
-          aria-hidden
-        />
-        <span className={styles.sessionText}>
-          {tick === null ? "Reading the session clock…" : `${phase.label} · ${phase.detail}`}
-        </span>
-        {remaining !== null && (
-          <b className={`${styles.sessionLeft} num`}>{fmtCountdown(remaining)} left</b>
-        )}
-      </div>
+      <SessionClock now={tick} />
 
       {/* ── Hero: the symbol you are looking at ── */}
       <section className={styles.hero} aria-label={`${chartSymbol} price`}>
@@ -474,6 +460,7 @@ export default function MarketsClient() {
             {heroState.status === "error" ? "FEED OFFLINE" : "DELAYED"}
           </Badge>
         </div>
+        <PriceRange bars={chartBars} />
       </section>
 
       {/* ── Price areas to watch (the engine's zones) ── */}

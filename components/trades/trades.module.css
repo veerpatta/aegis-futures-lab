@@ -12,6 +12,7 @@
 .balance strong { font-weight: 500; }
 .dataStamp { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 10.5px; margin: 0; }
 .dataStamp svg { flex: none; width: 14px; height: 14px; }
+.filterDock { position: sticky; top: calc(var(--appbar-h) + 8px + env(safe-area-inset-top, 0px)); z-index: 4; margin: 0 -4px; padding: 8px 4px; background: var(--bg); border-bottom: 1px solid var(--border); }
 .loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 160px; border: 1px dashed var(--border-strong); border-radius: var(--radius-card); color: var(--blue); }
 .detailHero { display: grid; gap: 16px; background: radial-gradient(ellipse at 100% 0, var(--blue-soft), transparent 70%), var(--bg-raised); }
 .detailPrice { padding: 16px 12px 8px; border-radius: var(--radius-tile); background: var(--bg-inset); }

@@ -29,9 +29,13 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 
 ### Read the widgets
 
+- **Your day at a glance.** Today shows the bot's recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market's Open chart link selects that market.
 - **Account journey.** The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.
 - **Trade cards.** The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.
 - **Find a trade.** Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.
+- **Decisions in this view.** The coloured strip counts closed, open, waiting, skipped and unfilled decisions in the cards you have loaded. It follows your filter. More cards can change these counts. They are not the account's lifetime totals.
+- **Market clock and price range.** Chart shows time left in the entry window. Its ring follows that window, including early closes. The price range marks the last close between the low and high of the loaded candles. The dates below say which period it covers. It is not a forecast.
+- **Find a tool.** In More, search for a tool by name or what it does. Clear the search to see all tools and the larger clock and privacy controls. These display settings stay on your device.
 - **Open risk.** The bar shows how much of the account's risk allowance is in use. It is not a forecast of the next loss.
 - **Learning progress.** On Learn, the ring counts usable examples toward the 50 needed to start training. It is not a score of skill or profitability. A fair review and fresh confirmation need more evidence.
 - **More detail, when needed.** Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone's reduced-motion setting turns off the animations. Hide money also hides the account chart.
@@ -194,4 +198,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-08 (bot companion and efficient learning). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-08 (widgets across all five tabs). If the app has changed since, the in-app Guide is the source of truth.*

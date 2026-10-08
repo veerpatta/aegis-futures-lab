@@ -5,13 +5,15 @@
    behind it (/trades/[id]). Only the learner's virtual trades live here: the
    personal journal (/replay) and the trade-ideas record stay separate. */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getNeon } from "@/lib/neon/client";
 import { useExperiment } from "@/components/providers/ExperimentProvider";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
 import { StateAxes } from "@/components/experiment/ExperimentCard";
 import { EquityChart, MetricTile, TradeWidget, WidgetIcon, ledgerVisual } from "@/components/widgets/TradingWidgets";
+import { TradeBreakdown } from "@/components/widgets/TradeBreakdown";
 import { useNowSec } from "@/components/signals/useSignalFeed";
 import type { ExpTradeRow } from "@/lib/experiment/view";
 import { cancelWords, exitWords, skipWords } from "@/lib/plain/experiment";
@@ -32,6 +34,12 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "earlier", label: "Earlier attempts" },
 ];
 const PAGE = 40;
+function ViewLink({ select }: { select: (view: Filter) => void }) {
+  const params = useSearchParams();
+  const view = params.get("view");
+  useEffect(() => { if (view === "open") select("open"); }, [view, select]);
+  return null;
+}
 const COLUMNS =
   "id,decision_key,symbol,side,decided_at,provenance,action,reason,qty,model_version_id,position_status,cancel_reason,exit_reason,exit_ts,net,stale,mode,campaign,execution_clock,observed_at,recorded_at,idea,fill_price,fill_ts,mark,mark_ts,exit_price";
 
@@ -94,6 +102,7 @@ export default function TradesClient() {
   const select = (next: Filter) => { if (next !== filter) { request.current++; setRows([]); setLoading(true); setFilter(next); } };
   return (
     <div className={page.page}>
+      <Suspense fallback={null}><ViewLink select={setFilter} /></Suspense>
       <header className={page.head}>
         <h1 className="pageTitle">Trades</h1>
         <p className={page.lede}>Your virtual trading desk</p>
@@ -114,7 +123,7 @@ export default function TradesClient() {
       </section>
 
       <div className={`${page.sectionHead} ${tradeStyles.activityTitle}`}><h2>Trade activity</h2><span className={page.note}>Tap a card to explore</span></div>
-      <div className={styles.filters} role="group" aria-label="Show">
+      <div className={`${styles.filters} ${tradeStyles.filterDock}`} role="group" aria-label="Show">
         {FILTERS.map((f) => (
           <button key={f.key} type="button" aria-pressed={filter === f.key} onClick={() => select(f.key)}>
             {f.label}
@@ -122,6 +131,7 @@ export default function TradesClient() {
         ))}
       </div>
       <p className={page.note}>{filter === "earlier" ? "Earlier attempts stay on record. They do not add money to the current account." : "After modeled costs · Open results are estimates."}</p>
+      <TradeBreakdown rows={rows} loading={loading && !!experimentId} failed={failed || exp.failed} more={more} earlier={filter === "earlier"} />
 
       {failed && (
         <p className={page.warning}>

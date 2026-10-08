@@ -126,6 +126,47 @@ const history = {
 
 const noSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
 
+for (const width of [320, 390]) test(`${width}px Today shortcuts and trade breakdown follow actual records`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await stub(page);
+  await page.goto("/");
+  const pulse = page.getByRole("region", { name: "Today at a glance" });
+  await expect(pulse).toContainText("Following virtual trades");
+  expect(await noSideways(page)).toBe(true);
+  await pulse.getByRole("link", { name: /Open trades/ }).click();
+  await expect(page).toHaveURL(/trades\?view=open$/);
+  await expect(page.getByRole("group", { name: "Show", exact: true }).getByRole("button", { name: "Open", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("group", { name: "Show", exact: true }).getByRole("button", { name: "All", exact: true }).click();
+  const mix = page.getByRole("region", { name: "Decisions in this view" });
+  await expect(mix).toContainText("1 shown");
+  await expect(mix.getByRole("img")).toHaveAttribute("aria-label", /1 closed, 0 open, 0 waiting, 0 skipped, 0 no fill/);
+  expect(await noSideways(page)).toBe(true);
+});
+
+test("More searches tools and keeps privacy and clock settings usable on a narrow phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stub(page);
+  await page.goto("/more");
+  await page.getByRole("searchbox", { name: "Find a tool" }).fill("journal");
+  await expect(page.getByRole("status")).toContainText("1 tool found");
+  await expect(page.getByRole("link", { name: /Journal Log your own/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Strategy Lab Test/ })).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Find a tool" }).fill("nothing-matches");
+  await expect(page.getByRole("status")).toContainText("No matching tools");
+  await page.getByRole("button", { name: "Clear tool search" }).click();
+  const settings = page.getByRole("region", { name: "Settings", exact: true });
+  await settings.getByRole("button", { name: "IST", exact: true }).click();
+  await expect(settings).toContainText("India");
+  const privacy = settings.getByRole("button", { name: "Hide money amounts", exact: true });
+  await privacy.click();
+  await expect(privacy).toHaveAttribute("aria-pressed", "true");
+  await expect(settings).toContainText("Hidden");
+  expect(await noSideways(page)).toBe(true);
+  await page.reload();
+  await expect(settings.getByRole("button", { name: "IST", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(privacy).toHaveAttribute("aria-pressed", "true");
+});
+
 for (const width of [320, 390])
   test(`${width}px trade widgets show actual fills, progress and masked money`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });

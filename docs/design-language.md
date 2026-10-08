@@ -416,4 +416,6 @@ and "trade ideas" for simulated signals — never one word for both. UI copy liv
 
 The Learn page's illustrated bot reflects recorded activity. Preparation and review use blue, ordinary activity uses green, and missing or stalled evidence uses amber. Offline, unknown and stale activity stay still. Users can pause animation; it also pauses off screen and in hidden tabs, and reduced motion disables it. A moving illustration is never presented as proof that a background job is currently running.
 
+The desk widgets in `components/widgets/` carry the same pattern across Today, Trades, Chart and More. Decorative radar and toolkit illustrations have one short entrance, with no continuous motion. The market clock measures the actual entry window, including early closes. Chart range markers use loaded candle extrema and show their dates. The trade mix counts only the current filter's loaded rows; it is never labelled as lifetime totals or a win rate. More keeps tool search separate from the device's clock and privacy settings. All new controls work at 320px and with reduced motion.
+
 *Derived from the repository as of 2026-07-31; §10 added 2026-10-03; §11 added 2026-10-08.*

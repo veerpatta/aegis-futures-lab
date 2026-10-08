@@ -83,9 +83,13 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>Read the widgets</h2>
         <ul>
+          <li><b>Your day at a glance.</b> Today shows the bot&apos;s recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market&apos;s Open chart link selects that market.</li>
           <li><b>Account journey.</b> The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.</li>
           <li><b>Trade cards.</b> The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.</li>
           <li><b>Find a trade.</b> Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.</li>
+          <li><b>Decisions in this view.</b> The coloured strip counts closed, open, waiting, skipped and unfilled decisions in the cards you have loaded. It follows your filter. More cards can change these counts. They are not the account&apos;s lifetime totals.</li>
+          <li><b>Market clock and price range.</b> Chart shows time left in the entry window. Its ring follows that window, including early closes. The price range marks the last close between the low and high of the loaded candles. The dates below say which period it covers. It is not a forecast.</li>
+          <li><b>Find a tool.</b> In More, search for a tool by name or what it does. Clear the search to see all tools and the larger clock and privacy controls. These display settings stay on your device.</li>
           <li><b>Open risk.</b> The bar shows how much of the account&apos;s risk allowance is in use. It is not a forecast of the next loss.</li>
           <li><b>Learning progress.</b> On Learn, the ring counts usable examples toward the 50 needed to start training. It is not a score of skill or profitability. A fair review and fresh confirmation need more evidence.</li>
           <li><b>More detail, when needed.</b> Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone&apos;s reduced-motion setting turns off the animations. Hide money also hides the account chart.</li>
@@ -359,7 +363,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-08 (bot companion and efficient learning). A printable version of this guide lives in
+        Matches the app as of 2026-10-08 (widgets across all five tabs). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

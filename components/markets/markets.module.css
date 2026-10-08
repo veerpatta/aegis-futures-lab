@@ -45,6 +45,8 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-hero);
   padding: 18px;
+  box-shadow: var(--shadow-card);
+  animation: chartEnter .45s var(--ease-out) both;
 }
 
 .heroHead {
@@ -90,6 +92,7 @@
   color: var(--text-dim);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  min-height: 44px;
 }
 
 .symPill:hover {
@@ -222,6 +225,7 @@
   color: var(--text-faint);
   cursor: pointer;
   transition: all 0.18s;
+  min-height: 44px;
 }
 
 .tfOn {
@@ -285,10 +289,12 @@
 }
 
 .otherSpark {
-  width: 100px;
+  width: clamp(48px,15vw,100px);
   height: 30px;
   flex: 0 0 auto;
 }
+@keyframes chartEnter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion:reduce) { .hero { animation: none; } }
 
 .otherVals {
   display: flex;

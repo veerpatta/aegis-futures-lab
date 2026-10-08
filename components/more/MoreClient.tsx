@@ -6,6 +6,9 @@
    never noticed the small header chips can still find them by name. */
 
 import Link from "next/link";
+import { useState } from "react";
+import { DeskArtwork } from "@/components/widgets/DeskArtwork";
+import { WidgetIcon } from "@/components/widgets/WidgetIcon";
 import { MORE_GROUPS } from "@/components/nav/links";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -16,8 +19,12 @@ import styles from "./more.module.css";
 export default function MoreClient() {
   const { privacy, toggle } = usePrivacy();
   const { zone, setZone } = useZone();
-  const research = MORE_GROUPS.find((g) => g.title === "Research room");
-  const before = MORE_GROUPS.filter((g) => g !== research);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const groups = MORE_GROUPS.map(g => ({ ...g, links: g.links.filter(l => `${g.title} ${l.label} ${l.hint}`.toLowerCase().includes(query)) })).filter(g => g.links.length);
+  const research = groups.find((g) => g.title === "Research room");
+  const before = groups.filter((g) => g !== research);
+  const found = groups.reduce((n, g) => n + g.links.length, 0);
 
   const group = (g: (typeof MORE_GROUPS)[number]) => (
     <section key={g.title} className={page.stack} aria-label={g.title}>
@@ -46,17 +53,20 @@ export default function MoreClient() {
     <div className={page.page}>
       <header className={page.head}>
         <h1 className="pageTitle">More</h1>
-        <p className={page.lede}>Trade ideas, method research, your journal, help and settings.</p>
+        <p className={page.paperLine}>Your tools · Virtual only · No real money</p>
       </header>
 
+      <section className={styles.hero} aria-label="Your trading toolkit"><div><span className={styles.kicker}>Explore at your pace</span><h2>Your trading toolkit</h2><p>Find an idea. Keep a journal. Understand every result.</p><span className={styles.deviceNote}><WidgetIcon name="shield" /> Your display settings stay on this device</span></div><DeskArtwork kind="tools" /></section>
+      <div className={styles.search}><label htmlFor="tool-search">Find a tool</label><div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></svg><input id="tool-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Try journal, guide or research" autoComplete="off" />{search && <button type="button" onClick={() => setSearch("")} aria-label="Clear tool search">×</button>}</div>{query && <p role="status">{found ? `${found} tool${found === 1 ? "" : "s"} found` : "No matching tools. Try a different word."}</p>}</div>
       {before.map(group)}
 
-      <section className={page.stack} aria-label="Settings">
+      {!query && <section className={page.stack} aria-label="Settings">
         <div className={page.sectionHead}>
           <h2>Settings</h2>
         </div>
-        <div className={page.list}>
-          <div className={page.setting}>
+        <div className={styles.preferences}>
+          <div className={styles.preference}>
+            <div className={styles.preferenceVisual}><WidgetIcon name="clock" /><strong>{zone}</strong></div>
             <span className={page.rowMain}>
               <b>Show times in</b>
               <span>{ZONE_NAME[zone]}. Trading days still follow New York.</span>
@@ -75,17 +85,18 @@ export default function MoreClient() {
               ))}
             </span>
           </div>
-          <div className={page.setting}>
+          <div className={styles.preference}>
+            <div className={`${styles.preferenceVisual} ${styles.privacyVisual}`}><WidgetIcon name="shield" /><strong>{privacy ? "Hidden" : "Shown"}</strong></div>
             <span className={page.rowMain}>
               <b>Hide money amounts</b>
               <span>Useful when someone can see your screen.</span>
             </span>
-            <button type="button" className={page.switch} aria-pressed={privacy} onClick={toggle}>
-              {privacy ? "On" : "Off"}
+            <button type="button" className={styles.privacySwitch} aria-label="Hide money amounts" aria-pressed={privacy} onClick={toggle}>
+              <span aria-hidden><i /></span>{privacy ? "Hidden" : "Visible"}
             </button>
           </div>
         </div>
-      </section>
+      </section>}
 
       {research && group(research)}
 
