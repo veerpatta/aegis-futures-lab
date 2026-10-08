@@ -71,7 +71,7 @@ const learning = {
     { id: 1, kind: "campaign_started", from_status: null, to_status: "active", from_version: null, to_version: "learner-1:v1-take-all", reason: "first campaign", evidence: {}, actor: "owner", created_at: iso(60 * 24 * 3) },
   ],
   progress: { closed_outcomes: 190, closed_prospective: 170, sessions_prospective: 30, decisions: 260, taken: 120 },
-  latest_dataset: null,
+  latest_dataset: { id: "dataset-test", built_at: iso(60), cutoff: iso(60), row_count: 190, rows_hash: "test" },
 };
 
 async function stub(page: Page, hist: unknown[] = [history]) {
@@ -225,6 +225,50 @@ test("Trades lists bot decisions and a trade shows its evidence", async ({ page 
   await expect(page.getByRole("region", { name: "Why it entered" })).toContainText("frozen control");
   await expect(page.getByRole("region", { name: "What was learned" })).toContainText("One result is not a pattern");
   expect(await noSideways(page)).toBe(true);
+});
+
+for (const width of [320, 390]) test(`${width}px bot companion shows evidence, motion control and the next hurdle`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await stub(page);
+  await page.goto("/brain");
+  const activity = page.getByRole("region", { name: "Bot activity", exact: true });
+  await expect(activity).toContainText("Following virtual trades");
+  await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "true");
+  await page.getByRole("button", { name: "Pause bot animation" }).click();
+  await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
+  await page.getByRole("button", { name: "Resume bot animation" }).click();
+  const notebook = page.getByRole("region", { name: "Learning progress", exact: true });
+  await expect(notebook).toContainText("190 usable examples");
+  await expect(notebook).toContainText("Enough examples to start training");
+  await notebook.getByText("The path to a better bot").click();
+  await expect(notebook).toContainText("60 fresh ideas over 20 trading days");
+  await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
+  expect(await noSideways(page)).toBe(true);
+});
+
+test("bot rests offline and honors reduced motion without claiming new progress", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await stub(page);
+  await page.goto("/brain");
+  const activity = page.getByRole("region", { name: "Bot activity", exact: true });
+  await expect(activity).toContainText("Following virtual trades");
+  const motion = await activity.locator("svg g").evaluateAll(elements => elements.map(e => getComputedStyle(e).animationName));
+  expect(motion.every(name => name === "none")).toBe(true);
+  await expect(page.getByRole("region", { name: "Learning progress", exact: true })).toContainText("190 usable examples");
+  await context.setOffline(true);
+  await expect(activity).toContainText("Offline for now");
+  await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
+  await expect(page.getByRole("region", { name: "Learning progress", exact: true })).toContainText("190 usable examples");
+});
+
+test("a stale running job is not shown as active training", async ({ page }) => {
+  await stub(page);
+  await page.route("**/experiment_overview?*", r => r.fulfill({ json: [{ ...overview, last_runs: { ...overview.last_runs, review: { status: "running", started_at: iso(90), finished_at: null, counts: {} } } }] }));
+  await page.goto("/brain");
+  const activity = page.getByRole("region", { name: "Bot activity", exact: true });
+  await expect(activity).toContainText("Waiting for a report");
+  await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
 });
 
 test("Learn shows the active model, verdicts with failed checks and the change history", async ({ page }) => {

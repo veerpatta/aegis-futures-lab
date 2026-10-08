@@ -19,7 +19,7 @@ export default function BotClient() {
   }, []);
   return <div className={page.page}>
     <header className={page.head}><h1 className="pageTitle">Learn</h1><p className={page.paperLine}>Virtual only · Delayed prices · No real money</p></header>
-    <ExperimentCard compact /><LearnSection />
+    <LearnSection /><ExperimentCard compact />
     <details ref={history} className={page.details}><summary>Historical practice · explore the older-data study</summary><HistorySection /></details>
     <details ref={research} className={page.details} id="research"><summary>Method research</summary><ResearchSection /></details>
   </div>;

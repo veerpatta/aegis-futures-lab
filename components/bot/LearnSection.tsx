@@ -8,20 +8,19 @@
    including the failed ones. A training job finishing is never shown as a
    learning success: only an adopted change is. */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getNeon } from "@/lib/neon/client";
 import { useExperiment, EXPERIMENT_LINEAGE } from "@/components/providers/ExperimentProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
+import { readCache, useLiveRefresh, writeCache } from "@/lib/hooks/useLiveRefresh";
 import { Term } from "@/components/ui/Glossary";
 import ShowNumbers from "@/components/ui/ShowNumbers";
-import { ProgressRing, MetricTile } from "@/components/widgets/TradingWidgets";
-import widgets from "@/components/widgets/widgets.module.css";
+import BotCompanion from "./BotCompanion";
+import { checkedLearningExamples } from "@/lib/plain/companion";
 import type { ExpLearning } from "@/lib/experiment/view";
-import { learningState } from "@/lib/experiment/view";
 import { PREREG } from "@/lib/experiment/prereg";
 import {
-  BLOCKER_WORDS, CHECK_WORDS, LEARNING_WORDS, VERDICT_WORDS, VERSION_STATUS_WORDS, changeWords, specWords, versionName,
+  BLOCKER_WORDS, CHECK_WORDS, VERDICT_WORDS, VERSION_STATUS_WORDS, changeWords, specWords, versionName,
 } from "@/lib/plain/experiment";
 import { dateShortIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
@@ -37,7 +36,7 @@ function Meter({ label, n, of }: { label: string; n: number; of: number }) {
       <span>
         {label}: <b className="num">{n}</b> of {of}
       </span>
-      <div className={styles.bar} role="progressbar" aria-valuemin={0} aria-valuemax={of} aria-valuenow={n} aria-label={label}>
+      <div className={styles.bar} role="progressbar" aria-valuemin={0} aria-valuemax={of} aria-valuenow={Math.min(of, n)} aria-label={label}>
         <i style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -55,34 +54,45 @@ export default function LearnSection() {
   const [data, setData] = useState<ExpLearning | null>(null);
   const [failed, setFailed] = useState(false);
   const [allChanges, setAllChanges] = useState(false);
+  const request = useRef(0);
+  const experimentId = exp.data?.experiment.id;
 
   const load = useCallback(async () => {
+    if (!experimentId) return;
+    const current = ++request.current;
     try {
       const res = await getNeon().from("experiment_learning").select("*").eq("lineage", EXPERIMENT_LINEAGE).limit(1);
       if (res.error) throw new Error(res.error.message);
-      setData((res.data?.[0] ?? null) as ExpLearning | null);
+      if (current !== request.current) return;
+      const next = (res.data?.[0] ?? null) as ExpLearning | null;
+      if (next && next.experiment_id !== experimentId) throw new Error("Learning record is for another campaign");
+      setData(next);
+      if (next) writeCache(`aegis.learning.${experimentId}`, next);
       setFailed(false);
     } catch {
-      setFailed(true);
+      if (current === request.current) setFailed(true);
     }
-  }, []);
+  }, [experimentId]);
   useEffect(() => {
+    setData(experimentId ? readCache<ExpLearning>(`aegis.learning.${experimentId}`)?.value ?? null : null);
     void load();
-  }, [load]);
+    return () => { request.current++; };
+  }, [load, experimentId]);
   useLiveRefresh(() => void load(), 5 * 60_000);
 
-  const g = PREREG.gates;
+  const g = { ...PREREG.gates, ...data?.prereg?.gates };
   const fairReview = g.minTrainRows * (g.folds + 1); // an illustration, not a rule: six date blocks, the first must train fold 1
   const active = data?.versions.find((v) => v.id === data.active_version_id) ?? null;
   const shadowing = data?.versions.filter((v) => v.status === "shadowing") ?? [];
   const lastEval = (id: string) => data?.evaluations.find((e) => e.model_version_id === id && e.kind === "walk_forward") ?? null;
   const passes = (id: string) => data?.evaluations.filter((e) => e.model_version_id === id && e.kind === "walk_forward" && e.verdict === "pass").length ?? 0;
-  const closed = data?.progress?.closed_outcomes ?? 0;
-  const state = learningState(exp.data, data);
+  const checked = checkedLearningExamples(data, exp.data);
+  const closed = checked?.count ?? 0;
   const changes = data?.changes ?? [];
 
   return (
     <section className={page.stack} aria-label="What the learner has learned" id="learning">
+      <BotCompanion data={data} failed={failed} />
       <div className={page.sectionHead}>
         <h2>
           <Term k="experimentalLearner">Experimental learner</Term> · learning
@@ -112,14 +122,13 @@ export default function LearnSection() {
       ) : (
         <>
           <section className={`${page.card} ${styles.card}`} aria-label="Active model">
-            <div className={widgets.learningHero}><ProgressRing value={closed} of={fairReview} label="finished trades toward a first review, rough guide" /><div><h3>{LEARNING_WORDS[state.state]}</h3><p>{closed < g.minTrainRows ? `${Math.max(0, g.minTrainRows - closed)} more finished trades before training can start.` : "Training has enough results to begin. Each review still needs every check to pass."}</p></div></div>
             <h3 className={page.cardTitle}>
               <Term k="modelVersion">Active model</Term> · {versionName(active?.id)}
             </h3>
             <p className={styles.reason}>
               {specWords(active?.spec)} In charge since {exp.data?.model?.since ? dateShortIn(sec(exp.data.model.since), zone) : "—"}.
             </p>
-            {closed < fairReview ? (
+            {checked && closed < fairReview ? (
               <details className={styles.accountDetails}>
                 <summary>How the first review is counted <span>Details +</span></summary>
                 <Meter label="Finished trades toward a fair first review (rough guide)" n={closed} of={fairReview} />
@@ -130,8 +139,7 @@ export default function LearnSection() {
                 </p>
               </details>
             ) : null}
-            <div className={widgets.metrics}><MetricTile icon="learn" label="Candidates" value={String(shadowing.length)} note="Being tested" tone="warn" /><MetricTile icon="check" label="Fresh results" value={String(data.progress?.closed_prospective ?? 0)} note="Replay excluded" /><MetricTile icon="clock" label="Fresh days" value={String(data.progress?.sessions_prospective ?? 0)} note="Toward validation" /></div>
-            <p className={page.note}>{closed} finished examples. Ideas too risky for one contract are not counted.</p>
+            <p className={page.note}>{checked ? `${closed} usable examples at the last notebook check.` : "The next notebook check will count usable examples."} Ideas too risky for one contract are not counted.</p>
           </section>
 
           <section className={page.stack} aria-label="Candidates">

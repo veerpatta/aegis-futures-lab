@@ -27,6 +27,8 @@ import { brier } from "./stats";
 import { buildEvalRows, datasetFor, freshWindow, postAdoptionRows, weekKeyOf } from "./learning";
 import { pickChallengers, specHash, inSearchSpace } from "./search";
 import { stableHash } from "./hash";
+import { createFitCache } from "./fit-cache";
+import { auditLearningData } from "./learning-audit";
 import { EXP_RISK } from "./policy";
 import type { ChangeRecord, ExperimentStore, JobName, LearnTx, TickTx, Trigger, VersionRecord } from "./store";
 import type { ChallengerSpec, ExperimentConfig, ExpSymbol, LogitArtifact, Opportunity } from "./types";
@@ -192,7 +194,7 @@ async function learnJob(store: ExperimentStore, exp: ExperimentConfig, runId: nu
     const allowSynthetic = st.exp.mode === "synthetic";
     const rows = buildEvalRows(st.decisions, st.outcomes, nowSec);
     const ds = datasetFor(st.exp.id, rows, nowSec);
-    const counts: Record<string, unknown> = { rows: rows.length };
+    const counts: Record<string, unknown> = { rows: rows.length, learning: auditLearningData(st.decisions, st.outcomes, rows, nowSec) };
     if (!st.latestDataset || st.latestDataset.rowsHash !== ds.rowsHash) {
       await tx.insertDataset(runId, ds);
       counts.dataset = ds.id;
@@ -240,7 +242,8 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
     const ds = datasetFor(st.exp.id, rows, nowSec);
     let datasetId = st.latestDataset?.id ?? null;
     if (!st.latestDataset || st.latestDataset.rowsHash !== ds.rowsHash) { await tx.insertDataset(runId, ds); datasetId = ds.id; }
-    const counts: Record<string, unknown> = { rows: rows.length, week: weekKey };
+    const fits = createFitCache();
+    const counts: Record<string, unknown> = { rows: rows.length, week: weekKey, learning: auditLearningData(st.decisions, st.outcomes, rows, nowSec), fitCache: fits.stats };
     const incumbentVersion = st.versions.find((v) => v.id === st.pointer.versionId)!;
     const incumbent = incumbentVersion.artifact ?? TAKE_ALL_V1;
 
@@ -251,7 +254,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
     const left = new Set<string>(); // versions that stop shadowing in this review
     for (const v of shadowing) {
       const spec = v.spec as ChallengerSpec;
-      const wf = walkForward(rows, spec, incumbent, { seedKey: `${v.id}:${weekKey}`, comparisons: shadowing.length, allowSynthetic, prereg: P });
+      const wf = walkForward(rows, spec, incumbent, { seedKey: `${v.id}:${weekKey}`, comparisons: shadowing.length, allowSynthetic, prereg: P, fitModel: fits.fit });
       const verdict = verdictOf(wf.metrics, P);
       const previous = st.evaluations.filter((e) => e.kind === "walk_forward" && e.versionId === v.id).sort((a, b) => b.createdAt - a.createdAt);
       const lastTotal = previous[0]?.totalOutcomes ?? rows.filter((r) => r.exitTs <= v.registeredAt).length;
@@ -335,7 +338,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
         await tx.insertChange({ kind: "challenger_registered", toVersion: id, reason: `registered: ${JSON.stringify(spec)}`, evidence: { spec, seed, datasetId }, eventKey: `registered:${id}` });
         let artifact: LogitArtifact | null = null, problems: string[] = [];
         try {
-          artifact = trainChallenger(id, spec, trainRows, { seed, cutoff: new Date(nowSec * 1000).toISOString(), datasetId, rowsHash: ds.rowsHash });
+          artifact = trainChallenger(id, spec, trainRows, { seed, cutoff: new Date(nowSec * 1000).toISOString(), datasetId, rowsHash: ds.rowsHash }, fits.fit);
           problems = validateArtifact(artifact);
         } catch (err) {
           problems = [err instanceof Error ? err.message : String(err)];

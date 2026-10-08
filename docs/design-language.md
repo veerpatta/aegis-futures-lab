@@ -409,9 +409,11 @@ and "trade ideas" for simulated signals — never one word for both. UI copy liv
 
 - Account curves use actual recorded points joined by straight lines. The caption distinguishes daily closes from the latest estimate; no decorative market paths are invented. Privacy mode removes the account curve and masks money in text.
 - Trade cards distinguish skipped, waiting, cancelled, open and closed states. Only filled trades show an entry price. Open results are labelled estimates; stale estimates are muted and marked. The timeline never marks an unfilled order complete.
-- The learning ring counts examples, is amber, and is labelled as a rough review target. It never implies profitability or readiness for real money.
+- The learning ring is amber and counts checked, usable examples toward the minimum for training. Its check date is visible. It never implies profitability or readiness for real money; later evaluation and fresh confirmation are separate hurdles.
 - Widget entry uses opacity and an 8px translation for 380ms; stagger is capped at 175ms. Tap feedback uses a small transform. Reduced motion removes entry delays and press transforms.
 - `--shadow-card` and `--ease-out` unify depth and motion. `--text-faint` is now `#8190a7` for readable secondary text on dark surfaces. Existing semantic colours and radii remain in use.
 - Timing, learning explanations and the older-data study expand on demand. Account warnings and measured verdicts remain visible on their relevant surfaces.
+
+The Learn page's illustrated bot reflects recorded activity. Preparation and review use blue, ordinary activity uses green, and missing or stalled evidence uses amber. Offline, unknown and stale activity stay still. Users can pause animation; it also pauses off screen and in hidden tabs, and reduced motion disables it. A moving illustration is never presented as proof that a background job is currently running.
 
 *Derived from the repository as of 2026-07-31; §10 added 2026-10-03; §11 added 2026-10-08.*

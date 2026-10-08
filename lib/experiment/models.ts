@@ -98,8 +98,9 @@ export function fitLogit(spec: ChallengerSpec, rows: TrainRow[]): FittedLogit {
 
 export function trainChallenger(
   id: string, spec: ChallengerSpec, rows: TrainRow[], meta: { seed: number; cutoff: string; datasetId: string | null; rowsHash: string },
+  fitModel: typeof fitLogit = fitLogit,
 ): LogitArtifact {
-  const fit = fitLogit(spec, rows);
+  const fit = fitModel(spec, rows);
   const sessions = windowRows(rows, spec.windowSessions).map((r) => r.sessionKey).sort();
   return {
     schema: "aegis-exp-model/1", kind: "logit", id, featureSet: spec.featureSet, featureNames: FEATURE_SETS[spec.featureSet],

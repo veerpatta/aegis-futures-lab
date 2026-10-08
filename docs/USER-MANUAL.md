@@ -33,7 +33,7 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 - **Trade cards.** The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.
 - **Find a trade.** Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.
 - **Open risk.** The bar shows how much of the account's risk allowance is in use. It is not a forecast of the next loss.
-- **Learning progress.** The ring counts finished examples toward a rough first-review target. It is not a score of skill or profitability. Fresh results and fresh days are shown separately.
+- **Learning progress.** On Learn, the ring counts usable examples toward the 50 needed to start training. It is not a score of skill or profitability. A fair review and fresh confirmation need more evidence.
 - **More detail, when needed.** Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone's reduced-motion setting turns off the animations. Hide money also hides the account chart.
 
 ## 3. How to read a trade idea
@@ -46,6 +46,16 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 6. **Details.** Tap a card for why the bot took it and, under "How this kind of idea has done", the numbers with their sample sizes.
 
 ## 4. The experimental learner
+
+### Meet the bot on Learn
+
+The animated bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone's reduced-motion setting.
+
+**My learning notebook** shows usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open **The path to a better bot** for all the steps.
+
+**Working on its own** shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. **Recent activity** shows recorded job times and outcomes. Open **Example quality at the last check** for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.
+
+The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app's usage guard is not a provider billing meter.
 
 The learner is the bot's own **virtual $10,000** account. After each complete market update, it processes ideas and price bars in market-time order. It decides after the idea's bar closes and fills on the next available bar. It does not wait again just because the feed arrived late. Skipped ideas are followed too, so it cannot learn only from its own winners.
 
@@ -184,4 +194,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-08 (mobile trading widgets). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-08 (bot companion and efficient learning). If the app has changed since, the in-app Guide is the source of truth.*

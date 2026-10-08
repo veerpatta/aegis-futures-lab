@@ -87,7 +87,7 @@ export default function GuidePage() {
           <li><b>Trade cards.</b> The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.</li>
           <li><b>Find a trade.</b> Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.</li>
           <li><b>Open risk.</b> The bar shows how much of the account&apos;s risk allowance is in use. It is not a forecast of the next loss.</li>
-          <li><b>Learning progress.</b> The ring counts finished examples toward a rough first-review target. It is not a score of skill or profitability. Fresh results and fresh days are shown separately.</li>
+          <li><b>Learning progress.</b> On Learn, the ring counts usable examples toward the 50 needed to start training. It is not a score of skill or profitability. A fair review and fresh confirmation need more evidence.</li>
           <li><b>More detail, when needed.</b> Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone&apos;s reduced-motion setting turns off the animations. Hide money also hides the account chart.</li>
         </ul>
       </section>
@@ -125,6 +125,11 @@ export default function GuidePage() {
 
       <section className={styles.card} id="learner">
         <h2>The experimental learner</h2>
+        <h3>Meet the bot on Learn</h3>
+        <p>The animated bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone&apos;s reduced-motion setting.</p>
+        <p><b>My learning notebook</b> shows usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open <b>The path to a better bot</b> for all the steps.</p>
+        <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
+        <p>The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
         <p>
           The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. It decides after the idea&apos;s bar closes and fills on the next available bar. It does not wait again just because the feed arrived late. Skipped ideas are followed too, so it cannot learn only from its own winners.
         </p>
@@ -354,7 +359,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-08 (mobile trading widgets). A printable version of this guide lives in
+        Matches the app as of 2026-10-08 (bot companion and efficient learning). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

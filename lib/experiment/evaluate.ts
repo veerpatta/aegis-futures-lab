@@ -97,7 +97,7 @@ function incumbentDecision(inc: ModelArtifact, r: EvalRow, baseRate: number): { 
 
 export function walkForward(
   allRows: EvalRow[], spec: ChallengerSpec, incumbent: ModelArtifact,
-  opts: { seedKey: string; comparisons: number; allowSynthetic?: boolean; prereg?: typeof PREREG },
+  opts: { seedKey: string; comparisons: number; allowSynthetic?: boolean; prereg?: typeof PREREG; fitModel?: typeof fitLogit },
 ): WalkForwardResult {
   const prereg = opts.prereg ?? PREREG;
   const rows = [...allRows].sort((a, b) => a.decidedAt - b.decidedAt || a.key.localeCompare(b.key));
@@ -125,7 +125,7 @@ export function walkForward(
       });
       if (!valid) continue;
       folds++;
-      const fit = fitLogit({ ...spec, windowSessions: null }, train);
+      const fit = (opts.fitModel ?? fitLogit)({ ...spec, windowSessions: null }, train);
       const baseRate = train.reduce((a, r) => a + r.win, 0) / train.length;
       for (const r of test) {
         // A frozen logit incumbent is only compared on ideas after its own training cutoff.

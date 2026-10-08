@@ -8,6 +8,9 @@ import { buildEvalRows, datasetFor, weekKeyOf } from "@/lib/experiment/learning"
 import { quotaLevel, allowed, searchBudget } from "@/lib/experiment/quota";
 import { PREREG } from "@/lib/experiment/prereg";
 import { mulberry32 } from "@/scripts/engine/montecarlo";
+import { createFitCache } from "@/lib/experiment/fit-cache";
+import { fitLogit } from "@/lib/experiment/models";
+import { auditLearningData } from "@/lib/experiment/learning-audit";
 import type { Decision, FrozenFeatures, Outcome } from "@/lib/experiment/types";
 
 const feat = (i: number, over: Partial<FrozenFeatures> = {}): FrozenFeatures => ({
@@ -34,6 +37,37 @@ function rows(n: number, seed = 1, signal = true): EvalRow[] {
 }
 
 describe("experiment models", () => {
+  it("reuses identical effective windows with exactly the same coefficients and thresholds", () => {
+    const r = rows(120).map(x => ({ features: x.features, win: x.win, net: x.net, sessionKey: x.session }));
+    const cache = createFitCache();
+    for (const windowSessions of [null, 60, 120]) {
+      const spec = { windowSessions, featureSet: "v2" as const, l2: 0.01 };
+      expect(cache.fit(spec, r)).toEqual(fitLogit(spec, r));
+    }
+    expect(cache.stats).toEqual({ computed: 1, reused: 2 });
+    // Content, not object identity. Changed costs, labels and features must miss.
+    const spec = { windowSessions: null, featureSet: "v2" as const, l2: 0.01 };
+    cache.fit(spec, structuredClone(r));
+    for (const patch of [{ net: r[0].net + 1 }, { win: (1 - r[0].win) as 0 | 1 }, { features: { ...r[0].features, score: 99 } }])
+      cache.fit(spec, [{ ...r[0], ...patch }, ...r.slice(1)]);
+    expect(cache.stats).toEqual({ computed: 4, reused: 3 });
+    cache.fit({ ...spec, windowSessions: 10 }, r);
+    cache.fit({ ...spec, l2: 0.1 }, r);
+    expect(cache.stats.computed).toBe(6);
+  });
+
+  it("bounds the cache and produces identical walk-forward evidence with reuse enabled", () => {
+    const r = rows(320), spec = { windowSessions: null, featureSet: "v1" as const, l2: 0.01 };
+    const cache = createFitCache(1);
+    const opts = { seedKey: "cache-parity", comparisons: 3 };
+    expect(walkForward(r, spec, TAKE_ALL_V1, { ...opts, fitModel: cache.fit })).toEqual(walkForward(r, spec, TAKE_ALL_V1, opts));
+    const train = r.map(x => ({ features: x.features, win: x.win, net: x.net, sessionKey: x.session }));
+    cache.fit(spec, train);
+    cache.fit({ ...spec, l2: .1 }, train);
+    const before = cache.stats.computed;
+    cache.fit(spec, train);
+    expect(cache.stats.computed).toBe(before + 1);
+  });
   it("trainLogitL2 at 1e-3 is exactly winprob's trainer", () => {
     const X = [[1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 0, 0]];
     const y = [1, 0, 1, 0];
@@ -176,6 +210,19 @@ describe("search, datasets and quota", () => {
     expect(r[0].net).toBe(20);
     expect(r[0].frictionPerContract).toBeCloseTo(2.4 + 0.5 * 5, 6);
     expect(datasetFor("e", r, 200).rowsHash).toBe(datasetFor("e", [...r], 200).rowsHash);
+    const audit = auditLearningData(pairs.map(p => p[0]), pairs.map(p => p[1]), r, 200);
+    expect(audit).toMatchObject({ checked: 3, usable: 1, duplicate: 1, afterCutoff: 1, prospective: 1 });
+  });
+
+  it("explains excluded examples without changing the dataset or counting replay as fresh", () => {
+    const decisions = ["take", "skip", "wait", "void", "risk", "missing"].map((key, i) => ({
+      key, opportunityKey: key, decidedAt: i, sessionKey: "2026-10-07", features: key === "missing" ? null : feat(i), provenance: "replay", action: key === "take" ? "take" : "skip",
+    } as Decision));
+    const outcomes = decisions.map(d => ({ decisionKey: d.key, status: d.key === "wait" ? "open" : d.key === "void" ? "void" : "closed", standaloneQty: d.key === "risk" ? 0 : 1,
+      sim: { symbol: "MES", net: 10, exitTs: 20, ambiguous: d.key === "skip", fees: 2.4, entrySlip: 0, exitSlip: 0 },
+    } as Outcome));
+    const rows = buildEvalRows(decisions, outcomes, 100);
+    expect(auditLearningData(decisions, outcomes, rows, 100)).toMatchObject({ checked: 6, usable: 2, fromTaken: 1, fromSkipped: 1, replay: 2, prospective: 0, awaiting: 1, noFill: 1, tooRisky: 1, missingFeatures: 1, ambiguous: 1 });
   });
 
   it("quota levels at 70, 85 and 95 percent", () => {

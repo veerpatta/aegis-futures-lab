@@ -64,6 +64,8 @@ describe("the experimental learner end to end (synthetic prices)", () => {
     }
     // Learning: datasets, preregistered challengers (≤3 a week), recorded verdicts.
     expect(store.datasets.length).toBeGreaterThan(0);
+    const latestLearn = [...store.runs.values()].filter(r => r.job === "learn").at(-1);
+    expect(latestLearn?.counts.learning).toMatchObject({ checked: decisions.length });
     const challengers = [...store.versions.values()].filter((v) => v.kind === "logit");
     expect(challengers.length).toBeGreaterThan(0);
     const perWeek = new Map<string, number>();
