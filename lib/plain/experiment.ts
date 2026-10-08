@@ -197,8 +197,9 @@ export const EXP_WHY =
 export function decisionLine(d: { action: string; reason: string; qty: number; position_status: string | null; net: number | null } | null, mask: (s: string) => string, money: (v: number) => string): string | null {
   if (!d) return null;
   if (d.action !== "take") return `Learner · ${skipWords(d.reason)}`;
+  if (d.position_status === "cancelled") return "Learner · order not filled";
+  if (d.position_status === "pending_fill") return `Learner · requested ${d.qty} contract${d.qty === 1 ? "" : "s"} · waiting for a price`;
   const size = `took ${d.qty} contract${d.qty === 1 ? "" : "s"}`;
   if (d.position_status === "closed" && d.net !== null) return `Learner · ${size} · ${mask(money(d.net))}`;
-  if (d.position_status === "cancelled") return `Learner · ${size} · not filled`;
   return `Learner · ${size} · open`;
 }

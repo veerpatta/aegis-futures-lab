@@ -28,6 +28,10 @@ async function main() {
       count(*) FILTER(WHERE observed_at IS NULL)::int missing_receipts FROM experiment_decisions WHERE experiment_id=$1`, [a.id])).rows[0];
     const earlier = (await c.query(`SELECT count(*)::int n FROM experiment_decisions d JOIN experiments e ON e.id=d.experiment_id
       WHERE e.lineage=$1 AND e.id<>$2`, [lineage, a.id])).rows[0].n;
+    const sizes = (await c.query(`SELECT count(*)::int n FROM experiment_overview v,
+      jsonb_array_elements(v.recent_decisions) d JOIN experiment_positions p ON p.decision_key=$1||':'||(d->>'opportunity_key')
+      WHERE v.lineage=$2 AND p.qty<>(d->>'qty')::int`, [a.id, lineage])).rows[0].n;
+    if (sizes) throw new Error("Idea cards disagree with the filled contract sizes");
     const close = (x: unknown, y: number) => Math.abs(Number(x) - y) < 0.011;
     if (!close(a.realized, totals.realized) || !close(a.equity, Number(a.capital) + Number(a.realized) + Number(a.unrealized)))
       throw new Error("Account and trade ledger do not balance");

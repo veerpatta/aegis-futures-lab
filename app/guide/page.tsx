@@ -125,8 +125,10 @@ export default function GuidePage() {
           </li>
           <li>
             <b>Honest fills.</b> An order fills on the next price after the decision, with costs on both sides. A bar that
-            touches both stop and target counts as the stop. A gap through the stop fills at the worse price. With no fresh
-            price it takes no new trades and never invents an exit.
+            touches both stop and target counts as the stop. A gap through the stop fills at the worse price. If the
+            next market period has no price, the order waits; the app never invents a price. It can fill fewer contracts
+            if risk is higher at the opening price. Filled trades show the actual size. Waiting and cancelled orders
+            are labelled separately.
           </li>
           <li>
             <b>Nightly.</b> Finished trades go into a numbered learning record. Nothing is learned from a single loss.
