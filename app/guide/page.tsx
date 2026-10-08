@@ -203,7 +203,8 @@ export default function GuidePage() {
             <b>Then fresh ideas.</b> A candidate that is not rejected is frozen and watches new ideas beside the current
             model without changing a single decision. It must then pass every adoption check on fresh ideas —{" "}
             {PREREG.gates.freshSessions} fresh trading days, {PREREG.gates.freshDecisions} fresh ideas and two passing
-            reviews — like any other candidate. Old data counts for none of these. Fresh confirmation waits while
+            reviews — like any other candidate. Old data counts for none of these. Practice results still go into the
+            learning record. Fresh confirmation waits while
             the account uses delayed simulations. The older candidate remains saved.
           </li>
         </ol>

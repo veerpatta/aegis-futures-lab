@@ -165,7 +165,7 @@ export default function HistorySection() {
   const delayed = learner.data?.experiment.execution_clock === "delayed_market";
   const checklist = historyChecklist(data).map((c) => c.key === "fresh" && delayed
     ? { ...c, label: "Fresh confirmation waiting", state: "waiting", tone: "warn" as const,
-      reason: `${c.reason} Delayed simulations do not advance these counts.` } : c);
+      reason: "The virtual account keeps collecting practice results. Delayed simulations do not advance fresh confirmation." } : c);
   const h = data;
   const ds = h?.dataset ?? null;
   const ch = h?.chunks ?? null;
