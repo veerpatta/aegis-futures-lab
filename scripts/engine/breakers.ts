@@ -24,25 +24,29 @@ import { tradingDaysBetween } from "@/lib/time/trading-days";
 import { liveOnly } from "@/lib/signals/live";
 import { sendTelegram } from "./notify";
 import { tierStreams } from "./tiers";
+import { BREAKER_RULES, type BreakerEvidence } from "@/lib/engine/breaker-evidence";
 
 export { streamKeyFor, streamKeyForRow, streamLabel, tradingDaysBetween };
 
-export const PAUSE_WINDOW = 20;
-export const PAUSE_PF = 0.8;
-export const RESUME_WINDOW = 15;
-export const RESUME_PF = 1.1;
-export const MIN_CLOSED_TO_EVALUATE = 20;
-export const HYSTERESIS_TRADING_DAYS = 3;
+export const PAUSE_WINDOW = BREAKER_RULES.pauseWindow;
+export const PAUSE_PF = BREAKER_RULES.pausePf;
+export const RESUME_WINDOW = BREAKER_RULES.resumeWindow;
+export const RESUME_PF = BREAKER_RULES.resumePf;
+export const MIN_CLOSED_TO_EVALUATE = BREAKER_RULES.minClosed;
+export const HYSTERESIS_TRADING_DAYS = BREAKER_RULES.tradingDays;
 
 export interface ClosedSignal {
   pnl_usd: number | null;
   fill_confidence: string | null;
   signal_ts: string;
+  exit_ts?: string | null;
 }
 
 export interface PolicyEvent {
   action: string;
   changed_at: string;
+  reason?: string | null;
+  metrics?: Record<string, unknown> | null;
 }
 
 /** A pause period [start, end) in unix seconds; end === null while still open. */
@@ -125,6 +129,9 @@ export function evaluateBreaker(args: {
 
   if (!currentlyPaused) {
     const recent = exDoubtful(closed).slice(-PAUSE_WINDOW);
+    // The declared 20-result window excludes doubtful fills. A single usable
+    // loss among 19 doubtful fills must not be called a 20-result window.
+    if (recent.length < PAUSE_WINDOW) return stay;
     const rollingPf = pf(recent.map((r) => r.pnl_usd ?? 0));
     if (rollingPf !== null && rollingPf < PAUSE_PF)
       return {
@@ -163,6 +170,24 @@ export function evaluateBreaker(args: {
   return stay;
 }
 
+/** The same recovery set as evaluateBreaker; source rows include suppressed
+ * simulations. This snapshot never reads the learner ledger or changes it. */
+export function breakerEvidence(events: PolicyEvent[], closed: ClosedSignal[], nowSec: number, frozen: boolean): BreakerEvidence {
+  const sorted = [...events].sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+  const last = sorted.at(-1);
+  const open = pauseIntervals(sorted).at(-1);
+  const paused = !!open && open.end === null;
+  const pause = paused ? [...sorted].reverse().find(e => e.action === "paused" && secOf(e.changed_at) === open.start) : undefined;
+  const recovery = paused ? closed.filter(r => r.fill_confidence !== "doubtful" && secOf(r.signal_ts) >= open.start).slice(-RESUME_WINDOW) : [];
+  const pnls = recovery.map(r => r.pnl_usd ?? 0);
+  const numeric = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : null;
+  return { paused, measuredAt: new Date(nowSec * 1000).toISOString(), pausedAt: pause?.changed_at ?? null,
+    triggerReason: pause?.reason ?? null, triggerPf: numeric(pause?.metrics?.rollingPf), triggerWindow: numeric(pause?.metrics?.window),
+    recoveryCount: recovery.length, recoveryPf: round2(pf(pnls)), recoveryNoLosses: pnls.some(p => p > 0) && !pnls.some(p => p < 0),
+    lastClosedAt: recovery.at(-1)?.exit_ts ?? null,
+    daysSinceFlip: last ? tradingDaysBetween(secOf(last.changed_at), nowSec) : null, frozen };
+}
+
 /* Orchestration: for every LIVE stream (tierStreams, so promoted tier-B2
    streams are covered too) read its policy state + closed history from
    Supabase, run the pure decision, record any flip (bot_policy row + Telegram),
@@ -175,11 +200,12 @@ export function evaluateBreaker(args: {
 export async function applyBreakers(
   supabase: SupabaseClient,
   nowSec: number
-): Promise<{ intervalsByStream: Map<string, PauseInterval[]>; pausedStreams: string[]; notes: string[] }> {
+): Promise<{ intervalsByStream: Map<string, PauseInterval[]>; pausedStreams: string[]; notes: string[]; evidenceByStream: Map<string, BreakerEvidence> }> {
   const frozen = process.env.BOT_POLICY_FREEZE === "1";
   const intervalsByStream = new Map<string, PauseInterval[]>();
   const pausedStreams: string[] = [];
   const notes: string[] = [];
+  const evidenceByStream = new Map<string, BreakerEvidence>();
 
   for (const stream of tierStreams()) {
     const symbol = stream.symbols.length === 1 ? stream.symbols[0] : "";
@@ -191,13 +217,13 @@ export async function applyBreakers(
       // to ascending. Merging both is correct — they name the same stream.
       const { data: pol, error: polErr } = await supabase
         .from("bot_policy")
-        .select("action, changed_at")
+        .select("action, changed_at, reason, metrics")
         .in("stream", key === legacy ? [key] : [key, legacy])
         .order("changed_at", { ascending: false })
         .range(0, 499);
       if (polErr) throw new Error(polErr.message);
       const events: PolicyEvent[] = (pol ?? [])
-        .map((r) => ({ action: String(r.action), changed_at: String(r.changed_at) }))
+        .map((r) => ({ action: String(r.action), changed_at: String(r.changed_at), reason: r.reason, metrics: r.metrics }))
         .reverse();
 
       // Most-recent closed signals for the stream (descending + range, reversed
@@ -206,7 +232,7 @@ export async function applyBreakers(
       // RSI and a promoted shadow on the same symbol don't mix (finding 8).
       let q = supabase
         .from("signals")
-        .select("pnl_usd, fill_confidence, signal_ts, orphaned")
+        .select("pnl_usd, fill_confidence, signal_ts, exit_ts, orphaned")
         .not("pnl_usd", "is", null)
         .order("signal_ts", { ascending: false })
         .range(0, 199);
@@ -225,6 +251,7 @@ export async function applyBreakers(
           pnl_usd: r.pnl_usd === null ? null : Number(r.pnl_usd),
           fill_confidence: (r.fill_confidence as string | null) ?? null,
           signal_ts: String(r.signal_ts),
+          exit_ts: r.exit_ts ? String(r.exit_ts) : null,
         }))
         .reverse();
 
@@ -241,7 +268,7 @@ export async function applyBreakers(
           changed_at: changedAt,
         });
         if (insErr) throw new Error(`bot_policy insert: ${insErr.message}`);
-        events.push({ action: decision.flip.action, changed_at: changedAt });
+        events.push({ action: decision.flip.action, changed_at: changedAt, reason: decision.flip.reason, metrics: decision.flip.metrics });
         const paused = decision.flip.action === "paused";
         await sendTelegram(
           `${paused ? "⏸️" : "▶️"} ${paused ? "Paused" : "Resumed"} ${streamLabel(key)}: ${decision.flip.reason}. ` +
@@ -252,13 +279,15 @@ export async function applyBreakers(
       }
 
       const intervals = pauseIntervals(events);
+      evidenceByStream.set(key, breakerEvidence(events, closed, nowSec, frozen));
       intervalsByStream.set(key, intervals);
       const openNow = intervals.length && intervals[intervals.length - 1].end === null;
       if (openNow) pausedStreams.push(key);
     } catch (e) {
+      evidenceByStream.set(key, { ...breakerEvidence([], [], nowSec, frozen), error: "Source pause check failed; recovery progress unavailable." });
       intervalsByStream.set(key, []); // fail safe: no suppression on a breaker error
       notes.push(`${key} breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`);
     }
   }
-  return { intervalsByStream, pausedStreams, notes };
+  return { intervalsByStream, pausedStreams, notes, evidenceByStream };
 }

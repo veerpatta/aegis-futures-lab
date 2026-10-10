@@ -74,6 +74,14 @@ Three labels show its state, each with a reason. **Doing**: watching the market,
 
 The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled "Simulated on delayed prices". The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project's GitHub controls. Offline, the app is read-only.
 
+### Behind the trades
+
+Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas and learner skips. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
+
+Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner's balance.
+
+Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.
+
 ## 5. Historical practice
 
 The bot also replays its own older market archive — the S&P and Nasdaq micros from 6 May 2019 to 23 September 2026 — to prepare a better candidate. It is practice on old data, kept apart from everything else.
@@ -198,4 +206,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-08 (widgets across all five tabs). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-10 (trade activity and saved skip reasons). If the app has changed since, the in-app Guide is the source of truth.*

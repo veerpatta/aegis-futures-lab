@@ -12,6 +12,8 @@
    (stat_key, date_key)), and Home renders it as one plain sentence plus a small
    table. Read-only bookkeeping: nothing here can change a signal. */
 
+import { parseBreakerEvidence, type BreakerEvidence } from "@/lib/engine/breaker-evidence";
+
 /** Per-day funnel as the engine tallied it, summed across every tier stream. */
 export interface DailyFunnelPayload {
   dateKey: string; // NY trading day
@@ -27,6 +29,7 @@ export interface DailyFunnelPayload {
     tier: "A" | "B";
     status: "active" | "benched" | "stale-data";
     signalsToday: number;
+    breaker?: BreakerEvidence;
   }[];
   /** Set when the FEED is behind — the run read bars past the age limit. This
       says nothing about whether any row was flagged: staleness is judged per
@@ -83,6 +86,7 @@ function parseStreams(v: unknown): DailyFunnelPayload["streams"] {
             ? status
             : ("active" as const),
         signalsToday: typeof s.signalsToday === "number" ? s.signalsToday : 0,
+        ...(parseBreakerEvidence(s.breaker) ? { breaker: parseBreakerEvidence(s.breaker) } : {}),
       },
     ];
   });

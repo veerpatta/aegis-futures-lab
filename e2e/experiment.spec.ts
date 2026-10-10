@@ -357,7 +357,7 @@ for (const width of [320, 390])
     await stub(page);
     await page.goto("/brain#history");
     const sec = page.getByRole("region", { name: "Historical practice" });
-    await expect(sec).toContainText("Historical practice complete through 23 September. This result uses older market data and does not count as fresh trading days.");
+    await expect(sec).toContainText("Historical practice complete through 23 September. This result uses older market data and does not count as fresh trading days.", { timeout: 15_000 });
     await expect(sec).toContainText("The older candidate remains saved. Delayed simulations do not supply fresh confirmation. No validated improvement yet.");
     const list = sec.getByRole("region", { name: "Evidence checklist" });
     for (const item of ["Data ready", "Historical test complete", "Fresh confirmation waiting", "Validated paper improvement"]) await expect(list).toContainText(item);
@@ -387,4 +387,92 @@ test("More links to historical practice", async ({ page }) => {
   await page.goto("/more");
   await page.getByRole("link", { name: /Historical practice/ }).click();
   await expect(page).toHaveURL(/\/brain#history$/);
+});
+
+const auditAt = "2026-10-09T16:00:00Z";
+const auditRuns = Array.from({ length: 71 }, (_, id) => ({ id, ran_at: auditAt, status: "ok", message: "Watching; no new ideas", symbols: ["MES", "MNQ"] }));
+const auditBreaker = { paused: true, measuredAt: auditAt, pausedAt: "2026-10-01T16:00:00Z", triggerReason: "rolling PF", triggerPf: 0.4, triggerWindow: 20, recoveryCount: 8, recoveryPf: 0.7, recoveryNoLosses: false, lastClosedAt: auditAt, daysSinceFlip: 6, frozen: false };
+const auditFunnel = { dateKey: "2026-10-09", computedAt: auditAt, bars: { MES: 80, MNQ: 80 }, funnel: { noSignal: 50, hours: 10 }, staleData: false, worstBarAgeMin: 15,
+  streams: [{ key: "A", tier: "A", label: "zone-v5", status: "benched", signalsToday: 0, breaker: auditBreaker }, { key: "B:rsi-reversion:MNQ", tier: "B", label: "rsi", status: "benched", signalsToday: 0, breaker: auditBreaker }, { key: "B:rsi-reversion:MES", tier: "B", label: "rsi", status: "active", signalsToday: 0, breaker: { ...auditBreaker, paused: false } }] };
+async function auditStub(page: Page) {
+  await page.clock.install({ time: new Date(auditAt) });
+  await page.addInitScript(() => localStorage.setItem("aegis.displayZone.v1", "IST"));
+  await stub(page);
+  await page.route("https://*.neon.tech/**/rest/v1/**", async r => {
+    const url = new URL(r.request().url()), path = url.pathname;
+    if (path.endsWith("/engine_runs")) return r.fulfill({ json: auditRuns });
+    if (path.endsWith("/learned_stats")) return r.fulfill({ json: [{ payload: auditFunnel }] });
+    if (path.endsWith("/experiment_trades")) return r.fulfill({ json: url.searchParams.has("decided_at") ? [] : [trade] });
+    return r.fallback();
+  });
+}
+for (const width of [320, 390, 1280]) test(`${width}px activity separates successful checks, paused sources and zero learner decisions`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await auditStub(page);
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "Trading activity" });
+  await expect(panel).toContainText("71 succeeded");
+  await expect(panel).toContainText("2026-10-09 · Calendar day in IST");
+  await expect(panel).toContainText("2 source methods are withheld");
+  await expect(panel.getByLabel("Daily activity summary")).toContainText("0Eligible ideas");
+  const source = panel.locator("details").filter({ has: page.locator("summary", { hasText: "Zone setups" }) }).first();
+  await source.locator("summary").first().click();
+  await expect(source).toContainText("0.40 across 20 closed");
+  await expect(source).toContainText("8/15 closed practice results");
+  await expect(source.getByRole("progressbar")).toHaveAttribute("value", "8");
+  await expect(panel).toContainText("Source practice never changes");
+  expect(await noSideways(page)).toBe(true);
+  await panel.screenshot({ path: `test-results/activity-${width}.png` });
+});
+test("activity preserves saved counts after a failed refresh and retries", async ({ page }) => {
+  await auditStub(page); let fail = false;
+  await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => fail && new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture read failed" } }) : r.fallback());
+  await page.goto("/"); const panel = page.getByRole("region", { name: "Trading activity" });
+  await expect(panel).toContainText("71 succeeded"); fail = true;
+  await panel.getByRole("button", { name: "Refresh trading activity" }).click();
+  await expect(panel).toContainText("Showing the saved update");
+  await expect(panel).toContainText("71 succeeded"); fail = false;
+  await panel.getByRole("button", { name: "Try again" }).click();
+  await expect(panel).not.toContainText("Showing the saved update");
+  await expect(panel).toContainText("71 succeeded");
+});
+test("activity ignores interrupted day reads and honours reduced motion", async ({ page }) => {
+  await auditStub(page); await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", async r => {
+    const day = new URL(r.request().url()).searchParams.getAll("ran_at").join(" ");
+    if (day.includes("2026-10-07T18:30")) { await new Promise(resolve => setTimeout(resolve, 600)); return r.fulfill({ json: [{ ...auditRuns[0], id: 999, message: "old day" }] }); }
+    return r.fallback();
+  });
+  await page.goto("/"); const panel = page.getByRole("region", { name: "Trading activity" });
+  await expect(panel).toContainText("71 succeeded");
+  const old = page.waitForResponse(r => r.url().includes("engine_runs") && decodeURIComponent(r.url()).includes("2026-10-07T18:30"));
+  await panel.getByLabel("Day to review").fill("2026-10-08");
+  await panel.getByRole("button", { name: "Today", exact: true }).click(); await old;
+  await expect(panel).toContainText("71 succeeded");
+  const duration = await panel.evaluate(el => getComputedStyle(el).animationDuration);
+  expect(parseFloat(duration)).toBeLessThan(.01);
+});
+test("skipped trade retries its own failed read and explains the saved account room", async ({ page }) => {
+  await auditStub(page); let fail = true;
+  const evidence = { version: 1, contractRisk: 61, openRisk: 170, openRoom: 30, dailyPnl: -15, dayRoom: 385, drawdown: 40, budget: 30, limits: { ...overview.risk, minStopPoints: 1 }, priceAt: 0, freshness: "fresh", campaignStatus: "active", dayHalted: false, quota: "normal" };
+  await page.route("https://*.neon.tech/**/rest/v1/experiment_trades*", r => fail ? r.fulfill({ status: 400, json: { message: "fixture interruption" } }) : r.fulfill({ json: [{ ...trade, action: "skip", reason: "open-risk", position_status: null, net: null, idea: { ...trade.idea, decisionEvidence: evidence } }] }));
+  await page.goto("/trades/7");
+  await expect(page.getByText("This trade could not load.")).toBeVisible(); fail = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  const result = page.getByRole("region", { name: "Result", exact: true });
+  const explanation = page.getByRole("region", { name: "What happened", exact: true });
+  await expect(explanation).toContainText("Already open: $170.00; room left: $30.00 of $200.00");
+  await expect(result).toContainText("Campaign 1 · learner-1");
+  await expect(explanation).toContainText("Simulated decision");
+  await expect(explanation).toContainText("Idea received");
+});
+
+test("an unavailable activity read is not reported as zero decisions", async ({ page }) => {
+  await auditStub(page);
+  await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture unavailable" } }) : r.fallback());
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "Trading activity" });
+  await expect(panel).toContainText("Activity counts are unavailable");
+  await expect(panel.getByLabel("Daily activity summary")).not.toContainText("0Eligible ideas");
+  await expect(panel.getByLabel("Daily activity summary")).toContainText("Awaiting records");
 });

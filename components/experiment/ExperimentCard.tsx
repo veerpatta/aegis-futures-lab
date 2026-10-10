@@ -16,6 +16,7 @@ import { clockIn, stampIn, dateShortIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
 import widgets from "@/components/widgets/widgets.module.css";
 import styles from "./experiment.module.css";
+import ActivityPanel from "./ActivityPanel";
 
 const sec = (iso: string | null | undefined) => (iso ? Date.parse(iso) / 1000 : null);
 
@@ -84,6 +85,7 @@ export default function ExperimentCard({ compact = false }: { compact?: boolean 
         {o?.experiment.execution_clock === "delayed_market" && <p className={styles.replayNote}>Fills simulated in delayed market order. Replay results are not fresh proof.</p>}
       </>}
     </div>
+    <ActivityPanel />
     {!compact && o && <>
       {positions.length > 0 && <div className={page.stack}><div className={page.sectionHead}><h2>{positions.length} open virtual trade{positions.length === 1 ? "" : "s"}</h2><Link href="/trades">View all →</Link></div><div className={widgets.tradeGrid}>{positions.map((p, i) => <TradeWidget key={p.id} trade={positionVisual(p)} compact index={i} />)}</div></div>}
       {o.latest_trade && <div className={page.stack}><div className={page.sectionHead}><h2>Latest trade</h2><Link href="/trades">History →</Link></div><TradeWidget trade={positionVisual(o.latest_trade)} compact /></div>}

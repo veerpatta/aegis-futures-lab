@@ -22,12 +22,13 @@ import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { planStaleOpen, type ComputedOutcome } from "@/lib/engine/stale-open";
 import { componentWarning } from "@/lib/engine/markers";
+import { sourceActivity, activityMarker } from "@/lib/engine/activity";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import type { OpenPosition } from "@/lib/strategies/types";
 import { fetchYahooBars } from "./data";
-import { STALE_MARKER, inEntryWindow } from "@/lib/time/session";
+import { STALE_MARKER, inEntryWindow, engineScheduled } from "@/lib/time/session";
 import { diffSignalAlerts, escapeHtml, formatAlertMessage } from "./alerts";
 import { loadContextRows, updateContextDaily, vixBucketFor, type ContextRow } from "./context";
 import { auditFill, type FillConfidence } from "./fill-audit";
@@ -497,12 +498,14 @@ async function main() {
   // active). Frozen via BOT_POLICY_FREEZE.
   let breakerNotes: string[] = [];
   try {
-    const { intervalsByStream, pausedStreams, notes } = await applyBreakers(supabase, nowSec);
+    const { intervalsByStream, pausedStreams, notes, evidenceByStream } = await applyBreakers(supabase, nowSec);
     breakerNotes = notes;
     // Item 2.7 — a benched stream is quiet on purpose; the panel must say which.
     const paused = new Set(pausedStreams);
-    for (const s of streamStatus)
+    for (const s of streamStatus) {
+      s.breaker = evidenceByStream.get(s.key);
       if (paused.has(s.key)) s.status = "benched";
+    }
     // Per-row suppression at ENTRY TIME: a row is suppressed iff its stream was
     // paused at the row's signal_ts (derived from the pause-interval history).
     // A pause/resume therefore never rewrites already-decided history, and the
@@ -784,7 +787,10 @@ async function main() {
   try {
     // Only call a stream "stale price feed" when a row of its own was
     // actually flagged — a behind feed that cost nothing is not a stream fault.
-    if (flagged > 0) for (const s of streamStatus) s.status = "stale-data";
+    // Only this stream's rows may mark its data stale. Keep an independent
+    // breaker snapshot: a data fault must never erase a recorded pause.
+    for (const s of streamStatus)
+      if (signals.some(row => row.stale_data && streamKeyForRow(row) === s.key)) s.status = "stale-data";
     const funnelPayload: DailyFunnelPayload = {
       dateKey: todayKey,
       computedAt: new Date().toISOString(),
@@ -865,6 +871,16 @@ async function main() {
   // The dashboard's dataDelayed marker keeps its in-session-only meaning; the
   // row-level stale_data flag above is deliberately clock-independent.
   const stale = inEntryWindow(nowSec) && staleness.stale;
+  const sessionSignals = signals.filter(row => tradingDayKey(Date.parse(row.signal_ts) / 1000) === todayKey);
+  const activity = sourceActivity({
+    codeSha: process.env.GITHUB_SHA ?? null, observedAt: new Date().toISOString(), tradingDay: todayKey,
+    marketAsOf: Object.fromEntries(["MES", "MNQ"].map(symbol => [symbol, lastBars[symbol] == null ? null : iso(lastBars[symbol]! + 300)])),
+    scheduled: engineScheduled(nowSec), entryWindow: inEntryWindow(nowSec), stale,
+    pausedStreams: streamStatus.filter(s => s.breaker?.paused || s.status === "benched").map(s => s.key),
+    simulatedIdeas: sessionSignals.length,
+    eligibleIdeas: sessionSignals.filter(row => !row.suppressed && !row.stale_data && row.status !== "pending" && row.status !== "cancelled").length,
+    errors: warnings.filter(w => /error|failed|component_failed/.test(w)).map(w => w.split(":")[0].trim()),
+  });
   const { error: runError } = await supabase.from("engine_runs").insert({
     status: "ok",
     symbols: ["MES", "MNQ"],
@@ -886,6 +902,7 @@ async function main() {
       }`,
       `age MES ${mesAge}m / MNQ ${mnqAge}m${stale ? ` ${STALE_MARKER}` : ""}`,
       ...warnings,
+      activityMarker(activity),
     ].join("; "),
   });
   if (runError) throw new Error(`engine_runs insert: ${runError.message}`);

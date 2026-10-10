@@ -23,6 +23,7 @@ import page from "@/components/ui/page.module.css";
 import styles from "@/components/experiment/experiment.module.css";
 import widgets from "@/components/widgets/widgets.module.css";
 import tradeStyles from "./trades.module.css";
+import ActivityPanel from "@/components/experiment/ActivityPanel";
 
 type Filter = "all" | "taken" | "skipped" | "open" | "closed" | "earlier";
 const FILTERS: { key: Filter; label: string }[] = [
@@ -109,6 +110,7 @@ export default function TradesClient() {
         <p className={page.paperLine}>VIRTUAL ONLY · {exp.data?.experiment.mode === "synthetic" ? "Synthetic prices" : "Delayed data"}</p>
       </header>
 
+      <ActivityPanel />
       <section className={tradeStyles.summary} aria-label="Learner summary">
         <div className={tradeStyles.summaryTop}><span><WidgetIcon name="wallet" /> One virtual account</span><span className={tradeStyles.mode}>Practice</span></div>
         <div className={tradeStyles.balanceRow}><div className={tradeStyles.balance}><span>Virtual equity</span><b className="num">{exp.data?.account ? mask(money(exp.data.account.equity, false)) : "—"}</b><small>Closed <strong className={closed && closed.net < 0 ? page.bad : closed && closed.net > 0 ? page.good : page.dim}>{closed ? mask(money(closed.net)) : "—"}</strong> · after costs</small></div>

@@ -95,6 +95,8 @@ describe("every signals reader is classified", () => {
   ];
 
   const EXEMPT: Record<string, string> = {
+    "components/experiment/ActivityPanel.tsx":
+      "Calendar-day audit counts distinguish suppressed and stale rows from eligible ideas; no source P&L is summed. Eligible counts use visibleSignals, which applies liveOnly.",
     "scripts/engine/debrief.ts":
       "filters to ONE trading day and reports that day; a backfilled row cannot reach today's " +
       "debrief, and filtering would make no difference to any day it can report on",

@@ -45,8 +45,27 @@ export type SkipReason =
 
 export type DecisionReason = "taken" | SkipReason;
 
+/** Frozen beside the existing idea JSON; no new table or history rewrite. */
+export interface DecisionEvidence {
+  version: 1;
+  contractRisk: number | null;
+  openRisk: number;
+  openRoom: number;
+  dailyPnl: number;
+  dayRoom: number;
+  drawdown: number;
+  budget: number;
+  limits: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; minStopPoints: number };
+  priceAt: number | null;
+  freshness: string;
+  campaignStatus: string;
+  dayHalted: boolean;
+  quota: string;
+}
+
 /** A trade idea the experiment may decide on, frozen from a `signals` row. */
 export interface Opportunity {
+  decisionEvidence?: DecisionEvidence;
   key: string;
   signalId: number | null;
   symbol: ExpSymbol;

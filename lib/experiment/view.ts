@@ -11,6 +11,7 @@
    A missing heartbeat is "unknown", never "running". */
 
 import { engineScheduled, inEntryWindow } from "@/lib/time/session";
+import type { DecisionEvidence } from "./types";
 
 export interface ExpPositionRow {
   id: string;
@@ -90,7 +91,7 @@ export interface ExpTradeRow {
   qty: number;
   est_risk: number | null;
   ref_price: number | null;
-  idea: { entry: number; stop: number; target: number | null; strategy: string; signalTs: number; tier: string | null; regime: string | null; score: number | null; rr: number | null } | null;
+  idea: { entry: number; stop: number; target: number | null; strategy: string; signalTs: number; tier: string | null; regime: string | null; score: number | null; rr: number | null; decisionEvidence?: DecisionEvidence } | null;
   features: Record<string, unknown> | null;
   feature_version: string;
   snapshot_hash: string;
@@ -193,6 +194,7 @@ export function executionState(o: ExpOverview | null, nowSec: number): AxisState
   if (o.quota_level === "essential") return { state: "blocked", reason: "Free service limits are nearly used. It waits for the monthly reset rather than spend money." };
   if (!tick) return { state: "starting", reason: "Registered. The first check runs at the next scheduled time." };
   if (tick.status === "error") return { state: "error", reason: "The last check failed. The next one retries from where it stopped." };
+  if (tick.status === "skipped") return { state: "waiting", reason: tick.message || "The last check did not process a market batch. See activity for the missing prerequisite." };
   if (o.account.backlog_count) return { state: "managing", reason: `Processing earlier market prices. ${o.account.backlog_count} events remain.` };
   if (engineScheduled(nowSec) && (lastOk === null || nowSec - lastOk > 2 * 3600)) return { state: "unknown", reason: "No check has reported in for over two hours." };
   if (o.open_positions.some((p) => p.status === "open" || p.status === "pending_fill")) return { state: "managing", reason: "Managing open virtual trades." };
@@ -201,7 +203,7 @@ export function executionState(o: ExpOverview | null, nowSec: number): AxisState
   if (o.account.stale_symbols?.length && inEntryWindow(nowSec)) return { state: "waiting", reason: "No fresh data. New trades wait." };
   if (o.account.open_risk >= (o.risk?.totalOpenRisk ?? 200)) return { state: "waiting", reason: "Most risk allowed at once is already in use." };
   const reasons = o.today_reasons ?? {};
-  if (Object.keys(reasons).length && !reasons.taken) return { state: "waiting", reason: "Today's ideas were skipped. Open Trades to see each reason." };
+  if (Object.entries(reasons).some(([key, n]) => key !== "taken" && n > 0) && !reasons.taken) return { state: "waiting", reason: "This trading session's ideas were skipped. Open Trades to see each reason." };
   if (!inEntryWindow(nowSec)) return { state: "waiting", reason: "Outside the 02:00–15:25 New York entry window." };
   return { state: "scanning", reason: "Watching for a setup. Quiet hours are normal." };
 }

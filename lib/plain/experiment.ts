@@ -5,7 +5,7 @@
    "delayed". Copy is rendered from the limits, never typed as numbers. */
 
 import { EXP_RISK } from "@/lib/experiment/policy";
-import type { ExecutionState, FreshnessState, LearningState } from "@/lib/experiment/view";
+import type { ExecutionState, FreshnessState, LearningState, ExpTradeRow } from "@/lib/experiment/view";
 
 const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 
@@ -16,8 +16,8 @@ export const EXP_BADGE_LONG = "Virtual only — one pretend account, separate fr
 const SKIPS: Record<string, string> = {
   "model-skip": "its current model said the odds were not good enough",
   "risk-budget": `one contract would risk more than ${usd(EXP_RISK.riskPerTrade)}`,
-  "open-risk": `${usd(EXP_RISK.totalOpenRisk)} of risk was already open`,
-  "daily-loss": `the day's ${usd(EXP_RISK.dailyLoss)} loss limit was reached`,
+  "open-risk": `not enough room remained under the ${usd(EXP_RISK.totalOpenRisk)} open-risk limit for one contract`,
+  "daily-loss": `the remaining daily loss allowance could not cover another trade (limit ${usd(EXP_RISK.dailyLoss)})`,
   locked: `the campaign stopped after losing ${usd(EXP_RISK.maxDrawdown)} from its best`,
   paused: "the learner was paused",
   "stale-data": "prices were not fresh enough to trade on",
@@ -33,7 +33,38 @@ const SKIPS: Record<string, string> = {
 };
 
 export function skipWords(reason: string): string {
-  return SKIPS[reason] ? `Skipped: ${SKIPS[reason]}` : "Skipped";
+  return SKIPS[reason] ? `Skipped: ${SKIPS[reason]}` : `Skipped: reason not recognised (${reason || "not recorded"})`;
+}
+
+/** Only saved values; never today's balance as yesterday's explanation. */
+export function decisionExplanation(row: Pick<ExpTradeRow, "reason" | "p_win" | "threshold" | "ref_price" | "idea">, cash: (n: number) => string): string[] {
+  const valid = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  const saved = row.idea?.decisionEvidence;
+  const e = saved?.version === 1 && saved.limits && [saved.openRisk, saved.openRoom, saved.dailyPnl, saved.dayRoom, saved.drawdown, saved.budget, saved.limits.riskPerTrade, saved.limits.totalOpenRisk, saved.limits.dailyLoss, saved.limits.maxDrawdown, saved.limits.minStopPoints].every(valid) ? saved : undefined;
+  if (row.reason === "model-skip") return valid(row.p_win) && valid(row.threshold)
+    ? [`Model odds ${(row.p_win * 100).toFixed(1)}%; required ${(row.threshold * 100).toFixed(1)}%.`]
+    : ["The model odds or required threshold were not recorded."];
+  if (row.reason === "stop-breached" || row.reason === "target-passed") return valid(row.ref_price) && row.idea
+    ? [`Price ${row.ref_price.toFixed(2)}; stop ${row.idea.stop.toFixed(2)}${row.idea.target == null ? "" : `; target ${row.idea.target.toFixed(2)}`}.`]
+    : ["The comparison price was not recorded."];
+  if (row.reason === "stop-too-small" && valid(row.ref_price) && row.idea)
+    return [`Stop distance ${Math.abs(row.ref_price - row.idea.stop).toFixed(2)} points; minimum ${e?.limits?.minStopPoints ?? EXP_RISK.minStopPoints} points.`];
+  if (row.reason === "session-over") return ["The idea was checked outside its permitted entry window; the normal window is 02:00-15:25 ET and ends earlier on short sessions."];
+  if (row.reason === "late-source") return ["The idea arrived behind this market's completed simulation cursor. It is recorded without rewriting earlier fills or balances."];
+  if (row.reason === "idea-closed") return ["The source had already recorded the idea's end before the learner could consider a new entry."];
+  if (row.reason === "model-invalid") return ["The model did not return usable odds. A simulated trade requires a valid model answer."];
+  if (!e || e.version !== 1) return ["The account values at this decision were not saved. Today's balance cannot explain an earlier skip."];
+  const risk = valid(e.contractRisk) ? cash(e.contractRisk) : "not recorded";
+  switch (row.reason) {
+    case "risk-budget": return [`One contract risk including costs: ${risk}; trade limit ${cash(e.limits.riskPerTrade)}.`];
+    case "open-risk": return [`One contract needed ${risk}. Already open: ${cash(e.openRisk)}; room left: ${cash(e.openRoom)} of ${cash(e.limits.totalOpenRisk)}.`];
+    case "daily-loss": return [`Session result: ${cash(e.dailyPnl)}; loss allowance left: ${cash(e.dayRoom)} of ${cash(e.limits.dailyLoss)}.`, e.dayHalted ? "Entries were halted for this session." : `One contract needed ${risk}; the remaining allowance was too small.`];
+    case "locked": return [`Fall from the account's best: ${cash(e.drawdown)}; stop limit ${cash(e.limits.maxDrawdown)}.`];
+    case "stale-data": return [`Price state at the decision: ${e.freshness}. A missing or unusable price prevents a simulated entry.`];
+    case "paused": return [`Campaign state at the decision: ${e.campaignStatus}.`];
+    case "quota": return [`Free service level at the decision: ${e.quota}.`];
+    default: return [`Available risk budget: ${cash(e.budget)}. One contract risk: ${risk}.`];
+  }
 }
 
 const EXITS: Record<string, string> = {

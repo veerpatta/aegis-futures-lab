@@ -286,11 +286,23 @@ export function stepTick(input: TickInput): TickResult {
       } else reason = sized.reason ?? "risk-budget";
     }
 
+    const equityAtDecision = equityNow();
+    const riskAtDecision = openRisk();
+    const dailyAtDecision = equityAtDecision - account.dayStartEquity;
+    const savedIdea: Opportunity = { ...op, decisionEvidence: {
+      version: 1, contractRisk: Number.isFinite(contractRisk) ? contractRisk : null,
+      openRisk: riskAtDecision, openRoom: EXP_RISK.totalOpenRisk - riskAtDecision,
+      dailyPnl: dailyAtDecision, dayRoom: EXP_RISK.dailyLoss + dailyAtDecision,
+      drawdown: Math.max(account.peak, equityAtDecision) - equityAtDecision,
+      budget: Math.min(EXP_RISK.riskPerTrade, EXP_RISK.totalOpenRisk - riskAtDecision, EXP_RISK.dailyLoss + dailyAtDecision),
+      limits: { ...EXP_RISK }, priceAt: last ? last.time + BAR_SEC : null,
+      freshness: freshness[op.symbol], campaignStatus: exp.status, dayHalted: account.dayHalted, quota: input.quota,
+    } };
     const decision: Decision = {
       key, opportunityKey: op.key, signalId: op.signalId, symbol: op.symbol, side: op.side, sessionKey, seenAt: op.seenAt, observedAt: op.observedAt ?? op.seenAt, infoCutoff,
       decidedAt: nowSec, provenance, modelVersionId: input.model.versionId, pWin, threshold, action: reason === "taken" ? "take" : "skip",
-      reason: reason!, qty, estRisk, refPrice, idea: op, features, featureVersion: EXP_FEATURE_VERSION,
-      snapshotHash: stableHash({ idea: op, features }),
+      reason: reason!, qty, estRisk, refPrice, idea: savedIdea, features, featureVersion: EXP_FEATURE_VERSION,
+      snapshotHash: stableHash({ idea: savedIdea, features }),
     };
     decisions.push(decision);
 

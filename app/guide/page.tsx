@@ -189,6 +189,13 @@ export default function GuidePage() {
         </p>
       </section>
 
+      <section className={styles.card} id="activity">
+        <h2>Behind the trades</h2>
+        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas and learner skips. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner&apos;s balance.</p>
+        <p>Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.</p>
+      </section>
+
       <section className={styles.card} id="history">
         <h2>Historical practice</h2>
         <p>
@@ -363,7 +370,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-08 (widgets across all five tabs). A printable version of this guide lives in
+        Matches the app as of 2026-10-10 (trade activity and saved skip reasons). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

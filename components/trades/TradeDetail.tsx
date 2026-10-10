@@ -15,7 +15,7 @@ import ShowNumbers from "@/components/ui/ShowNumbers";
 import PriceLadder from "@/components/signals/PriceLadder";
 import { WidgetIcon } from "@/components/widgets/TradingWidgets";
 import type { ExpTradeRow } from "@/lib/experiment/view";
-import { PROVENANCE, cancelWords, exitWords, skipWords, versionName } from "@/lib/plain/experiment";
+import { PROVENANCE, cancelWords, exitWords, skipWords, versionName, decisionExplanation } from "@/lib/plain/experiment";
 import { marketName } from "@/lib/plain/idea";
 import { COMMISSION_RT, pointValue } from "@/lib/experiment/policy";
 import { money } from "@/lib/format";
@@ -32,9 +32,12 @@ export default function TradeDetail({ id }: { id: string }) {
   const { zone } = useZone();
   const [row, setRow] = useState<ExpTradeRow | null>(null);
   const [state, setState] = useState<"loading" | "missing" | "failed" | "ok">("loading");
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let live = true;
+    setState("loading");
+    setRow(null);
     (async () => {
       try {
         const n = Number(id);
@@ -52,7 +55,7 @@ export default function TradeDetail({ id }: { id: string }) {
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, retry]);
 
   const when = (iso: string | null) => (iso ? stampIn(Date.parse(iso) / 1000, zone) : "—");
   if (state !== "ok" || !row)
@@ -65,8 +68,9 @@ export default function TradeDetail({ id }: { id: string }) {
           </Link>
         </header>
         <p className={state === "failed" ? page.warning : page.loading}>
-          {state === "loading" ? "Loading…" : state === "missing" ? "No bot trade with this number." : "This trade could not load. Pull down to try again."}
+          {state === "loading" ? "Loading…" : state === "missing" ? "No bot trade with this number." : "This trade could not load."}
         </p>
+        {state === "failed" && <button type="button" className={page.linkButton} onClick={() => setRetry(n => n + 1)}>Try again</button>}
       </div>
     );
 
@@ -95,6 +99,7 @@ export default function TradeDetail({ id }: { id: string }) {
       </header>
 
       <section className={`${page.card} ${visual.detailHero}`} aria-label="Result">
+        <p className={page.paperLine}>Campaign {row.campaign} · {row.experiment_id} · {versionName(row.model_version_id)}</p>
         <div className={styles.hero}>
           <div>
             <span className={styles.heroLabel}>
@@ -148,7 +153,9 @@ export default function TradeDetail({ id }: { id: string }) {
             )}
           </dl></>
         ) : (
-          <p className={styles.reason}>{skipWords(row.reason)}.</p>
+          <><p className={styles.reason}>{skipWords(row.reason)}.</p>
+          <ul>{decisionExplanation(row, n => mask(money(n, false))).map(line => <li key={line}>{line}</li>)}</ul>
+          <dl className={styles.facts}><dt>Simulated decision</dt><dd>{when(row.decided_at)}</dd><dt>Idea received</dt><dd>{when(row.observed_at ?? row.seen_at)}</dd><dt>Recorded</dt><dd>{when(row.recorded_at ?? null)}</dd></dl></>
         )}
         {row.ambiguous && (
           <p className={page.warning}>
