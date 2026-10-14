@@ -4,11 +4,12 @@
 import { BAR_SEC } from "./execution";
 import { freshnessOf, stepTick, type TickInput, type TickResult } from "./step";
 import { EXP_SYMBOLS, type Position, type Outcome } from "./types";
+import { availableWatermarks, type PublicationWatermarks } from "./publication";
 
 export const DELAYED_EXECUTION_VERSION = "delayed-market-2026-10-08-v1";
 export const MAX_BATCH_EVENTS = 144;
 
-export function stepDelayed(input: TickInput, watermarks: Partial<Record<"MES" | "MNQ", number>>): TickResult {
+export function stepDelayed(input: TickInput, watermarks: PublicationWatermarks): TickResult {
   const from = input.exp.simulationFrom ?? input.exp.startedAt;
   const cursor = (s: "MES" | "MNQ") => input.account.cursor[s] ?? from;
   // The slowest feed sets the shared portfolio horizon. Never move ahead of
@@ -20,7 +21,7 @@ export function stepDelayed(input: TickInput, watermarks: Partial<Record<"MES" |
   const times = allTimes.slice(0, MAX_BATCH_EVENTS);
   // A late correction is audited at the current cursor instead of silently
   // rewinding an already credited portfolio.
-  if (!times.length && input.opportunities.some((o) => o.signalTs + BAR_SEC <= first)) times.push(first);
+  if (!times.length && first <= horizon && input.opportunities.some((o) => o.signalTs + BAR_SEC <= first)) times.push(first);
   const positions = new Map<string, Position>(input.positions.map((p) => [p.id, p]));
   const outcomes = new Map<string, Outcome>(input.outcomes.map((o) => [o.decisionKey, o]));
   const changedP = new Set<string>(), changedO = new Set<string>(), decided = new Set<string>();
@@ -45,7 +46,8 @@ export function stepDelayed(input: TickInput, watermarks: Partial<Record<"MES" |
     result.barsProcessed += r.barsProcessed; result.locked ||= r.locked;
   }
   const dataAsOf = Math.min(...EXP_SYMBOLS.map((s) => account.cursor[s] ?? from));
-  result.freshness = Object.fromEntries(EXP_SYMBOLS.map((s) => [s, freshnessOf(watermarks[s] ?? null, input.nowSec)])) as TickResult["freshness"];
+  const available = availableWatermarks(watermarks);
+  result.freshness = Object.fromEntries(EXP_SYMBOLS.map((s) => [s, freshnessOf(available[s] ?? null, input.nowSec)])) as TickResult["freshness"];
   const staleSymbols = EXP_SYMBOLS.filter((s) => result.freshness[s] === "stale" || result.freshness[s] === "unavailable");
   for (const p of positions.values()) if (p.status === "open" && p.stale !== staleSymbols.includes(p.symbol)) {
     positions.set(p.id, { ...p, stale: staleSymbols.includes(p.symbol) }); changedP.add(p.id);

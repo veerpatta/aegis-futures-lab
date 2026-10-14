@@ -15,7 +15,7 @@ import { visibleSignals } from "@/lib/signals/snapshot";
 import { failedComponents, COMPONENT_LABELS } from "@/lib/engine/markers";
 import { FILLED } from "@/lib/experiment/opportunities";
 import { calendarDay, previousDay, dayBounds, latestPolicies, canonicalStream, sourceName, pauseTrigger, recoveryWords, SOURCE_GATES } from "@/lib/plain/activity";
-import { skipWords, decisionExplanation, versionName } from "@/lib/plain/experiment";
+import { skipWords, cancelWords, decisionExplanation, versionName } from "@/lib/plain/experiment";
 import { BREAKER_RULES } from "@/lib/engine/breaker-evidence";
 import { readSourceActivity, SOURCE_STATE_WORDS } from "@/lib/engine/activity";
 import type { ExpTradeRow } from "@/lib/experiment/view";
@@ -52,7 +52,7 @@ export default function ActivityPanel() {
       const [runs, signals, decisions, funnel] = await Promise.all([
         pages<EngineRunRow>(o => db.from("engine_runs").select("*").gte("ran_at", start).lt("ran_at", end).order("ran_at", { ascending: false }).order("id", { ascending: false }).range(o, o + 499)),
         pages<SignalRow>(o => db.from("signals").select("*").gte("signal_ts", start).lt("signal_ts", end).order("signal_ts", { ascending: false }).order("id", { ascending: false }).range(o, o + 499)),
-        campaign ? pages<ExpTradeRow>(o => db.from("experiment_trades").select("id,action,reason,decided_at,recorded_at,observed_at,experiment_id,campaign,symbol,p_win,threshold,ref_price,idea,model_version_id").eq("experiment_id", campaign).gte("decided_at", start).lt("decided_at", end).order("decided_at", { ascending: false }).order("id", { ascending: false }).range(o, o + 499)) : Promise.resolve([]),
+        campaign ? pages<ExpTradeRow>(o => db.from("experiment_trades").select("id,action,reason,decided_at,recorded_at,observed_at,experiment_id,campaign,symbol,p_win,threshold,ref_price,idea,model_version_id,position_status,fill_ts,cancel_reason").eq("experiment_id", campaign).gte("decided_at", start).lt("decided_at", end).order("decided_at", { ascending: false }).order("id", { ascending: false }).range(o, o + 499)) : Promise.resolve([]),
         db.from("learned_stats").select("payload").eq("stat_key", "daily_funnel").lt("computed_at", end).order("computed_at", { ascending: false }).limit(1),
       ]);
       if (funnel.error) throw new Error(funnel.error.message);
@@ -69,6 +69,10 @@ export default function ActivityPanel() {
   const paused = sources.filter(stream => stream.breaker?.paused ?? (policies.get(stream.key)?.action === "paused" || stream.status === "benched"));
   const eligible = data ? visibleSignals(data.signals).filter(row => FILLED.has(row.status)).length : null;
   const taken = data?.decisions.filter(d => d.action === "take").length ?? null, skipped = data?.decisions.filter(d => d.action === "skip").length ?? null;
+  const filled = data?.decisions.filter(d => d.action === "take" && !!d.fill_ts).length ?? null;
+  const unfilled = data?.decisions.filter(d => d.action === "take" && (d.position_status === "cancelled" || d.position_status === "pending_fill")) ?? [];
+  const cancelled = data ? unfilled.filter(d => d.position_status === "cancelled").length : null;
+  const pending = unfilled.filter(d => d.position_status === "pending_fill").length;
   const reasons: Record<string, number> = {};
   for (const d of data?.decisions ?? []) if (d.action === "skip") reasons[d.reason] = (reasons[d.reason] ?? 0) + 1;
   const current = day === today, outcome = readSourceActivity(health.lastRun?.message ?? null);
@@ -86,9 +90,10 @@ export default function ActivityPanel() {
     <p className={s.note}>{day} · Calendar day in {zone}. Checks use receipt time; ideas and decisions use simulated market time.</p>
     {(!exp.online || failed || health.loadFailed) && <p className={s.warning} role="status">{!exp.online ? "Offline. " : "Refresh failed. "}{data ? `Showing the saved update from ${stampIn(data.at / 1000, zone)}.` : "Activity counts are unavailable."} <button type="button" onClick={() => { health.refresh(); exp.refresh(); void load(); }}>Try again</button></p>}
     <div className={s.flow} aria-label="Daily activity summary" aria-busy={loading}>
-      {[{ label: "Source checks", value: data?.runs.length, note: data ? `${data.runs.filter(r => r.status === "ok").length} succeeded` : "Awaiting records" }, { label: "Eligible ideas", value: eligible, note: "Source guard passed" }, { label: "Accepted", value: campaign ? taken : null, note: "Simulated decisions" }, { label: "Skipped", value: campaign ? skipped : null, note: "Learner decisions" }].map((tile, i) => <div className={s.tile} key={tile.label}><span className={s.step}>{i + 1}</span><b className="num">{tile.value ?? "—"}</b><strong>{tile.label}</strong><small>{tile.note}</small></div>)}
+      {[{ label: "Source checks", value: data?.runs.length, note: data ? `${data.runs.filter(r => r.status === "ok").length} succeeded` : "Awaiting records" }, { label: "Eligible ideas", value: eligible, note: "Source guard passed" }, { label: "Accepted", value: campaign ? taken : null, note: "Simulated decisions" }, { label: "Filled", value: campaign ? filled : null, note: "Actual virtual entries" }, { label: "Cancelled", value: campaign ? cancelled : null, note: "Accepted but not filled" }, { label: "Skipped", value: campaign ? skipped : null, note: "Learner decisions" }].map((tile, i) => <div className={s.tile} key={tile.label}><span className={s.step}>{i + 1}</span><b className="num">{tile.value ?? "—"}</b><strong>{tile.label}</strong><small>{tile.note}</small></div>)}
     </div>
-    {exp.data && <p className={s.note}>Campaign {exp.data.experiment.campaign} · {campaign} · {versionName(exp.data.model?.version_id)}. Accepted ideas still need a valid next price to fill.</p>}
+    {exp.data && <p className={s.note}>Campaign {exp.data.experiment.campaign} · {campaign} · {versionName(exp.data.model?.version_id)}. Accepted ideas still need a valid next price to fill. Filled and cancelled counts follow decisions from the selected day{data ? `; ${pending} still waiting for a fill` : ""}.</p>}
+    {unfilled.length > 0 && <details className={s.detail}><summary>Unfilled orders · {unfilled.length}</summary><ul>{unfilled.map(d => <li key={d.id}>{d.symbol} · {d.position_status === "pending_fill" ? "Waiting for the next eligible price" : cancelWords(d.cancel_reason)}. <Link href={`/trades/${d.id}`}>Open order →</Link></li>)}</ul></details>}
     {data && <p className={s.note}>{data.signals.filter(r => r.suppressed && !r.orphaned).length} source ideas withheld by pauses · {data.signals.filter(r => r.stale_data && !r.orphaned).length} flagged for stale data. Flags may overlap. Source practice never changes the learner&apos;s balance.</p>}
     <div className={s.sources}>{sources.map(stream => {
       const b = stream.breaker, p = policies.get(stream.key), isPaused = b?.paused ?? (p?.action === "paused" || stream.status === "benched");

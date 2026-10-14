@@ -32,7 +32,7 @@ export class MemoryStore implements ExperimentStore {
   runs: Run[] = [];
   bars: Partial<Record<ExpSymbol, Bar[]>> = {};
   signalRows: SignalRow[] = [];
-  publishedBatch: { id: string; watermarks: Partial<Record<ExpSymbol, number>> } | null = null;
+  publishedBatch: Awaited<ReturnType<TickTx["published"]>> = null;
   dbBytes: number | null = 50 * 1024 ** 2;
   locked = new Set<string>();
   /** Throw inside persist to simulate a crash before commit. */

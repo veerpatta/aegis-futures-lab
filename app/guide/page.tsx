@@ -135,7 +135,7 @@ export default function GuidePage() {
         <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
         <p>The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
         <p>
-          The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. It decides after the idea&apos;s bar closes and fills on the next available bar. It does not wait again just because the feed arrived late. Skipped ideas are followed too, so it cannot learn only from its own winners.
+          The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea&apos;s bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
         </p>
         <ol className={styles.steps}>
           <li>
@@ -191,7 +191,8 @@ export default function GuidePage() {
 
       <section className={styles.card} id="activity">
         <h2>Behind the trades</h2>
-        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas and learner skips. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.</p>
         <p>Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner&apos;s balance.</p>
         <p>Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.</p>
       </section>
@@ -370,7 +371,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-10 (trade activity and saved skip reasons). A printable version of this guide lives in
+        Matches the app as of 2026-10-14 (source timing and actual virtual fills). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

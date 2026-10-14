@@ -61,7 +61,7 @@ The animated bot shows the latest recorded activity: watching for ideas, followi
 
 The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app's usage guard is not a provider billing meter.
 
-The learner is the bot's own **virtual $10,000** account. After each complete market update, it processes ideas and price bars in market-time order. It decides after the idea's bar closes and fills on the next available bar. It does not wait again just because the feed arrived late. Skipped ideas are followed too, so it cannot learn only from its own winners.
+The learner is the bot's own **virtual $10,000** account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea's bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
 
 1. **Limits.** At most $100 at risk on one trade and $200 across open trades. A $400 daily loss stops it until the next session. A $2,000 drop from its best stops the campaign for good. It never raises risk after a loss, and a new campaign keeps the earlier losses on record.
 2. **Honest fills.** An order fills on the next price after the decision, with costs on both sides. A bar that touches both stop and target counts as the stop. A gap through the stop fills at the worse price. If the next market period has no price, the order waits; the app never invents a price. It can fill fewer contracts if risk is higher at the opening price. Filled trades show the actual size. Waiting and cancelled orders are labelled separately.
@@ -76,7 +76,9 @@ The repaired account replays ideas from 7 October 2026. Those trades and later d
 
 ### Behind the trades
 
-Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas and learner skips. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
+Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
+
+Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.
 
 Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner's balance.
 
@@ -206,4 +208,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-10 (trade activity and saved skip reasons). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-14 (source timing and actual virtual fills). If the app has changed since, the in-app Guide is the source of truth.*

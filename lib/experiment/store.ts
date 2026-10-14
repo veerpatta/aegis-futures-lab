@@ -7,6 +7,7 @@ import type { Bar } from "@/lib/types";
 import type { SignalRow } from "@/lib/neon/client";
 import type { TickResult } from "./step";
 import type { Metrics } from "./evaluate";
+import type { PublicationWatermarks } from "./publication";
 import type {
   Account, ChallengerSpec, Decision, ExperimentConfig, ExperimentStatus, ExpSymbol, ModelArtifact, Outcome, Position,
 } from "./types";
@@ -120,8 +121,8 @@ export interface TickTx {
   load(): Promise<TickState>;
   bars(symbol: ExpSymbol, fromSec: number, toSec: number): Promise<Bar[]>;
   signals(sinceSec: number): Promise<SignalRow[]>;
-  published(): Promise<{ id: string; watermarks: Partial<Record<ExpSymbol, number>> } | null>;
-  publishedSignals(sinceSec: number): Promise<SignalRow[]>;
+  published(): Promise<{ id: string; watermarks: PublicationWatermarks } | null>;
+  publishedSignals(sinceSec: number, throughBatchId: string): Promise<SignalRow[]>;
   decided(opportunityKeys: string[]): Promise<Set<string>>;
   persist(runId: number, state: TickState, result: TickResult, nowSec: number, writeEquity: boolean): Promise<void>;
   /** Swap the pointer back and record why (inside the same transaction). */
