@@ -17,6 +17,7 @@ import type { Bar } from "@/lib/types";
 import { engineScheduled } from "@/lib/time/session";
 import { stepTick, type ScoredModel, type TickResult } from "./step";
 import { stepDelayed, DELAYED_EXECUTION_VERSION } from "./delayed";
+import { availableWatermarks } from "./publication";
 import { opportunitiesFromSignals } from "./opportunities";
 import { syntheticBars, syntheticOpportunities } from "./synthetic";
 import { ModelOutputError, TAKE_ALL_V1, artifactHash, trainChallenger, validateArtifact } from "./models";
@@ -119,7 +120,7 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
       const decided = await tx.decided(all.map((o) => o.key));
       opportunities = all.filter((o) => !decided.has(o.key)).sort((a, b) => a.signalTs - b.signalTs || a.key.localeCompare(b.key));
     } else {
-      const rows = delayed ? await tx.publishedSignals(marketFrom) : await tx.signals(Math.max(state.exp.startedAt, nowSec - SIGNAL_WINDOW_SEC));
+      const rows = delayed ? await tx.publishedSignals(marketFrom, publication!.id) : await tx.signals(Math.max(state.exp.startedAt, nowSec - SIGNAL_WINDOW_SEC));
       const decided = await tx.decided(rows.map((r) => r.dedupe_key));
       opportunities = opportunitiesFromSignals(rows, marketFrom, decided, nowSec);
     }
@@ -158,6 +159,9 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
       entries: result.fills.filter((f) => f.kind === "entry").length, exits: result.fills.filter((f) => f.kind === "exit").length,
       cancelled: result.positions.filter((p) => p.status === "cancelled").length, publication: publication?.id ?? null,
       backlog: result.account.backlogCount ?? 0, dataAsOf: result.account.dataAsOf ?? null,
+      ...(publication ? { sourceAvailable: availableWatermarks(publication.watermarks),
+        sourceReady: Object.fromEntries(EXP_SYMBOLS.map(s => [s, publication.watermarks[s] ?? null])),
+        sourceSettlementSeconds: publication.watermarks.settlementSeconds ?? 0 } : {}),
     });
     const message = result.decisions.length
       ? `${result.decisions.length} idea(s) decided, ${result.newPositionIds.length} taken.`

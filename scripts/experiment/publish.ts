@@ -4,6 +4,8 @@ import { experimentPool } from "@/lib/experiment/store-pg";
 import { visibleSignals } from "@/lib/signals/snapshot";
 import { FILLED } from "@/lib/experiment/opportunities";
 import type { SignalRow } from "@/lib/neon/client";
+import { readSourceActivity } from "@/lib/engine/activity";
+import { publicationWatermarks } from "@/lib/experiment/publication";
 
 async function main() {
   const pool = experimentPool();
@@ -14,10 +16,13 @@ async function main() {
     const run = (await c.query("SELECT id,status,message FROM engine_runs ORDER BY ran_at DESC,id DESC LIMIT 1")).rows[0];
     if (!run || run.status !== "ok") throw new Error("The latest signal-engine pass has not completed successfully.");
     if (/\b(MES|MNQ) archive write failed/.test(run.message ?? "")) throw new Error("Required market bars were not archived.");
+    const source = readSourceActivity(run.message);
+    if (!source) throw new Error("The source pass has no completed market boundaries; publication must wait.");
     const id = `engine:${run.id}`;
     const ends = (await c.query("SELECT symbol,max(time)+300 AS t FROM bars_5m WHERE source='yahoo' AND symbol IN ('MES','MNQ') AND time+300<=extract(epoch FROM now()) GROUP BY symbol")).rows;
     if (ends.length !== 2) throw new Error("Both market archives are required.");
-    const watermarks = Object.fromEntries(ends.map((r) => [r.symbol, Number(r.t)]));
+    const watermarks = publicationWatermarks(source.marketAsOf,
+      Object.fromEntries(ends.map((r) => [r.symbol, Number(r.t)])), Math.floor(Date.now() / 1000));
     const inserted = await c.query("INSERT INTO experiment_source_batches(id,watermarks,source_sha) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id",
       [id, JSON.stringify(watermarks), process.env.GITHUB_SHA ?? process.env.AEGIS_CODE_SHA ?? null]);
     let ideas = 0;

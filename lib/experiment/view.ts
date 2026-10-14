@@ -155,6 +155,17 @@ export interface AxisState<S extends string> {
 
 const sec = (iso: string | null | undefined) => (iso ? Date.parse(iso) / 1000 : null);
 
+/** Optional run evidence; older runners have no source timing breakdown. */
+export function sourceTiming(o: ExpOverview | null): { availableAt: number; settlementMinutes: number } | null {
+  const counts = o?.last_runs?.tick?.counts;
+  const available = counts?.sourceAvailable as { MES?: unknown; MNQ?: unknown } | undefined;
+  const delay = counts?.sourceSettlementSeconds;
+  if (!available || typeof delay !== "number" || !Number.isFinite(delay) || delay <= 0 ||
+    typeof available.MES !== "number" || !Number.isFinite(available.MES) ||
+    typeof available.MNQ !== "number" || !Number.isFinite(available.MNQ)) return null;
+  return { availableAt: Math.min(available.MES, available.MNQ), settlementMinutes: delay / 60 };
+}
+
 /** Ticks run at :07, :22, :37 and :52 through the futures week (UTC cron
     in scripts/experiment/triggers.json). Shown as "around", never promised. */
 export const TICK_MINUTES = [7, 22, 37, 52];

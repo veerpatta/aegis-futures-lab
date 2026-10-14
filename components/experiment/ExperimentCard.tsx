@@ -9,7 +9,7 @@ import { useNowSec } from "@/components/signals/useSignalFeed";
 import { Term } from "@/components/ui/Glossary";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { EquityChart, MetricTile, TradeWidget, WidgetIcon, positionVisual } from "@/components/widgets/TradingWidgets";
-import { executionState, freshnessState, learningState, nextTickSec } from "@/lib/experiment/view";
+import { executionState, freshnessState, learningState, nextTickSec, sourceTiming } from "@/lib/experiment/view";
 import { EXP_BADGE_LONG, EXP_LIMITS, EXP_NAME, EXP_WHY, EXECUTION_TONE, EXECUTION_WORDS, FRESHNESS_TONE, FRESHNESS_WORDS, LEARNING_TONE, LEARNING_WORDS, changeWords, versionName } from "@/lib/plain/experiment";
 import { money } from "@/lib/format";
 import { clockIn, stampIn, dateShortIn } from "@/lib/time/zones";
@@ -51,6 +51,7 @@ export default function ExperimentCard({ compact = false }: { compact?: boolean 
   const nowSec = useNowSec();
   const [sheet, setSheet] = useState(false);
   const o = exp.data, a = o?.account ?? null;
+  const timing = sourceTiming(o);
   const cash = (v: number | null | undefined) => v == null || !Number.isFinite(v) ? "—" : mask(money(v, false));
   const lastOk = sec(a?.last_ok_tick_at), lastTry = sec(o?.last_runs?.tick?.started_at);
   const next = nowSec === null ? null : nextTickSec(nowSec);
@@ -75,13 +76,15 @@ export default function ExperimentCard({ compact = false }: { compact?: boolean 
         {!compact && a && <div className={styles.riskStrip}><span><WidgetIcon name="shield" /> Open risk <b className="num">{cash(a.open_risk)} / {cash(riskLimit)}</b></span><div aria-hidden style={{ visibility: privacy ? "hidden" : undefined }}><i style={{ width: `${Math.min(100, Math.max(0, a.open_risk / riskLimit * 100))}%` }} /></div></div>}
         {a && a.unpriced_positions > 0 && <p className={page.warning}>{a.unpriced_positions} open trade(s) have no fresh price. Their result is an estimate.</p>}
         <StateAxes nowSec={nowSec} withLearning={!compact} />
-        <details className={styles.accountDetails}><summary><WidgetIcon name="clock" />{a?.data_as_of ? `Market data through ${clockIn(Date.parse(a.data_as_of) / 1000, zone)}` : "Account timing"}<span>Details +</span></summary><div className={styles.times}>
+        <details className={styles.accountDetails}><summary><WidgetIcon name="clock" />{a?.data_as_of ? `Simulation through ${clockIn(Date.parse(a.data_as_of) / 1000, zone)}` : "Account timing"}<span>Details +</span></summary><div className={styles.times}>
           <span>Last check {lastOk ? clockIn(lastOk, zone) : "—"}</span>
-          {a?.data_as_of && <span>Market data through {stampIn(Date.parse(a.data_as_of) / 1000, zone)}</span>}
+          {a?.data_as_of && <span>Simulation through {stampIn(Date.parse(a.data_as_of) / 1000, zone)}</span>}
+          {timing && <span>Prices received through {stampIn(timing.availableAt, zone)}</span>}
           {lastTry && (lastOk === null || lastTry - lastOk > 60) && <span>Latest attempt {clockIn(lastTry, zone)}</span>}
           {next && <span>Next around {clockIn(next, zone)}</span>}
           {exp.fromSnapshot && exp.loadedAt && <span>Saved copy from {stampIn(exp.loadedAt / 1000, zone)}</span>}
         </div></details>
+        {timing && <p className={styles.replayNote}>The simulation stays {timing.settlementMinutes} minutes behind received prices so source checks can finish. This planned wait is separate from feed delay.</p>}
         {o?.experiment.execution_clock === "delayed_market" && <p className={styles.replayNote}>Fills simulated in delayed market order. Replay results are not fresh proof.</p>}
       </>}
     </div>

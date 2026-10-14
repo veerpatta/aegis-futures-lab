@@ -213,8 +213,11 @@ export class PgStore implements ExperimentStore {
           const row = (await c.query("SELECT id,watermarks FROM experiment_source_batches ORDER BY published_at DESC,id DESC LIMIT 1")).rows[0];
           return row ? { id: String(row.id), watermarks: row.watermarks } : null;
         },
-        publishedSignals: async (sinceSec) => (await c.query(
-          "SELECT signal_row FROM experiment_source_ideas WHERE signal_ts >= $1 ORDER BY signal_ts,opportunity_key", [iso(sinceSec)]
+        publishedSignals: async (sinceSec, throughBatchId) => (await c.query(
+          `SELECT i.signal_row FROM experiment_source_ideas i
+           JOIN experiment_source_batches b ON b.id=i.batch_id
+           WHERE i.signal_ts >= $1 AND b.published_at <= (SELECT published_at FROM experiment_source_batches WHERE id=$2)
+           ORDER BY i.signal_ts,i.opportunity_key`, [iso(sinceSec), throughBatchId]
         )).rows.map((r) => r.signal_row as SignalRow),
         decided: async (keys) => {
           if (!keys.length) return new Set();

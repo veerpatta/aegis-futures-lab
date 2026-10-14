@@ -244,7 +244,7 @@ for (const width of [320, 390, 430])
     await expect(card.getByRole("button", { name: /^Learning: Candidate rejected/ })).toBeVisible();
     await expect(card.getByRole("button", { name: /^Data:/ })).toBeVisible();
     await expect(card).toContainText("1 open virtual trade");
-    await expect(card).toContainText("Market data through");
+    await expect(card).toContainText("Simulation through");
     await expect(card).toContainText("One virtual account");
     await expect(page.getByRole("region", { name: "Practice money" })).toHaveCount(0);
     expect(await noSideways(page)).toBe(true);
@@ -406,6 +406,33 @@ async function auditStub(page: Page) {
     return r.fallback();
   });
 }
+for (const width of [320, 390]) test(`${width}px activity distinguishes accepted orders from fills and shows the planned source wait`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await auditStub(page);
+  await page.route("**/experiment_overview?*", r => r.fulfill({ json: [{ ...overview,
+    last_runs: { tick: { ...overview.last_runs.tick, counts: { sourceSettlementSeconds: 1800,
+      sourceAvailable: { MES: Date.parse(auditAt) / 1000, MNQ: Date.parse(auditAt) / 1000 } } } } }] }));
+  await page.route("**/experiment_trades?*", r => r.fulfill({ json: [
+    { ...trade, id: 1, decided_at: auditAt },
+    { ...trade, id: 2, decided_at: auditAt, position_status: "pending_fill", fill_ts: null },
+    { ...trade, id: 3, decided_at: auditAt, position_status: "cancelled", fill_ts: null, cancel_reason: "risk-budget" },
+    { ...trade, id: 4, decided_at: auditAt, action: "skip", reason: "late-source", position_status: null, fill_ts: null },
+  ] }));
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "Trading activity" });
+  const summary = panel.getByLabel("Daily activity summary");
+  await expect(summary).toContainText("3Accepted");
+  await expect(summary).toContainText("1Filled");
+  await expect(summary).toContainText("1Cancelled");
+  await expect(summary).toContainText("1Skipped");
+  await expect(panel).toContainText("1 still waiting for a fill");
+  await panel.getByText("Unfilled orders · 2", { exact: true }).click();
+  await expect(panel).toContainText("Waiting for the next eligible price");
+  await expect(panel).toContainText("the risk at the real price was over the limit");
+  await expect(page.getByText("The simulation stays 30 minutes behind received prices", { exact: false })).toBeVisible();
+  expect(await noSideways(page)).toBe(true);
+  await panel.screenshot({ path: `test-results/source-timing-${width}.png` });
+});
 for (const width of [320, 390, 1280]) test(`${width}px activity separates successful checks, paused sources and zero learner decisions`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await auditStub(page);

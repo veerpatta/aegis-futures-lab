@@ -13,7 +13,7 @@
 .segment { display: flex; gap: 5px; }
 .segment button[aria-pressed=true] { background: var(--blue-soft); color: var(--blue); border-color: var(--blue-line); }
 .note { color: var(--text-dim); font-size: 12px; line-height: 1.55; margin: 10px 0; }
-.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 18px 0 12px; }
+.flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0 12px; }
 .tile { background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 12px; display: grid; gap: 4px; min-width: 0; position: relative; }
 .step { color: var(--text-faint); font-size: 10px; position: absolute; top: 10px; right: 12px; }
 .tile > b { font-size: 28px; font-weight: 500; color: var(--text); }
