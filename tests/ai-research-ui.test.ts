@@ -33,7 +33,7 @@ describe("research request", () => {
     await expect(requestResearchBudget("token", incomplete)).rejects.toThrow(/unavailable/i);
   });
   it("shows the shared spending and the signed-in account's daily request count when provided", () => {
-    expect(formatBudget({ remainingUsd: 21.5, usedUsd: 3.5, userRequests: 2, dailyLimit: 10, resetAt: "2026-11-01", timezone: "UTC" })).toContain("used $3.50");
+    expect(formatBudget({ remainingUsd: 21.5, usedUsd: 3.5, userRequests: 2, dailyLimit: 10, resetAt: "2026-11-01", timezone: "UTC" })).toContain("counted $3.50 (includes pending reservations)");
     expect(formatBudget({ remainingUsd: 21.5, usedUsd: 3.5, userRequests: 2, dailyLimit: 10 })).toContain("Your requests today: 2 of 10");
     expect(formatBudget({ remainingUsd: 0 })).not.toContain("requests today");
   });

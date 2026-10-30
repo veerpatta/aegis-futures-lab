@@ -33,7 +33,7 @@ export async function requestShadowSummary(token: string, transport: (url: strin
 
 export function formatBudget(budget: Budget): string {
   let text = `Shared Aegis allowance remaining: $${budget.remainingUsd!.toFixed(2)}`;
-  if (typeof budget.usedUsd === "number" && Number.isFinite(budget.usedUsd) && budget.usedUsd >= 0) text += ` · used $${budget.usedUsd.toFixed(2)}`;
+  if (typeof budget.usedUsd === "number" && Number.isFinite(budget.usedUsd) && budget.usedUsd >= 0) text += ` · counted $${budget.usedUsd.toFixed(2)} (includes pending reservations)`;
   if (budget.resetAt) text += ` · resets ${budget.resetAt}${budget.timezone ? ` ${budget.timezone}` : ""}`;
   text += ".";
   if (Number.isInteger(budget.userRequests) && Number.isInteger(budget.dailyLimit) && budget.userRequests! >= 0 && budget.dailyLimit! >= 0) text += ` Your requests today: ${budget.userRequests} of ${budget.dailyLimit} (UTC).`;

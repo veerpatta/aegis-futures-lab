@@ -398,7 +398,11 @@ export class PgStore implements ExperimentStore {
 
   async setStatus(experimentId: string, to: ExperimentStatus, change: ChangeRecord) {
     await this.tx(async (c) => {
+      // Serialize owner status changes with a tick before reading the status.
+      // Otherwise a tick could commit new entries after pause has returned.
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:' || $1, 0))", [experimentId]);
       const cur = (await c.query("SELECT status FROM experiments WHERE id=$1 FOR UPDATE", [experimentId])).rows[0];
+      if (!cur) throw new Error("Experiment not found.");
       const id = await insertChange(c, experimentId, { ...change, fromStatus: cur.status, toStatus: to, actor: change.actor ?? "owner" });
       await c.query("UPDATE experiments SET status=$2, status_reason=$3, last_change_id=$4 WHERE id=$1", [experimentId, to, change.reason, id]);
     });

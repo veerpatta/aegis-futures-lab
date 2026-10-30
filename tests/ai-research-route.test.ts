@@ -4,7 +4,7 @@ import { OpenAiHttpError } from '@/lib/ai-research/provider';
 
 const goodRequest = () => new Request('https://aegis.test/api/ai/research', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer example' }, body: JSON.stringify({ question: 'Why paused?' }) });
 function deps() {
-  return { authenticate: vi.fn(async () => ({ ok: true as const, userId: 'user-1' })), evidence: vi.fn(async () => [{ id: 'run:1', label: 'Run', text: 'paused' }]), saveRequest: vi.fn(async () => {}), runBudgeted: vi.fn(async (input: {beforeInvoke(): Promise<void>}) => { await input.beforeInvoke(); return { answer: 'Paused.', citations: [{ id: 'run:1', label: 'Run' }] }; }), saveResult: vi.fn(async () => {}), status: vi.fn(async () => ({ remainingUsd: 24.9, resetAt: '2026-11-01', timezone: 'UTC' })) };
+  return { authenticate: vi.fn(async () => ({ ok: true as const, userId: 'user-1' })), evidence: vi.fn(async () => [{ id: 'run:1', label: 'Run', text: 'paused' }]), saveRequest: vi.fn(async () => {}), runBudgeted: vi.fn(async (input: {beforeInvoke(): Promise<void>}) => { await input.beforeInvoke(); return { answer: 'Paused.', citations: [{ id: 'run:1', label: 'Run' }] }; }), saveResult: vi.fn(async () => {}), saveFailure: vi.fn(async () => {}), status: vi.fn(async () => ({ remainingUsd: 24.9, resetAt: '2026-11-01', timezone: 'UTC' })) };
 }
 describe('paid research endpoint', () => {
   it('rejects unauthorized callers before reading evidence or making paid requests', async () => {
@@ -24,6 +24,13 @@ describe('paid research endpoint', () => {
   it('does not persist a request if the budget reservation is denied', async () => {
     const d = deps(); d.runBudgeted.mockRejectedValueOnce(new Error('Daily AI request limit reached.'));
     const res = await makeResearchPost(d)(goodRequest()); expect(res.status).toBe(429); expect(d.saveRequest).not.toHaveBeenCalled();
+  });
+  it('records only safe failure metadata after the request was recorded', async () => {
+    const d = deps();
+    d.runBudgeted.mockImplementationOnce(async input => { await input.beforeInvoke(); throw new OpenAiHttpError(403, 'model_not_allowed'); });
+    expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
+    expect(d.saveFailure).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-1', diagnostic: { kind: 'provider_http', status: 403, code: 'model_not_allowed' } }));
+    expect(JSON.stringify(d.saveFailure.mock.calls)).not.toContain('Why paused');
   });
   it('accepts only the two server-defined research depths', async () => {
     const d = deps();

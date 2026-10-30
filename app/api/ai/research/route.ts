@@ -46,6 +46,9 @@ const post = makeResearchPost({
     const saved = await new ResearchStore(pool()).saveResult({ requestId: id, userId, response: result.answer, citations: result.citations, status: 'complete' });
     if (!saved) throw new Error('Unable to record result');
   },
+  async saveFailure({ id, userId, diagnostic }) {
+    await new ResearchStore(pool()).saveResult({ requestId: id, userId, response: diagnostic, citations: [], status: 'error' });
+  },
   status,
 });
 

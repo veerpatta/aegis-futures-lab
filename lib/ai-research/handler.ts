@@ -9,6 +9,7 @@ export interface ResearchDeps {
   saveRequest(input: { id: string; userId: string; question: string; evidence: Evidence[]; depth: ResearchDepth }): Promise<unknown>;
   runBudgeted(input: { id: string; userId: string; question: string; evidence: Evidence[]; depth: ResearchDepth; beforeInvoke(): Promise<void> }): Promise<ResearchAnswer>;
   saveResult(input: { id: string; userId: string; result: ResearchAnswer }): Promise<unknown>;
+  saveFailure(input: { id: string; userId: string; diagnostic: { kind: string; status?: number; code?: string } }): Promise<unknown>;
   status(userId: string): Promise<{ remainingUsd: number; resetAt: string; timezone: string }>;
 }
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -40,18 +41,28 @@ export function makeResearchPost(deps: ResearchDeps) {
       depth = body.depth === 'deep' ? 'deep' : 'standard';
     } catch { return json({ error: 'Enter a research question of at most 2,000 characters.' }, 400); }
     const id = crypto.randomUUID();
+    let recorded = false;
     try {
       const evidence = evidenceForPrompt(await deps.evidence());
       // UTF-8 bytes conservatively bound provider input, including JSON framing.
       if (new TextEncoder().encode(JSON.stringify({ question, evidence })).length > 36000) throw new Error('Evidence exceeds safe input limit');
       const result = await deps.runBudgeted({ id, userId: identity.userId, question, evidence, depth,
-        beforeInvoke: async () => { await deps.saveRequest({ id, userId: identity.userId, question, evidence, depth }); } });
+        beforeInvoke: async () => { await deps.saveRequest({ id, userId: identity.userId, question, evidence, depth }); recorded = true; } });
       await deps.saveResult({ id, userId: identity.userId, result });
       const usage = await deps.status(identity.userId).catch(() => undefined);
       return json({ ...result, ...(usage ? { usage } : {}) });
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       if (message === 'Daily AI request limit reached.' || message === 'Monthly AI budget exhausted.') return json({ error: message }, 429);
+      // Store only fixed diagnostics, never provider text, questions or keys.
+      // A pending reservation is intentionally left untouched: a failure does
+      // not establish whether the provider incurred a charge.
+      if (recorded) {
+        const diagnostic = err instanceof OpenAiHttpError
+          ? { kind: 'provider_http', status: err.status, code: err.code }
+          : { kind: 'unavailable' };
+        await deps.saveFailure({ id, userId: identity.userId, diagnostic }).catch(() => {});
+      }
       // Log only a small allowlist: questions, provider bodies and credentials
       // can appear in arbitrary errors and must never be written to logs.
       const providerStatus = /^OpenAI request failed \(([1-5]\d\d)\)$/.exec(message);
