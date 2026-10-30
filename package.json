@@ -12,6 +12,7 @@
     "engine:report": "tsx scripts/engine/report.ts"
   },
   "dependencies": {
+    "@neon/functions": "^0.11.0",
     "@neondatabase/neon-js": "^0.7.0-beta",
     "@supabase/supabase-js": "^2.110.7",
     "jose": "^6.2.14",
@@ -23,6 +24,7 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@neon/config": "^1.9.6",
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.23.1",
