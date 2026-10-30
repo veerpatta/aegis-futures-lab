@@ -41,7 +41,7 @@ import { rowsToDelete, zoneRows, type ExistingZoneRow } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
 import { Pool } from "pg";
-import { captureAiShadowPass, shadowMarketAsOf } from "./ai-shadow-capture";
+import { captureAiShadowPass, configuredShadowStudyId, shadowMarketAsOf } from "./ai-shadow-capture";
 import { captureAiShadowBars } from "./ai-shadow-bars";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
@@ -576,8 +576,8 @@ async function main() {
 
   // Optional, separate research evidence. Failure here must not alter or stop
   // the source signal pass. The study must be preregistered and selected
-  // explicitly; the default is off. Use a dedicated, bounded connection.
-  const shadowStudyId = process.env.AI_SHADOW_STUDY_ID?.trim();
+  // explicitly and capture must be enabled. Use a dedicated, bounded connection.
+  const shadowStudyId = configuredShadowStudyId(process.env.AI_SHADOW_CAPTURE_ENABLED, process.env.AI_SHADOW_STUDY_ID);
   if (shadowStudyId) {
     let shadowPool: Pool | undefined;
     try {

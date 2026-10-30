@@ -1,0 +1,9 @@
+{
+  "name": "aegis-shadow-scheduler",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@neon/config": "^1.9.6",
+    "@neon/functions": "^0.11.0"
+  }
+}

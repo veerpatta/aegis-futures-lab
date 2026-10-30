@@ -28,6 +28,12 @@ export interface CaptureClient {
 export type ShadowCapturePass = { ok: true; inserted: number; rejected: number; duplicates: number } |
   { ok: false; inserted: 0; rejected: 0; duplicates: 0; error: string };
 
+/** Collection requires both an explicit enable and an exact study ID. */
+export function configuredShadowStudyId(enabled: string | undefined, id: string | undefined): string | null {
+  const selected = id?.trim();
+  return enabled === "true" && selected ? selected : null;
+}
+
 /** Archive fallback does not prove the direct feed's actual receipt or freshness. */
 export function shadowMarketAsOf(lastBarStart: number | null | undefined, fromArchive: boolean): number | null {
   return !fromArchive && typeof lastBarStart === "number" && Number.isFinite(lastBarStart) ? lastBarStart + 300 : null;

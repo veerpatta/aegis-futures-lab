@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captureAiShadowPass, shadowMarketAsOf } from "@/scripts/engine/ai-shadow-capture";
+import { captureAiShadowPass, configuredShadowStudyId, shadowMarketAsOf } from "@/scripts/engine/ai-shadow-capture";
 
 const observed = Date.parse("2026-10-30T14:30:00Z");
 const time = (sec: number) => new Date(observed + sec * 1000).toISOString();
@@ -23,6 +23,13 @@ function client() {
 }
 
 describe("AI shadow capture", () => {
+  it("requires an explicit capture enable and a selected study", () => {
+    expect(configuredShadowStudyId("true", " study ")).toBe("study");
+    expect(configuredShadowStudyId("false", "study")).toBeNull();
+    expect(configuredShadowStudyId(undefined, "study")).toBeNull();
+    expect(configuredShadowStudyId("true", "  ")).toBeNull();
+    expect(configuredShadowStudyId("TRUE", "study")).toBeNull();
+  });
   it("never treats archived fallback bars as a fresh Yahoo receipt", async () => {
     const db = client();
     expect(shadowMarketAsOf(observed / 1000 - 300, false)).toBe(observed / 1000);

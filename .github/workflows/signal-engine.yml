@@ -60,8 +60,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Ring 1 kill switch: "1" freezes breakers/veto (existing pauses stay).
           BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
-          # Optional preregistered paper-shadow study ID; unset keeps capture off.
-          AI_SHADOW_STUDY_ID: ${{ vars.AI_SHADOW_STUDY_ID }}
+          # This reviewed fallback identifies the explicitly preregistered study.
+          # Set AI_SHADOW_CAPTURE_ENABLED to "false" to stop collection.
+          AI_SHADOW_STUDY_ID: ${{ vars.AI_SHADOW_STUDY_ID || 'openai-forward-20261030-v1' }}
+          AI_SHADOW_CAPTURE_ENABLED: ${{ vars.AI_SHADOW_CAPTURE_ENABLED || 'true' }}
       - name: Publish complete market batch and process virtual account
         run: |
           npx tsx scripts/experiment/publish.ts
