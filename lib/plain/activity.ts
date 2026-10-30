@@ -1,7 +1,8 @@
 import { nyTimeToUnix } from "@/lib/time/ny";
 import type { DisplayZone } from "@/lib/time/zones";
-import type { BotPolicyRow } from "@/lib/neon/client";
+import type { BotPolicyRow, SignalRow } from "@/lib/neon/client";
 import { BREAKER_RULES, type BreakerEvidence } from "@/lib/engine/breaker-evidence";
+import { isLiveSignal } from "@/lib/signals/live";
 
 const formats = { ET: new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }), IST: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }) };
 export function calendarDay(nowSec: number, zone: DisplayZone): string {
@@ -42,5 +43,24 @@ export function recoveryWords(b?: BreakerEvidence): string {
   const n = Math.min(BREAKER_RULES.resumeWindow, b.recoveryCount), days = Math.min(BREAKER_RULES.tradingDays, b.daysSinceFlip ?? 0);
   const ratio = b.recoveryNoLosses ? "no losses and at least one win" : b.recoveryPf === null ? "no measurable ratio yet" : `profit-to-loss ratio ${b.recoveryPf.toFixed(2)}`;
   return `${n}/${BREAKER_RULES.resumeWindow} closed practice results; ${ratio}. ${days}/${BREAKER_RULES.tradingDays} trading days since the last change.`;
+}
+
+/** The already-recorded source simulations that were withheld by a pause.
+ * They are an audit view, never an input to the experiment. */
+export function researchPractice(rows: SignalRow[]): SignalRow[] {
+  return rows.filter(row => row.suppressed === true && isLiveSignal(row.signal_ts));
+}
+
+export function practiceResult(row: SignalRow): { label: string; net: number | null } {
+  if (row.orphaned) return { label: "Revised away", net: null };
+  if (row.stale_data) return { label: "Price data too old to judge", net: null };
+  if (row.status === "cancelled") return { label: "Not filled", net: null };
+  if (row.status === "pending") return { label: "Waiting for entry", net: null };
+  if (row.fill_confidence === "marginal" || row.fill_confidence === "doubtful") return { label: "Fill uncertain", net: null };
+  if (row.fill_confidence == null) return { label: "Fill not checked", net: null };
+  if (row.status === "triggered") return { label: "Result not confirmed", net: null };
+  if (row.pnl_usd === null || !Number.isFinite(Number(row.pnl_usd)))
+    return { label: "Result not confirmed", net: null };
+  return { label: "Closed practice result", net: Number(row.pnl_usd) };
 }
 export const SOURCE_GATES: Record<string, string> = { hours: "Outside entry hours", noSignal: "No trigger", news: "News pause", lock: "Source discipline limit", riskUnfit: "Source risk did not fit", stopTooTight: "Stop too close", barGap: "Gap in price data", nesting: "No matching hourly zone", noHtf: "No higher-timeframe zone nearby", noTouch: "Price has not reached the zone", weakZone: "Zone too weak", notFresh: "Zone already used", blocked80: "Blocked by the 80% rule", belowMinScore: "Zone score below its minimum", intermarket: "Markets disagreed", firstZone: "First market to the zone", invalidFill: "Price gapped through entry", noConfirm: "No confirmation candle" };

@@ -78,9 +78,13 @@ The repaired account replays ideas from 7 October 2026. Those trades and later d
 
 Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
 
+Practice finished counts closed practice outcomes for those decisions. Ready for check counts results with the saved details needed for learning; the next learning check still applies its time cutoff and counts each idea once. Open Recorded decisions to follow each decision to its fill and learning status.
+
 Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.
 
 Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner's balance.
+
+Open Paused method practice to see the selected day's recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. They do not enter the learner, change its balance or count as a new study. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.
 
 Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.
 
@@ -116,6 +120,8 @@ The earlier qualification account is retired. Its old record is kept for audit, 
 3. **Qualification.** Passing every check records a research result. It does not start a second account or turn replay results into fresh proof. The virtual account keeps the limits listed above.
 
 Every week the bot also tests any method marked "Not tested yet" against random entries by itself, and reports the result on Learn. It never promotes a method on its own — a person has to.
+
+Open Learn → Method research → Weekly method screens to see recorded comparisons with random entries and with doing nothing ($0). Historical results are after modelled costs and show how many trades were tested, the price source and the dates covered. A positive historical total is not proof that a method will make money or has passed qualification.
 
 Too little evidence is shown in amber, never red: too little data is not a loss. Red is only for a measured loss. Every rate is shown with its n, and below 30 trades it is marked "previewed, not judged".
 
@@ -208,4 +214,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-14 (source timing and actual virtual fills). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-30 (paused practice and method screens). If the app has changed since, the in-app Guide is the source of truth.*

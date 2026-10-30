@@ -35,7 +35,7 @@ import { auditFill, type FillConfidence } from "./fill-audit";
 import { sendTelegram } from "./notify";
 import { computeRegime } from "./regime";
 import { runShadows } from "./shadow";
-import { applyBreakers, isSuppressedAt, streamKeyForRow } from "./breakers";
+import { checkAndStampBreakers, streamKeyForRow } from "./breakers";
 import { applyWinProb } from "./model";
 import { rowsToDelete, zoneRows, type ExistingZoneRow } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
@@ -494,11 +494,11 @@ async function main() {
   // state, decide pause/resume, record flips (bot_policy + Telegram), and stamp
   // suppressed on this run's rows. Presentation-layer only: the simulator ran
   // unchanged above; suppressed just hides a benched stream from headline stats
-  // and alerts while it keeps simulating. Never fails the run (fail-safe:
-  // active). Frozen via BOT_POLICY_FREEZE.
+  // and alerts while it keeps simulating. If a pause check cannot be trusted,
+  // abort before writing signals or publishing a batch. Frozen via BOT_POLICY_FREEZE.
   let breakerNotes: string[] = [];
   try {
-    const { intervalsByStream, pausedStreams, notes, evidenceByStream } = await applyBreakers(supabase, nowSec);
+    const { pausedStreams, notes, evidenceByStream } = await checkAndStampBreakers(supabase, nowSec, signals);
     breakerNotes = notes;
     // Item 2.7 — a benched stream is quiet on purpose; the panel must say which.
     const paused = new Set(pausedStreams);
@@ -506,20 +506,12 @@ async function main() {
       s.breaker = evidenceByStream.get(s.key);
       if (paused.has(s.key)) s.status = "benched";
     }
-    // Per-row suppression at ENTRY TIME: a row is suppressed iff its stream was
-    // paused at the row's signal_ts (derived from the pause-interval history).
-    // A pause/resume therefore never rewrites already-decided history, and the
-    // result is deterministic each run (idempotent upsert).
-    for (const row of signals) {
-      const intervals = intervalsByStream.get(streamKeyForRow(row)) ?? [];
-      row.suppressed = isSuppressedAt(intervals, Math.floor(new Date(row.signal_ts).getTime() / 1000));
-    }
     console.log(
       `breakers: ${pausedStreams.length ? `paused ${pausedStreams.join(", ")}` : "all active"}` +
         (notes.length ? ` · ${notes.join("; ")}` : "")
     );
   } catch (e) {
-    warnings.push(`breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
+    throw new Error(`breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
   }
   if (breakerNotes.length) warnings.push(`breakers: ${breakerNotes.join("; ")}`);
 

@@ -97,6 +97,13 @@ export function isSuppressedAt(intervals: PauseInterval[], sec: number): boolean
   return intervals.some((iv) => sec >= iv.start && (iv.end === null || sec < iv.end));
 }
 
+/** An unchecked stream is unknown, not an active stream with no pauses. */
+export function requiredPauseIntervals(intervals: ReadonlyMap<string, PauseInterval[]>, key: string): PauseInterval[] {
+  const found = intervals.get(key);
+  if (!found) throw new Error(`Missing pause check for stream ${key}`);
+  return found;
+}
+
 /* Pure decision: given the stream's policy events and recent closed history
    (ascending by ts), return whether it is currently paused and any flip to
    record. Suppression itself is NOT returned per stream — rows are suppressed
@@ -194,9 +201,8 @@ export function breakerEvidence(events: PolicyEvent[], closed: ClosedSignal[], n
    and return per-stream pause intervals to stamp rows in run-live. Streams are
    keyed by strategy label + symbol (finding 8), and policy reads also pick up
    the legacy tier+symbol key so pauses recorded before the fix still count.
-   Every step is wrapped so a breaker failure NEVER fails the engine run — on
-   any error the stream defaults to active (no suppression) and the run
-   continues. */
+   If a check fails, stop the pass before signal rows or alerts are written.
+   An unknown pause state must never be treated as an active stream. */
 export async function applyBreakers(
   supabase: SupabaseClient,
   nowSec: number
@@ -284,10 +290,23 @@ export async function applyBreakers(
       const openNow = intervals.length && intervals[intervals.length - 1].end === null;
       if (openNow) pausedStreams.push(key);
     } catch (e) {
-      evidenceByStream.set(key, { ...breakerEvidence([], [], nowSec, frozen), error: "Source pause check failed; recovery progress unavailable." });
-      intervalsByStream.set(key, []); // fail safe: no suppression on a breaker error
-      notes.push(`${key} breaker_error: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`);
+      throw new Error(`breaker check failed for ${key}: ${String(e instanceof Error ? e.message : e).slice(0, 120)}`);
     }
   }
   return { intervalsByStream, pausedStreams, notes, evidenceByStream };
+}
+
+/** Check every stream and validate every mapping before changing any row.
+ * The caller may persist and publish only after this promise succeeds. */
+export async function checkAndStampBreakers<T extends { tier: "A" | "B"; symbol: string; dedupe_key: string; signal_ts: string; suppressed: boolean }>(
+  supabase: SupabaseClient, nowSec: number, rows: T[],
+): Promise<Awaited<ReturnType<typeof applyBreakers>>> {
+  const result = await applyBreakers(supabase, nowSec);
+  const stamps = rows.map(row => {
+    const time = secOf(row.signal_ts);
+    if (!Number.isFinite(time)) throw new Error(`Invalid signal time for ${row.dedupe_key}`);
+    return isSuppressedAt(requiredPauseIntervals(result.intervalsByStream, streamKeyForRow(row)), time);
+  });
+  rows.forEach((row, i) => { row.suppressed = stamps[i]; });
+  return result;
 }

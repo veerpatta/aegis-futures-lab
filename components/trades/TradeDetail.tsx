@@ -15,7 +15,7 @@ import ShowNumbers from "@/components/ui/ShowNumbers";
 import PriceLadder from "@/components/signals/PriceLadder";
 import { WidgetIcon } from "@/components/widgets/TradingWidgets";
 import type { ExpTradeRow } from "@/lib/experiment/view";
-import { PROVENANCE, cancelWords, exitWords, skipWords, versionName, decisionExplanation } from "@/lib/plain/experiment";
+import { PROVENANCE, cancelWords, exitWords, skipWords, versionName, decisionExplanation, learningOutcomeWords, learningPracticeNet } from "@/lib/plain/experiment";
 import { marketName } from "@/lib/plain/idea";
 import { COMMISSION_RT, pointValue } from "@/lib/experiment/policy";
 import { money } from "@/lib/format";
@@ -82,7 +82,7 @@ export default function TradeDetail({ id }: { id: string }) {
   const slipDollars = ((row.entry_slip ?? 0) + (row.exit_slip ?? 0)) * pointValue(row.symbol) * (row.qty || 1);
   const idea = row.idea;
   const prov = PROVENANCE[row.provenance];
-  const shadowNet = row.shadow_status === "closed" && row.shadow_net_per_contract !== null && row.shadow_qty ? row.shadow_net_per_contract * row.shadow_qty : null;
+  const shadowNet = learningPracticeNet(row);
 
   return (
     <div className={page.page}>
@@ -212,15 +212,11 @@ export default function TradeDetail({ id }: { id: string }) {
         <h2 className={page.cardTitle}>What was learned</h2>
         <p className={styles.reason}>
           One result is not a pattern, and a loss is not automatically a mistake.{" "}
-          {row.shadow_status === "closed"
-            ? `Its one-trade test result (${shadowNet === null ? "—" : mask(money(shadowNet))}) is in the learning record and counts in the next dataset${
-                row.provenance === "prospective" ? "" : ", kept apart as non-fresh evidence"
-              }.`
-            : row.shadow_status === "void"
-              ? "No fill was possible, so it teaches nothing and is left out of learning."
-              : "It enters the learning record once its test result is final."}{" "}
+          {shadowNet !== null && `Separate one-idea practice result: ${mask(money(shadowNet))} after costs. This is not an account trade result. `}
+          {learningOutcomeWords(row)}{" "}
           Skipped ideas are followed the same way, so the learner cannot learn only from its own winners.
         </p>
+        {shadowNet !== null && row.shadow_ambiguous && <p className={page.warning}>One practice price bar touched both the stop and target, so the stop was assumed.</p>}
         <Link href="/brain" className={page.linkButton}>
           See what the learner has learned →
         </Link>

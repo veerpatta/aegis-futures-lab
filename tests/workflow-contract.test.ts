@@ -6,6 +6,17 @@ const workflow = (name: string) =>
   readFileSync(resolve(process.cwd(), ".github", "workflows", name), "utf8");
 
 describe("automated learning workflow contracts", () => {
+  it("publishes the learner batch only after a successful source engine step", () => {
+    const source = workflow("signal-engine.yml");
+    const engine = source.indexOf("- run: npx tsx scripts/engine/run-live.ts");
+    const publish = source.indexOf("- name: Publish complete market batch");
+    expect(engine).toBeGreaterThan(-1);
+    expect(publish).toBeGreaterThan(engine);
+    expect(source).not.toMatch(/continue-on-error:\s*true/);
+    const publishStep = source.slice(publish);
+    expect(publishStep).not.toMatch(/\bif:\s*\$?\{?\{?\s*(?:always|failure)\s*\(/);
+    expect(publishStep).toContain("npx tsx scripts/experiment/publish.ts");
+  });
   it("runs deterministic learning daily and only permits deployment weekly", () => {
     const daily = workflow("nightly-learn.yml");
     const weekly = workflow("weekly-challenger.yml");

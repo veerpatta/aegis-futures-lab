@@ -192,8 +192,10 @@ export default function GuidePage() {
       <section className={styles.card} id="activity">
         <h2>Behind the trades</h2>
         <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>Practice finished counts closed practice outcomes for those decisions. Ready for check counts results with the saved details needed for learning; the next learning check still applies its time cutoff and counts each idea once. Open Recorded decisions to follow each decision to its fill and learning status.</p>
         <p>Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.</p>
         <p>Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner&apos;s balance.</p>
+        <p>Open Paused method practice to see the selected day&apos;s recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. They do not enter the learner, change its balance or count as a new study. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.</p>
         <p>Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.</p>
       </section>
 
@@ -278,6 +280,7 @@ export default function GuidePage() {
           Every week the bot also tests any method marked &ldquo;Not tested yet&rdquo; against random entries by itself,
           and reports the result on Learn. It never promotes a method on its own — a person has to.
         </p>
+        <p>Open Learn → Method research → Weekly method screens to see recorded comparisons with random entries and with doing nothing ($0). Historical results are after modelled costs and show how many trades were tested, the price source and the dates covered. A positive historical total is not proof that a method will make money or has passed qualification.</p>
         <p className={styles.note}>
           Too little evidence is shown in amber, never red: too little data is not a loss. Red is only for a measured
           loss. Every rate is shown with its n, and below 30 trades it is marked &ldquo;previewed, not judged&rdquo;.
@@ -371,7 +374,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-14 (source timing and actual virtual fills). A printable version of this guide lives in
+        Matches the app as of 2026-10-30 (paused practice and method screens). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

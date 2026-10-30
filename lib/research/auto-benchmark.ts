@@ -46,6 +46,30 @@ export interface AutoBenchmarkOutcome {
 
 const judged = (c: CellResult) => c.verdict !== "insufficient-sample";
 
+/** Descriptive comparison with making no trades. It does not change the
+ * preregistered random-entry verdict or satisfy the separate promotion gate. */
+export function noTradeEvidence(cells: CellResult[]): { symbol: string; n: number; net: number; status: "above-zero" | "below-zero" | "equal-zero" | "insufficient-sample" }[] {
+  return cells.filter(c => c.allYears).map(c => ({
+    symbol: c.symbol, n: c.n, net: c.net,
+    status: c.n < 30 || !Number.isFinite(c.net) ? "insufficient-sample" : c.net > 0 ? "above-zero" : c.net < 0 ? "below-zero" : "equal-zero",
+  }));
+}
+
+/** Older benchmark results already save net and trade count in immutable
+ * baselines. Join on the full configuration hash, never on method name alone. */
+export function benchmarkBaselines(hash: string, rows: { config_hash: string; symbol: string; net: unknown; window_from?: string | null; window_to?: string | null; bar_source?: string | null }[]): (ReturnType<typeof noTradeEvidence>[number] & { from: string | null; to: string | null; source: string | null })[] {
+  const results: (ReturnType<typeof noTradeEvidence>[number] & { from: string | null; to: string | null; source: string | null })[] = [];
+  for (const row of rows) {
+    if (row.config_hash !== hash || !row.net || typeof row.net !== "object") continue;
+    const net = row.net as { total?: unknown; trades?: unknown };
+    if (typeof net.total !== "number" || !Number.isFinite(net.total) || typeof net.trades !== "number" || !Number.isFinite(net.trades) || net.trades < 0) continue;
+    const [evidence] = noTradeEvidence([{ cell: `${row.symbol}:all`, symbol: row.symbol, allYears: true, n: net.trades, net: net.total, percentile: null, verdict: "insufficient-sample" }]);
+    const date = (v: string | null | undefined) => v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+    results.push({ ...evidence, from: date(row.window_from), to: date(row.window_to), source: row.bar_source || null });
+  }
+  return results;
+}
+
 /* ── Which methods a run measures ─────────────────────────────────────────
    One preregistered trial per method per configuration (the config hash
    includes the research-code hash, and research_trials.config_hash is

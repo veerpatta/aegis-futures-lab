@@ -73,6 +73,7 @@ import { researchCodeHash } from "@/scripts/engine/research-code";
 import { sendTelegram } from "@/scripts/engine/notify";
 import {
   autoBenchmarkOutcome,
+  noTradeEvidence,
   parseBenchmarkCount,
   planBenchmarks,
   type BenchmarkPick,
@@ -389,6 +390,9 @@ async function measure(pick: BenchmarkPick<Strategy<unknown>>, day: string): Pro
   const summary =
     `${outcome.headline}\n\n` +
     cells.map((c) => `- ${c.cell}: n=${c.n}, ${c.percentile === null ? "—" : `${c.percentile.toFixed(1)}th percentile`}, ${c.verdict}`).join("\n") +
+    `\n\nAgainst no trades ($0), descriptive net after costs:\n` +
+    noTradeEvidence(cells).map(c => `- ${c.symbol}: ${c.status === "insufficient-sample" ? "too few trades to judge" : `$${c.net.toFixed(2)} (${c.status.replaceAll("-", " ")})`} (n=${c.n})`).join("\n") +
+    `\nThis is not an independent validation or a promotion decision.\n` +
     `\n\n${outcome.nextStep}\n\nTrial \`${trialKey}\`${resumed ? " (resumed: preregistered by an earlier run that failed before measuring)" : ""} · config \`${configHash.slice(0, 12)}\` · paper only, delayed data.`;
   console.log(`\n${summary}\n`);
   mkdirSync("artifacts", { recursive: true });

@@ -21,6 +21,7 @@ import { nyMeta, tradingDayKey } from "@/lib/time/ny";
 import ShowNumbers from "@/components/ui/ShowNumbers";
 import { Term } from "@/components/ui/Glossary";
 import { Button } from "@/components/ui";
+import WeeklyResearch from "./WeeklyResearch";
 import BottomSheet, { SheetClose } from "@/components/ui/BottomSheet";
 import page from "@/components/ui/page.module.css";
 import styles from "./bot.module.css";
@@ -177,6 +178,8 @@ export default function ResearchSection() {
           </div>
         )}
       </section>
+
+      <WeeklyResearch />
 
       <section className={page.stack} aria-label="Latest activity">
         <div className={page.sectionHead}>

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateBreaker,
+  applyBreakers,
+  requiredPauseIntervals,
+  checkAndStampBreakers,
   isSuppressedAt,
   pauseIntervals,
   streamKeyFor,
@@ -28,6 +31,58 @@ const losersAt = (n: number, startSec: number) =>
   Array.from({ length: n }, (_, i) => sig(i % 2 ? -100 : 40, startSec + i * 3600)); // PF 0.4
 const winnersAt = (n: number, startSec: number, includeLoss = true) =>
   Array.from({ length: n }, (_, i) => sig(includeLoss && i % 2 ? -40 : 100, startSec + i * 3600));
+
+describe("pause check failures", () => {
+  it("rejects a signal whose stream was not checked instead of assuming it was active", () => {
+    const checked = new Map([["A", []]]);
+    expect(requiredPauseIntervals(checked, "A")).toEqual([]);
+    expect(() => requiredPauseIntervals(checked, "B:shadow:other:MES")).toThrow(/missing.*B:shadow:other:MES/i);
+  });
+  it("fails the pass when the policy state cannot be read", async () => {
+    const unavailable = { from: () => { throw new Error("policy database unavailable"); } };
+    await expect(applyBreakers(unavailable as never, T0)).rejects.toThrow(/breaker.*policy database unavailable/i);
+  });
+  it("fails instead of treating a recorded pause as active when outcome history cannot be read", async () => {
+    const paused = [{ action: "paused", changed_at: iso(T0 - DAY), reason: "losses" }];
+    const db = { from(table: string) {
+      const q = { select: () => q, in: () => q, order: () => q, range: () => q, not: () => q, eq: () => q, like: () => q,
+        then(resolve: (v: unknown) => unknown) {
+          return Promise.resolve(table === "bot_policy" ? { data: paused, error: null } : { data: null, error: { message: "history unavailable" } }).then(resolve);
+        } };
+      return q;
+    } };
+    await expect(applyBreakers(db as never, T0)).rejects.toThrow(/breaker.*history unavailable/i);
+  });
+  it("leaves the signal snapshot untouched when a later stream check fails", async () => {
+    let signalReads = 0, writes = 0;
+    const db = { from(table: string) {
+      const q = { select: () => q, in: () => q, order: () => q, range: () => q, not: () => q, eq: () => q, like: () => q,
+        upsert: () => { writes++; return Promise.resolve({ error: null }); },
+        then(resolve: (v: unknown) => unknown) {
+          const failed = table === "signals" && ++signalReads === 2;
+          return Promise.resolve(failed ? { data: null, error: { message: "second stream failed" } } : { data: [], error: null }).then(resolve);
+        } };
+      return q;
+    } };
+    const rows = [{ tier: "A" as const, symbol: "MES", dedupe_key: "A:zone-v5:MES:1", signal_ts: iso(T0), suppressed: true }];
+    await expect(checkAndStampBreakers(db as never, T0, rows)).rejects.toThrow(/second stream failed/);
+    expect(rows[0].suppressed).toBe(true);
+    expect(writes).toBe(0);
+  });
+  it("validates every stream mapping before stamping any signal", async () => {
+    const db = { from() {
+      const q = { select: () => q, in: () => q, order: () => q, range: () => q, not: () => q, eq: () => q, like: () => q,
+        then(resolve: (v: unknown) => unknown) { return Promise.resolve({ data: [], error: null }).then(resolve); } };
+      return q;
+    } };
+    const rows = [
+      { tier: "A" as const, symbol: "MES", dedupe_key: "A:zone-v5:MES:1", signal_ts: iso(T0), suppressed: true },
+      { tier: "B" as const, symbol: "MES", dedupe_key: "B:shadow:other:MES:2", signal_ts: iso(T0), suppressed: true },
+    ];
+    await expect(checkAndStampBreakers(db as never, T0, rows)).rejects.toThrow(/missing pause check/i);
+    expect(rows.map(r => r.suppressed)).toEqual([true, true]);
+  });
+});
 
 describe("streamKeyFor", () => {
   it("maps tier A to one stream and tier B per label+symbol", () => {

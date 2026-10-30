@@ -416,7 +416,7 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
     { ...trade, id: 1, decided_at: auditAt },
     { ...trade, id: 2, decided_at: auditAt, position_status: "pending_fill", fill_ts: null },
     { ...trade, id: 3, decided_at: auditAt, position_status: "cancelled", fill_ts: null, cancel_reason: "risk-budget" },
-    { ...trade, id: 4, decided_at: auditAt, action: "skip", reason: "late-source", position_status: null, fill_ts: null },
+    { ...trade, id: 4, decided_at: auditAt, action: "skip", reason: "late-source", position_status: null, fill_ts: null, shadow_qty: 0 },
   ] }));
   await page.goto("/");
   const panel = page.getByRole("region", { name: "Trading activity" });
@@ -425,10 +425,15 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
   await expect(summary).toContainText("1Filled");
   await expect(summary).toContainText("1Cancelled");
   await expect(summary).toContainText("1Skipped");
+  await expect(summary).toContainText("4Practice finished");
+  await expect(summary).toContainText("3Ready for check");
   await expect(panel).toContainText("1 still waiting for a fill");
   await panel.getByText("Unfilled orders · 2", { exact: true }).click();
   await expect(panel).toContainText("Waiting for the next eligible price");
   await expect(panel).toContainText("the risk at the real price was over the limit");
+  await panel.getByText("Recorded decisions · 4", { exact: true }).click();
+  await panel.getByText(/MNQ · Skipped/, { exact: false }).first().click();
+  await expect(panel).toContainText("One contract was too risky, so this result is not used for learning.");
   await expect(page.getByText("The simulation stays 30 minutes behind received prices", { exact: false })).toBeVisible();
   expect(await noSideways(page)).toBe(true);
   await panel.screenshot({ path: `test-results/source-timing-${width}.png` });
@@ -450,6 +455,49 @@ for (const width of [320, 390, 1280]) test(`${width}px activity separates succes
   await expect(panel).toContainText("Source practice never changes");
   expect(await noSideways(page)).toBe(true);
   await panel.screenshot({ path: `test-results/activity-${width}.png` });
+});
+test("paused source practice shows saved outcomes without treating them as learner ideas", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await auditStub(page);
+  await page.route("**/rest/v1/signals?*", r => r.fulfill({ json: [
+    { id: 10, tier: "B", symbol: "MES", dedupe_key: "B:rsi-reversion:MES:10", direction: "long", signal_ts: auditAt, status: "hit_stop", exit_ts: auditAt, pnl_usd: -25, suppressed: true, stale_data: false, orphaned: false, fill_confidence: "clean" },
+    { id: 11, tier: "B", symbol: "MNQ", dedupe_key: "B:rsi-reversion:MNQ:11", direction: "short", signal_ts: auditAt, status: "hit_stop", pnl_usd: -50, suppressed: true, stale_data: true, orphaned: false, fill_confidence: "clean" },
+  ] }));
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "Trading activity" });
+  await expect(panel.getByLabel("Daily activity summary")).toContainText("0Eligible ideas");
+  await panel.getByText("Paused method practice · 2 recorded ideas").click();
+  await expect(panel).toContainText("They do not enter the learner");
+  await panel.getByText(/MES · Closed practice result/).click();
+  await expect(panel).toContainText("−$25.00 after modelled costs");
+  await expect(panel).toContainText("Price data too old to judge");
+  expect(await noSideways(page)).toBe(true);
+});
+
+test("weekly screens show the matched result and the same configuration's no-trade comparison", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await stub(page);
+  await page.route("**/rest/v1/research_trials?*", r => r.fulfill({ json: [{ trial_key: "auto-benchmark.2026-10-25:vwap-reversion", config_hash: "a", registered_at: auditAt, decided_at: auditAt, status: "complete", outcome: { strategyId: "vwap-reversion", verdict: "no-edge" } }] }));
+  await page.route("**/rest/v1/research_baselines?*", r => r.fulfill({ json: [{ config_hash: "a", symbol: "MES", net: { total: -100, trades: 100 }, window_from: "2019-05-06T00:00:00Z", window_to: "2026-07-29T00:00:00Z", bar_source: "databento" }, { config_hash: "b", symbol: "MNQ", net: { total: 900, trades: 100 } }] }));
+  await page.goto("/brain#research");
+  const section = page.getByRole("region", { name: "Weekly method screens" });
+  await expect(section).toContainText("Did not pass the random-entry screen");
+  await expect(section).toContainText("−$100.00 after costs versus $0 without trading (n=100)");
+  await expect(section).toContainText("Source: databento; market dates: 2019-05-06 to 2026-07-29");
+  await expect(section).not.toContainText("$900");
+  await page.getByRole("button", { name: "Hide money figures" }).click();
+  await expect(section).toContainText("•••• after costs");
+  expect(await noSideways(page)).toBe(true);
+});
+test("a skipped trade keeps its separate practice result and masks it in privacy mode", async ({ page }) => {
+  await stub(page);
+  await page.route("**/rest/v1/experiment_trades?*", r => r.fulfill({ json: [{ ...trade, action: "skip", reason: "model-skip", position_status: null, net: null }] }));
+  await page.goto("/trades/7");
+  const section = page.getByRole("region", { name: "What was learned" });
+  await expect(section).toContainText("Separate one-idea practice result: −$36.80 after costs. This is not an account trade result.");
+  await page.getByRole("button", { name: "Hide money figures" }).click();
+  await expect(section).toContainText("Separate one-idea practice result: ••••");
+  await expect(section).not.toContainText("$36.80");
 });
 test("activity preserves saved counts after a failed refresh and retries", async ({ page }) => {
   await auditStub(page); let fail = false;

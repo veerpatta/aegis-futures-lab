@@ -152,7 +152,7 @@ def blocks(markdown: str):
                 ListFlowable(
                     items,
                     bulletType="1" if ordered else "bullet",
-                    start="1",
+                    start="1" if ordered else None,
                     leftIndent=15,
                     bulletFontName="AegisSans",
                     bulletFontSize=8,

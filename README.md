@@ -1,114 +1,37 @@
 # Aegis Futures Lab
 
-A browser-based strategy research lab for **MES** (Micro E-mini S&P 500) and **MNQ**
-(Micro E-mini Nasdaq-100) futures. Pick a strategy, tune its parameters, run a
-backtest on delayed data, and see how it would have performed — then compare
-variants side by side or paper-trade the winner forward.
+Aegis is a virtual-only futures research lab for MES and MNQ. It records ideas, simulates a single $10,000 learner account on delayed prices and tests methods against explicit controls. There is no broker connection and no real-money execution. Trade ideas are research records, not instructions.
 
-**Free Research Edition** — execution is permanently locked. There is no broker
-connection anywhere in this codebase; every trade is simulated, and all market
-data is delayed and display-only. Results are a research proxy, not a
-performance claim.
+## Current research standing
 
-## Pages
+The three source streams have not demonstrated an edge. The corrected seven-year study found that none of 17 symbol-year comparisons cleared the matched-random benchmark, and all three streams lost money after modelled costs. Earlier claims that tier A was anti-predictive and MNQ was break-even before costs were withdrawn after correcting execution assumptions. See [the corrected findings](docs/research/2026-08-17-remeasurement.md).
 
-| Page | What it does |
-|---|---|
-| **Lab** | Strategy gallery → tune parameters → run a backtest (30/40/60-day windows or your own CSV) → KPIs, equity curve, qualification funnel, trades on the chart, exportable ledger. Includes a position-size checker and a **Forward test** tab that paper-trades the selected strategy on the delayed feed. |
-| **Compare** | Up to six strategies or parameter variants over the same window: overlaid equity curves and a best-in-row metrics table. Comparisons are URL-shareable. |
-| **Markets** | Delayed MES/MNQ quotes, candle chart (5m/15m/1H), a live signal readout for any strategy, and the news-lockout calendar. |
-| **Data** | Client-side CSV import (`timestamp,open,high,low,close[,volume]`), replay cutoff slider, and full data provenance. Imported bars never leave the browser. |
-| **Signals** | Live paper-signal log written by the scheduled cloud engine: tier A/B signal stream with statuses and P&L, engine heartbeat, and the current demand/supply zone watchlist. |
+The loss guards may pause a source after a poor recent run. Paused ideas continue as separate source simulations; they are withheld from the learner. If the source cannot verify a pause, the engine fails the check before it writes signal rows or publishes a learner batch. The bot may legitimately be quiet while methods are paused or evidence is insufficient.
 
-## Strategy library
+The learner's frozen control takes eligible ideas subject to its risk limits. It has not automatically found a profitable method. Replay, late and synthetic observations are labelled separately from fresh evidence; a model takes over only after the registered evaluation and forward checks pass. See [the learner's registered rules](docs/research/2026-10-07-experiment-preregistration.md).
 
-- **Zone Engine v5** (flagship) — demand & supply zones (DBR/RBR/RBD/DBD) with strict
-  Daily→4H→1H nesting, freshness, the 80% rule, risk-adaptive 1H/15M entries and
-  MES/MNQ intermarket confirmation. Ported line-for-line from the original engine
-  and locked by golden parity tests. On top of the parity surface, the full
-  strategy-spec feature set is parameterized: NY-session zone structure (ignore
-  overnight trades), odds-enhancer scoring (fresh / trend / departure / profit
-  margin / time-at-base) with 1H swing-structure trend detection, deep 15M
-  refinement when the 1H stop exceeds the risk cap, fresh-zone-preferring 1H
-  selection, entry triggers (resting limit or confirmation candle), entry-session
-  windows, profit targets (2R default, 3R, next opposing zone, or the $160–165
-  dollar band) and breakeven + trailing stop management.
-- **EMA Crossover**, **RSI Mean-Reversion**, **Opening Range Breakout**,
-  **VWAP Reversion**, **Bollinger Squeeze Breakout** — classic parameterized
-  strategies implementing the same contract.
+## Using the app
 
-Strategies implement one interface (`lib/strategies/types.ts`): heavy precompute in
-`prepare()`, then a pure per-timestamp `onSnapshot()` — so nothing can look ahead.
+- **Today** shows the current account, activity and market context.
+- **Trades** shows the learner's decisions, simulated fills, skips, results and evidence.
+- **Learn** shows learning progress, paused-method practice, the historical study and method research. Weekly method screens compare registered research with matched random entries and show historical net against the $0 no-trade baseline. A screen is not a promotion.
+- **Chart** shows delayed prices and virtual trades.
+- **More** holds Ideas, the Journal, Guide, Lab, Diagnostics and Data.
 
-## One backtest engine
+The in-app Guide and [user manual](docs/USER-MANUAL.md) explain the workflow and its limits. Market data is delayed; a successful scheduled check is not evidence of profitability.
 
-Every number in the app comes from a single simulator (`lib/backtest/engine.ts`):
+## Engine and development
 
-- signals act on completed bars; fills at the **next bar's open ± slippage**
-- stop-first same-bar resolution, exits at exact stop/target prices
-- quantity and dollar targets re-derived from the actual fill price
-- session flat by 15:25 New York; optional discipline locks (daily loss,
-  max trades/day, loss streak, drawdown); ±30-minute news lockouts
-- runs in a Web Worker with a synchronous fallback
+The scheduled GitHub Actions engine (`.github/workflows/signal-engine.yml`) fetches delayed data, simulates the configured streams, checks their pause rules, records source results and publishes an eligible batch for the separate virtual learner. The scheduled weekly benchmark measures one unmeasured method at a time under a registered rule; it never promotes a method automatically.
 
-The engine's behavior is pinned by tests: a verbatim extract of the legacy study
-walker acts as an oracle, and the trade lists must match exactly
-(`tests/engine-v5-parity.test.ts`).
-
-## Cloud signal engine (Neon + GitHub Actions)
-
-A scheduled job (`.github/workflows/signal-engine.yml`, every 15 minutes through
-the Globex week) runs `scripts/engine/run-live.ts`: it fetches the delayed
-Yahoo feed, replays the tier streams through the same backtest simulator the app
-uses, and writes the results into Neon (`signals`, `zones`, `engine_runs`).
-The browser reads public research tables through the Neon Data API. Journal
-sync uses Neon Auth and owner-only database policies. GitHub Actions writes
-through the pooled `NEON_DATABASE_URL` secret.
-
-Two signal tiers (`scripts/engine/tiers.ts`, tuned via `npm run engine:report`):
-
-- **Tier A — high conviction**: Zone Engine v5 with the app's default parameters.
-  Sparse (~0.3/day) and clustered on the days price reaches Daily/4H structure.
-- **Tier B — daily flow**: RSI mean-reversion (25/75, London+NY, 1.5×ATR stop,
-  1.5R target) per symbol with tight daily discipline locks (max 2 trades, stop
-  after 2 losses / −$250). ~2/day combined.
-
-Together they averaged **2.8 signals/day with ≥1 signal on 45 of 49 trading
-days** on the tuning window — with all three streams net positive. Paper
-research only: GitHub cron can be 5–15 minutes late and the feed is delayed, so
-these signals are a log to study, never execution instructions.
-
-Run locally: `npm run engine` (one engine pass) · `npm run engine:report`
-(re-measure the tier configuration over the trailing 60 days).
-
-The journal on the Journal page saves locally and, after email-code sign-in,
-syncs privately to `journal_entries`. It also imports Tradovate/Topstep CSVs.
-
-## Development
+**Do not run `scripts/engine/run-live.ts` or `npm run engine` locally.** The engine has no dry-run mode and the local environment can point to the production database. Research measurements run in CI, not locally. Read [AGENTS.md](AGENTS.md) for the research-code hash, data, documentation and testing constraints.
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-npm test        # vitest: parity, engine, indicators, strategy behavior
-npm run build   # production build (Vercel auto-detects Next.js)
+npm run dev       # http://localhost:3000
+npm test          # unit and integration tests
+npm run build     # production build
+npm run test:e2e  # browser tests; build first
 ```
 
-Stack: Next.js (App Router, TypeScript), plain CSS custom properties + CSS Modules,
-[lightweight-charts](https://github.com/tradingview/lightweight-charts) for candles.
-Serverless API routes proxy the free delayed Yahoo Finance feed
-(`/api/market`, `/api/history`) and serve the verified 2026 economic calendar
-(`/api/events`). Presets and the forward test persist in `localStorage`; the
-signal log and private journal copy live in Neon. Database credentials stay on
-the server and in GitHub Actions secrets.
-
-For local engine runs, set `DATABASE_URL` to the pooled Neon connection string.
-Schema and one-time source copy are in `db/neon-schema.sql` and
-`scripts/migration/supabase-to-neon.mjs`. The copy uses a direct Neon connection,
-reads the old public source tables, and verifies counts before cutover.
-
-## Data disclaimers
-
-- Market data is **delayed** and comes from an unofficial free source that can
-  rate-limit or fail; the UI surfaces feed errors verbatim and never invents values.
-- The economic calendar covers scheduled 2026 BLS/Fed releases only; unscheduled
-  events would require a licensed real-time calendar.
+The app uses Next.js, React, TypeScript, Neon and GitHub Actions. Research and paper-account evidence remain separate from the owner's private journal. The market feed is unofficial and may be delayed, rate-limited or unavailable; the app must show missing or stale data rather than inventing prices.

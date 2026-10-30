@@ -7,6 +7,32 @@
 import { EXP_RISK } from "@/lib/experiment/policy";
 import type { ExecutionState, FreshnessState, LearningState, ExpTradeRow } from "@/lib/experiment/view";
 
+/** A closed simulation is not necessarily an eligible learning example.
+ * The dataset also checks its cutoff and counts each idea only once. */
+type LearningOutcome = Pick<ExpTradeRow, "shadow_status" | "shadow_qty" | "shadow_net_per_contract" | "features" | "provenance">;
+export function learningPracticeNet(row: Pick<LearningOutcome, "shadow_status" | "shadow_qty" | "shadow_net_per_contract">): number | null {
+  if (row.shadow_status !== "closed" || row.shadow_qty == null || !Number.isFinite(row.shadow_qty) || row.shadow_qty < 1 || row.shadow_net_per_contract == null || !Number.isFinite(row.shadow_net_per_contract)) return null;
+  return row.shadow_qty * row.shadow_net_per_contract;
+}
+export function learningOutcomeState(row: LearningOutcome): "waiting" | "excluded" | "unknown" | "ready" {
+  if (row.shadow_status === "void") return "excluded";
+  if (row.shadow_status == null || row.shadow_status === "pending" || row.shadow_status === "open") return "waiting";
+  if (row.shadow_status !== "closed") return "unknown";
+  if (row.shadow_qty == null || !Number.isFinite(row.shadow_qty)) return "unknown";
+  if (row.shadow_qty < 1 || !row.features) return "excluded";
+  if (row.shadow_net_per_contract == null || !Number.isFinite(row.shadow_net_per_contract)) return "unknown";
+  return "ready";
+}
+export function learningOutcomeWords(row: LearningOutcome): string {
+  if (row.shadow_status === "void") return "No fill was possible, so this result is not used for learning.";
+  if (row.shadow_status == null || row.shadow_status === "pending" || row.shadow_status === "open") return "The practice result is not finished yet.";
+  if (row.shadow_status !== "closed") return "The saved practice status is unknown.";
+  if (row.shadow_qty == null || !Number.isFinite(row.shadow_qty)) return "The saved contract size is missing, so learning eligibility is unknown.";
+  if (row.shadow_qty < 1) return "One contract was too risky, so this result is not used for learning.";
+  if (!row.features) return "The saved idea details are missing, so this result is not used for learning.";
+  if (row.shadow_net_per_contract == null || !Number.isFinite(row.shadow_net_per_contract)) return "The saved result is incomplete, so learning eligibility is unknown.";
+  return `This result can be considered at the next learning check, which counts each idea once.${row.provenance === "prospective" ? "" : " This is not fresh evidence."}`;
+}
 const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 
 export const EXP_NAME = "Experimental learner";
