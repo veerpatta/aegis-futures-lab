@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { getNeon } from "@/lib/neon/client";
+import { changeOwnerPassword } from "@/lib/neon/change-password";
 import styles from "./ai-research.module.css";
 
 type Command = { id:string; action:string; reason:string; status:string; result:string|null; created_at:string };
 type ControlState = { commands:Command[]; campaign:{id:string;status:string}|null };
-type BetterAuth = { changePassword(input:{currentPassword:string;newPassword:string;revokeOtherSessions:boolean}):Promise<{error:unknown}> };
 
 export default function OwnerControls() {
   const [state,setState]=useState<ControlState|null>(null), [message,setMessage]=useState("Sign in above to use owner controls."), [reason,setReason]=useState(""), [busy,setBusy]=useState(false);
@@ -34,9 +34,8 @@ export default function OwnerControls() {
     event.preventDefault(); if(newPassword.length<12) { setMessage("Use at least 12 characters for your new password."); return; }
     setBusy(true); setMessage("");
     try {
-      const adapter=getNeon().auth as unknown as {getBetterAuthInstance():BetterAuth};
-      const {error}=await adapter.getBetterAuthInstance().changePassword({currentPassword,newPassword,revokeOtherSessions:true});
-      if(error) throw new Error(); setCurrentPassword(""); setNewPassword(""); setMessage("Password changed. Other sessions were signed out.");
+      await changeOwnerPassword(currentPassword,newPassword);
+      setCurrentPassword(""); setNewPassword(""); setMessage("Password changed. Other sessions were signed out.");
     } catch { setMessage("Password could not be changed. Check your current password and try again."); } finally { setBusy(false); }
   };
   return <section className={`${styles.research} ${styles.form}`} aria-label="Owner controls">
