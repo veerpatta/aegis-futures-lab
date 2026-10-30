@@ -19,8 +19,8 @@ const req=()=>new Request('https://aegis.test/api/ai/diagnostic',{method:'POST'}
 describe('diagnostic route accounting',()=>{
   it('records the fixed request before the provider and stores only safe outcome metadata',async()=>{
     const res=await POST(req());expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({status:'connected',inputTokens:8,outputTokens:3,countedMicrodollars:304});
-    expect(mocks.reserve).toHaveBeenCalledWith(expect.objectContaining({reservedMicros:9768,userId:'owner'}));
+    expect(await res.json()).toEqual({status:'connected',inputTokens:8,outputTokens:3,countedMicrodollars:608});
+    expect(mocks.reserve).toHaveBeenCalledWith(expect.objectContaining({reservedMicros:6864,userId:'owner'}));
     expect(mocks.request.mock.invocationCallOrder[0]).toBeLessThan(mocks.provider.mock.invocationCallOrder[0]);
     expect(mocks.result).toHaveBeenCalledWith(expect.objectContaining({status:'complete',response:expect.objectContaining({status:'connected'})}));
     expect(JSON.stringify(mocks.result.mock.calls)).not.toContain('test-key');

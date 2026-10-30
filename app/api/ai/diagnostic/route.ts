@@ -20,15 +20,15 @@ export const POST = makeDiagnosticPost({
   run:async userId=>{
     const key=process.env.OPENAI_API_SECRET;
     if(!key) throw new Error('Provider unavailable');
-    // Conservatively account for even the published 6x tier and 10% regional
-    // premium; the request explicitly asks for the standard tier.
-    const price={model:RESEARCH_MODEL,inputMicrosPerMillion:13_200_000,outputMicrosPerMillion:66_000_000,verifiedAt:Date.parse('2026-10-30T00:00:00Z'),expiresAt:Date.parse('2026-11-30T00:00:00Z')};
+    // Conservatively account for the published 6x tier, 10% regional premium
+    // and a further 100% tax margin. The request asks for the standard tier.
+    const price={model:RESEARCH_MODEL,inputMicrosPerMillion:26_400_000,outputMicrosPerMillion:132_000_000,verifiedAt:Date.parse('2026-10-30T00:00:00Z'),expiresAt:Date.parse('2026-11-30T00:00:00Z')};
     const db=pool(), records=new ResearchStore(db); let recorded=false;
     try {
     const result=await budgetedRequest(new PgBudgetStore(db),{
       requestId:DIAGNOSTIC_REQUEST_ID,userId,model:RESEARCH_MODEL,inputLimit:DIAGNOSTIC_INPUT_LIMIT,outputLimit:DIAGNOSTIC_OUTPUT_LIMIT,
-      // Fixed nine-byte input and at most 128 output tokens; a 100-token input
-      // budget and the conservative rates above reserve $0.009768.
+      // Fixed nine-byte input and at most 32 output tokens; a 100-token input
+      // budget and the conservative rates above reserve $0.006864.
       price,now:Date.now(),
     },async()=>{
       const saved=await records.saveRequest({id:DIAGNOSTIC_REQUEST_ID,userId,question:'Fixed one-time connectivity check',snapshot:[],snapshotHash:createHash('sha256').update('[]').digest('hex'),model:RESEARCH_MODEL,promptVersion:'one-time-connectivity-v1'});

@@ -4,7 +4,7 @@ import { callDiagnostic, DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT, DIAGNO
 import { shadowOpenAiProvider } from '@/lib/ai-shadow/processor';
 import { requestOneTimeAiCheck } from '@/components/bot/OwnerControls';
 
-const price={model:'gpt-6.1-sol',inputMicrosPerMillion:13_200_000,outputMicrosPerMillion:66_000_000,verifiedAt:1,expiresAt:10000};
+const price={model:'gpt-6.1-sol',inputMicrosPerMillion:26_400_000,outputMicrosPerMillion:132_000_000,verifiedAt:1,expiresAt:10000};
 const budgetRequest={requestId:DIAGNOSTIC_REQUEST_ID,userId:'owner',model:'gpt-6.1-sol',inputLimit:DIAGNOSTIC_INPUT_LIMIT,outputLimit:DIAGNOSTIC_OUTPUT_LIMIT,price,now:100};
 const good = () => new Request('https://example.test/api/ai/diagnostic',{method:'POST'});
 describe('one-time AI connectivity diagnostic',()=>{
@@ -12,13 +12,13 @@ describe('one-time AI connectivity diagnostic',()=>{
     const run=vi.fn();const handler=makeDiagnosticPost({authenticate:async()=>({ok:false,status:401,error:'Sign in'}),run});
     expect((await handler(good())).status).toBe(401);expect(run).not.toHaveBeenCalled();
   });
-  it('uses only the fixed synthetic prompt, standard tier and a 128-token output cap',async()=>{
+  it('uses only the fixed synthetic prompt, standard tier and a 32-token output cap',async()=>{
     let sent:Record<string,unknown>={};
     const transport:typeof fetch=async(_url,init)=>{sent=JSON.parse(String(init?.body));return new Response(JSON.stringify({status:'completed',service_tier:'default',output:[{type:'message',content:[{type:'output_text',text:'OK'}]}],usage:{input_tokens:8,output_tokens:3}}));};
     const result=await callDiagnostic('test-key',transport);
-    expect(sent).toEqual({model:'gpt-6.1-sol',service_tier:'default',store:false,max_output_tokens:128,input:'Reply OK.',reasoning:{effort:'low'}});
+    expect(sent).toEqual({model:'gpt-6.1-sol',service_tier:'default',store:false,max_output_tokens:32,input:'Reply OK.',reasoning:{effort:'low'}});
     expect(JSON.stringify(sent)).not.toContain('test-key');expect(result.value.status).toBe('connected');expect(result.usage).toEqual({inputTokens:8,outputTokens:3});
-    expect(worstCaseMicros(budgetRequest)).toBe(9768);
+    expect(worstCaseMicros(budgetRequest)).toBe(6864);
   });
   it('does not leak provider errors and retains an uncertain reservation',async()=>{
     const transport:typeof fetch=async()=>new Response(JSON.stringify({error:{code:'invalid_api_key',message:'private key text'}}),{status:401});

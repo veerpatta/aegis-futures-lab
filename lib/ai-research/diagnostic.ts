@@ -6,7 +6,7 @@ import { OpenAiHttpError, RESEARCH_MODEL, safeProviderCode } from './provider';
 // first response is lost. A different attempt requires a reviewed code change.
 export const DIAGNOSTIC_REQUEST_ID = 'aegis-owner-connectivity-20261030-v1';
 export const DIAGNOSTIC_INPUT_LIMIT = 100;
-export const DIAGNOSTIC_OUTPUT_LIMIT = 128;
+export const DIAGNOSTIC_OUTPUT_LIMIT = 32;
 const json = (body: unknown, status=200) => Response.json(body, {status,headers:{'Cache-Control':'no-store'}});
 
 export async function callDiagnostic(key: string, transport: typeof fetch = fetch) {
