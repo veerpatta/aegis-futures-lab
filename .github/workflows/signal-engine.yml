@@ -60,9 +60,32 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Ring 1 kill switch: "1" freezes breakers/veto (existing pauses stay).
           BOT_POLICY_FREEZE: ${{ vars.BOT_POLICY_FREEZE }}
+          # Optional preregistered paper-shadow study ID; unset keeps capture off.
+          AI_SHADOW_STUDY_ID: ${{ vars.AI_SHADOW_STUDY_ID }}
       - name: Publish complete market batch and process virtual account
         run: |
           npx tsx scripts/experiment/publish.ts
           npx tsx scripts/experiment/run.ts tick
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+
+  # Independent of the signal engine: an AI outage never fails or delays it.
+  # Both flags must be set deliberately; the endpoint separately verifies auth.
+  ai-shadow-scheduler:
+    if: ${{ vars.AI_SHADOW_SCHEDULER_ENABLED == 'true' && vars.AI_SHADOW_STUDY_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Process one prospective shadow idea
+        env:
+          AI_SHADOW_CRON_SECRET: ${{ secrets.AI_SHADOW_CRON_SECRET }}
+        run: |
+          if [[ ! "$AI_SHADOW_CRON_SECRET" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+            echo "::warning::AI shadow scheduler secret missing or invalid"
+            exit 0
+          fi
+          if ! printf 'header = "Authorization: Bearer %s"\n' "$AI_SHADOW_CRON_SECRET" |
+            curl --config - --proto '=https' --silent --show-error --fail --max-time 70 --output /dev/null \
+              'https://aegis-futures-lab-khaki.vercel.app/api/ai/shadow/cron'; then
+            echo "::warning::AI shadow scheduler request failed; signal processing continues"
+          fi

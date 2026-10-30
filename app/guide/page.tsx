@@ -62,7 +62,7 @@ export default function GuidePage() {
           <dt>Learn</dt>
           <dd>
             The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
-            Open Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance.
+            Open AI research assistant for questions about recorded evidence, and Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance.
           </dd>
           <dt>Chart</dt>
           <dd>
@@ -133,7 +133,12 @@ export default function GuidePage() {
         <p>The animated bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone&apos;s reduced-motion setting.</p>
         <p><b>My learning notebook</b> shows usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open <b>The path to a better bot</b> for all the steps.</p>
         <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
-        <p>The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
+        <p>The learner uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
+        <h3>AI research assistant</h3>
+        <p>On Learn, open AI research assistant and sign in with your email code to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules.</p>
+        <p>Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.</p>
+        <p>Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.</p>
+        <p>A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner&apos;s balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.</p>
         <p>
           The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea&apos;s bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
         </p>
@@ -374,7 +379,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-30 (paused practice and method screens). A printable version of this guide lives in
+        Matches the app as of 2026-10-30 (AI research and separate shadow study). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

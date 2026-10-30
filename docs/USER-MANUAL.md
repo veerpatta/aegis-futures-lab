@@ -21,7 +21,7 @@ Aegis uses one **virtual $10,000 account**. Its **experimental learner** simulat
 |---|---|
 | **Today** | What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the two markets, the latest trade ideas and any big news coming up. |
 | **Trades** | Every idea the learner decided on, taken or skipped, with the reason. Tap one for the evidence: the values saved when it decided, the simulated fill, the exit, costs and the result. |
-| **Learn** | The model in charge, the candidates being tested, every review's verdict and the full change history. Open Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance. |
+| **Learn** | The model in charge, the candidates being tested, every review's verdict and the full change history. Open AI research assistant for questions about recorded evidence, and Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance. |
 | **Chart** | Prices, the price areas the bot watches, the learner's virtual trades as arrows, why there is no idea right now, and the big news it steps aside for. |
 | **More** | Trade ideas (Ideas) and their history (Review), method research, historical practice, your Journal, this Guide, settings (ET or IST, hide money) and the research room. |
 
@@ -59,7 +59,17 @@ The animated bot shows the latest recorded activity: watching for ideas, followi
 
 **Working on its own** shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. **Recent activity** shows recorded job times and outcomes. Open **Example quality at the last check** for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.
 
-The bot uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app's usage guard is not a provider billing meter.
+The learner uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app's usage guard is not a provider billing meter.
+
+### AI research assistant
+
+On Learn, open AI research assistant and sign in with your email code to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot's rules.
+
+Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.
+
+Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.
+
+A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner's balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.
 
 The learner is the bot's own **virtual $10,000** account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea's bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
 
@@ -214,4 +224,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-30 (paused practice and method screens). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-30 (AI research and separate shadow study). If the app has changed since, the in-app Guide is the source of truth.*

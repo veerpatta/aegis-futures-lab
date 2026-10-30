@@ -40,6 +40,9 @@ import { applyWinProb } from "./model";
 import { rowsToDelete, zoneRows, type ExistingZoneRow } from "./zone-rows";
 import { EXECUTION, SESSION_EXIT_MINUTE, STARTING_CAPITAL, tierStreams } from "./tiers";
 import { DEFAULT_BAR_SOURCE } from "@/lib/data/source";
+import { Pool } from "pg";
+import { captureAiShadowPass, shadowMarketAsOf } from "./ai-shadow-capture";
+import { captureAiShadowBars } from "./ai-shadow-bars";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
 
@@ -162,9 +165,10 @@ async function loadBars(
   symbol: FeedSymbol,
   nowSec: number,
   warnings: string[]
-): Promise<{ bars: Bar[]; fromArchive: boolean }> {
+): Promise<{ bars: Bar[]; fromArchive: boolean; receivedAt: number }> {
   try {
-    return { bars: await fetchYahooBars(symbol), fromArchive: false };
+    const bars = await fetchYahooBars(symbol);
+    return { bars, fromArchive: false, receivedAt: Date.now() };
   } catch (yahooErr) {
     const yahooMsg = yahooErr instanceof Error ? yahooErr.message : String(yahooErr);
     let archived: Bar[];
@@ -176,7 +180,7 @@ async function loadBars(
     }
     if (!archived.length) throw new Error(`${symbol}: yahoo down (${yahooMsg}), archive empty`);
     warnings.push(`${symbol} from archive (yahoo down)`);
-    return { bars: archived, fromArchive: true };
+    return { bars: archived, fromArchive: true, receivedAt: Date.now() };
   }
 }
 
@@ -568,6 +572,48 @@ async function main() {
       error = await upsertSignals();
     }
     if (error) throw new Error(`signals upsert: ${error.message}`);
+  }
+
+  // Optional, separate research evidence. Failure here must not alter or stop
+  // the source signal pass. The study must be preregistered and selected
+  // explicitly; the default is off. Use a dedicated, bounded connection.
+  const shadowStudyId = process.env.AI_SHADOW_STUDY_ID?.trim();
+  if (shadowStudyId) {
+    let shadowPool: Pool | undefined;
+    try {
+      if (!process.env.DATABASE_URL) throw new Error("database unavailable");
+      const shadowUrl = new URL(process.env.DATABASE_URL);
+      shadowUrl.searchParams.set("sslmode", "verify-full");
+      shadowPool = new Pool({ connectionString: shadowUrl.toString(), max: 1, connectionTimeoutMillis: 3000,
+        query_timeout: 3000, statement_timeout: 3000, allowExitOnIdle: true });
+      const client = await shadowPool.connect();
+      try {
+        const result = await client.query<{ id: string; registered_at: string | Date }>(
+          "SELECT id, registered_at FROM public.ai_shadow_studies WHERE id = $1", [shadowStudyId]);
+        const study = result.rows[0];
+        if (!study) throw new Error("study not registered");
+        const registered = { id: study.id, registeredAt: new Date(study.registered_at).toISOString() };
+        try {
+          await captureAiShadowBars(client, registered, [
+            { symbol: "MES", ...mesLoad }, { symbol: "MNQ", ...mnqLoad },
+          ]);
+        } catch {
+          warnings.push("AI shadow market receipt capture failed");
+        }
+        const capture = await captureAiShadowPass(client, {
+          study: registered, signals,
+          marketAsOf: { MES: shadowMarketAsOf(lastBars.MES, mesLoad.fromArchive),
+            MNQ: shadowMarketAsOf(lastBars.MNQ, mnqLoad.fromArchive) },
+          sourceCodeSha: process.env.GITHUB_SHA ?? null,
+        });
+        if (!capture.ok) throw new Error("capture failed");
+        console.log(`AI shadow capture: ${capture.inserted} observations (${capture.rejected} rejected)`);
+      } finally { client.release(); }
+    } catch {
+      warnings.push("AI shadow capture failed; source signal pass continues");
+    } finally {
+      if (shadowPool) await shadowPool.end().catch(() => undefined);
+    }
   }
 
   if (oldStatus) {
