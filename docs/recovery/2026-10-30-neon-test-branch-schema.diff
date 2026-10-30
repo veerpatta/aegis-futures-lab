@@ -1,0 +1,235 @@
+--- a/neondb
++++ b/neondb
+@@ -79,6 +79,29 @@
+ ALTER FUNCTION pgrst.pre_config() OWNER TO neon_service;
+ 
+ --
++-- Name: admin_control_guard(); Type: FUNCTION; Schema: public; Owner: neondb_owner
++--
++
++CREATE FUNCTION public.admin_control_guard() RETURNS trigger
++    LANGUAGE plpgsql
++    AS $$
++BEGIN
++  IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'Admin commands cannot be deleted'; END IF;
++  IF OLD.status <> 'pending' OR NEW.status NOT IN ('applied','failed')
++    OR OLD.id IS DISTINCT FROM NEW.id OR OLD.owner_id IS DISTINCT FROM NEW.owner_id
++    OR OLD.action IS DISTINCT FROM NEW.action OR OLD.reason IS DISTINCT FROM NEW.reason
++    OR OLD.expected_experiment_id IS DISTINCT FROM NEW.expected_experiment_id OR OLD.created_at IS DISTINCT FROM NEW.created_at
++    OR NEW.completed_at IS NULL OR NEW.result IS NULL THEN
++    RAISE EXCEPTION 'Admin commands may only be completed once';
++  END IF;
++  RETURN NEW;
++END;
++$$;
++
++
++ALTER FUNCTION public.admin_control_guard() OWNER TO neondb_owner;
++
++--
+ -- Name: ai_guard_budget_reservation(); Type: FUNCTION; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -706,6 +729,45 @@
+ ALTER TABLE private_research.data_purchases OWNER TO neondb_owner;
+ 
+ --
++-- Name: admin_control_authorized; Type: VIEW; Schema: public; Owner: neondb_owner
++--
++
++CREATE VIEW public.admin_control_authorized WITH (security_barrier='true') AS
++ SELECT (id)::text AS user_id
++   FROM neon_auth."user"
++  WHERE ((id = 'REDACTED_OWNER_ID'::uuid) AND (role = 'admin'::text) AND (COALESCE(banned, false) = false));
++
++
++ALTER VIEW public.admin_control_authorized OWNER TO neondb_owner;
++
++--
++-- Name: admin_control_commands; Type: TABLE; Schema: public; Owner: neondb_owner
++--
++
++CREATE TABLE public.admin_control_commands (
++    id text NOT NULL,
++    owner_id text NOT NULL,
++    action text NOT NULL,
++    reason text NOT NULL,
++    expected_experiment_id text,
++    status text DEFAULT 'pending'::text NOT NULL,
++    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
++    completed_at timestamp with time zone,
++    result text,
++    CONSTRAINT admin_control_commands_action_check CHECK ((action = ANY (ARRAY['pause'::text, 'resume'::text, 'stop'::text, 'start'::text]))),
++    CONSTRAINT admin_control_commands_check CHECK ((((status = 'pending'::text) AND (completed_at IS NULL) AND (result IS NULL)) OR ((status = ANY (ARRAY['applied'::text, 'failed'::text])) AND (completed_at IS NOT NULL) AND (result IS NOT NULL)))),
++    CONSTRAINT admin_control_commands_expected_experiment_id_check CHECK (((expected_experiment_id IS NULL) OR ((length(expected_experiment_id) >= 1) AND (length(expected_experiment_id) <= 128)))),
++    CONSTRAINT admin_control_commands_id_check CHECK ((id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'::text)),
++    CONSTRAINT admin_control_commands_owner_id_check CHECK ((owner_id = 'REDACTED_OWNER_ID'::text)),
++    CONSTRAINT admin_control_commands_reason_check CHECK (((length(btrim(reason)) >= 8) AND (length(btrim(reason)) <= 500))),
++    CONSTRAINT admin_control_commands_result_check CHECK (((result IS NULL) OR ((length(result) >= 1) AND (length(result) <= 500)))),
++    CONSTRAINT admin_control_commands_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'applied'::text, 'failed'::text])))
++);
++
++
++ALTER TABLE public.admin_control_commands OWNER TO neondb_owner;
++
++--
+ -- Name: ai_budget_reservations; Type: TABLE; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -3273,6 +3335,14 @@
+ 
+ 
+ --
++-- Name: admin_control_commands admin_control_commands_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
++--
++
++ALTER TABLE ONLY public.admin_control_commands
++    ADD CONSTRAINT admin_control_commands_pkey PRIMARY KEY (id);
++
++
++--
+ -- Name: ai_budget_reservations ai_budget_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -3985,6 +4055,20 @@
+ 
+ 
+ --
++-- Name: admin_control_commands_created; Type: INDEX; Schema: public; Owner: neondb_owner
++--
++
++CREATE INDEX admin_control_commands_created ON public.admin_control_commands USING btree (owner_id, created_at DESC);
++
++
++--
++-- Name: admin_control_one_pending; Type: INDEX; Schema: public; Owner: neondb_owner
++--
++
++CREATE UNIQUE INDEX admin_control_one_pending ON public.admin_control_commands USING btree (owner_id) WHERE (status = 'pending'::text);
++
++
++--
+ -- Name: ai_budget_reservations_created; Type: INDEX; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -4300,6 +4384,13 @@
+ 
+ 
+ --
++-- Name: admin_control_commands protect_admin_control_commands; Type: TRIGGER; Schema: public; Owner: neondb_owner
++--
++
++CREATE TRIGGER protect_admin_control_commands BEFORE DELETE OR UPDATE ON public.admin_control_commands FOR EACH ROW EXECUTE FUNCTION public.admin_control_guard();
++
++
++--
+ -- Name: ai_budget_reservations protect_ai_budget_reservations; Type: TRIGGER; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -5006,6 +5097,28 @@
+ 
+ 
+ --
++-- Name: admin_control_commands admin_command_enqueue; Type: POLICY; Schema: public; Owner: neondb_owner
++--
++
++CREATE POLICY admin_command_enqueue ON public.admin_control_commands FOR INSERT TO aegis_ai WITH CHECK (((owner_id = 'REDACTED_OWNER_ID'::text) AND (status = 'pending'::text) AND (EXISTS ( SELECT 1
++   FROM public.admin_control_authorized a
++  WHERE (a.user_id = admin_control_commands.owner_id)))));
++
++
++--
++-- Name: admin_control_commands admin_command_read; Type: POLICY; Schema: public; Owner: neondb_owner
++--
++
++CREATE POLICY admin_command_read ON public.admin_control_commands FOR SELECT TO aegis_ai USING ((owner_id = 'REDACTED_OWNER_ID'::text));
++
++
++--
++-- Name: admin_control_commands; Type: ROW SECURITY; Schema: public; Owner: neondb_owner
++--
++
++ALTER TABLE public.admin_control_commands ENABLE ROW LEVEL SECURITY;
++
++--
+ -- Name: ai_budget_reservations; Type: ROW SECURITY; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -5686,6 +5799,20 @@
+ 
+ 
+ --
++-- Name: crm_snapshots raj_only_private_access; Type: POLICY; Schema: public; Owner: neondb_owner
++--
++
++CREATE POLICY raj_only_private_access ON public.crm_snapshots AS RESTRICTIVE TO authenticated USING ((auth.user_id() = 'REDACTED_OWNER_ID'::text)) WITH CHECK ((auth.user_id() = 'REDACTED_OWNER_ID'::text));
++
++
++--
++-- Name: journal_entries raj_only_private_access; Type: POLICY; Schema: public; Owner: neondb_owner
++--
++
++CREATE POLICY raj_only_private_access ON public.journal_entries AS RESTRICTIVE TO authenticated USING ((auth.user_id() = 'REDACTED_OWNER_ID'::text)) WITH CHECK ((auth.user_id() = 'REDACTED_OWNER_ID'::text));
++
++
++--
+ -- Name: recovery_runs; Type: ROW SECURITY; Schema: public; Owner: neondb_owner
+ --
+ 
+@@ -5852,6 +5979,55 @@
+ 
+ 
+ --
++-- Name: TABLE admin_control_authorized; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT SELECT ON TABLE public.admin_control_authorized TO aegis_ai;
++
++
++--
++-- Name: TABLE admin_control_commands; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT SELECT ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
++-- Name: COLUMN admin_control_commands.id; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT INSERT(id) ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
++-- Name: COLUMN admin_control_commands.owner_id; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT INSERT(owner_id) ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
++-- Name: COLUMN admin_control_commands.action; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT INSERT(action) ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
++-- Name: COLUMN admin_control_commands.reason; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT INSERT(reason) ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
++-- Name: COLUMN admin_control_commands.expected_experiment_id; Type: ACL; Schema: public; Owner: neondb_owner
++--
++
++GRANT INSERT(expected_experiment_id) ON TABLE public.admin_control_commands TO aegis_ai;
++
++
++--
+ -- Name: TABLE ai_budget_reservations; Type: ACL; Schema: public; Owner: neondb_owner
+ --
+ 
+
