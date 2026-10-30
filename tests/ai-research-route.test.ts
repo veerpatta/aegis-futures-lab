@@ -31,4 +31,15 @@ describe('paid research endpoint', () => {
     expect(d.runBudgeted.mock.calls[0][0]).toMatchObject({depth:'deep'});
     expect((await makeResearchPost(d)(request('arbitrary-model'))).status).toBe(400);
   });
+  it('logs only an allowlisted provider status and never arbitrary error details', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const d = deps(); d.runBudgeted.mockRejectedValueOnce(new Error('OpenAI request failed (401)'));
+      expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
+      expect(log).toHaveBeenCalledWith('[AI research] provider HTTP 401');
+      d.runBudgeted.mockRejectedValueOnce(new Error('secret question and key'));
+      expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
+      expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
+    } finally { log.mockRestore(); }
+  });
 });

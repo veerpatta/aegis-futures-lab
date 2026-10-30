@@ -135,7 +135,7 @@ export default function GuidePage() {
         <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
         <p>The learner uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
         <h3>AI research assistant</h3>
-        <p>On Learn, open AI research assistant and sign in with your email code to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules.</p>
+        <p>On Learn, open AI research assistant and sign in with an email code or your account password to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules.</p>
         <p>Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.</p>
         <p>Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.</p>
         <p>A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner&apos;s balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.</p>
@@ -317,7 +317,7 @@ export default function GuidePage() {
         <p>
           More → Journal is yours alone. Pick the trading day, type in a trade or import your broker&apos;s file
           (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time
-          to match the chart. Sign in with your email to keep a private copy across devices; local saving always works.
+          to match the chart. Sign in with an email code or your account password to keep a private copy across devices; local saving always works.
         </p>
         <p>
           &ldquo;Compare with the bot&rdquo; re-runs the zone method over 60 days in your browser and shows what it did
@@ -379,7 +379,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-30 (AI research and separate shadow study). A printable version of this guide lives in
+        Matches the app as of 2026-10-30 (AI research, shadow study and sign-in options). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

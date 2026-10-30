@@ -63,7 +63,7 @@ The learner uses stored outcomes and small models on the existing service. It ma
 
 ### AI research assistant
 
-On Learn, open AI research assistant and sign in with your email code to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot's rules.
+On Learn, open AI research assistant and sign in with an email code or your account password to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot's rules.
 
 Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.
 
@@ -149,7 +149,7 @@ The bell in the header lists anything worth a look. Its dot is amber for a warni
 
 ## 9. Your journal
 
-More → Journal is yours alone. Pick the trading day, type in a trade or import your broker's file (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time to match the chart. Sign in with your email to keep a private copy across devices; local saving always works.
+More → Journal is yours alone. Pick the trading day, type in a trade or import your broker's file (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time to match the chart. Sign in with an email code or your account password to keep a private copy across devices; local saving always works.
 
 "Compare with the bot" re-runs the zone method over 60 days in your browser and shows what it did on your days. It takes a few seconds, so it only loads when you open it.
 
@@ -224,4 +224,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-30 (AI research and separate shadow study). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-30 (AI research, shadow study and sign-in options). If the app has changed since, the in-app Guide is the source of truth.*

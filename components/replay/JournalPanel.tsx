@@ -10,6 +10,7 @@ import {
   type JournalTrade,
 } from "@/lib/journal";
 import { journalPnl } from "@/lib/journal";
+import { signInWithPassword } from "@/lib/neon/password-sign-in";
 import { parseBrokerCsv } from "@/lib/journal/broker";
 import {
   deleteJournalFromCloud,
@@ -93,6 +94,9 @@ export default function JournalPanel({
   const [cloud, setCloud] = useState<"signed-out" | "syncing" | "ok" | "offline">("signed-out");
   const [authUser, setAuthUser] = useState<{ id: string; email: string } | null>(null);
   const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
   const [authCode, setAuthCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
@@ -171,6 +175,7 @@ export default function JournalPanel({
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user;
       setAuthUser(user ? { id: user.id, email: user.email ?? "signed-in trader" } : null);
+      if (user) setAuthPassword("");
       if (!user) {
         syncedUser.current = null;
         setCloud("signed-out");
@@ -243,6 +248,16 @@ export default function JournalPanel({
     setAuthCode("");
     setCodeSent(false);
     setAuthMessage("Signed in. Your journal is syncing privately.");
+  };
+
+  const signInPassword = async () => {
+    setPasswordBusy(true); setAuthMessage(null);
+    try {
+      const user = await signInWithPassword(authEmail, authPassword);
+      setAuthUser(user); setAuthPassword(""); setAuthCode(""); setCodeSent(false);
+      setAuthMessage("Signed in. Your journal is syncing privately.");
+    } catch (cause) { setAuthMessage(cause instanceof Error ? cause.message : "Could not sign in. Try again."); }
+    finally { setPasswordBusy(false); }
   };
 
   const signOut = async () => {
@@ -381,6 +396,13 @@ export default function JournalPanel({
                 onChange={(event) => setAuthEmail(event.target.value)}
               />
             </label>
+            {passwordMode ? <>
+              <label className={styles.syncEmail}>
+                <span className={styles.srOnly}>Password for private journal sync</span>
+                <input type="password" autoComplete="current-password" placeholder="Password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} />
+              </label>
+              <Button small disabled={passwordBusy} onClick={() => void signInPassword()}>{passwordBusy ? "Signing in…" : "Sign in with password"}</Button>
+            </> : <>
             <Button small onClick={() => void sendSignInCode()}>
               Send code
             </Button>
@@ -403,6 +425,8 @@ export default function JournalPanel({
                 </Button>
               </>
             )}
+            </>}
+            <Button small disabled={passwordBusy} onClick={() => { setPasswordMode(!passwordMode); setAuthPassword(""); setAuthMessage(null); }}>{passwordMode ? "Use email code instead" : "Use password instead"}</Button>
           </>
         )}
       </div>

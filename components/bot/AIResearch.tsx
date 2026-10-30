@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { getNeon } from "@/lib/neon/client";
+import { signInWithPassword } from "@/lib/neon/password-sign-in";
 import page from "@/components/ui/page.module.css";
 import styles from "./ai-research.module.css";
 
@@ -79,6 +80,8 @@ export default function AIResearch() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordMode, setPasswordMode] = useState(false);
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
@@ -108,6 +111,7 @@ export default function AIResearch() {
         setResult(null); setQuestion(""); setDepth("standard"); setError(""); setBusy(false);
       }
       currentUser.current = next?.id ?? null;
+      if (next) setPassword("");
       setUser(next); setChecking(false);
     };
     void auth.getSession().then(({ data }) => { if (authVersion === 0) update(data.session?.user); }).catch(() => { if (alive && authVersion === 0) setChecking(false); });
@@ -173,6 +177,18 @@ export default function AIResearch() {
     finally { setAuthBusy(false); }
   };
 
+  const signInPassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setAuthBusy(true); setMessage("");
+    try {
+      const next = await signInWithPassword(email, password);
+      if (currentUser.current !== next.id) { request.current++; setResult(null); setQuestion(""); setDepth("standard"); setError(""); }
+      currentUser.current = next.id;
+      setUser(next); setPassword(""); setCode(""); setCodeSent(false);
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Could not sign in. Try again."); }
+    finally { setAuthBusy(false); }
+  };
+
   const signOut = async () => {
     try {
       const { error: authError } = await getNeon().auth.signOut();
@@ -207,9 +223,15 @@ export default function AIResearch() {
     <p className={page.note}>Your question is sent to OpenAI. Do not include passwords, API keys or private journal details. Signed-in users share the $25 monthly Aegis allowance.</p>
     {checking ? <p className={page.loading}>Checking sign-in…</p> : !user ? <div className={styles.signIn}>
       <p>Sign in with email to use paid research.</p>
-      <label>Email <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
-      <button type="button" onClick={() => void sendCode()} disabled={authBusy}>{authBusy ? "Please wait…" : "Send code"}</button>
-      {codeSent && <><label>Six-digit code <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ""))} /></label><button type="button" onClick={() => void verifyCode()} disabled={authBusy}>Sign in</button></>}
+      <label>Email <input type="email" autoComplete="email" form={passwordMode ? "research-password-form" : undefined} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+      {passwordMode ? <form id="research-password-form" onSubmit={event => void signInPassword(event)} className={styles.form}>
+        <label>Password <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <button type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : "Sign in with password"}</button>
+      </form> : <>
+        <button type="button" onClick={() => void sendCode()} disabled={authBusy}>{authBusy ? "Please wait…" : "Send code"}</button>
+        {codeSent && <><label>Six-digit code <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ""))} /></label><button type="button" onClick={() => void verifyCode()} disabled={authBusy}>Sign in</button></>}
+      </>}
+      <button type="button" onClick={() => { setPasswordMode(!passwordMode); setPassword(""); setMessage(""); }} disabled={authBusy}>{passwordMode ? "Use email code instead" : "Use password instead"}</button>
       {message && <p role="status" className={page.note}>{message}</p>}
     </div> : <>
       <p className={page.note}>Signed in as {user.email}. Your questions and answers belong to your account.</p>
