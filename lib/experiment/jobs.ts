@@ -103,6 +103,8 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
     return { status: "skipped" as const, message: "Market closed; nothing scheduled.", counts: {} };
   return store.tick(exp.id, async (tx) => {
     let state = await tx.load();
+    if (state.exp.status === "stopped" && state.positions.length === 0)
+      return { status: "skipped" as const, message: "Campaign stopped; no virtual positions remain.", counts: {} };
     const delayed = state.exp.executionClock === "delayed_market";
     const publication = delayed ? await tx.published() : null;
     if (delayed && !publication) return { status: "skipped" as const, message: "Waiting for the first completed market batch.", counts: {} };
@@ -194,6 +196,7 @@ async function learnJob(store: ExperimentStore, exp: ExperimentConfig, runId: nu
   if (!allowed(level, "learn")) return { status: "skipped" as const, message: "Free quota nearly used; learning waits for the reset.", counts: { quota: level } };
   return store.learner(exp.id, `learn:${invocationId}`, async (tx) => {
     const st = await tx.load();
+    if (st.exp.status === "stopped") return { status: "skipped" as const, message: "Campaign stopped; learning is not running.", counts: {} };
     const P = rulesFor(st.exp.preregVersion);
     const allowSynthetic = st.exp.mode === "synthetic";
     const rows = buildEvalRows(st.decisions, st.outcomes, nowSec);
@@ -238,6 +241,7 @@ async function reviewJob(store: ExperimentStore, exp: ExperimentConfig, runId: n
   if (!allowed(level, "review")) return { status: "skipped" as const, message: "Free quota nearly used; the review waits for the reset.", counts: { quota: level } };
   return store.learner(exp.id, `review:${invocationId}`, async (tx) => {
     const st = await tx.load();
+    if (st.exp.status === "stopped") return { status: "skipped" as const, message: "Campaign stopped; review is not running.", counts: {} };
     const P = rulesFor(st.exp.preregVersion);
     const amendments = recordedAmendments(P.version, st.changes);
     const allowSynthetic = st.exp.mode === "synthetic";

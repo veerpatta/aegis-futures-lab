@@ -69,6 +69,8 @@ Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 
 
 Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.
 
+Under Owner controls on Learn, the owner can request pause, resume, stop or start and enter a reason. The next learner check records whether the request was applied or failed; refresh to see the result. Pause prevents new virtual entries while existing trades are managed. Stop waits for open and pending trades to settle. Starting another campaign preserves earlier results. The owner can also change their password there.
+
 A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner's balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.
 
 The learner is the bot's own **virtual $10,000** account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea's bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
@@ -224,4 +226,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-30 (AI research, shadow study and sign-in options). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-30 (AI research and owner controls). If the app has changed since, the in-app Guide is the source of truth.*

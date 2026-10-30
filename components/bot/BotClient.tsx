@@ -5,6 +5,7 @@ import HistorySection from "@/components/history/HistorySection";
 import LearnSection from "./LearnSection";
 import ResearchSection from "./ResearchSection";
 import AIResearch from "./AIResearch";
+import OwnerControls from "./OwnerControls";
 import page from "@/components/ui/page.module.css";
 export default function BotClient() {
   const research = useRef<HTMLDetailsElement>(null);
@@ -22,6 +23,7 @@ export default function BotClient() {
     <header className={page.head}><h1 className="pageTitle">Learn</h1><p className={page.paperLine}>Virtual only · Delayed prices · No real money</p></header>
     <LearnSection /><ExperimentCard compact />
     <details className={page.details} id="ai-research"><summary>AI research assistant · ask about the evidence</summary><AIResearch /></details>
+    <details className={page.details}><summary>Owner controls</summary><OwnerControls /></details>
     <details ref={history} className={page.details}><summary>Historical practice · explore the older-data study</summary><HistorySection /></details>
     <details ref={research} className={page.details} id="research"><summary>Method research</summary><ResearchSection /></details>
   </div>;

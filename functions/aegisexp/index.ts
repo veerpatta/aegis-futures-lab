@@ -13,6 +13,7 @@ import { PgStore, experimentPool } from "@/lib/experiment/store-pg";
 const handleRequest = makeHandler({
   store: () => new PgStore(experimentPool()),
   health: async () => (await experimentPool().query("SELECT * FROM experiment_health")).rows,
+  processControls: () => new PgStore(experimentPool()).processOwnerCommand(process.env.AEGIS_EXPERIMENT_LINEAGE ?? "learner"),
   lineage: process.env.AEGIS_EXPERIMENT_LINEAGE ?? "learner",
   codeSha: process.env.AEGIS_CODE_SHA ?? null,
 });

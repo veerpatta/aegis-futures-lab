@@ -8,11 +8,11 @@ const read = (p: string) => readFileSync(join(root, p), "utf8");
 const experimentFiles = readdirSync(join(root, "lib", "experiment")).filter((f) => f.endsWith(".ts")).map((f) => `lib/experiment/${f}`);
 
 describe("experiment isolation", () => {
-  it("writes only experiment_* tables — never the practice account, the signal record, bars or the global model", () => {
+  it("writes only experiment tables and the owner command queue, never practice accounts, signals or bars", () => {
     for (const f of [...experimentFiles, "scripts/experiment/run.ts", "scripts/experiment/control.ts", "functions/aegisexp/index.ts"]) {
       const src = read(f);
-      const writes = [...src.matchAll(/\b(INSERT\s+INTO|UPDATE(?!\s+SET\b)|DELETE\s+FROM)\s+([a-z_]+)/g)].map((m) => m[2].toLowerCase());
-      for (const table of writes) expect(table, `${f} writes ${table}`).toMatch(/^experiment(s|_[a-z_]+)$/);
+      const writes = [...src.matchAll(/\b(INSERT\s+INTO|UPDATE(?!\s+SET\b)|DELETE\s+FROM)\s+((?:public\.)?[a-z_]+)/g)].map((m) => m[2].toLowerCase());
+      for (const table of writes) expect(table, `${f} writes ${table}`).toMatch(/^(experiment(s|_[a-z_]+)|public\.admin_control_commands)$/);
     }
   });
 

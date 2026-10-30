@@ -20,7 +20,7 @@ describe("owner status transaction", () => {
   it("takes the tick's experiment lock before reading and updating the status", async () => {
     const { store, calls } = fixture();
     await store.setStatus("learner-1", "paused", { kind: "paused", reason: "owner requested pause", eventKey: "event-1" });
-    const lock = calls.findIndex(c => c.sql.includes("pg_advisory_xact_lock"));
+    const lock = calls.findIndex(c => c.sql.includes("aegis-exp:'"));
     const read = calls.findIndex(c => c.sql.startsWith("SELECT status FROM experiments"));
     const update = calls.findIndex(c => c.sql.startsWith("UPDATE experiments"));
     expect(lock).toBeGreaterThan(0);

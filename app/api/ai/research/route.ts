@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
 import { verifyNeonResearchUser } from '@/lib/ai-auth/verify';
+import { requireOwner } from '@/lib/ai-auth/owner';
 import { budgetedRequest, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS } from '@/lib/ai-budget';
 import { PgBudgetStore } from '@/lib/ai-budget/pg';
 import { loadResearchEvidence } from '@/lib/ai-research/evidence';
@@ -24,9 +25,13 @@ async function status(userId: string) {
   const [year, month] = current.month.split('-').map(Number);
   return { remainingUsd: current.remainingMicros / 1_000_000, resetAt: new Date(Date.UTC(year, month, 1)).toISOString(), timezone: 'UTC', usedUsd: current.usedMicros / 1_000_000, userRequests: current.userRequests, dailyLimit: current.dailyLimit };
 }
+async function authenticate(request: Request) {
+  const identity = await verifyNeonResearchUser(request);
+  return requireOwner(identity, async id => (await pool().query('SELECT 1 FROM public.admin_control_authorized WHERE user_id=$1', [id])).rows.length === 1);
+}
 
 const post = makeResearchPost({
-  authenticate: verifyNeonResearchUser,
+  authenticate,
   evidence: () => loadResearchEvidence(pool()),
   async saveRequest({ id, userId, question, evidence, depth }) {
     const hash = createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
@@ -54,7 +59,7 @@ const post = makeResearchPost({
 
 export const POST = post;
 export async function GET(request: Request): Promise<Response> {
-  const identity = await verifyNeonResearchUser(request).catch(() => ({ ok: false as const, status: 503 as const, error: 'Sign-in verification is temporarily unavailable.' }));
+  const identity = await authenticate(request).catch(() => ({ ok: false as const, status: 503 as const, error: 'Sign-in verification is temporarily unavailable.' }));
   if (!identity.ok) return Response.json({ error: identity.error }, { status: identity.status, headers: { 'Cache-Control': 'no-store' } });
   try { return Response.json({ usage: await status(identity.userId) }, { headers: { 'Cache-Control': 'no-store' } }); }
   catch { return Response.json({ error: 'Research is temporarily unavailable.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } }); }

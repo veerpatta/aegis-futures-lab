@@ -19,6 +19,7 @@ export interface HandlerDeps {
   lineage?: string;
   codeSha?: string | null;
   now?: () => number;
+  processControls?: () => Promise<void>;
 }
 
 export function makeHandler(deps: HandlerDeps) {
@@ -43,6 +44,9 @@ export function makeHandler(deps: HandlerDeps) {
       return jsonResponse({ error: "bad body" }, 400);
     }
     if (body.invocation_id && body.invocation_id !== headerId) return jsonResponse({ error: "invocation id mismatch" }, 403);
+    if (job === "tick" && deps.processControls) {
+      try { await deps.processControls(); } catch { return jsonResponse({ error: "Owner control processing unavailable." }, 503); }
+    }
     const scheduledAt = body.data?.scheduled_at ? Math.floor(Date.parse(body.data.scheduled_at) / 1000) : null;
     const input: JobInput = {
       job, invocationId: `neon:${headerId}`, trigger: "neon", store: deps.store(), lineage: deps.lineage, scheduledAt,

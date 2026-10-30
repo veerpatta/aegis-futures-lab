@@ -8,7 +8,7 @@
    seen as done. Learning jobs hold a lease row instead, because they may run
    longer than one statement batch should hold a lock.
 
-   It only ever writes experiment_* tables. It reads bars_5m and signals and
+   It writes experiment_* tables and the owner command queue. It reads bars_5m and signals and
    never writes them; it never touches paper_*, model_registry or the journal
    (tests/experiment-isolation.test.ts greps this file to keep it that way). */
 
@@ -22,6 +22,7 @@ import { TAKE_ALL_V1, artifactHash } from "./models";
 import { stableHash } from "./hash";
 import { weekKeyOf } from "./learning";
 import { DELAYED_EXECUTION_VERSION } from "./delayed";
+import { decideOwnerControl, type OwnerAction } from "./owner-control";
 import type {
   ChangeRecord, DatasetRecord, EvaluationRecord, ExperimentStore, LearnState, LearnTx, PointerRecord, RunStatus, ShadowScoreRecord, TickState, TickTx, VersionRecord,
 } from "./store";
@@ -319,6 +320,7 @@ export class PgStore implements ExperimentStore {
     if (!lease.rows[0]) return "busy";
     try {
       return await this.tx(async (c) => {
+        await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:control:' || $1,0))", [experimentId]);
         const tx: LearnTx = {
           load: () => this.loadLearn(c, experimentId),
           insertDataset: async (runId, d: DatasetRecord) => {
@@ -398,6 +400,7 @@ export class PgStore implements ExperimentStore {
 
   async setStatus(experimentId: string, to: ExperimentStatus, change: ChangeRecord) {
     await this.tx(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:control:' || $1,0))", [experimentId]);
       // Serialize owner status changes with a tick before reading the status.
       // Otherwise a tick could commit new entries after pause has returned.
       await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:' || $1, 0))", [experimentId]);
@@ -405,6 +408,55 @@ export class PgStore implements ExperimentStore {
       if (!cur) throw new Error("Experiment not found.");
       const id = await insertChange(c, experimentId, { ...change, fromStatus: cur.status, toStatus: to, actor: change.actor ?? "owner" });
       await c.query("UPDATE experiments SET status=$2, status_reason=$3, last_change_id=$4 WHERE id=$1", [experimentId, to, change.reason, id]);
+    });
+  }
+
+  /** Consume one command, atomically with its audit record and state change.
+   * This runs only in the trusted learner worker, never in the web server. */
+  async processOwnerCommand(lineage = "learner"): Promise<void> {
+    await this.tx(async c => {
+      const exists = (await c.query("SELECT to_regclass('public.admin_control_commands') AS t")).rows[0]?.t;
+      if (!exists) return;
+      const command = (await c.query("SELECT * FROM public.admin_control_commands WHERE status='pending' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1")).rows[0];
+      if (!command) return;
+      await c.query("SAVEPOINT owner_command");
+      let status = "applied", result = "Command applied.";
+      try {
+        // Lock the account row so revocation cannot race the action's commit.
+        const valid = (await c.query("SELECT 1 FROM neon_auth.\"user\" u JOIN private_research.aegis_owner o ON o.user_id=u.id::text WHERE o.singleton AND o.user_id=$1 AND u.role='admin' AND NOT COALESCE(u.banned,false) FOR SHARE OF u", [command.owner_id])).rows.length === 1;
+        if (!valid) throw new Error("Owner authorization was revoked.");
+        await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:upgrade:' || $1,0))", [lineage]);
+        const current = (await c.query("SELECT * FROM experiments WHERE lineage=$1 ORDER BY (status IN ('active','paused')) DESC,campaign DESC LIMIT 1", [lineage])).rows[0];
+        if (current) {
+          await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:control:' || $1,0))", [current.id]);
+          await c.query("SELECT pg_advisory_xact_lock(hashtextextended('aegis-exp:' || $1,0))", [current.id]);
+        }
+        const locked = current ? (await c.query("SELECT * FROM experiments WHERE id=$1 FOR UPDATE", [current.id])).rows[0] : null;
+        const count = Number((await c.query("SELECT count(*)::int n FROM experiment_positions p JOIN experiments e ON e.id=p.experiment_id WHERE e.lineage=$1 AND p.status IN ('pending_fill','open')", [lineage])).rows[0].n);
+        const decision = decideOwnerControl(command.action as OwnerAction, String(command.reason), command.expected_experiment_id as string | null,
+          locked ? { id: String(locked.id), status: locked.status as ExperimentStatus, livePositions: count } : null);
+        if (decision.kind === "status") {
+          const kind = decision.to === "active" ? "resumed" : decision.to === "paused" ? "paused" : "stopped";
+          const changeId = await insertChange(c, String(locked!.id), { kind, fromStatus: String(locked!.status), toStatus: decision.to,
+            reason: String(command.reason), actor: "owner", eventKey: `owner-command:${command.id}` });
+          await c.query("UPDATE experiments SET status=$2,status_reason=$3,last_change_id=$4 WHERE id=$1", [locked!.id, decision.to, command.reason, changeId]);
+          result = `Campaign ${locked!.id} is ${decision.to}.`;
+        } else {
+          const now = Math.floor(Date.now()/1000), campaign = locked ? Number(locked.campaign)+1 : 1, id = `${lineage}-${campaign}`;
+          const exp: ExperimentConfig = { id, lineage, campaign, mode:"live", status:"active", capital:EXP_RISK.capital, startedAt:now,
+            seed:PREREG.seed, preregVersion:PREREG.version, executionClock:"delayed_market", executionVersion:DELAYED_EXECUTION_VERSION, simulationFrom:now };
+          const v1: VersionRecord = { id:`${id}:v1-take-all`,experimentId:id,kind:"take_all",spec:{},specHash:stableHash({kind:"take_all"}),weekKey:weekKeyOf(now),
+            registeredAt:now,datasetId:null,artifact:TAKE_ALL_V1,artifactHash:artifactHash(TAKE_ALL_V1),trainedAt:null,trainCutoff:null,status:"adopted",statusReason:"frozen control" };
+          await this.registerExperiment(c, { exp, v1, risk:{...EXP_RISK},prereg:{...PREREG},preregHash:stableHash(PREREG),reason:String(command.reason) });
+          result = `Campaign ${id} started.`;
+        }
+      } catch (error) {
+        await c.query("ROLLBACK TO SAVEPOINT owner_command");
+        status = "failed";
+        const safe = error instanceof Error ? error.message : "";
+        result = ["Owner authorization was revoked.", "Campaign changed; refresh before trying again.", "Only an active campaign can be paused.", "Only a paused campaign can be resumed.", "This campaign cannot be stopped.", "Wait until all existing virtual positions are settled before stopping.", "Stop the current campaign before starting another.", "Wait until all existing virtual positions are settled before starting another campaign."].includes(safe) ? safe : "Command could not be applied.";
+      }
+      await c.query("UPDATE public.admin_control_commands SET status=$2,completed_at=clock_timestamp(),result=$3 WHERE id=$1", [command.id,status,result]);
     });
   }
 

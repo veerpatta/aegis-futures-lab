@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { verifyNeonResearchUser } from '@/lib/ai-auth/verify';
+import { requireOwner } from '@/lib/ai-auth/owner';
 import { ShadowStore } from '@/lib/ai-store/shadow';
 import { readShadowSummary } from '@/lib/ai-shadow/summary';
 
@@ -13,7 +14,7 @@ function pool():Pool {
   return connection;
 }
 export async function GET(request:Request):Promise<Response> {
-  const identity=await verifyNeonResearchUser(request).catch(()=>({ok:false as const,status:503 as const,error:'Sign-in verification is temporarily unavailable.'}));
+  const identity=await verifyNeonResearchUser(request).then(identity => requireOwner(identity, async userId => (await pool().query('SELECT 1 FROM public.admin_control_authorized WHERE user_id=$1',[userId])).rows.length===1)).catch(()=>({ok:false as const,status:503 as const,error:'Sign-in verification is temporarily unavailable.'}));
   if (!identity.ok) return Response.json({error:identity.error},{status:identity.status,headers:{'Cache-Control':'no-store'}});
   const id=process.env.AI_SHADOW_STUDY_ID;
   if (!id) return Response.json({status:'not-configured'},{headers:{'Cache-Control':'no-store'}});

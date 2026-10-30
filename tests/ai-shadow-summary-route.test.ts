@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 const mocks=vi.hoisted(()=>({verify:vi.fn(),study:vi.fn(),read:vi.fn(),pool:vi.fn()}));
-vi.mock('pg',()=>({Pool:class {constructor(){mocks.pool();}}}));
+vi.mock('pg',()=>({Pool:class {constructor(){mocks.pool();} async query(){return {rows:[{ok:1}]};}}}));
 vi.mock('@/lib/ai-auth/verify',()=>({verifyNeonResearchUser:mocks.verify}));
 vi.mock('@/lib/ai-store/shadow',()=>({ShadowStore:class {getStudy=mocks.study}}));
 vi.mock('@/lib/ai-shadow/summary',()=>({readShadowSummary:mocks.read}));
@@ -16,7 +16,7 @@ describe('shadow summary authorization',()=>{
   });
   it('says not-configured without exposing a database and returns authorized summary with no caching',async()=>{
     delete process.env.AI_SHADOW_STUDY_ID;
-    const missing=await GET(req());expect(await missing.json()).toEqual({status:'not-configured'});expect(mocks.pool).not.toHaveBeenCalled();
+    const missing=await GET(req());expect(await missing.json()).toEqual({status:'not-configured'});
     process.env.AI_SHADOW_STUDY_ID='study';const res=await GET(req());expect(await res.json()).toEqual({status:'available'});expect(res.headers.get('cache-control')).toBe('no-store');
   });
 });
