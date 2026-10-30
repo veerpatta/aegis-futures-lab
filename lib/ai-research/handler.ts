@@ -1,4 +1,5 @@
 import { evidenceForPrompt, type Evidence, type ResearchAnswer } from './core';
+import { OpenAiHttpError } from './provider';
 
 export type AuthResult = { ok: true; userId: string } | { ok: false; status: 401 | 503; error: string };
 export type ResearchDepth = 'standard' | 'deep';
@@ -54,7 +55,8 @@ export function makeResearchPost(deps: ResearchDeps) {
       // Log only a small allowlist: questions, provider bodies and credentials
       // can appear in arbitrary errors and must never be written to logs.
       const providerStatus = /^OpenAI request failed \(([1-5]\d\d)\)$/.exec(message);
-      if (providerStatus) console.error(`[AI research] provider HTTP ${providerStatus[1]}`);
+      if (err instanceof OpenAiHttpError) console.error(`[AI research] provider HTTP ${err.status} code ${err.code}`);
+      else if (providerStatus) console.error(`[AI research] provider HTTP ${providerStatus[1]}`);
       else if (['OpenAI response was incomplete', 'OpenAI response was empty', 'OpenAI response was invalid', 'Invalid research response', 'Invalid evidence citation', 'Provider usage is missing; full reservation retained.', 'Provider usage exceeded the reserved limit.'].includes(message)) console.error(`[AI research] ${message}`);
       else console.error('[AI research] request failed');
       return json({ error: 'Research is temporarily unavailable. Please try again later.' }, 503);

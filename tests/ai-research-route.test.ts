@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { makeResearchPost } from '@/lib/ai-research/handler';
+import { OpenAiHttpError } from '@/lib/ai-research/provider';
 
 const goodRequest = () => new Request('https://aegis.test/api/ai/research', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer example' }, body: JSON.stringify({ question: 'Why paused?' }) });
 function deps() {
@@ -37,6 +38,9 @@ describe('paid research endpoint', () => {
       const d = deps(); d.runBudgeted.mockRejectedValueOnce(new Error('OpenAI request failed (401)'));
       expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
       expect(log).toHaveBeenCalledWith('[AI research] provider HTTP 401');
+      d.runBudgeted.mockRejectedValueOnce(new OpenAiHttpError(403, 'unsupported_country_region_territory'));
+      expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
+      expect(log).toHaveBeenCalledWith('[AI research] provider HTTP 403 code unsupported_country_region_territory');
       d.runBudgeted.mockRejectedValueOnce(new Error('secret question and key'));
       expect((await makeResearchPost(d)(goodRequest())).status).toBe(503);
       expect(JSON.stringify(log.mock.calls)).not.toContain('secret');

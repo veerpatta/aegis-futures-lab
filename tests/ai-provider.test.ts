@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { callOpenAiResearch } from '@/lib/ai-research/provider';
+import { callOpenAiResearch, OpenAiHttpError } from '@/lib/ai-research/provider';
 
 describe('OpenAI research request', () => {
   it('sends only the question and supplied bounded evidence, returning usage and validated output', async () => {
@@ -20,5 +20,16 @@ describe('OpenAI research request', () => {
     await expect(callOpenAiResearch({ key: 'test', question: 'q', evidence: [] }, bad)).rejects.toThrow(/citation/i);
     const failure: typeof fetch = async () => new Response('private provider error text', { status: 429 });
     await expect(callOpenAiResearch({ key: 'test', question: 'q', evidence: [] }, failure)).rejects.toThrow('OpenAI request failed (429)');
+  });
+  it('extracts only an explicitly allowed error code from a bounded error body', async () => {
+    const known: typeof fetch = async () => new Response(JSON.stringify({ error: { code: 'unsupported_country_region_territory', message: 'private secret', type: 'permission_error' } }), { status: 403 });
+    await expect(callOpenAiResearch({ key: 'test', question: 'q', evidence: [] }, known)).rejects.toMatchObject({ status: 403, code: 'unsupported_country_region_territory' });
+    const unknown: typeof fetch = async () => new Response(JSON.stringify({ error: { code: 'secret user data', message: 'private secret', type: 'untrusted' } }), { status: 403 });
+    const error = await callOpenAiResearch({ key: 'test', question: 'q', evidence: [] }, unknown).catch(e => e);
+    expect(error).toBeInstanceOf(OpenAiHttpError);
+    expect(error.code).toBe('other');
+    expect(JSON.stringify(error)).not.toMatch(/secret|private/);
+    const tooLarge: typeof fetch = async () => new Response(JSON.stringify({ error: { code: 'model_not_found', message: 'x'.repeat(10000) } }), { status: 403 });
+    await expect(callOpenAiResearch({ key: 'test', question: 'q', evidence: [] }, tooLarge)).rejects.toMatchObject({ code: 'other' });
   });
 });
