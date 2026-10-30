@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PgStore } from "@/lib/experiment/store-pg";
 
-function fixture(options: {authorized?:boolean; failChange?:boolean} = {}) {
+function fixture(options: {authorized?:boolean; failChange?:boolean; action?:"pause"|"resume"|"stop"|"start"} = {}) {
   const calls:{sql:string;args?:unknown[]}[]=[];
-  const command={id:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",owner_id:"owner",action:"pause",reason:"Please pause learner",expected_experiment_id:"learner-1"};
-  const current={id:"learner-1",status:"active",campaign:1};
+  const command={id:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",owner_id:"owner",action:options.action ?? "pause",reason:"Private family detail in reason",expected_experiment_id:"learner-1"};
+  const current={id:"learner-1",status:options.action === "resume" ? "paused" : options.action === "start" ? "stopped" : "active",campaign:1};
   const client={async query(sql:string,args?:unknown[]) {
     calls.push({sql,args});
     if(sql.includes("to_regclass")) return {rows:[{t:"admin_control_commands"}]};
@@ -40,5 +40,14 @@ describe("owner worker transaction",()=>{
     const {store,calls}=fixture({failChange:true}); await store.processOwnerCommand();
     expect(calls.some(x=>x.sql==="ROLLBACK TO SAVEPOINT owner_command")).toBe(true);
     expect(calls.find(x=>x.sql.startsWith("UPDATE public.admin_control_commands"))?.args?.slice(1)).toEqual(["failed","Command could not be applied."]);
+  });
+  it.each(["pause","resume","stop","start"] as const)("keeps the private reason out of public %s writes",async(action)=>{
+    const {store,calls}=fixture({action}); await store.processOwnerCommand();
+    const writes=calls.filter(x=>/^\s*(INSERT INTO experiment|UPDATE experiments)/.test(x.sql));
+    expect(writes.length).toBeGreaterThan(0);
+    expect(JSON.stringify(writes)).not.toContain("Private family detail");
+    const audit=writes.find(x=>x.sql.includes("INSERT INTO experiment_changes"));
+    expect(audit?.args).toContain("owner-command:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(calls.find(x=>x.sql.startsWith("UPDATE public.admin_control_commands"))?.args?.[1]).toBe("applied");
   });
 });

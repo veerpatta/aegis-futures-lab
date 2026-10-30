@@ -437,9 +437,12 @@ export class PgStore implements ExperimentStore {
           locked ? { id: String(locked.id), status: locked.status as ExperimentStatus, livePositions: count } : null);
         if (decision.kind === "status") {
           const kind = decision.to === "active" ? "resumed" : decision.to === "paused" ? "paused" : "stopped";
+          // The experiment's history and status are publicly readable. Keep
+          // the owner's free-text reason only in the private command queue.
+          const publicReason = `Owner requested ${String(command.action)}.`;
           const changeId = await insertChange(c, String(locked!.id), { kind, fromStatus: String(locked!.status), toStatus: decision.to,
-            reason: String(command.reason), actor: "owner", eventKey: `owner-command:${command.id}` });
-          await c.query("UPDATE experiments SET status=$2,status_reason=$3,last_change_id=$4 WHERE id=$1", [locked!.id, decision.to, command.reason, changeId]);
+            reason: publicReason, actor: "owner", eventKey: `owner-command:${command.id}` });
+          await c.query("UPDATE experiments SET status=$2,status_reason=$3,last_change_id=$4 WHERE id=$1", [locked!.id, decision.to, publicReason, changeId]);
           result = `Campaign ${locked!.id} is ${decision.to}.`;
         } else {
           const now = Math.floor(Date.now()/1000), campaign = locked ? Number(locked.campaign)+1 : 1, id = `${lineage}-${campaign}`;
@@ -447,7 +450,7 @@ export class PgStore implements ExperimentStore {
             seed:PREREG.seed, preregVersion:PREREG.version, executionClock:"delayed_market", executionVersion:DELAYED_EXECUTION_VERSION, simulationFrom:now };
           const v1: VersionRecord = { id:`${id}:v1-take-all`,experimentId:id,kind:"take_all",spec:{},specHash:stableHash({kind:"take_all"}),weekKey:weekKeyOf(now),
             registeredAt:now,datasetId:null,artifact:TAKE_ALL_V1,artifactHash:artifactHash(TAKE_ALL_V1),trainedAt:null,trainCutoff:null,status:"adopted",statusReason:"frozen control" };
-          await this.registerExperiment(c, { exp, v1, risk:{...EXP_RISK},prereg:{...PREREG},preregHash:stableHash(PREREG),reason:String(command.reason) });
+          await this.registerExperiment(c, { exp, v1, risk:{...EXP_RISK},prereg:{...PREREG},preregHash:stableHash(PREREG),reason:"Owner started a virtual campaign.",commandId:String(command.id) });
           result = `Campaign ${id} started.`;
         }
       } catch (error) {
@@ -495,7 +498,7 @@ export class PgStore implements ExperimentStore {
     });
   }
 
-  private async registerExperiment(c: PoolClient, input: { exp: ExperimentConfig; risk: Record<string, unknown>; prereg: Record<string, unknown>; preregHash: string; v1: VersionRecord; reason: string }) {
+  private async registerExperiment(c: PoolClient, input: { exp: ExperimentConfig; risk: Record<string, unknown>; prereg: Record<string, unknown>; preregHash: string; v1: VersionRecord; reason: string; commandId?: string }) {
     const { exp, v1 } = input;
       await c.query(
         `INSERT INTO experiments(id,lineage,campaign,mode,status,capital,risk,prereg,prereg_hash,data_label,seed,started_at,execution_clock,execution_version,simulation_from)
@@ -512,7 +515,7 @@ export class PgStore implements ExperimentStore {
         [v1.id, exp.id, v1.specHash, v1.weekKey, iso(v1.registeredAt), json(v1.artifact), v1.artifactHash, v1.statusReason],
       );
       const changeId = await insertChange(c, exp.id, {
-        kind: "campaign_started", toStatus: "active", toVersion: v1.id, reason: input.reason, actor: "owner", eventKey: `campaign:${exp.id}`,
+        kind: "campaign_started", toStatus: "active", toVersion: v1.id, reason: input.reason, actor: "owner", eventKey: input.commandId ? `owner-command:${input.commandId}` : `campaign:${exp.id}`,
         evidence: { preregHash: input.preregHash, mode: exp.mode },
       });
       await c.query(`INSERT INTO experiment_pointer(experiment_id,model_version_id,change_id,updated_at) VALUES($1,$2,$3,$4)`, [exp.id, v1.id, changeId, iso(exp.startedAt)]);
