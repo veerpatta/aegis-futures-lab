@@ -31,7 +31,7 @@ export async function GET(request:Request) {
     const ideas=await store.pending(study,1);
     const result=[];
     for (const idea of ideas) result.push((await processShadowIdea({study,idea},{store,budget:new PgBudgetStore(db),provider:shadowOpenAiProvider(key),clock:Date.now,
-      price:{model:SHADOW_MODEL,inputMicrosPerMillion:2_000_000,outputMicrosPerMillion:10_000_000,verifiedAt:Date.parse('2026-10-30T00:00:00Z'),expiresAt:Date.parse('2026-11-30T00:00:00Z')}})).status);
+      price:{model:SHADOW_MODEL,inputMicrosPerMillion:2_200_000,outputMicrosPerMillion:11_000_000,verifiedAt:Date.parse('2026-10-30T00:00:00Z'),expiresAt:Date.parse('2026-11-30T00:00:00Z')}})).status);
     return NextResponse.json({status:'ok',processed:result.length,results:result,outcomes});
   } catch {
     return NextResponse.json({error:'Shadow study temporarily unavailable.'},{status:503});

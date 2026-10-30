@@ -7,6 +7,18 @@ import styles from "./ai-research.module.css";
 type Command = { id:string; action:string; reason:string; status:string; result:string|null; created_at:string };
 type ControlState = { commands:Command[]; campaign:{id:string;status:string}|null };
 
+export async function requestOneTimeAiCheck(token:string, transport:typeof fetch=fetch):Promise<string> {
+  const response=await transport('/api/ai/diagnostic',{method:'POST',headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+  const body:unknown=await response.json().catch(()=>null);
+  if (!body || typeof body!=='object') return 'The AI check could not be completed. Do not retry an uncertain request.';
+  const value=body as Record<string,unknown>;
+  if (response.ok && value.status==='connected') return 'OpenAI responded to the test. See the provider account for the actual charge.';
+  if (response.ok && value.status==='incomplete') return 'OpenAI responded but the test answer was incomplete. Do not retry the one-time check.';
+  if (value.status==='provider_rejected' && typeof value.httpStatus==='number' && typeof value.code==='string') return `OpenAI rejected the test (HTTP ${value.httpStatus}, ${value.code}). Do not retry the one-time check.`;
+  if (response.status===409) return 'The one-time check was already attempted. Do not retry it.';
+  return 'The AI check could not be completed. Do not retry an uncertain request.';
+}
+
 export default function OwnerControls() {
   const [state,setState]=useState<ControlState|null>(null), [message,setMessage]=useState("Sign in above to use owner controls."), [reason,setReason]=useState(""), [busy,setBusy]=useState(false);
   const [currentPassword,setCurrentPassword]=useState(""), [newPassword,setNewPassword]=useState("");
@@ -38,6 +50,12 @@ export default function OwnerControls() {
       setCurrentPassword(""); setNewPassword(""); setMessage("Password changed. Other sessions were signed out.");
     } catch { setMessage("Password could not be changed. Check your current password and try again."); } finally { setBusy(false); }
   };
+  const checkAi = async () => {
+    setBusy(true); setMessage('');
+    try { setMessage(await requestOneTimeAiCheck(await token())); }
+    catch { setMessage('The AI check could not be completed. Do not retry an uncertain request.'); }
+    finally { setBusy(false); }
+  };
   return <section className={`${styles.research} ${styles.form}`} aria-label="Owner controls">
     <h3>Owner controls</h3><p>Virtual learner only. Pause stops new entries while open trades continue to be managed. Stop waits until open and pending trades are settled. Starting a new campaign keeps earlier results.</p>
     {state && <><p>Campaign: {state.campaign ? `${state.campaign.id} · ${state.campaign.status}` : "none registered"}</p>
@@ -46,6 +64,8 @@ export default function OwnerControls() {
       <button type="button" onClick={()=>void refresh()}>Refresh status</button>
       <ul>{state.commands.map(c=><li key={c.id}>{c.action} · {c.status} · {c.reason}{c.result ? ` · ${c.result}` : ""}</li>)}</ul>
       <form className={styles.form} onSubmit={e=>void changePassword(e)}><h4>Change password</h4><label htmlFor="old-password">Current password</label><input id="old-password" type="password" autoComplete="current-password" required value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} /><label htmlFor="new-password">New password</label><input id="new-password" type="password" autoComplete="new-password" required minLength={12} value={newPassword} onChange={e=>setNewPassword(e.target.value)} /><button disabled={busy}>Change password</button></form>
+      <p>One-time AI connection check: at most $0.01 on the configured OpenAI account. It uses a fixed test message and does not start automatic AI processing.</p>
+      <button type="button" disabled={busy} onClick={()=>void checkAi()}>Run one-time AI check</button>
     </>}
     {message && <p role="status">{message}</p>}
   </section>;

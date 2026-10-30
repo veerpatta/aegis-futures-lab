@@ -44,7 +44,9 @@ const post = makeResearchPost({
     const model = depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL;
     return budgetedRequest(new PgBudgetStore(pool()), {
       requestId: id, userId, model, inputLimit: MAX_INPUT_TOKENS, outputLimit: MAX_OUTPUT_TOKENS,
-      price: { model, inputMicrosPerMillion: depth === 'deep' ? 10_000_000 : 2_000_000, outputMicrosPerMillion: depth === 'deep' ? 50_000_000 : 10_000_000, verifiedAt: Date.parse('2026-10-30T00:00:00Z'), expiresAt: Date.parse('2026-11-30T00:00:00Z') }, now: Date.now(),
+      // Include the documented 10% regional processing premium as a safety
+      // margin, whether or not this project actually incurs that premium.
+      price: { model, inputMicrosPerMillion: depth === 'deep' ? 11_000_000 : 2_200_000, outputMicrosPerMillion: depth === 'deep' ? 55_000_000 : 11_000_000, verifiedAt: Date.parse('2026-10-30T00:00:00Z'), expiresAt: Date.parse('2026-11-30T00:00:00Z') }, now: Date.now(),
     }, async () => { await beforeInvoke(); return callOpenAiResearch({ key, question, evidence, model }); });
   },
   async saveResult({ id, userId, result }) {

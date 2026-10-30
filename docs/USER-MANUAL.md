@@ -67,9 +67,11 @@ On Learn, open AI research assistant and sign in with an email code or your acco
 
 Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.
 
-Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.
+Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and a pricing safety margin; it is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.
 
 Under Owner controls on Learn, the owner can request pause, resume, stop or start and enter a reason. The next learner check records whether the request was applied or failed; refresh to see the result. Pause prevents new virtual entries while existing trades are managed. Stop waits for open and pending trades to settle. Starting another campaign preserves earlier results. The owner can also change their password there.
+
+The owner can run one AI connection check there. It uses a fixed test message and costs at most $0.01 on the configured OpenAI account. It does not start automatic AI processing. If the result is uncertain, do not retry; a reservation may still be counted in the allowance.
 
 A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner's balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.
 
@@ -226,4 +228,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-30 (AI research and owner controls). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-10-30 (AI connection check and owner controls). If the app has changed since, the in-app Guide is the source of truth.*

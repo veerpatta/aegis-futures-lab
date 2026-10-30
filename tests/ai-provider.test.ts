@@ -14,6 +14,7 @@ describe('OpenAI research request', () => {
     expect(JSON.stringify(sent)).toContain('run:1');
     expect(JSON.stringify(sent)).not.toContain('test-key');
     expect((sent as unknown as { max_output_tokens: number }).max_output_tokens).toBe(4000);
+    expect((sent as unknown as { service_tier: string }).service_tier).toBe('default');
   });
   it('refuses fabricated evidence and reports provider failure without leaking its body', async () => {
     const bad: typeof fetch = async () => new Response(JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ answer: 'Wrong', citations: ['fake'] }) }] }], usage: { input_tokens: 5, output_tokens: 5 } }), { status: 200 });
