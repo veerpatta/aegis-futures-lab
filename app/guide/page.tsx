@@ -430,7 +430,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on NVIDIA&apos;s free service, paid AI off). A printable version of this guide lives in
+        Matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, paid AI off). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

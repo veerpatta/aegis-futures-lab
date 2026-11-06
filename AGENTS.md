@@ -57,7 +57,9 @@ short sentences. The reader knows trading but not software. Always keep the
   by `scripts/clock/sync-token.ts` into `aegis_private.engine_clock_token` (owner-only; "off"
   clears it). Every attempt is logged publicly in `engine_clock` (never the key); the watchdog and
   Today's timer line (`lib/plain/timer.ts`) read it. Triggers in `scripts/clock/triggers.json`;
-  learn/review triggers stay disabled until the v3 handover. Migration
+  since the v3 handover (2026-11-06) its learn (06:50 UTC Tue-Sat) and review (07:05 UTC Sun)
+  triggers are enabled and dispatch `experiment-fallback.yml`, and the learner ticks inside
+  `signal-engine.yml` right after publish. Migration
   `db/migrations/20261106_engine_clock.sql`. `run.ts --if-stale` now counts any runner's runs.
 - LEARNER v3 RULES (2026-11-06, `docs/research/2026-11-06-learner-v3-preregistration.md`):
   `PREREG_V3`/`EXP_RISK_V3` (= `CAMPAIGN_RULES`/`CAMPAIGN_RISK`, what NEW campaigns register;
@@ -66,12 +68,22 @@ short sentences. The reader knows trading but not software. Always keep the
   contract up to $150 when $100 buys none, and labels delayed-market decisions processed within
   2 h "prospective" (v2 labelled all "replay", so adoption was impossible). Pinned by
   `tests/experiment-v3-rules.test.ts`. The Neon learner `aegisexp` is build `f194c9a` and knows
-  v1/v2 only: before a v3 campaign starts, apply `db/migrations/20261106_learner_v3_runner_fence.sql`
-  (refuses that build's runs for v3 campaigns) and disable its triggers (handover steps in
-  ENGINE-CLOCK.md).
+  v1/v2 only; the handover is DONE (2026-11-06): `db/migrations/20261106_learner_v3_runner_fence.sql`
+  is applied (it refuses that build's runs for v3 campaigns), all `aegisexp` triggers are disabled,
+  and campaign 3 (`learner-3`) runs the v3 rules.
 - ZERO-COST AI (2026-11-06): every OpenAI call reads its key through `paidAiKey()`
   (`lib/ai-cost/paid-ai.ts`), which returns it only with the server env `AEGIS_ALLOW_PAID_AI=true`.
   `tests/ai-zero-cost.test.ts` fails if any code reads `process.env.OPENAI_API_SECRET` directly.
+- FREE AI HELPER (2026-11-07, `docs/AI-HELPER.md`): NVIDIA's free API (`lib/ai-free/`, key from
+  `NVIDIA_API_KEY` or any env value starting `nvapi-`), Kimi first with Nemotron 3 Ultra / Gemma 4
+  fallback; `AEGIS_FREE_AI=off` switches it off. The preregistered AI SECOND OPINION
+  (`lib/ai-judge/`, `docs/research/2026-11-07-ai-second-opinion-preregistration.md`) judges learner
+  decisions from facts at `info_cutoff` only, never trades, and is scored vs take-all/random/no-trade.
+  NVIDIA trial terms ⇒ AI-written text is OWNER-ONLY (`/api/ai/owner`, `/api/ai/research`); the
+  public `/api/ai/scoreboard` is numbers only. `POST /api/ai/run` accepts only a GitHub OIDC token
+  from `signal-engine.yml` on main (`ai-helper` job). Migration `db/migrations/20261107_ai_helper.sql`.
+  Screens: Today cards (`components/today/TodayCards.tsx`), folds (`components/ui/Fold.tsx`),
+  AI views (`components/ai/`); plan `docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md`.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - Stale open rows: `run-live.ts` reconciles `triggered`/`pending` rows older than the 7-day

@@ -266,4 +266,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on NVIDIA's free service, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*

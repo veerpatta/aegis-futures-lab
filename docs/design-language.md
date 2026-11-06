@@ -74,7 +74,7 @@ All from `app/globals.css:7-83`.
 | `--red` | `#ff6b7a` | negative, SELL, stopped |
 | `--amber` | `#f5b452` | **caution / insufficient evidence** (see §6) |
 | `--blue` | `#5aa7ff` | interactive — focus ring, open state, links |
-| `--violet` | `#a78bfa` | *defined, never used* |
+| `--violet` | `#a78bfa` | AI-written content only (the ✦ mark, "Written by AI" bylines, the AI second opinion; `components/ai/ai.module.css`, since 2026-11-07) — never the bot's own record |
 | `--cyan` | `#4dd0e1` | *defined, never used* |
 
 Each of green/red/amber/blue has a `-soft` wash (`rgba(…, 0.12)`) for chip

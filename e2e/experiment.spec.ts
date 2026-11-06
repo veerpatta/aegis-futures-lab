@@ -1,8 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
-/* Today folds the check timeline behind one button since 2026-11-06 (it stays open on Trades). */
+/* The day's check-by-check activity lives in Trades' folded "Under the hood" since 2026-11-07. */
 async function openActivity(page: Page) {
-  await page.getByRole("button", { name: /Every check, step by step/ }).click();
+  await page.goto("/trades");
+  await page.getByText(/Under the hood · how today's ideas reached the bot/).click();
 }
 
 /* The experimental learner's screens with stubbed data: Today's card and its
@@ -142,9 +143,16 @@ for (const width of [320, 390]) test(`${width}px Today shortcuts and trade break
   await expect(page).toHaveURL(/trades\?view=open$/);
   await expect(page.getByRole("group", { name: "Show", exact: true }).getByRole("button", { name: "Open", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("group", { name: "Show", exact: true }).getByRole("button", { name: "All", exact: true }).click();
-  const mix = page.getByRole("region", { name: "Decisions in this view" });
-  await expect(mix).toContainText("1 shown");
-  await expect(mix.getByRole("img")).toHaveAttribute("aria-label", /1 closed, 0 open, 0 waiting, 0 skipped, 0 no fill/);
+  // One clean row per decision, and a summary from the campaign's own totals.
+  const list = page.getByRole("region", { name: "Bot trades" });
+  await expect(list.getByRole("link")).toHaveCount(1);
+  await expect(list).toContainText("Nasdaq micro · Sell");
+  await expect(list).toContainText("−$18.40");
+  const summary = page.getByRole("region", { name: "Trade summary" });
+  await expect(summary).toContainText("5 closed");
+  await expect(summary).toContainText("2 won");
+  await expect(summary).toContainText("3 lost");
+  await expect(summary).toContainText("1 open");
   expect(await noSideways(page)).toBe(true);
 });
 
@@ -154,7 +162,7 @@ test("More searches tools and keeps privacy and clock settings usable on a narro
   await page.goto("/more");
   await page.getByRole("searchbox", { name: "Find a tool" }).fill("journal");
   await expect(page.getByRole("status")).toContainText("1 tool found");
-  await expect(page.getByRole("link", { name: /Journal Log your own/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /My journal Log your own/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Strategy Lab Test/ })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Find a tool" }).fill("nothing-matches");
   await expect(page.getByRole("status")).toContainText("No matching tools");
@@ -177,19 +185,20 @@ for (const width of [320, 390])
     await page.setViewportSize({ width, height: 844 });
     await stub(page);
     await page.goto("/trades");
-    const summary = page.getByRole("region", { name: "Learner summary" });
+    const summary = page.getByRole("region", { name: "Trade summary" });
     await expect(summary).toContainText("$9,984.60");
     const card = page.getByRole("region", { name: "Bot trades" }).getByRole("link").first();
+    await expect(card).toContainText("Nasdaq micro · Sell");
     await expect(card).toContainText("−$18.40");
-    await expect(card).toContainText("20,500.00");
-    await expect(card.getByLabel("Trade progress")).toContainText("Filled");
-    await expect(card.getByLabel("Trade progress")).toContainText("Closed");
+    await expect(card).toContainText("Stopped out");
     expect(await noSideways(page)).toBe(true);
     await page.getByRole("button", { name: "Hide money figures" }).click();
-    await expect(summary).toContainText("Account chart hidden");
+    await expect(summary).not.toContainText("$9,984.60");
     await expect(card).toContainText("••••");
     await expect(card).not.toContainText("$18.40");
-    await expect(card).toContainText("20,500.00");
+    // The fill and exit prices are not money; the trade page keeps them visible.
+    await card.click();
+    await expect(page.getByRole("region", { name: "Result" })).toContainText("20,500.00");
   });
 
 test("trade filters ignore an older response and reduced motion has no stagger", async ({ page }) => {
@@ -241,16 +250,16 @@ for (const width of [320, 390, 430])
     await page.setViewportSize({ width, height: 900 });
     await stub(page);
     await page.goto("/");
-    const card = page.getByRole("region", { name: "Experimental learner" });
-    await expect(card).toContainText("VIRTUAL ONLY");
-    await expect(card).toContainText("delayed data");
-    await expect(card).toContainText("$9,984.60");
-    await expect(card.getByRole("button", { name: /^Doing:/ })).toBeVisible();
-    await expect(card.getByRole("button", { name: /^Learning: Candidate rejected/ })).toBeVisible();
-    await expect(card.getByRole("button", { name: /^Data:/ })).toBeVisible();
-    await expect(card).toContainText("1 open virtual trade");
-    await expect(card).toContainText("Simulation through");
-    await expect(card).toContainText("One virtual account");
+    await expect(page.getByText("Virtual money only · Prices delayed 10–15 minutes · No real orders")).toBeVisible();
+    const status = page.getByRole("region", { name: "Today at a glance" });
+    await expect(status.getByRole("heading", { name: "Following virtual trades" })).toBeVisible();
+    await expect(status.getByRole("link", { name: /1 Open trades/ })).toBeVisible();
+    const account = page.getByRole("region", { name: "Virtual account" });
+    await expect(account).toContainText("$9,984.60");
+    await expect(account).toContainText("Pretend money");
+    // The day in the app's own words, built only from the record.
+    await expect(page.getByRole("region", { name: "Today in plain words" })).toContainText("trades finished today (1 won, 1 lost)");
+    await expect(page.getByRole("link", { name: "Learning" })).toContainText("Candidate rejected");
     await expect(page.getByRole("region", { name: "Practice money" })).toHaveCount(0);
     expect(await noSideways(page)).toBe(true);
   });
@@ -268,6 +277,10 @@ test("Trades lists bot decisions and a trade shows its evidence", async ({ page 
   await expect(page.getByRole("region", { name: "What happened" })).toContainText("touched both the stop and the target");
   await expect(page.getByText("Simulated decision", { exact: true })).toBeVisible();
   await expect(page.getByText("Idea received", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "In plain words" })).toContainText("The bot sold 1 contract of the Nasdaq micro at 20,500.00");
+  // The rule and saved values are folded; they load when opened.
+  await expect(page.getByRole("region", { name: "Why it entered" })).toHaveCount(0);
+  await page.getByText(/Why it entered · the rule/).click();
   await expect(page.getByRole("region", { name: "Why it entered" })).toContainText("frozen control");
   await expect(page.getByRole("region", { name: "What was learned" })).toContainText("One result is not a pattern");
   expect(await noSideways(page)).toBe(true);
@@ -277,8 +290,12 @@ for (const width of [320, 390]) test(`${width}px bot companion shows evidence, m
   await page.setViewportSize({ width, height: 844 });
   await stub(page);
   await page.goto("/brain");
+  // The animated bot lives in Learn's "Under the hood" fold.
+  await page.getByText("Under the hood · the bot's recent jobs").click();
   const activity = page.getByRole("region", { name: "Bot activity", exact: true });
   await expect(activity).toContainText("Following virtual trades");
+  // It animates only while on screen (and the page is visible).
+  await activity.locator('[data-mood]').scrollIntoViewIfNeeded();
   await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "true");
   await page.getByRole("button", { name: "Pause bot animation" }).click();
   await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
@@ -297,6 +314,8 @@ test("bot rests offline and honors reduced motion without claiming new progress"
   await page.emulateMedia({ reducedMotion: "reduce" });
   await stub(page);
   await page.goto("/brain");
+  // The animated bot lives in Learn's "Under the hood" fold.
+  await page.getByText("Under the hood · the bot's recent jobs").click();
   const activity = page.getByRole("region", { name: "Bot activity", exact: true });
   await expect(activity).toContainText("Following virtual trades");
   const motion = await activity.locator("svg g").evaluateAll(elements => elements.map(e => getComputedStyle(e).animationName));
@@ -312,6 +331,8 @@ test("a stale running job is not shown as active training", async ({ page }) => 
   await stub(page);
   await page.route("**/experiment_overview?*", r => r.fulfill({ json: [{ ...overview, last_runs: { ...overview.last_runs, review: { status: "running", started_at: iso(90), finished_at: null, counts: {} } } }] }));
   await page.goto("/brain");
+  // The animated bot lives in Learn's "Under the hood" fold.
+  await page.getByText("Under the hood · the bot's recent jobs").click();
   const activity = page.getByRole("region", { name: "Bot activity", exact: true });
   await expect(activity).toContainText("Waiting for a report");
   await expect(activity.locator('[data-mood]')).toHaveAttribute("data-animated", "false");
@@ -322,10 +343,13 @@ test("Learn shows the active model, verdicts with failed checks and the change h
   await stub(page);
   await page.goto("/brain");
   await expect(page.getByRole("heading", { name: "Learn", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Experimental learner" })).toContainText("$9,984.60");
-  await expect(page.getByRole("region", { name: "Active model" })).toContainText("v1 · take every idea");
+  // The account lives on Today; Learn does not repeat it.
+  await expect(page.getByRole("region", { name: "Virtual account" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Active model" })).toContainText("Who is in charge · v1 · take every idea");
+  await expect(page.getByRole("region", { name: "AI second opinion" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Reviews" })).toContainText("Rejected");
   await expect(page.getByRole("region", { name: "Reviews" })).toContainText("Clearly better than the current model");
+  await page.getByText(/Change history · every trial kept/).click();
   await expect(page.getByRole("region", { name: "Change history" })).toContainText("Campaign started");
   const nav = page.getByRole("navigation", { name: /primary/i });
   for (const tab of ["Today", "Trades", "Learn", "Chart", "More"]) await expect(nav).toContainText(tab);
@@ -335,11 +359,11 @@ test("offline, the learner card says so and keeps the last figures read-only", a
   await page.setViewportSize({ width: 390, height: 900 });
   await stub(page);
   await page.goto("/");
-  await expect(page.getByRole("region", { name: "Experimental learner" })).toContainText("$9,984.60");
+  await expect(page.getByRole("region", { name: "Virtual account" })).toContainText("$9,984.60");
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await expect(page.getByRole("button", { name: /^Data: Offline/ })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Experimental learner" })).toContainText("$9,984.60");
+  await expect(page.getByRole("region", { name: "Today at a glance" }).getByRole("heading", { name: "Offline for now" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Virtual account" })).toContainText("$9,984.60");
   await context.setOffline(false);
 });
 
@@ -347,7 +371,7 @@ test("More opens method research without a second account balance", async ({ pag
   await page.setViewportSize({ width: 390, height: 900 });
   await stub(page);
   await page.goto("/more");
-  await expect(page.getByRole("link", { name: /Ideas/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Method ideas/ })).toBeVisible();
   await page.getByRole("link", { name: /Method research/ }).click();
   await expect(page.locator("#research")).toHaveAttribute("open", "");
   await expect(page.getByRole("heading", { name: "Method qualification" })).toBeVisible();
@@ -423,7 +447,7 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
     { ...trade, id: 3, decided_at: auditAt, position_status: "cancelled", fill_ts: null, cancel_reason: "risk-budget" },
     { ...trade, id: 4, decided_at: auditAt, action: "skip", reason: "late-source", position_status: null, fill_ts: null, shadow_qty: 0 },
   ] }));
-  await page.goto("/"); await openActivity(page);
+  await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   const summary = panel.getByLabel("Daily activity summary");
   await expect(summary).toContainText("3Accepted");
@@ -446,7 +470,7 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
 for (const width of [320, 390, 1280]) test(`${width}px activity separates successful checks, paused sources and zero learner decisions`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await auditStub(page);
-  await page.goto("/"); await openActivity(page);
+  await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded");
   await expect(panel).toContainText("2026-10-09 · Calendar day in IST");
@@ -468,7 +492,7 @@ test("paused source practice shows saved outcomes without treating them as learn
     { id: 10, tier: "B", symbol: "MES", dedupe_key: "B:rsi-reversion:MES:10", direction: "long", signal_ts: auditAt, status: "hit_stop", exit_ts: auditAt, pnl_usd: -25, suppressed: true, stale_data: false, orphaned: false, fill_confidence: "clean" },
     { id: 11, tier: "B", symbol: "MNQ", dedupe_key: "B:rsi-reversion:MNQ:11", direction: "short", signal_ts: auditAt, status: "hit_stop", pnl_usd: -50, suppressed: true, stale_data: true, orphaned: false, fill_confidence: "clean" },
   ] }));
-  await page.goto("/"); await openActivity(page);
+  await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel.getByLabel("Daily activity summary")).toContainText("0Eligible ideas");
   await panel.getByText("Paused method practice · 2 recorded ideas").click();
@@ -499,15 +523,15 @@ test("a skipped trade keeps its separate practice result and masks it in privacy
   await page.route("**/rest/v1/experiment_trades?*", r => r.fulfill({ json: [{ ...trade, action: "skip", reason: "model-skip", position_status: null, net: null }] }));
   await page.goto("/trades/7");
   const section = page.getByRole("region", { name: "What was learned" });
-  await expect(section).toContainText("Separate one-idea practice result: −$36.80 after costs. This is not an account trade result.");
+  await expect(section).toContainText("every idea is also scored as one contract: −$36.80 after costs. That score is kept apart from the account.");
   await page.getByRole("button", { name: "Hide money figures" }).click();
-  await expect(section).toContainText("Separate one-idea practice result: ••••");
+  await expect(section).toContainText("scored as one contract: ••••");
   await expect(section).not.toContainText("$36.80");
 });
 test("activity preserves saved counts after a failed refresh and retries", async ({ page }) => {
   await auditStub(page); let fail = false;
   await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => fail && new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture read failed" } }) : r.fallback());
-  await page.goto("/"); await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
+  await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded"); fail = true;
   await panel.getByRole("button", { name: "Refresh trading activity" }).click();
   await expect(panel).toContainText("Showing the saved update");
@@ -523,7 +547,7 @@ test("activity ignores interrupted day reads and honours reduced motion", async 
     if (day.includes("2026-10-07T18:30")) { await new Promise(resolve => setTimeout(resolve, 600)); return r.fulfill({ json: [{ ...auditRuns[0], id: 999, message: "old day" }] }); }
     return r.fallback();
   });
-  await page.goto("/"); await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
+  await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded");
   const old = page.waitForResponse(r => r.url().includes("engine_runs") && decodeURIComponent(r.url()).includes("2026-10-07T18:30"));
   await panel.getByLabel("Day to review").fill("2026-10-08");
@@ -542,7 +566,8 @@ test("skipped trade retries its own failed read and explains the saved account r
   const result = page.getByRole("region", { name: "Result", exact: true });
   const explanation = page.getByRole("region", { name: "What happened", exact: true });
   await expect(explanation).toContainText("Already open: $170.00; room left: $30.00 of $200.00");
-  await expect(result).toContainText("Campaign 1 · learner-1");
+  await expect(result).toContainText("Skipped idea");
+  await expect(page.getByText(/^Campaign 1 · /)).toBeVisible();
   await expect(explanation).toContainText("Simulated decision");
   await expect(explanation).toContainText("Idea received");
 });
@@ -550,9 +575,35 @@ test("skipped trade retries its own failed read and explains the saved account r
 test("an unavailable activity read is not reported as zero decisions", async ({ page }) => {
   await auditStub(page);
   await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture unavailable" } }) : r.fallback());
-  await page.goto("/"); await openActivity(page);
+  await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("Activity counts are unavailable");
   await expect(panel.getByLabel("Daily activity summary")).not.toContainText("0Eligible ideas");
   await expect(panel.getByLabel("Daily activity summary")).toContainText("Awaiting records");
+});
+
+test("the AI second opinion shows numbers only to visitors, amber while too early", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await stub(page);
+  const study = { id: "ai-judge-nemotron-ultra-v1", label: "Nemotron 3 Ultra", model: "nvidia/nemotron-3-ultra-550b-a55b", status: "active", startedAt: iso(600),
+    calls: 12, resolved: 8, taken: 3, skipped: 9, sessions: 4, aiNet: -40, takeAllNet: -220, randomPercentile: 71.4, delta: null, verdict: "too-early", nextLook: 60 };
+  const kimi = { ...study, id: "ai-judge-kimi-k3.1-pro-v1", label: "Kimi K3.1 Pro", model: "moonshotai/kimi-k3.1-pro", status: "waiting-for-model", startedAt: null,
+    calls: 0, resolved: 0, taken: 0, skipped: 0, sessions: 0, aiNet: 0, takeAllNet: 0, randomPercentile: null };
+  await page.route("**/api/ai/scoreboard", (r) => r.fulfill({ json: { updatedAt: iso(5), available: true, studies: [study, kimi] } }));
+  await page.goto("/brain");
+  const card = page.getByRole("region", { name: "AI second opinion" });
+  await expect(card).toContainText("Nemotron 3 Ultra");
+  await expect(card.getByText("Too early to tell", { exact: true })).toHaveClass(/chip_amber/);
+  await expect(card).toContainText("8 of 60 finished calls · 4 of 15 trading days");
+  await expect(card).toContainText("beat 71% of them");
+  await expect(card).toContainText("n=3");
+  await expect(card).toContainText("Kimi K3.1 Pro");
+  await expect(card).toContainText("has not switched on its API");
+  expect(await noSideways(page)).toBe(true);
+  // A visitor who is not the signed-in owner never sees AI-written words.
+  await page.goto("/trades");
+  await expect(page.getByRole("region", { name: "Bot trades" })).toContainText("Stopped out");
+  await expect(page.getByText(/AI: (take|skip)/)).toHaveCount(0);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Learning" })).toContainText("AI second opinion: too early to tell · 12 calls, 8 finished");
 });

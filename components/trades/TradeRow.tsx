@@ -45,7 +45,9 @@ export function TradeRow({ row }: { row: ExpTradeRow }) {
   const { value, estimate } = tradeResult(row);
   const stale = estimate && !!row.stale;
   const tone = value === null || stale ? s.dim : value > 0 ? s.good : value < 0 ? s.bad : s.dim;
-  const status = !taken ? "Skipped" : row.position_status === "cancelled" ? "Not filled" : row.position_status === "pending_fill" ? "Waiting" : row.position_status === "open" ? (stale ? "Open · no fresh price" : "Open") : exitWords(row.exit_reason);
+  const status = !taken ? "Skipped" : row.position_status === "cancelled" ? "Not filled" : row.position_status === "pending_fill" ? "Waiting" : row.position_status === "open" ? (stale ? "Open · stale price" : "Open") : exitWords(row.exit_reason);
+  // Unbooked results keep their own words: never a made-up number, never a bare dash.
+  const empty = !taken ? "Not taken" : row.position_status === "cancelled" ? "No fill" : row.position_status === "pending_fill" ? "Pending" : "—";
   return (
     <Link href={`/trades/${row.id}`} className={`${s.row} pressSm`}>
       <span className={`${s.icon} ${row.symbol === "MNQ" ? s.nasdaq : ""}`} aria-hidden>{row.symbol === "MES" ? "S&P" : "NQ"}</span>
@@ -59,7 +61,7 @@ export function TradeRow({ row }: { row: ExpTradeRow }) {
         </small>
       </span>
       <span className={s.side}>
-        <b className={`num ${tone}`}>{value === null ? (taken ? "—" : "Not taken") : `${estimate ? "~" : ""}${mask(money(value))}`}</b>
+        <b className={`num ${tone}`}>{value === null ? empty : `${estimate ? "~" : ""}${mask(money(value))}`}</b>
         <small>
           {status} <AiOpinion decisionKey={row.decision_key} botAction={row.action} compact />
         </small>

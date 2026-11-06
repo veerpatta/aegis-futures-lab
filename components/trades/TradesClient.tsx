@@ -18,6 +18,7 @@ import { useZone } from "@/components/providers/ZoneProvider";
 import ActivityPanel from "@/components/experiment/ActivityPanel";
 import Fold from "@/components/ui/Fold";
 import { money } from "@/lib/format";
+import { sourceTiming } from "@/lib/experiment/view";
 import { stampIn } from "@/lib/time/zones";
 import { TradeRow } from "./TradeRow";
 import { useTrades, type TradeFilter } from "./useTrades";
@@ -50,6 +51,7 @@ export default function TradesClient() {
   const [filter, setFilter] = useState<TradeFilter>("all");
   const trades = useTrades(filter, PAGE);
   const o = exp.data;
+  const timing = sourceTiming(o);
   const totals = o?.campaign_totals;
   const open = o ? o.open_positions.filter((p) => p.status === "open").length : null;
   const select = (next: TradeFilter) => { if (next !== filter) { trades.reset(); setFilter(next); } };
@@ -115,6 +117,12 @@ export default function TradesClient() {
       )}
 
       <Fold id="activity" summary="Under the hood · how today's ideas reached the bot">
+        {timing && (
+          <p className={page.note}>
+            The simulation stays {timing.settlementMinutes} minutes behind received prices so source checks can finish. This planned wait is
+            separate from feed delay. Fills are simulated in delayed market order.
+          </p>
+        )}
         <ActivityPanel />
       </Fold>
     </div>
