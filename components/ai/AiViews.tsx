@@ -17,7 +17,7 @@ import { useAi } from "@/components/ai/AiProvider";
 import { money } from "@/lib/format";
 import { dateShortIn } from "@/lib/time/zones";
 import {
-  AI_OWNER_ONLY, AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, ideaProgress, ideaRuleWords,
+  AI_OWNER_ONLY, AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, ideaProgress, ideaRuleWords, waitingWords,
   type AiStudyScore,
 } from "@/lib/plain/ai";
 import page from "@/components/ui/page.module.css";
@@ -74,6 +74,7 @@ function StudyBoard({ study }: { study: AiStudyScore }) {
         <span className={`${page.chip} ${chipTone[v.tone]}`}>{v.label}</span>
       </div>
       <p className={page.note}>{aiProgress(study)}. {v.detail}</p>
+      {waitingWords(study.waiting) && <p className={page.note}>{waitingWords(study.waiting)}</p>}
       {study.resolved > 0 && (
         <dl className={s.compare}>
           {aiComparison(study, (n) => mask(money(n))).map((line) => (
@@ -181,6 +182,7 @@ export function AiIdeasCard() {
                 <p className={page.note}>
                   Proposed {Number.isFinite(proposed) ? dateShortIn(proposed / 1000, zone) : "—"} by {aiModelName(score.model)} · {ideaProgress(score)}. {v.detail}
                 </p>
+                {waitingWords(score.waiting) && <p className={page.note}>{waitingWords(score.waiting)}</p>}
                 {score.resolved > 0 && (
                   <dl className={s.compare}>
                     <div>

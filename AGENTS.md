@@ -81,7 +81,10 @@ short sentences. The reader knows trading but not software. Always keep the
   decisions from facts at `info_cutoff` only, never trades, and is scored vs take-all/random/no-trade.
   NVIDIA trial terms ⇒ AI-written text is OWNER-ONLY (`/api/ai/owner`, `/api/ai/research`); the
   public `/api/ai/scoreboard` is numbers only. `POST /api/ai/run` accepts only a GitHub OIDC token
-  from `signal-engine.yml` on main (`ai-helper` job). Migration `db/migrations/20261107_ai_helper.sql`.
+  from `signal-engine.yml` on main (`ai-helper` job). Migration `db/migrations/20261107_ai_helper.sql`
+  (looks are frozen and stored in `ai_looks`). AI RESEARCH IDEAS (`lib/ai-ideas/`, preregistration
+  `docs/research/2026-11-07-ai-ideas-preregistration.md`): ≤3 weekly skip rules in a whitelisted DSL,
+  tested only on later decisions; a pass is eligibility for a future campaign, never automatic.
   Screens: Today cards (`components/today/TodayCards.tsx`), folds (`components/ui/Fold.tsx`),
   AI views (`components/ai/`); plan `docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md`.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not

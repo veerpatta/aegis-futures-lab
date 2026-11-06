@@ -65,6 +65,7 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
       randomPercentile: finite(s.randomPercentile) ? s.randomPercentile : null,
       delta, verdict,
       nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
+      waiting: str(s.waiting) ? s.waiting.slice(0, 200) : null,
     });
   }
   const ideas: AiIdeaScore[] = [];
@@ -79,6 +80,7 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
       tested: s.tested as number, resolved: s.resolved as number, skipped: s.skipped as number, sessions: s.sessions as number,
       keptNet: s.keptNet, takeAllNet: s.takeAllNet, delta, randomPercentile: finite(s.randomPercentile) ? s.randomPercentile : null,
       verdict, nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
+      waiting: str(s.waiting) ? s.waiting.slice(0, 200) : null,
     });
   }
   return { available: raw.available, updatedAt: str(raw.updatedAt) ? raw.updatedAt : null, studies, ideas };

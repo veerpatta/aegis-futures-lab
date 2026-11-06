@@ -30,6 +30,16 @@ export interface AiStudyScore {
   delta: { est: number; lo: number; hi: number } | null;
   verdict: AiVerdict;
   nextLook: 60 | 150 | null;
+  /** Why the next look is not taken yet, in the app's own words (never AI text). */
+  waiting?: string | null;
+}
+
+/** The extra "why not yet" line, only when it says more than the progress count does. */
+export function waitingWords(waiting: string | null | undefined): string | null {
+  if (!waiting) return null;
+  const text = waiting.replace(/^Look \d+:\s*/, "").replace(/\.$/, "");
+  if (/\bresolved over\b/.test(text)) return null; // the progress line already says this
+  return `Waiting: ${text.charAt(0).toLowerCase()}${text.slice(1)}.`;
 }
 
 export interface AiCall {
@@ -197,6 +207,7 @@ export interface AiIdeaScore {
   randomPercentile: number | null;
   verdict: AiVerdict;
   nextLook: 60 | 150 | null;
+  waiting?: string | null;
 }
 
 export const IDEA_VERDICT_WORDS: Record<AiVerdict, { label: string; tone: AiTone; detail: string }> = {

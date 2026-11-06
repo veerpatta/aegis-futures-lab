@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, aiSummaryLine, callForDecision, ideaConditionWords,
-  ideaProgress, ideaRuleWords, primaryStudy, type AiCall, type AiStudyScore,
+  ideaProgress, ideaRuleWords, primaryStudy, waitingWords, type AiCall, type AiStudyScore,
 } from "@/lib/plain/ai";
 import { parseOwnerAi, parseScoreboard } from "@/components/ai/AiProvider";
 
@@ -85,6 +85,13 @@ describe("AI research ideas in plain words", () => {
     expect(ideaRuleWords({ when: [{ field: "side", op: "=", value: "SHORT" }, { field: "vwap_atr", op: ">", value: 3 }] }))
       .toBe("Skip the idea when the bot would sell (bet on a fall) and price is more than 3 typical swings above the day's average price.");
     expect(ideaRuleWords({ when: [] })).toBe("—");
+  });
+
+  it("adds a waiting line only when it says more than the progress count", () => {
+    expect(waitingWords("Look 1: 12 of 60 resolved over 4 of 15 sessions.")).toBeNull();
+    expect(waitingWords("Look 1: 2 earlier decisions are still open.")).toBe("Waiting: 2 earlier decisions are still open.");
+    expect(waitingWords("Look 2 is complete and will be recorded at the next pass.")).toBe("Waiting: look 2 is complete and will be recorded at the next pass.");
+    expect(waitingWords(null)).toBeNull();
   });
 
   it("keeps a too-early rule amber and counts its fresh trades with n", () => {

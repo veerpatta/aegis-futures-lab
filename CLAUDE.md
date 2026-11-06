@@ -126,9 +126,18 @@ short sentences. The reader knows trading but not software. Always keep the
   `components/ai/AiProvider.tsx` + `AiViews.tsx`, words in `lib/plain/ai.ts`. `POST /api/ai/run` is
   called by the `ai-helper` job in `signal-engine.yml` with a GitHub OIDC token
   (`lib/ai-auth/github-oidc.ts`: repo, main, that workflow file) — no shared secret. Tables
-  `ai_judge_studies|ai_judge_calls|ai_notes` (migration `db/migrations/20261107_ai_helper.sql`, RLS on,
-  no browser grants, `aegis_ai` least privilege). `GET /api/ai/status` reports key/model/DB without
-  calling a model.
+  `ai_judge_studies|ai_judge_calls|ai_looks|ai_notes|ai_hypotheses` (migration
+  `db/migrations/20261107_ai_helper.sql`, RLS on, no browser grants, `aegis_ai` least privilege; a final
+  answer needs a claim and must land within 2 h of its decision; TRUNCATE refused; `aegis_ai_app` has a
+  10 s statement timeout). Looks are FROZEN: a look's window is a prefix of decisions in recorded order,
+  waits while any call in it is open, and is stored once in `ai_looks` (the scoreboard shows the stored
+  verdict). AI RESEARCH IDEAS (`lib/ai-ideas/`, preregistration
+  `docs/research/2026-11-07-ai-ideas-preregistration.md`): at most weekly, ≤3 concurrent skip rules in a
+  whitelisted DSL (`dsl.ts`; learner features only), proposed from a facts table our code builds, tested
+  ONLY on decisions recorded after the proposal with stricter looks (99.5%/98.5%); a pass is eligibility
+  for a future campaign, never automatic. Every NVIDIA call streams (its gateway 502s non-streamed
+  answers past ~30 s); `chat()` takes an absolute deadline. `GET /api/ai/status` reports key/model/DB
+  without calling a model.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
