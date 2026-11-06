@@ -22,7 +22,7 @@ import { opportunitiesFromSignals } from "./opportunities";
 import { syntheticBars, syntheticOpportunities } from "./synthetic";
 import { ModelOutputError, TAKE_ALL_V1, artifactHash, trainChallenger, validateArtifact } from "./models";
 import { quotaLevel, allowed, searchBudget, type QuotaLevel } from "./quota";
-import { PREREG, IMPORTED_LIFECYCLES, challengerSlots, lifecycleAt, lifecycleFor, recordedAmendments, retirementDecision, rulesFor } from "./prereg";
+import { CAMPAIGN_RULES, IMPORTED_LIFECYCLES, challengerSlots, lifecycleAt, lifecycleFor, recordedAmendments, retirementDecision, rulesFor } from "./prereg";
 import { walkForward, verdictOf, adoptionDecision, rollbackDecision, type EvalRow } from "./evaluate";
 import { brier } from "./stats";
 import { buildEvalRows, datasetFor, freshWindow, postAdoptionRows, weekKeyOf } from "./learning";
@@ -30,7 +30,7 @@ import { pickChallengers, specHash, inSearchSpace } from "./search";
 import { stableHash } from "./hash";
 import { createFitCache } from "./fit-cache";
 import { auditLearningData } from "./learning-audit";
-import { EXP_RISK } from "./policy";
+import { CAMPAIGN_RISK } from "./policy";
 import type { ChangeRecord, ExperimentStore, JobName, LearnTx, TickTx, Trigger, VersionRecord } from "./store";
 import type { ChallengerSpec, ExperimentConfig, ExpSymbol, LogitArtifact, Opportunity } from "./types";
 import { EXP_SYMBOLS } from "./types";
@@ -124,7 +124,9 @@ async function tickJob(store: ExperimentStore, exp: ExperimentConfig, runId: num
     } else {
       const rows = delayed ? await tx.publishedSignals(marketFrom, publication!.id) : await tx.signals(Math.max(state.exp.startedAt, nowSec - SIGNAL_WINDOW_SEC));
       const decided = await tx.decided(rows.map((r) => r.dedupe_key));
-      opportunities = opportunitiesFromSignals(rows, marketFrom, decided, nowSec);
+      // The campaign's own registered idea rule: v3 also decides paused methods' ideas.
+      const includePaused = rulesFor(state.exp.preregVersion).ideas === "all-filled";
+      opportunities = opportunitiesFromSignals(rows, marketFrom, decided, nowSec, { includePaused });
     }
 
     const counts: Record<string, unknown> = {};
@@ -381,9 +383,11 @@ export async function createCampaign(store: ExperimentStore, input: {
   executionClock?: ExperimentConfig["executionClock"]; simulationFrom?: number;
 }): Promise<ExperimentConfig> {
   const id = `${input.lineage}-${input.campaign}`;
+  // A new campaign is registered under the CURRENT rules and limits (CAMPAIGN_RULES,
+  // CAMPAIGN_RISK); a running campaign keeps the ones stored with it.
   const exp: ExperimentConfig = {
-    id, lineage: input.lineage, campaign: input.campaign, mode: input.mode, status: "active", capital: EXP_RISK.capital,
-    startedAt: input.startedAt, seed: input.seed ?? PREREG.seed, preregVersion: PREREG.version,
+    id, lineage: input.lineage, campaign: input.campaign, mode: input.mode, status: "active", capital: CAMPAIGN_RISK.capital,
+    startedAt: input.startedAt, seed: input.seed ?? CAMPAIGN_RULES.seed, preregVersion: CAMPAIGN_RULES.version, riskVersion: CAMPAIGN_RISK.version,
     executionClock: input.executionClock ?? "wall_clock", simulationFrom: input.simulationFrom ?? input.startedAt,
     executionVersion: input.executionClock === "delayed_market" ? DELAYED_EXECUTION_VERSION : "wall-clock-v1",
   };
@@ -392,7 +396,7 @@ export async function createCampaign(store: ExperimentStore, input: {
     registeredAt: input.startedAt, datasetId: null, artifact: TAKE_ALL_V1, artifactHash: artifactHash(TAKE_ALL_V1), trainedAt: null, trainCutoff: null,
     status: "adopted", statusReason: "frozen control",
   };
-  await store.createExperiment({ exp, risk: { ...EXP_RISK }, prereg: { ...PREREG }, preregHash: stableHash(PREREG), v1, reason: input.reason });
+  await store.createExperiment({ exp, risk: { ...CAMPAIGN_RISK }, prereg: { ...CAMPAIGN_RULES }, preregHash: stableHash(CAMPAIGN_RULES), v1, reason: input.reason });
   return exp;
 }
 

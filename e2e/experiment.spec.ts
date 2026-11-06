@@ -1,5 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 
+/* Today folds the check timeline behind one button since 2026-11-06 (it stays open on Trades). */
+async function openActivity(page: Page) {
+  await page.getByRole("button", { name: /Every check, step by step/ }).click();
+}
+
 /* The experimental learner's screens with stubbed data: Today's card and its
    three state chips, the Trades ledger and a trade's evidence, the Learn
    history, account separation, and the offline read-only state. */
@@ -418,7 +423,7 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
     { ...trade, id: 3, decided_at: auditAt, position_status: "cancelled", fill_ts: null, cancel_reason: "risk-budget" },
     { ...trade, id: 4, decided_at: auditAt, action: "skip", reason: "late-source", position_status: null, fill_ts: null, shadow_qty: 0 },
   ] }));
-  await page.goto("/");
+  await page.goto("/"); await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   const summary = panel.getByLabel("Daily activity summary");
   await expect(summary).toContainText("3Accepted");
@@ -441,7 +446,7 @@ for (const width of [320, 390]) test(`${width}px activity distinguishes accepted
 for (const width of [320, 390, 1280]) test(`${width}px activity separates successful checks, paused sources and zero learner decisions`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await auditStub(page);
-  await page.goto("/");
+  await page.goto("/"); await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded");
   await expect(panel).toContainText("2026-10-09 · Calendar day in IST");
@@ -463,7 +468,7 @@ test("paused source practice shows saved outcomes without treating them as learn
     { id: 10, tier: "B", symbol: "MES", dedupe_key: "B:rsi-reversion:MES:10", direction: "long", signal_ts: auditAt, status: "hit_stop", exit_ts: auditAt, pnl_usd: -25, suppressed: true, stale_data: false, orphaned: false, fill_confidence: "clean" },
     { id: 11, tier: "B", symbol: "MNQ", dedupe_key: "B:rsi-reversion:MNQ:11", direction: "short", signal_ts: auditAt, status: "hit_stop", pnl_usd: -50, suppressed: true, stale_data: true, orphaned: false, fill_confidence: "clean" },
   ] }));
-  await page.goto("/");
+  await page.goto("/"); await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel.getByLabel("Daily activity summary")).toContainText("0Eligible ideas");
   await panel.getByText("Paused method practice · 2 recorded ideas").click();
@@ -502,7 +507,7 @@ test("a skipped trade keeps its separate practice result and masks it in privacy
 test("activity preserves saved counts after a failed refresh and retries", async ({ page }) => {
   await auditStub(page); let fail = false;
   await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => fail && new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture read failed" } }) : r.fallback());
-  await page.goto("/"); const panel = page.getByRole("region", { name: "Trading activity" });
+  await page.goto("/"); await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded"); fail = true;
   await panel.getByRole("button", { name: "Refresh trading activity" }).click();
   await expect(panel).toContainText("Showing the saved update");
@@ -518,7 +523,7 @@ test("activity ignores interrupted day reads and honours reduced motion", async 
     if (day.includes("2026-10-07T18:30")) { await new Promise(resolve => setTimeout(resolve, 600)); return r.fulfill({ json: [{ ...auditRuns[0], id: 999, message: "old day" }] }); }
     return r.fallback();
   });
-  await page.goto("/"); const panel = page.getByRole("region", { name: "Trading activity" });
+  await page.goto("/"); await openActivity(page); const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("71 succeeded");
   const old = page.waitForResponse(r => r.url().includes("engine_runs") && decodeURIComponent(r.url()).includes("2026-10-07T18:30"));
   await panel.getByLabel("Day to review").fill("2026-10-08");
@@ -545,7 +550,7 @@ test("skipped trade retries its own failed read and explains the saved account r
 test("an unavailable activity read is not reported as zero decisions", async ({ page }) => {
   await auditStub(page);
   await page.route("https://*.neon.tech/**/rest/v1/engine_runs*", r => new URL(r.request().url()).searchParams.has("ran_at") ? r.fulfill({ status: 400, json: { message: "fixture unavailable" } }) : r.fallback());
-  await page.goto("/");
+  await page.goto("/"); await openActivity(page);
   const panel = page.getByRole("region", { name: "Trading activity" });
   await expect(panel).toContainText("Activity counts are unavailable");
   await expect(panel.getByLabel("Daily activity summary")).not.toContainText("0Eligible ideas");

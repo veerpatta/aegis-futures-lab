@@ -58,7 +58,10 @@ const SKIPS: Record<string, string> = {
   "late-source": "this idea was published after that market period had already been processed",
 };
 
-export function skipWords(reason: string): string {
+/** `limits` are the decision's saved limits when known: a v3 campaign's one-contract
+    exception makes its risk-budget skips mean "more than $150", not "more than $100". */
+export function skipWords(reason: string, limits?: { singleContractMax?: number } | null): string {
+  if (reason === "risk-budget" && limits?.singleContractMax) return `Skipped: one contract would risk more than ${usd(limits.singleContractMax)}`;
   return SKIPS[reason] ? `Skipped: ${SKIPS[reason]}` : `Skipped: reason not recognised (${reason || "not recorded"})`;
 }
 
@@ -82,7 +85,9 @@ export function decisionExplanation(row: Pick<ExpTradeRow, "reason" | "p_win" | 
   if (!e || e.version !== 1) return ["The account values at this decision were not saved. Today's balance cannot explain an earlier skip."];
   const risk = valid(e.contractRisk) ? cash(e.contractRisk) : "not recorded";
   switch (row.reason) {
-    case "risk-budget": return [`One contract risk including costs: ${risk}; trade limit ${cash(e.limits.riskPerTrade)}.`];
+    case "risk-budget": return e.limits.singleContractMax
+      ? [`One contract risk including costs: ${risk}; limit for a single contract ${cash(e.limits.singleContractMax)}.`]
+      : [`One contract risk including costs: ${risk}; trade limit ${cash(e.limits.riskPerTrade)}.`];
     case "open-risk": return [`One contract needed ${risk}. Already open: ${cash(e.openRisk)}; room left: ${cash(e.openRoom)} of ${cash(e.limits.totalOpenRisk)}.`];
     case "daily-loss": return [`Session result: ${cash(e.dailyPnl)}; loss allowance left: ${cash(e.dayRoom)} of ${cash(e.limits.dailyLoss)}.`, e.dayHalted ? "Entries were halted for this session." : `One contract needed ${risk}; the remaining allowance was too small.`];
     case "locked": return [`Fall from the account's best: ${cash(e.drawdown)}; stop limit ${cash(e.limits.maxDrawdown)}.`];
@@ -237,14 +242,21 @@ export function specWords(spec: { windowSessions?: number | null; featureSet?: s
 }
 
 /** The limits sheet, one rule per line. */
-export const EXP_LIMITS: string[] = [
-  `Starts with ${usd(EXP_RISK.capital)} of virtual money. It is pretend money; nothing here can place a real order.`,
-  `At most ${usd(EXP_RISK.riskPerTrade)} at risk on one trade, and ${usd(EXP_RISK.totalOpenRisk)} across open trades at once.`,
-  `After losing ${usd(EXP_RISK.dailyLoss)} in a day it closes everything and skips the rest of that day.`,
-  `After losing ${usd(EXP_RISK.maxDrawdown)} from its best it stops for good. A new campaign has to be registered, and earlier losses stay on record.`,
-  "It never raises its risk after a loss, and a gap through a stop can lose more than planned.",
-  "Fills happen on the next price after the decision, with costs on both sides. Stop and target in the same bar count as the stop.",
-];
+/** The rules sheet, from the campaign's own stored limits (v3 adds one exception). */
+export function expLimits(risk?: { singleContractMax?: number } | null): string[] {
+  return [
+    `Starts with ${usd(EXP_RISK.capital)} of virtual money. It is pretend money; nothing here can place a real order.`,
+    `At most ${usd(EXP_RISK.riskPerTrade)} at risk on one trade, and ${usd(EXP_RISK.totalOpenRisk)} across open trades at once.`,
+    ...(risk?.singleContractMax
+      ? [`One exception: when a single contract alone risks more than ${usd(EXP_RISK.riskPerTrade)} but no more than ${usd(risk.singleContractMax)}, it may take that one contract, still inside the open and daily limits.`]
+      : []),
+    `After losing ${usd(EXP_RISK.dailyLoss)} in a day it closes everything and skips the rest of that day.`,
+    `After losing ${usd(EXP_RISK.maxDrawdown)} from its best it stops for good. A new campaign has to be registered, and earlier losses stay on record.`,
+    "It never raises its risk after a loss, and a gap through a stop can lose more than planned.",
+    "Fills happen on the next price after the decision, with costs on both sides. Stop and target in the same bar count as the stop.",
+  ];
+}
+export const EXP_LIMITS: string[] = expLimits();
 
 export const EXP_WHY =
   "The experimental learner simulates ideas in price-time order in one pretend account. It records fills, costs and skips under fixed limits. " +

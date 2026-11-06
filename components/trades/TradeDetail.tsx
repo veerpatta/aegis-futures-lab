@@ -153,7 +153,7 @@ export default function TradeDetail({ id }: { id: string }) {
             )}
           </dl></>
         ) : (
-          <><p className={styles.reason}>{skipWords(row.reason)}.</p>
+          <><p className={styles.reason}>{skipWords(row.reason, row.idea?.decisionEvidence?.limits)}.</p>
           <ul>{decisionExplanation(row, n => mask(money(n, false))).map(line => <li key={line}>{line}</li>)}</ul>
           <dl className={styles.facts}><dt>Simulated decision</dt><dd>{when(row.decided_at)}</dd><dt>Idea received</dt><dd>{when(row.observed_at ?? row.seen_at)}</dd><dt>Recorded</dt><dd>{when(row.recorded_at ?? null)}</dd></dl></>
         )}

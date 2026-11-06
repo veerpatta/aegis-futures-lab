@@ -1,6 +1,14 @@
 # Scheduled paper-signal engine: recomputes the tier A/B signal streams from
 # delayed Yahoo data and mirrors them into Neon for the dashboard.
 #
+# WHO STARTS IT. Since 2026-11-02 GitHub fires this repository's schedules
+# only every 4-8 hours (from 70-93 runs a weekday down to 2-4). The on-time
+# starter is now the Neon Function "aegisclock" (lib/clock/handler.ts,
+# docs/ENGINE-CLOCK.md), which calls workflow_dispatch at :06/:21/:36/:51 once
+# the owner has stored a GitHub key as the ENGINE_DISPATCH_TOKEN secret. The
+# cron below stays as a slow fallback; overlapping starts queue behind the
+# concurrency group and a repeated pass is harmless.
+#
 # Cron is UTC and GitHub delays cron jobs by 5-15 min — fine for a paper
 # log, never rely on it for live execution.
 #
@@ -70,6 +78,14 @@ jobs:
           npx tsx scripts/experiment/run.ts tick
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      # Last, after the engine's work is done: copy the owner's GitHub key (if
+      # set) to the private table the Neon clock reads. The script catches its
+      # own errors and always exits 0, so it never fails or delays a pass.
+      - name: Keep the engine clock's key in step (optional)
+        run: npx tsx scripts/clock/sync-token.ts
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          ENGINE_DISPATCH_TOKEN: ${{ secrets.ENGINE_DISPATCH_TOKEN }}
 
   # Independent of the signal engine: an AI outage never fails or delays it.
   # Both flags must be set deliberately; the endpoint separately verifies auth.

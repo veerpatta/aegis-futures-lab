@@ -6,6 +6,7 @@ import { PgBudgetStore } from '@/lib/ai-budget/pg';
 import { ShadowStore } from '@/lib/ai-store/shadow';
 import { authorizeShadowScheduler, processShadowIdea, SHADOW_MODEL, shadowOpenAiProvider } from '@/lib/ai-shadow/processor';
 import { processShadowOutcomes } from '@/lib/ai-shadow/outcome-runner';
+import { paidAiAllowed, paidAiKey } from '@/lib/ai-cost/paid-ai';
 
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -22,7 +23,9 @@ function pool():Pool {
 export async function GET(request:Request) {
   if (!authorizeShadowScheduler(request.headers.get('authorization'),process.env.AI_SHADOW_CRON_SECRET)) return NextResponse.json({error:'Unauthorized'}, {status:401});
   if (process.env.AI_SHADOW_ENABLED !== 'true') return NextResponse.json({status:'disabled'});
-  const id=process.env.AI_SHADOW_STUDY_ID, key=process.env.OPENAI_API_SECRET;
+  // Zero-cost mode (lib/ai-cost/paid-ai.ts): without the owner's opt-in the study stays off.
+  if (!paidAiAllowed()) return NextResponse.json({status:'disabled',paidAi:'off'});
+  const id=process.env.AI_SHADOW_STUDY_ID, key=paidAiKey();
   if (!id || !key || !process.env.AI_DATABASE_URL) return NextResponse.json({error:'Shadow study configuration unavailable.'},{status:503});
   try {
     const db=pool(), store=new ShadowStore(db), study=await store.getStudy(id);

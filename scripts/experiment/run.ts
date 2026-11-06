@@ -2,9 +2,12 @@
  * Function calls, started from GitHub Actions (.github/workflows/experiment-fallback.yml)
  * or by hand. Usage: tsx scripts/experiment/run.ts <tick|learn|review> [--if-stale]
  *
- * --if-stale exits quietly when the Neon schedule produced an ok tick in the
- * last 40 minutes, so a fallback schedule never doubles the work (and if it
- * does, the run key, the lock and the unique decision keys make it harmless).
+ * --if-stale exits quietly when ANY runner (the Neon function, or the engine
+ * workflow's own tick after each pass) finished the same job recently — 40
+ * minutes for a tick, 26 hours for learn, 8 days for review — so a fallback
+ * schedule never doubles the work (and if it does, the run key, the lock and
+ * the unique decision keys make it harmless). Until 2026-11-06 only Neon runs
+ * counted, so the fallback re-ran ticks the engine workflow had just done.
  * Virtual only — no broker, no real money, no paid API. */
 import { runJob } from "@/lib/experiment/jobs";
 import { PgStore, experimentPool } from "@/lib/experiment/store-pg";
@@ -18,11 +21,11 @@ async function main() {
   if (process.argv.includes("--if-stale")) {
     const r = await pool.query(
       `SELECT max(r.finished_at) AS t FROM experiment_runs r JOIN experiments e ON e.id = r.experiment_id
-       WHERE e.lineage=$1 AND r.job=$2 AND r.status IN ('ok','skipped') AND r.trigger='neon'`, [lineage, job]);
+       WHERE e.lineage=$1 AND r.job=$2 AND r.status IN ('ok','skipped')`, [lineage, job]);
     const last = r.rows[0]?.t ? Date.parse(r.rows[0].t) : 0;
     const freshFor = job === "tick" ? 40 * 60_000 : job === "learn" ? 26 * 3600_000 : 8 * 86400_000;
     if (Date.now() - last < freshFor) {
-      console.log(`Neon ran ${job} ${Math.round((Date.now() - last) / 60_000)} min ago; fallback not needed.`);
+      console.log(`${job} ran ${Math.round((Date.now() - last) / 60_000)} min ago; fallback not needed.`);
       await pool.end();
       return;
     }

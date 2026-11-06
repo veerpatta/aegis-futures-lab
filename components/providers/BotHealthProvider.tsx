@@ -25,6 +25,7 @@ import {
 import {
   getNeon,
   type BotPolicyRow,
+  type EngineClockRow,
   type EngineRunRow,
 } from "@/lib/neon/client";
 import { streamLabel } from "@/lib/engine/streams";
@@ -48,6 +49,8 @@ interface BotHealthValue {
   runs: EngineRunRow[];
   policy: BotPolicyRow[];
   lastRun: EngineRunRow | null;
+  /** The engine clock's latest attempt (lib/clock/handler.ts), or null if it never ran. */
+  clock: EngineClockRow | null;
   /** No run scheduled right now — weekend or outside the cron's UTC hours. */
   asleep: boolean;
   /** A scheduled run is overdue. Never true while `asleep`. */
@@ -71,6 +74,7 @@ const BotHealthContext = createContext<BotHealthValue | null>(null);
 export function BotHealthProvider({ children }: { children: React.ReactNode }) {
   const [runs, setRuns] = useState<EngineRunRow[]>([]);
   const [policy, setPolicy] = useState<BotPolicyRow[]>([]);
+  const [clockRow, setClockRow] = useState<EngineClockRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
@@ -86,7 +90,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
     if (manual) setRefreshing(true);
     try {
       const supabase = getNeon();
-      const [runsRes, policyRes] = await Promise.all([
+      const [runsRes, policyRes, clockRes] = await Promise.all([
         supabase
           .from("engine_runs")
           .select("*")
@@ -97,9 +101,17 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
           .select("*")
           .order("changed_at", { ascending: false })
           .limit(50),
+        supabase
+          .from("engine_clock")
+          .select("fired_at,route,outcome,http_status,message")
+          .eq("route", "engine")
+          .order("fired_at", { ascending: false })
+          .limit(1),
       ]);
       if (!runsRes.error) setRuns((runsRes.data ?? []) as EngineRunRow[]);
       if (!policyRes.error) setPolicy((policyRes.data ?? []) as BotPolicyRow[]);
+      // Best effort: the timer line simply says less when its log is unreadable.
+      if (!clockRes.error) setClockRow(((clockRes.data ?? [])[0] as EngineClockRow | undefined) ?? null);
       /* supabase-js reports PostgREST failures on `res.error` rather than
          throwing, so this `catch` never sees them. Bumping `loadedAt`
          regardless made the chip say "Updated just now" over a snapshot that
@@ -213,6 +225,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       runs,
       policy,
       lastRun,
+      clock: clockRow,
       asleep,
       stale,
       delayed,
@@ -229,6 +242,7 @@ export function BotHealthProvider({ children }: { children: React.ReactNode }) {
       runs,
       policy,
       lastRun,
+      clockRow,
       asleep,
       stale,
       delayed,

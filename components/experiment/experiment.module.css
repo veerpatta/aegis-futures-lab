@@ -415,3 +415,10 @@
 .tradeButton:active { transform: scale(.985); }
 @media (max-width: 359px) { .wallet { padding: 16px; } .axis { padding: 8px; } .axis b { font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) { .linkRow:active, .tradeButton:active { transform: none; } }
+/* The detailed check timeline is folded on Today and Learn (it is open on Trades),
+   and loads only when asked: one less set of reads on every visit. */
+.activityToggle { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-raised); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.activityToggle > svg { width: 16px; height: 16px; color: var(--text-dim); flex: none; }
+.activityToggle b { display: block; font-weight: 600; }
+.activityToggle small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.activityToggle > span { margin-left: auto; color: var(--blue); font-size: 12px; white-space: nowrap; }

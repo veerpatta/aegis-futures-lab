@@ -8,7 +8,7 @@ vi.mock('@/lib/ai-research/diagnostic',async original=>({...await original<typeo
 import {POST} from '@/app/api/ai/diagnostic/route';
 const saved={...process.env};
 beforeEach(()=>{
-  vi.clearAllMocks();process.env.AI_DATABASE_URL='postgres://example';process.env.OPENAI_API_SECRET='test-key';
+  vi.clearAllMocks();process.env.AI_DATABASE_URL='postgres://example';process.env.OPENAI_API_SECRET='test-key';process.env.AEGIS_ALLOW_PAID_AI='true';
   mocks.verify.mockResolvedValue({ok:true,userId:'owner'});mocks.query.mockResolvedValue({rows:[{ok:1}]});
   mocks.reserve.mockImplementation(async ({id}:{id:string})=>({id}));mocks.settle.mockResolvedValue(undefined);
   mocks.request.mockResolvedValue(true);mocks.result.mockResolvedValue(true);

@@ -124,6 +124,9 @@ export default function TodayClient() {
                     {pct.toFixed(2)}%
                   </b>
                 )}
+                {pct !== null && (
+                  <small className={page.note}> today</small>
+                )}
               </span>
               <Sparkline points={(q?.bars ?? []).map(b => ({ t: b.time, y: b.close }))} label={`${MARKET_NAMES[symbol]} delayed price history`} tone={pct === null ? "blue" : pct >= 0 ? "good" : "bad"} />
               <Link href={`/markets?symbol=${symbol}`} className={styles.chartLink}>Open chart <WidgetIcon name="arrow" /></Link>

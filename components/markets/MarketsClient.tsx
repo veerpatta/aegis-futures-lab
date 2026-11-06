@@ -381,7 +381,7 @@ export default function MarketsClient() {
             </b>
             <span className={`${styles.heroChg} num ${heroUp ? styles.good : styles.bad}`}>
               {heroQuote
-                ? `${points(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}%`}`
+                ? `${points(heroQuote.change)} · ${heroPct === null ? "—" : `${heroUp ? "+" : "−"}${Math.abs(heroPct).toFixed(2)}% today`}`
                 : heroState.status === "error"
                   ? "feed offline"
                   : "loading…"}

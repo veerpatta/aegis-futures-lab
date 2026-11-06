@@ -56,3 +56,21 @@
 @keyframes settle { from { opacity: .25; transform: translateY(6px) rotate(-6deg); } to { opacity: 1; transform: none; } }
 @media (max-width:359px) { .pulse,.session,.breakdown { padding: 16px; } .art { width: 76px; height: 90px; } .pulse h2 { font-size: 19px; } .clock { width: 56px; height: 56px; } .session { gap: 10px; } .range { padding: 12px; } }
 @media (prefers-reduced-motion:reduce) { .pulse,.session,.breakdown,.draw { animation: none; } .clockFill,.rangeTrack i,.mixBar i { transition: none; } }
+
+/* Today hero: the timer line and "why it's quiet" (lib/plain/timer.ts).
+   Amber, never red, for "late" — a late timer is not a loss (docs/design-language.md). */
+.timer { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.timer > svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.timer b { display: block; font-size: 13px; font-weight: 600; }
+.timer span { display: block; font-size: 12px; line-height: 1.55; color: var(--text-dim); margin-top: 2px; }
+.timer a { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--blue); }
+.timer_good { border-color: var(--green-line); }
+.timer_good > svg { color: var(--green); }
+.timer_warn, .timer_bad { border-color: var(--amber-line); background: var(--amber-soft); }
+.timer_warn > svg { color: var(--amber); }
+.timer_bad > svg { color: var(--red); }
+.timer_info > svg { color: var(--blue); }
+.why { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.why li { position: relative; padding-left: 14px; font-size: 12px; line-height: 1.55; color: var(--text-dim); }
+.why li::before { content: ""; position: absolute; left: 2px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
+.whyTitle { display: block; margin-top: 14px; font-size: 11px; font-weight: 600; color: var(--text); }

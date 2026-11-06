@@ -471,6 +471,43 @@ async function checkComponents(now) {
   return !telegramOk && !issueOk;
 }
 
+/* ── Engine clock ────────────────────────────────────────────────────────
+   Since 2026-11-02 GitHub fires this repository's schedules only every 4-8
+   hours, so the engine is started on time by the Neon Function "aegisclock"
+   (lib/clock/handler.ts), which logs every attempt to the public engine_clock
+   table (no secrets). A stale-engine alert says what the clock last did, so
+   the reader sees the fix, not just the symptom. Pure; pinned by
+   tests/engine-clock-watchdog.test.ts. */
+export function describeClock(row, now) {
+  const setup = "docs/ENGINE-CLOCK.md";
+  if (!row) return `Fast clock: not running yet, so the engine only starts when GitHub's slow schedule fires (every few hours). Setup: ${setup}.`;
+  const age = Math.round((now.getTime() - Date.parse(row.fired_at)) / 60000);
+  const ago = Number.isFinite(age) ? `${age} min ago` : "at an unknown time";
+  if (Number.isFinite(age) && age > 75)
+    return `Fast clock: last fired ${ago}; its Neon schedule may be off. Setup: ${setup}.`;
+  switch (row.outcome) {
+    case "dispatched":
+      return `Fast clock: started the engine ${ago}; if no run followed, GitHub queued or dropped it.`;
+    case "not-configured":
+      return `Fast clock: running, but no GitHub key is stored. Add the ENGINE_DISPATCH_TOKEN secret (${setup}).`;
+    case "rejected":
+      return `Fast clock: GitHub refused its key (HTTP ${row.http_status ?? "?"}) ${ago}; the key may have expired or been revoked. Make a new one (${setup}).`;
+    case "failed":
+      return `Fast clock: could not reach GitHub ${ago} (${String(row.message ?? "no detail").slice(0, 120)}).`;
+    default:
+      return `Fast clock: last outcome "${row.outcome}" ${ago}.`;
+  }
+}
+
+async function clockLine(now) {
+  try {
+    const rows = await neonGet("engine_clock?select=fired_at,outcome,http_status,message&order=fired_at.desc&limit=1");
+    return describeClock(rows[0] ?? null, now);
+  } catch (e) {
+    return `Fast clock: status unreadable (${e?.message ?? e}).`;
+  }
+}
+
 /* ── Experimental learner check ───────────────────────────────────────────
    The learner (lib/experiment) runs as its own Neon Function, not inside the
    signal engine, so a healthy engine heartbeat says nothing about it. Its own
@@ -624,9 +661,10 @@ async function main() {
   const reason = doubleError
     ? `last two runs errored (${runs[0].message?.slice(0, 120) ?? "no message"})`
     : `no run for ${ageMin === Infinity ? "ever" : Math.round(ageMin) + " min"} inside the cron window`;
+  const clock = await clockLine(now);
   const text =
     `⚠️ <b>Engine watchdog</b>: signal engine looks dead.\n` +
-    `${reason}.\nLatest run: ${since}\n` +
+    `${reason}.\nLatest run: ${since}\n${clock}\n` +
     `Check https://github.com/${REPO}/actions/workflows/signal-engine.yml`;
 
   const telegramOk = await sendTelegram(text);
@@ -635,9 +673,9 @@ async function main() {
     "d93f0b",
     `Watchdog: engine stale since ${since}`,
     `The signal engine should be running but is not.\n\n` +
-      `- Reason: ${reason}\n- Detected: ${now.toISOString()}\n- Latest heartbeat: ${since}\n\n` +
+      `- Reason: ${reason}\n- Detected: ${now.toISOString()}\n- Latest heartbeat: ${since}\n- ${clock}\n\n` +
       `This issue closes itself when the watchdog sees a healthy run again.`,
-    `Still unhealthy at ${now.toISOString()} — ${reason}.`
+    `Still unhealthy at ${now.toISOString()} — ${reason}. ${clock}`
   );
 
   // Silence is checked even when the cron is dead: separate label, separate

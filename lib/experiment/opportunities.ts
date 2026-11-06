@@ -1,13 +1,18 @@
 /* Which trade ideas the experimental learner decides on.
 
-   The same ideas the Ideas tab shows (visibleSignals: live, not paused by the
-   breaker, not built on stale bars) that actually triggered — the rule the
-   trial account used, now the frozen control model v1. Each is decided once,
-   when the experiment first sees it, and only if it was posted after the
-   campaign started. MES and MNQ only. */
+   v1/v2 campaigns: the same ideas the Ideas tab shows (visibleSignals: live,
+   not paused by the breaker, not built on stale bars) that actually triggered
+   — the rule the trial account used, now the frozen control model v1.
+   v3 campaigns (rules.ideas = "all-filled"): every live, filled idea that is
+   not built on stale bars, INCLUDING ideas from a method its loss guard has
+   paused, each marked `sourcePaused`. Under v2 a fully paused source left the
+   learner with nothing to decide (16-30 October 2026).
+   Each is decided once, when the experiment first sees it, and only if it was
+   posted after the campaign started. MES and MNQ only. */
 
 import type { SignalRow } from "@/lib/neon/client";
 import { visibleSignals } from "@/lib/signals/snapshot";
+import { liveOnly } from "@/lib/signals/live";
 import { realStrategyLabel } from "@/scripts/engine/train-set";
 import type { Opportunity } from "./types";
 
@@ -32,11 +37,24 @@ export function opportunityFromRow(row: SignalRow): Opportunity | null {
   };
 }
 
-/** New opportunities, oldest first. */
-export function opportunitiesFromSignals(rows: SignalRow[], startedAtSec: number, decided: ReadonlySet<string>, nowSec: number): Opportunity[] {
-  return visibleSignals(rows)
+/** Every idea a source pass may publish for the learner: live, not built on stale
+    bars, paused or not. Each campaign then applies its own rule (above). */
+export function publishableSignals(rows: SignalRow[]): SignalRow[] {
+  return liveOnly(rows).filter((r) => !r.stale_data);
+}
+
+/** New opportunities, oldest first. `includePaused` is the v3 rule. */
+export function opportunitiesFromSignals(
+  rows: SignalRow[], startedAtSec: number, decided: ReadonlySet<string>, nowSec: number, opts: { includePaused?: boolean } = {},
+): Opportunity[] {
+  const pool = opts.includePaused ? publishableSignals(rows) : visibleSignals(rows);
+  return pool
     .filter((r) => FILLED.has(r.status) && !decided.has(r.dedupe_key))
-    .map(opportunityFromRow)
+    .map((r) => {
+      const o = opportunityFromRow(r);
+      // Only v3 records the flag, so earlier campaigns' stored ideas keep their exact shape.
+      return o && opts.includePaused ? { ...o, sourcePaused: r.suppressed === true } : o;
+    })
     .filter((o): o is Opportunity => o !== null && o.signalTs >= startedAtSec && o.seenAt <= nowSec)
     .sort((a, b) => a.signalTs - b.signalTs || a.key.localeCompare(b.key));
 }

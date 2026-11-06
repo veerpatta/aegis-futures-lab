@@ -5,6 +5,7 @@ import { BAR_SEC } from "./execution";
 import { freshnessOf, stepTick, type TickInput, type TickResult } from "./step";
 import { EXP_SYMBOLS, type Position, type Outcome } from "./types";
 import { availableWatermarks, type PublicationWatermarks } from "./publication";
+import { rulesFor } from "./prereg";
 
 export const DELAYED_EXECUTION_VERSION = "delayed-market-2026-10-08-v1";
 export const MAX_BATCH_EVENTS = 144;
@@ -26,13 +27,18 @@ export function stepDelayed(input: TickInput, watermarks: PublicationWatermarks)
   const outcomes = new Map<string, Outcome>(input.outcomes.map((o) => [o.decisionKey, o]));
   const changedP = new Set<string>(), changedO = new Set<string>(), decided = new Set<string>();
   let account = input.account;
+  // v1/v2: every delayed-market decision is replay evidence. v3: one processed
+  // within the registered lag of its market time is prospective (fresh); a
+  // backlog processed later stays replay. The decision itself is identical.
+  const fresh = rulesFor(input.exp.preregVersion).freshness;
+  const provenanceAt = (at: number) => (fresh && input.nowSec - at <= fresh.delayedProspectiveLagSec ? "prospective" as const : "replay" as const);
   const result: TickResult = { account, positions: [], outcomes: [], decisions: [], fills: [], shadowScores: [], events: [],
     newPositionIds: [], newOutcomeKeys: [], freshness: { MES: "unavailable", MNQ: "unavailable" }, locked: false, barsProcessed: 0 };
   for (const at of times) {
     const ops = input.opportunities.filter((o) => !decided.has(o.key) && o.signalTs + BAR_SEC <= at)
       .map((o) => ({ ...o, observedAt: o.observedAt ?? o.seenAt, seenAt: o.signalTs + BAR_SEC,
         exitTs: null, lateSource: o.signalTs + BAR_SEC <= cursor(o.symbol) }));
-    const r = stepTick({ ...input, account, nowSec: at, provenance: "replay",
+    const r = stepTick({ ...input, account, nowSec: at, provenance: provenanceAt(at),
       bars: Object.fromEntries(EXP_SYMBOLS.map((s) => [s, (input.bars[s] ?? []).filter((b) => b.time + BAR_SEC <= at)])),
       opportunities: ops, positions: [...positions.values()].filter((p) => p.status === "open" || p.status === "pending_fill"),
       outcomes: [...outcomes.values()].filter((o) => o.status === "pending" || o.status === "open"),

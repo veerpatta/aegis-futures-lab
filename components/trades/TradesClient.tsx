@@ -44,8 +44,8 @@ function ViewLink({ select }: { select: (view: Filter) => void }) {
 const COLUMNS =
   "id,decision_key,symbol,side,decided_at,provenance,action,reason,qty,model_version_id,position_status,cancel_reason,exit_reason,exit_ts,net,stale,mode,campaign,execution_clock,observed_at,recorded_at,idea,fill_price,fill_ts,mark,mark_ts,exit_price";
 
-export function outcomeLine(r: Pick<ExpTradeRow, "action" | "reason" | "position_status" | "cancel_reason" | "exit_reason">): string {
-  if (r.action !== "take") return skipWords(r.reason);
+export function outcomeLine(r: Pick<ExpTradeRow, "action" | "reason" | "position_status" | "cancel_reason" | "exit_reason"> & { idea?: ExpTradeRow["idea"] }): string {
+  if (r.action !== "take") return skipWords(r.reason, r.idea?.decisionEvidence?.limits);
   if (r.position_status === "pending_fill") return "Order waiting for the next price";
   if (r.position_status === "open") return "Open now";
   if (r.position_status === "cancelled") return cancelWords(r.cancel_reason);

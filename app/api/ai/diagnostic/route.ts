@@ -7,6 +7,7 @@ import { PgBudgetStore } from '@/lib/ai-budget/pg';
 import { OpenAiHttpError, RESEARCH_MODEL } from '@/lib/ai-research/provider';
 import { callDiagnostic, DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT, DIAGNOSTIC_REQUEST_ID, makeDiagnosticPost } from '@/lib/ai-research/diagnostic';
 import { ResearchStore } from '@/lib/ai-store/research';
+import { paidAiKey } from '@/lib/ai-cost/paid-ai';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -18,7 +19,8 @@ function pool() {
 export const POST = makeDiagnosticPost({
   authenticate:async request=>requireOwner(await verifyNeonResearchUser(request),async id=>(await pool().query('SELECT 1 FROM public.admin_control_authorized WHERE user_id=$1',[id])).rows.length===1),
   run:async userId=>{
-    const key=process.env.OPENAI_API_SECRET;
+    // Zero-cost mode: no key unless the owner opted in (lib/ai-cost/paid-ai.ts).
+    const key=paidAiKey();
     if(!key) throw new Error('Provider unavailable');
     // Conservatively account for the published 6x tier, 10% regional premium
     // and a further 100% tax margin. The request asks for the standard tier.

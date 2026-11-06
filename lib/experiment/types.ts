@@ -55,7 +55,7 @@ export interface DecisionEvidence {
   dayRoom: number;
   drawdown: number;
   budget: number;
-  limits: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; minStopPoints: number };
+  limits: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; minStopPoints: number; singleContractMax?: number };
   priceAt: number | null;
   freshness: string;
   campaignStatus: string;
@@ -80,6 +80,9 @@ export interface Opportunity {
   /** Real receipt time when the decision uses the simulated market clock. */
   observedAt?: number;
   lateSource?: boolean;
+  /** v3 campaigns only: the idea's method was paused by its loss guard at the idea's
+      entry time. Recorded with the decision; earlier campaigns never saw such ideas. */
+  sourcePaused?: boolean;
   exitTs: number | null;
   strategy: string;
   tier: string | null;
@@ -258,6 +261,8 @@ export interface ExperimentConfig {
   seed: number;
   /** The preregistration version this campaign was registered under. */
   preregVersion?: string;
+  /** The risk-limits version it was registered under (experiments.risk.version). */
+  riskVersion?: string;
   /** Absent preserves the originally registered wall-clock execution. */
   executionClock?: "wall_clock" | "delayed_market";
   executionVersion?: string;

@@ -44,7 +44,7 @@ export interface ExpOverview {
   lineage: string;
   experiment: { id: string; lineage: string; campaign: number; mode: "live" | "synthetic"; status: "active" | "paused" | "locked" | "stopped"; status_reason: string | null; capital: number; started_at: string; data_label: string;
     execution_clock?: "wall_clock" | "delayed_market"; execution_version?: string; simulation_from?: string | null };
-  risk: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; capital: number } | null;
+  risk: { riskPerTrade: number; totalOpenRisk: number; dailyLoss: number; maxDrawdown: number; capital: number; version?: string; singleContractMax?: number } | null;
   account: {
     equity: number; realized: number; unrealized: number; unpriced_positions: number; peak: number; day_key: string; day_start_equity: number;
     daily_pnl: number; open_risk: number; day_halted: boolean; locked_at: string | null; stale_symbols: string[]; last_ok_tick_at: string | null; updated_at: string;

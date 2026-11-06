@@ -16,8 +16,8 @@ import { Pool, type PoolClient } from "pg";
 import type { Bar } from "@/lib/types";
 import type { SignalRow } from "@/lib/neon/client";
 import { COST_VERSION } from "./policy";
-import { EXP_RISK } from "./policy";
-import { PREREG } from "./prereg";
+import { CAMPAIGN_RISK, EXP_RISK } from "./policy";
+import { CAMPAIGN_RULES, PREREG } from "./prereg";
 import { TAKE_ALL_V1, artifactHash } from "./models";
 import { stableHash } from "./hash";
 import { weekKeyOf } from "./learning";
@@ -52,6 +52,7 @@ function expFromRow(r: Row): ExperimentConfig {
     id: String(r.id), lineage: String(r.lineage), campaign: Number(r.campaign), mode: r.mode as ExperimentConfig["mode"],
     status: r.status as ExperimentStatus, capital: Number(r.capital), startedAt: sec(r.started_at)!, seed: Number(r.seed),
     preregVersion: (r.prereg as { version?: string } | null)?.version,
+    riskVersion: (r.risk as { version?: string } | null)?.version,
     executionClock: (r.execution_clock as ExperimentConfig["executionClock"]) ?? "wall_clock",
     executionVersion: String(r.execution_version ?? "wall-clock-v1"), simulationFrom: sec(r.simulation_from) ?? sec(r.started_at)!,
   };
@@ -446,11 +447,12 @@ export class PgStore implements ExperimentStore {
           result = `Campaign ${locked!.id} is ${decision.to}.`;
         } else {
           const now = Math.floor(Date.now()/1000), campaign = locked ? Number(locked.campaign)+1 : 1, id = `${lineage}-${campaign}`;
-          const exp: ExperimentConfig = { id, lineage, campaign, mode:"live", status:"active", capital:EXP_RISK.capital, startedAt:now,
-            seed:PREREG.seed, preregVersion:PREREG.version, executionClock:"delayed_market", executionVersion:DELAYED_EXECUTION_VERSION, simulationFrom:now };
+          // A new campaign is registered under the CURRENT rules (prereg.ts CAMPAIGN_RULES, policy.ts CAMPAIGN_RISK).
+          const exp: ExperimentConfig = { id, lineage, campaign, mode:"live", status:"active", capital:CAMPAIGN_RISK.capital, startedAt:now,
+            seed:CAMPAIGN_RULES.seed, preregVersion:CAMPAIGN_RULES.version, riskVersion:CAMPAIGN_RISK.version, executionClock:"delayed_market", executionVersion:DELAYED_EXECUTION_VERSION, simulationFrom:now };
           const v1: VersionRecord = { id:`${id}:v1-take-all`,experimentId:id,kind:"take_all",spec:{},specHash:stableHash({kind:"take_all"}),weekKey:weekKeyOf(now),
             registeredAt:now,datasetId:null,artifact:TAKE_ALL_V1,artifactHash:artifactHash(TAKE_ALL_V1),trainedAt:null,trainCutoff:null,status:"adopted",statusReason:"frozen control" };
-          await this.registerExperiment(c, { exp, v1, risk:{...EXP_RISK},prereg:{...PREREG},preregHash:stableHash(PREREG),reason:"Owner started a virtual campaign.",commandId:String(command.id) });
+          await this.registerExperiment(c, { exp, v1, risk:{...CAMPAIGN_RISK},prereg:{...CAMPAIGN_RULES},preregHash:stableHash(CAMPAIGN_RULES),reason:"Owner started a virtual campaign.",commandId:String(command.id) });
           result = `Campaign ${id} started.`;
         }
       } catch (error) {

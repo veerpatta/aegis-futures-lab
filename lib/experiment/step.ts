@@ -16,7 +16,7 @@
 import type { Bar } from "@/lib/types";
 import { inEntryWindow } from "@/lib/time/session";
 import { tradingDayKey } from "@/lib/time/ny";
-import { EXP_RISK, COMMISSION_RT, perContractRisk, sizeExperimentTrade, standaloneQty } from "./policy";
+import { COMMISSION_RT, perContractRisk, perTradeCap, riskFor, sizeExperimentTrade, standaloneQty } from "./policy";
 import { BAR_SEC, direction, fillEntry, flattenAtSession, forceClose, newSimTrade, stepOpen, unrealized } from "./execution";
 import { contextIndex, freezeFeatures, EXP_FEATURE_VERSION, type ContextIndex } from "./features";
 import { scoreOpportunity } from "./models";
@@ -115,6 +115,9 @@ export function freshnessOf(lastBarEnd: number | null, nowSec: number): Freshnes
 
 export function stepTick(input: TickInput): TickResult {
   const { exp, nowSec } = input;
+  // The campaign's own registered limits (identical numbers for every campaign
+  // registered before 2026-11-06; v3 adds the single-contract exception).
+  const L = riskFor(exp.riskVersion);
   const account: Account = { ...input.account, cursor: { ...input.account.cursor }, staleSymbols: [...input.account.staleSymbols] };
   const positions = new Map(input.positions.map((p) => [p.id, { ...p }]));
   const outcomes = new Map(input.outcomes.map((o) => [o.decisionKey, { ...o, sim: { ...o.sim } }]));
@@ -157,15 +160,15 @@ export function stepTick(input: TickInput): TickResult {
   const applyLimits = (t: number) => {
     const equity = equityNow();
     account.peak = Math.max(account.peak, equity);
-    if (!locked && account.peak - equity >= EXP_RISK.maxDrawdown) {
+    if (!locked && account.peak - equity >= L.maxDrawdown) {
       locked = true;
       account.lockedAt = t + BAR_SEC;
       flattenAll(t + BAR_SEC, "drawdown");
-      events.push({ kind: "locked", at: t + BAR_SEC, reason: `Drawdown reached $${EXP_RISK.maxDrawdown}` });
-    } else if (!account.dayHalted && equity - account.dayStartEquity <= -EXP_RISK.dailyLoss) {
+      events.push({ kind: "locked", at: t + BAR_SEC, reason: `Drawdown reached $${L.maxDrawdown}` });
+    } else if (!account.dayHalted && equity - account.dayStartEquity <= -L.dailyLoss) {
       account.dayHalted = true;
       flattenAll(t + BAR_SEC, "daily-loss");
-      events.push({ kind: "day_halted", at: t + BAR_SEC, reason: `Daily loss reached $${EXP_RISK.dailyLoss}` });
+      events.push({ kind: "day_halted", at: t + BAR_SEC, reason: `Daily loss reached $${L.dailyLoss}` });
     }
   };
 
@@ -182,8 +185,8 @@ export function stepTick(input: TickInput): TickResult {
         if (p.symbol !== s || done(p)) continue;
         if (p.status === "pending_fill") {
           const others = Math.max(0, openRisk() - (p.risk ?? 0));
-          const cap = exp.executionClock === "delayed_market" ? Math.max(0, Math.min(EXP_RISK.riskPerTrade, EXP_RISK.totalOpenRisk - others,
-            EXP_RISK.dailyLoss + equityNow() - account.dayStartEquity)) : EXP_RISK.riskPerTrade;
+          const cap = exp.executionClock === "delayed_market" ? Math.max(0, Math.min(perTradeCap(p.qty, L), L.totalOpenRisk - others,
+            L.dailyLoss + equityNow() - account.dayStartEquity)) : L.riskPerTrade;
           update(p, fillEntry(p, bar, { maxRisk: cap }));
         }
         else update(p, stepOpen(p, bar));
@@ -192,7 +195,7 @@ export function stepTick(input: TickInput): TickResult {
         if (o.sim.symbol !== s || o.status === "closed" || o.status === "void") continue;
         const sim = o.sim.status === "pending_fill" ? fillEntry(o.sim, bar) : stepOpen(o.sim, bar);
         if (sim !== o.sim) {
-          if (exp.executionClock === "delayed_market" && o.sim.fillTs === null && sim.fillTs !== null && sim.risk !== null) o.standaloneQty = standaloneQty(sim.risk);
+          if (exp.executionClock === "delayed_market" && o.sim.fillTs === null && sim.fillTs !== null && sim.risk !== null) o.standaloneQty = standaloneQty(sim.risk, L);
           o.sim = sim;
           o.status = sim.status === "open" ? "open" : sim.status === "closed" ? "closed" : sim.status === "cancelled" ? "void" : "pending";
           if (sim.status === "cancelled") o.voidReason = sim.cancelReason;
@@ -250,7 +253,7 @@ export function stepTick(input: TickInput): TickResult {
     else if (op.exitTs !== null && op.exitTs <= nowSec) structural = "idea-closed";
     else if (d > 0 ? refPrice <= op.stop : refPrice >= op.stop) structural = "stop-breached";
     else if (op.target !== null && (d > 0 ? refPrice >= op.target : refPrice <= op.target)) structural = "target-passed";
-    else if (Math.abs(refPrice - op.stop) < EXP_RISK.minStopPoints) structural = "stop-too-small";
+    else if (Math.abs(refPrice - op.stop) < L.minStopPoints) structural = "stop-too-small";
     let reason: DecisionReason | null = accountReason ?? structural;
 
     const features = structural ? null : freezeFeatures(op, ctxFor(op.symbol), infoCutoff);
@@ -277,7 +280,7 @@ export function stepTick(input: TickInput): TickResult {
       const equity = equityNow();
       const sized = sizeExperimentTrade(
         { equity, peak: Math.max(account.peak, equity), dailyPnl: equity - account.dayStartEquity, openRisk: openRisk(), locked, dayHalted: account.dayHalted },
-        contractRisk,
+        contractRisk, L,
       );
       if (sized.qty > 0) {
         qty = sized.qty;
@@ -291,11 +294,11 @@ export function stepTick(input: TickInput): TickResult {
     const dailyAtDecision = equityAtDecision - account.dayStartEquity;
     const savedIdea: Opportunity = { ...op, decisionEvidence: {
       version: 1, contractRisk: Number.isFinite(contractRisk) ? contractRisk : null,
-      openRisk: riskAtDecision, openRoom: EXP_RISK.totalOpenRisk - riskAtDecision,
-      dailyPnl: dailyAtDecision, dayRoom: EXP_RISK.dailyLoss + dailyAtDecision,
+      openRisk: riskAtDecision, openRoom: L.totalOpenRisk - riskAtDecision,
+      dailyPnl: dailyAtDecision, dayRoom: L.dailyLoss + dailyAtDecision,
       drawdown: Math.max(account.peak, equityAtDecision) - equityAtDecision,
-      budget: Math.min(EXP_RISK.riskPerTrade, EXP_RISK.totalOpenRisk - riskAtDecision, EXP_RISK.dailyLoss + dailyAtDecision),
-      limits: { ...EXP_RISK }, priceAt: last ? last.time + BAR_SEC : null,
+      budget: Math.min(L.riskPerTrade, L.totalOpenRisk - riskAtDecision, L.dailyLoss + dailyAtDecision),
+      limits: { ...L }, priceAt: last ? last.time + BAR_SEC : null,
       freshness: freshness[op.symbol], campaignStatus: exp.status, dayHalted: account.dayHalted, quota: input.quota,
     } };
     const decision: Decision = {
@@ -316,7 +319,7 @@ export function stepTick(input: TickInput): TickResult {
     const isVoid = structural !== null || VOID_REASONS.has(decision.reason);
     outcomes.set(key, {
       decisionKey: key, status: isVoid ? "void" : "pending", voidReason: isVoid ? (structural ?? decision.reason) : null, sim: trade,
-      standaloneQty: Number.isFinite(contractRisk) ? standaloneQty(contractRisk) : 0,
+      standaloneQty: Number.isFinite(contractRisk) ? standaloneQty(contractRisk, L) : 0,
     });
     changedOutcomes.add(key);
     newOutcomeKeys.push(key);
