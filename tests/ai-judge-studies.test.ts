@@ -1,20 +1,29 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { JUDGE_PREREG_DOC, JUDGE_STUDIES, judgeConfigHash, KIMI_JUDGE_STUDY, NEMOTRON_JUDGE_STUDY } from "@/lib/ai-judge/studies";
 
 /* The AI second opinion's rules are frozen (docs/research/2026-11-07-ai-second-opinion-preregistration.md).
-   Changing any of them needs a NEW study id and preregistration, never an edit of these pins. */
+   Changing any of them needs a NEW study id and preregistration, never an edit of these pins.
+   (Re-pinned once, before the migration was ever applied, for the review fixes of 2026-11-07:
+   void exclusion wording, frozen stored looks, the two-hour recording window.) */
 const PINNED = {
-  "ai-judge-nemotron-ultra-v1": "8c971da6e9cbd149cd9f953f92f3fe1f0eb6b148a018378f938b56b5fb124a68",
-  "ai-judge-kimi-k3.1-pro-v1": "ca0815c88b04c76fbc98f6d7ea3917a3e80e9713838efd88c759d46faaedffd3",
+  "ai-judge-nemotron-ultra-v1": "c16a838b9e272f406b09a56c2743c77b49f6df7c5795b3a8eda42156c6134b57",
+  "ai-judge-kimi-k3.1-pro-v1": "cf401d074f77dbf5905733f7845836f503d73a5985506cdcff326bf4d6b6afa3",
 };
+const DOC_SHA256 = "902adab178113ccb12fc540423d31578d82c2df0ff81c3dff4e4e5c73b61709f";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 describe("AI second opinion: frozen study rules", () => {
   it("pins each study's configuration hash", () => {
     for (const s of JUDGE_STUDIES) expect(judgeConfigHash(s)).toBe(PINNED[s.id as keyof typeof PINNED]);
+  });
+
+  it("pins the preregistration document itself (line endings normalised)", () => {
+    const doc = read(JUDGE_PREREG_DOC).replace(/\r\n/g, "\n");
+    expect(createHash("sha256").update(doc).digest("hex")).toBe(DOC_SHA256);
   });
 
   it("uses one model per study: Nemotron 3 Ultra now, Kimi K3.1 Pro waiting for NVIDIA", () => {
@@ -37,7 +46,14 @@ describe("AI second opinion: frozen study rules", () => {
       expect(doc).toContain(id);
       expect(doc).toContain(hash);
     }
-    for (const text of ["60", "150", "99%", "95%", "10%", "90%", "two hours", "write-once", "Nothing changes automatically"]) expect(doc).toContain(text);
+    for (const text of ["60", "150", "99%", "95%", "10%", "90%", "two hours", "write-once", "Nothing changes automatically", "stored once"]) expect(doc).toContain(text);
+  });
+
+  it("says what the code does about cancelled simulations: excluded as void, never counted as 0 (review fix 2)", () => {
+    const doc = read(JUDGE_PREREG_DOC);
+    expect(doc).not.toMatch(/cancelled simulation counts as 0/i);
+    expect(doc).toMatch(/\*\*void\*\* outcomes \(no fill\s+was possible; the learner stores a cancelled shadow simulation as void\)/);
+    expect(NEMOTRON_JUDGE_STUDY.rules.outcome).toMatch(/void outcomes \(no fill was possible, including cancelled simulations\)/);
   });
 
   it("keeps the rules free of semicolons so the migration survives statement splitting", () => {

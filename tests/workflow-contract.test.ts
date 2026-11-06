@@ -28,6 +28,9 @@ describe("automated learning workflow contracts", () => {
     expect(job).toContain("https://aegis-futures-lab-khaki.vercel.app/api/ai/run");
     // Tokens go to curl through --config on stdin, never argv; the step always exits 0.
     expect(job).toContain("curl --config - --proto '=https'");
+    // The route stops by 55 s and Vercel at 60 s; the client waits 75 s at most.
+    expect(job).toContain("--fail --max-time 75");
+    expect(job).not.toContain("--max-time 110");
     const lines = job.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
     expect(lines.at(-1)).toBe("exit 0");
     expect(job).not.toMatch(/secrets\./);

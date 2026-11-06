@@ -19,8 +19,8 @@ model's selection alone. The study is designed so that a lucky streak cannot pas
 
 | Study | Model (NVIDIA API catalog, free trial) | Status at registration | Config hash |
 |---|---|---|---|
-| `ai-judge-nemotron-ultra-v1` | `nvidia/nemotron-3-ultra-550b-a55b` | active from registration | `8c971da6e9cbd149cd9f953f92f3fe1f0eb6b148a018378f938b56b5fb124a68` |
-| `ai-judge-kimi-k3.1-pro-v1` | `moonshotai/kimi-k3.1-pro` | waiting for the model's first answer | `ca0815c88b04c76fbc98f6d7ea3917a3e80e9713838efd88c759d46faaedffd3` |
+| `ai-judge-nemotron-ultra-v1` | `nvidia/nemotron-3-ultra-550b-a55b` | active from registration | `c16a838b9e272f406b09a56c2743c77b49f6df7c5795b3a8eda42156c6134b57` |
+| `ai-judge-kimi-k3.1-pro-v1` | `moonshotai/kimi-k3.1-pro` | waiting for the model's first answer | `cf401d074f77dbf5905733f7845836f503d73a5985506cdcff326bf4d6b6afa3` |
 
 Kimi K3.1 Pro is what the owner asked for, but on 2026-11-06 NVIDIA served it only in its web
 playground (the API answered 404), and Kimi K2.6 was "not found" for the owner's account. The
@@ -36,8 +36,9 @@ Every decision — taken or skipped, paused methods included — of the active l
 (`experiments.lineage = 'learner'`, `status = 'active'`) whose row was recorded at or after the
 study's `started_at`. Decisions are asked oldest first.
 
-**Freshness.** A decision is asked only within two hours (7,200 s) of its row being recorded.
-Later, it is never asked.
+**Freshness.** A decision is asked, and its answer recorded, within two hours (7,200 s) of its
+row being recorded; the runner leaves a 90-second margin. Later, it is never asked, and the
+database refuses a final answer recorded after the two hours or without a claimed attempt.
 
 ## Inputs (point in time)
 
@@ -61,18 +62,20 @@ The model never sees what the bot did with the idea, its result, or anything lat
 
 One JSON object: `decision` take or skip, `confidence` 0-100 (rounded to a whole number) and a
 plain-English `reason` (asked for at most 60 words). An answer without a usable decision,
-confidence and reason is recorded as **invalid** and never re-asked. A provider failure, where
-no answer was seen, may be retried in a later pass while the two-hour window is open, at most
-three attempts. Every attempt is claimed in `ai_judge_calls` before the call, and the first
-final answer per study and decision is write-once (a database index and an append-only trigger
-enforce it).
+confidence and reason, **including an empty answer**, is recorded as **invalid** and never
+re-asked. A provider failure, where no answer was seen, may be retried in a later pass while the
+two-hour window is open, at most three attempts. Every attempt is claimed in `ai_judge_calls`
+before the call, and the first final answer per study and decision is write-once (a database
+index and an append-only trigger enforce it). An attempt left with neither an answer nor an
+error for over 3 minutes (a crash, or a failed save) counts as one of the three; a younger one
+is treated as still in progress and never asked twice at once.
 
 ## Outcome
 
 The learner's own one-contract shadow result for the decision, after modelled costs
-(`experiment_outcomes.net`). A cancelled simulation counts as 0. Excluded, as in the learner's
-training data: void outcomes, and ideas the account could not take even one contract of
-(`standalone_qty < 1`).
+(`experiment_outcomes.net`). Excluded, as in the learner's own dataset: **void** outcomes (no fill
+was possible; the learner stores a cancelled shadow simulation as void) and ideas the account
+could not take even one contract of (`standalone_qty < 1`).
 
 ## Comparison
 
@@ -88,10 +91,18 @@ On the resolved calls, in decision order:
 
 ## Verdict
 
-Two looks. Each is taken **once**, at the first moment its minimum resolved calls and sessions
-are both met, on the calls resolved up to then in decision order. A pass or a fail at a look is
-final. Otherwise the next look follows. The running totals shown between looks are information,
-not a verdict.
+Two looks, each taken **once** on a window that can never change:
+
+- calls are ordered by when their **decision was recorded** (then by decision key);
+- a look's window is the shortest prefix of that order with its minimum resolved calls and
+  sessions, skipping excluded calls;
+- the look is taken only when **every** call in that window is final and two hours have passed
+  since the window's last decision (no answer about an earlier decision can still arrive);
+- the result is **stored once** (`ai_looks`) and the scoreboard shows the stored look; it is
+  never recomputed.
+
+A pass or a fail at a look is final. Otherwise the next look follows. The running totals shown
+between looks are information, not a verdict.
 
 | Look | Resolved calls | Sessions | Interval | Random percentile for a pass |
 |---|---|---|---|---|

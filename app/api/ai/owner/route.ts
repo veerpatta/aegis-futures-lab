@@ -7,6 +7,7 @@ import { requireOwner } from "@/lib/ai-auth/owner";
 import { aiDatabaseConfigured, aiPool } from "@/lib/ai-free/pool";
 import { readOwnerCalls } from "@/lib/ai-judge/store-pg";
 import { readOwnerNotes } from "@/lib/ai-coach/store-pg";
+import { readOwnerIdeas } from "@/lib/ai-ideas/store-pg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,8 +22,8 @@ export async function GET(request: Request): Promise<Response> {
   if (!identity.ok) return json({ error: identity.error }, identity.status);
   try {
     const db = aiPool();
-    const [calls, notes] = await Promise.all([readOwnerCalls(db), readOwnerNotes(db)]);
-    return json({ calls, notes });
+    const [calls, notes, ideas] = await Promise.all([readOwnerCalls(db), readOwnerNotes(db), readOwnerIdeas(db)]);
+    return json({ calls, notes, ideas });
   } catch {
     console.error("[AI owner] unavailable");
     return json({ error: "The AI helper is temporarily unavailable." }, 503);

@@ -6,6 +6,7 @@ import { evidenceForPrompt, validateResearchAnswer, type Evidence, type Research
 import { RESEARCH_MODEL } from "@/lib/ai-research/provider";
 import { paidAiKey } from "@/lib/ai-cost/paid-ai";
 import { chat, extractJson, findFreeAiKey, likelyModel, type FreeAiDeps } from "./nvidia";
+import { cleanText } from "./text";
 
 export const FREE_RESEARCH_PROMPT_VERSION = "research-free-2026-11-07-v1";
 
@@ -28,9 +29,12 @@ const SYSTEM = [
   'Reply with one JSON object only, no markdown: {"answer": string, "citations": [evidence id strings you actually used]}.',
 ].join(" ");
 
-export async function callFreeResearch(input: { question: string; evidence: Evidence[] }, deps: FreeAiDeps = {}): Promise<{ value: ResearchAnswer; model: string }> {
+/** `deadline` (epoch ms) bounds the whole chain: the route must finish, and
+    record a failure if it has to, before the platform stops it. */
+export async function callFreeResearch(input: { question: string; evidence: Evidence[]; deadline?: number }, deps: FreeAiDeps = {}): Promise<{ value: ResearchAnswer; model: string }> {
   const evidence = evidenceForPrompt(input.evidence);
-  const result = await chat({ system: SYSTEM, user: JSON.stringify({ question: input.question, evidence }), maxTokens: 3000, temperature: 0.3, timeoutMs: 45_000 }, deps);
+  const result = await chat({ system: SYSTEM, user: JSON.stringify({ question: input.question, evidence }), maxTokens: 3000, temperature: 0.3, timeoutMs: 45_000, deadline: input.deadline }, deps);
   const parsed = extractJson(result.text);
-  return { value: validateResearchAnswer(parsed, evidence), model: result.model };
+  const value = validateResearchAnswer(parsed, evidence);
+  return { value: { ...value, answer: cleanText(value.answer, 12_000) }, model: result.model };
 }

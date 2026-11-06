@@ -12,6 +12,12 @@ import { PAID_AI_OFF_MESSAGE, paidAiAllowed, paidAiKey } from '@/lib/ai-cost/pai
 import { findFreeAiKey } from '@/lib/ai-free/nvidia';
 import { FREE_LEDGER_MODEL, freeLedgerRequest } from '@/lib/ai-free/budget';
 import { callFreeResearch, FREE_RESEARCH_PROMPT_VERSION, researchProvider } from '@/lib/ai-free/research';
+import { AI_QUERY_TIMEOUT_MS } from '@/lib/ai-free/pool';
+import { cleanText } from '@/lib/ai-free/text';
+
+/** The free answer must arrive by this point of the request, leaving time to
+    record it (or its failure) before the platform stops the function at 60 s. */
+const FREE_ANSWER_BY_MS = 50_000;
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,7 +28,7 @@ let connection: Pool | undefined;
 function pool(): Pool {
   const url = process.env.AI_DATABASE_URL;
   if (!url) throw new Error('AI database is not configured');
-  if (!connection) connection = new Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000, allowExitOnIdle: true });
+  if (!connection) connection = new Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000, query_timeout: AI_QUERY_TIMEOUT_MS, allowExitOnIdle: true });
   return connection;
 }
 async function status(userId: string) {
@@ -35,7 +41,8 @@ async function authenticate(request: Request) {
   return requireOwner(identity, async id => (await pool().query('SELECT 1 FROM public.admin_control_authorized WHERE user_id=$1', [id])).rows.length === 1);
 }
 
-const post = makeResearchPost({
+// Built per request so the free provider's deadline counts from this request's start.
+const postFor = (startedAt: number) => makeResearchPost({
   authenticate,
   evidence: () => loadResearchEvidence(pool()),
   async saveRequest({ id, userId, question, evidence, depth }) {
@@ -55,7 +62,7 @@ const post = makeResearchPost({
     if (!key) {
       if (!findFreeAiKey()) throw new Error('AI is not configured');
       return freeLedgerRequest(new PgBudgetStore(pool()), { requestId: id, userId },
-        async () => { await beforeInvoke(); return (await callFreeResearch({ question, evidence })).value; });
+        async () => { await beforeInvoke(); return (await callFreeResearch({ question, evidence, deadline: startedAt + FREE_ANSWER_BY_MS })).value; });
     }
     const model = depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL;
     return budgetedRequest(new PgBudgetStore(pool()), {
@@ -66,7 +73,7 @@ const post = makeResearchPost({
     }, async () => { await beforeInvoke(); return callOpenAiResearch({ key, question, evidence, model }); });
   },
   async saveResult({ id, userId, result }) {
-    const saved = await new ResearchStore(pool()).saveResult({ requestId: id, userId, response: result.answer, citations: result.citations, status: 'complete' });
+    const saved = await new ResearchStore(pool()).saveResult({ requestId: id, userId, response: cleanText(result.answer, 12_000), citations: result.citations, status: 'complete' });
     if (!saved) throw new Error('Unable to record result');
   },
   async saveFailure({ id, userId, diagnostic }) {
@@ -78,8 +85,9 @@ const post = makeResearchPost({
 // Zero-cost mode: with neither the owner's paid opt-in nor a free key, refuse
 // before anything is recorded or reserved.
 export async function POST(request: Request): Promise<Response> {
+  const startedAt = Date.now();
   if (!paidAiAllowed() && !findFreeAiKey()) return Response.json({ error: PAID_AI_OFF_MESSAGE, paidAi: 'off' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
-  return post(request);
+  return postFor(startedAt)(request);
 }
 export async function GET(request: Request): Promise<Response> {
   const identity = await authenticate(request).catch(() => ({ ok: false as const, status: 503 as const, error: 'Sign-in verification is temporarily unavailable.' }));
