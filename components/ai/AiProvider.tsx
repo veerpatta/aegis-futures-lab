@@ -66,6 +66,8 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
       delta, verdict,
       nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
       waiting: str(s.waiting) ? s.waiting.slice(0, 200) : null,
+      lastCheck: isObj(s.lastCheck) && str(s.lastCheck.at) && Number.isFinite(Date.parse(s.lastCheck.at)) && str(s.lastCheck.outcome) && /^[a-z-]{1,32}$/.test(s.lastCheck.outcome)
+        ? { at: s.lastCheck.at, outcome: s.lastCheck.outcome } : null,
     });
   }
   const ideas: AiIdeaScore[] = [];

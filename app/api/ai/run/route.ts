@@ -6,10 +6,12 @@
    Actions log: it carries counts and fixed codes only, never AI text. */
 
 import { verifyGithubOidc } from "@/lib/ai-auth/github-oidc";
-import { chat, findFreeAiKey, freeAiEnabled } from "@/lib/ai-free/nvidia";
+import { HealthBook, PgHealthStore } from "@/lib/ai-free/health";
+import { chat, findFreeAiKey, freeAiEnabled, modelChain, type ChatRequest } from "@/lib/ai-free/nvidia";
 import { aiDatabaseConfigured, aiPool } from "@/lib/ai-free/pool";
 import { runJudge } from "@/lib/ai-judge/runner";
 import { PgJudgeStore } from "@/lib/ai-judge/store-pg";
+import { JUDGE_STUDIES } from "@/lib/ai-judge/studies";
 import { runCoach } from "@/lib/ai-coach/runner";
 import { PgCoachStore } from "@/lib/ai-coach/store-pg";
 import { runIdeas } from "@/lib/ai-ideas/runner";
@@ -38,10 +40,16 @@ export async function POST(request: Request): Promise<Response> {
   const budget = { deadline: started + CALL_WINDOW_MS, hardStop: started + HARD_STOP_MS, calls: MAX_CALLS };
   try {
     const db = aiPool();
-    const judge = await runJudge({ store: new PgJudgeStore(db), chat: (req) => chat(req), now: Date.now }, budget);
-    const coach = await runCoach({ store: new PgCoachStore(db), chat: (req) => chat(req), now: Date.now }, budget);
-    const ideas = await runIdeas({ store: new PgIdeasStore(db), chat: (req) => chat(req), now: Date.now }, budget);
-    return json({ status: "ok", keyName: key.name, judge, coach, ideas, callsLeft: budget.calls, ms: Date.now() - started });
+    // Which models are answering, shared across instances (lib/ai-free/health.ts):
+    // a resting model is not asked, and every attempt is recorded.
+    const health = await HealthBook.open(new PgHealthStore(db));
+    const ask = (req: ChatRequest) => chat(req, { health });
+    const available = (model: string, now: number) => health.usable(model, now);
+    const judge = await runJudge({ store: new PgJudgeStore(db), chat: ask, now: Date.now, available }, budget);
+    const coach = await runCoach({ store: new PgCoachStore(db), chat: ask, now: Date.now }, budget);
+    const ideas = await runIdeas({ store: new PgIdeasStore(db), chat: ask, now: Date.now }, budget);
+    const models = [...new Set([...modelChain(), ...JUDGE_STUDIES.map((s) => s.model)])];
+    return json({ status: "ok", keyName: key.name, judge, coach, ideas, resting: health.resting(models, Date.now()), callsLeft: budget.calls, ms: Date.now() - started });
   } catch {
     console.error("[AI helper] pass failed");
     return json({ status: "unavailable" }, 503);

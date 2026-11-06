@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  chat, DEFAULT_MODEL_CHAIN, extractJson, findFreeAiKey, FreeAiError, freeAiEnabled, GEMMA_4, isUnavailable, KIMI_K26, KIMI_K31_PRO,
-  lastAnswered, likelyModel, modelChain, NEMOTRON_ULTRA, NOT_FOUND_BACKOFF_MS, resetAvailability, stripThinking,
+  chat, DEEPSEEK_V41_FLASH, DEFAULT_MODEL_CHAIN, extractJson, findFreeAiKey, FreeAiError, freeAiEnabled, GEMMA_4, isUnavailable, KIMI_K26, KIMI_K31_PRO,
+  lastAnswered, likelyModel, modelChain, NEMOTRON_ULTRA, NOT_FOUND_BACKOFF_MS, PROBATION_MODELS, resetAvailability, stripThinking,
 } from "@/lib/ai-free/nvidia";
 
 const KEY = "nvapi-" + "x".repeat(40);
@@ -29,9 +29,11 @@ describe("free AI key discovery", () => {
 });
 
 describe("model chain", () => {
-  it("asks Kimi first, then the free models that work today", () => {
-    expect(modelChain({})).toEqual([KIMI_K31_PRO, KIMI_K26, NEMOTRON_ULTRA, GEMMA_4]);
+  it("asks Kimi first, then DeepSeek (on probation), then the free models that work today", () => {
+    expect(modelChain({})).toEqual([KIMI_K31_PRO, KIMI_K26, DEEPSEEK_V41_FLASH, NEMOTRON_ULTRA, GEMMA_4]);
     expect(DEFAULT_MODEL_CHAIN[0]).toBe("moonshotai/kimi-k3.1-pro");
+    expect(DEEPSEEK_V41_FLASH).toBe("deepseek-ai/deepseek-v4.1-flash");
+    expect([...PROBATION_MODELS]).toEqual([DEEPSEEK_V41_FLASH]);
   });
   it("accepts a clean override and ignores junk", () => {
     expect(modelChain({ AEGIS_FREE_AI_MODELS: " google/gemma-4-31b-it, bad model ,google/gemma-4-31b-it" })).toEqual([GEMMA_4]);
@@ -66,7 +68,8 @@ describe("chat over the chain", () => {
     const first = await chat({ system: "s", user: "u" }, { fetch: fetch as unknown as typeof globalThis.fetch, env: env(), now });
     expect(first.model).toBe(NEMOTRON_ULTRA);
     expect(first.text).toBe("ready");
-    expect(first.attempts.map((a) => a.outcome)).toEqual(["not-found", "not-found", "ok"]);
+    // DeepSeek is on probation: with no health record it is never asked.
+    expect(first.attempts.map((a) => a.outcome)).toEqual(["not-found", "not-found", "skipped", "ok"]);
     calls.length = 0;
     await chat({ system: "s", user: "u" }, { fetch: fetch as unknown as typeof globalThis.fetch, env: env(), now });
     expect(calls).toEqual([NEMOTRON_ULTRA]);
@@ -83,7 +86,7 @@ describe("chat over the chain", () => {
     const r = await chat({ system: "s", user: "u" }, { fetch: fetch as unknown as typeof globalThis.fetch, env: env() });
     expect(r.text).toBe("final");
     expect(r.model).toBe(GEMMA_4);
-    expect(r.attempts.map((a) => a.outcome)).toEqual(["busy", "rate-limited", "empty", "ok"]);
+    expect(r.attempts.map((a) => a.outcome)).toEqual(["busy", "rate-limited", "skipped", "empty", "ok"]);
     expect(r.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
   });
 

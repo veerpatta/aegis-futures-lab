@@ -17,7 +17,7 @@ import { useAi } from "@/components/ai/AiProvider";
 import { money } from "@/lib/format";
 import { dateShortIn } from "@/lib/time/zones";
 import {
-  AI_OWNER_ONLY, AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, ideaProgress, ideaRuleWords, waitingWords,
+  AI_OWNER_ONLY, AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, ideaProgress, ideaRuleWords, waitingStudyWords, waitingWords,
   type AiStudyScore,
 } from "@/lib/plain/ai";
 import page from "@/components/ui/page.module.css";
@@ -64,7 +64,7 @@ function StudyBoard({ study }: { study: AiStudyScore }) {
           <b>{aiModelName(study.model)}</b>
           <span className={`${page.chip} ${page.chip_dim}`}>Waiting</span>
         </div>
-        <p className={page.note}>NVIDIA lists this model but has not switched on its API for free keys yet. The helper checks every six hours and starts its own study the moment it answers.</p>
+        <p className={page.note}>{waitingStudyWords(study, Date.now())}</p>
       </div>
     );
   return (

@@ -8,14 +8,17 @@
 
    One study per model: a change of model never mixes evidence. Kimi K3.1 Pro
    is registered now and starts at its first successful answer, so its rules
-   are fixed before any of its evidence exists. */
+   are fixed before any of its evidence exists. DeepSeek V4.1 Flash joined the
+   same way, with the same rules, in an addendum
+   (docs/research/2026-11-07-ai-second-opinion-deepseek-addendum.md). */
 
 import { stableHash } from "@/lib/experiment/hash";
-import { KIMI_K31_PRO, NEMOTRON_ULTRA } from "@/lib/ai-free/nvidia";
+import { DEEPSEEK_V41_FLASH, KIMI_K31_PRO, NEMOTRON_ULTRA } from "@/lib/ai-free/nvidia";
 
 export const JUDGE_PROMPT_VERSION = "ai-judge-prompt-v1";
 export const JUDGE_FEATURE_VERSION = "ai-judge-features-v1";
 export const JUDGE_PREREG_DOC = "docs/research/2026-11-07-ai-second-opinion-preregistration.md";
+export const DEEPSEEK_ADDENDUM_DOC = "docs/research/2026-11-07-ai-second-opinion-deepseek-addendum.md";
 
 export interface JudgeLook {
   /** Minimum resolved calls and distinct sessions for this look. */
@@ -103,7 +106,21 @@ export const KIMI_JUDGE_STUDY: JudgeStudyConfig = Object.freeze({
   rules: JUDGE_RULES,
 });
 
-export const JUDGE_STUDIES: readonly JudgeStudyConfig[] = Object.freeze([NEMOTRON_JUDGE_STUDY, KIMI_JUDGE_STUDY]);
+/** Registered 2026-11-07 (addendum), before any of its evidence exists: the
+    same frozen rules, prompt and features; it waits for the model's first
+    answer like Kimi. Last in the fixed order, so it never takes calls from the
+    studies registered before it. */
+export const DEEPSEEK_JUDGE_STUDY: JudgeStudyConfig = Object.freeze({
+  id: "ai-judge-deepseek-v4.1-flash-v1",
+  label: "DeepSeek V4.1 Flash",
+  model: DEEPSEEK_V41_FLASH,
+  promptVersion: JUDGE_PROMPT_VERSION,
+  featureVersion: JUDGE_FEATURE_VERSION,
+  initialStatus: "waiting-for-model",
+  rules: JUDGE_RULES,
+});
+
+export const JUDGE_STUDIES: readonly JudgeStudyConfig[] = Object.freeze([NEMOTRON_JUDGE_STUDY, KIMI_JUDGE_STUDY, DEEPSEEK_JUDGE_STUDY]);
 
 export const studyConfig = (id: string): JudgeStudyConfig | null => JUDGE_STUDIES.find((s) => s.id === id) ?? null;
 

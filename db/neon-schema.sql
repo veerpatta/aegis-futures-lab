@@ -2298,3 +2298,24 @@ BEGIN
   ALTER ROLE aegis_ai_app SET statement_timeout = ''10s''\073
  END IF\073
 END ';
+
+-- Model health for the free AI helper and the DeepSeek V4.1 Flash study
+-- (2026-11-07; db/migrations/20261107_ai_deepseek.sql, which also registers the
+-- waiting ai-judge-deepseek-v4.1-flash-v1 study). lib/ai-free/health.ts.
+CREATE TABLE IF NOT EXISTS public.ai_model_health (
+  model text PRIMARY KEY CHECK (model ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'),
+  ok_at timestamptz,
+  fail_at timestamptz,
+  fails integer NOT NULL DEFAULT 0 CHECK (fails BETWEEN 0 AND 1000),
+  fail_code text CHECK (fail_code IS NULL OR fail_code ~ '^[a-z-]{1,32}$'),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.ai_model_health ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.ai_model_health FROM PUBLIC, anonymous, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.ai_model_health TO aegis_ai;
+DROP POLICY IF EXISTS ai_model_health_read ON public.ai_model_health;
+CREATE POLICY ai_model_health_read ON public.ai_model_health FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_model_health_add ON public.ai_model_health;
+CREATE POLICY ai_model_health_add ON public.ai_model_health FOR INSERT TO aegis_ai WITH CHECK (true);
+DROP POLICY IF EXISTS ai_model_health_change ON public.ai_model_health;
+CREATE POLICY ai_model_health_change ON public.ai_model_health FOR UPDATE TO aegis_ai USING (true) WITH CHECK (true);

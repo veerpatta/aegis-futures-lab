@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { outcomeState, PgJudgeStore, readScoreboard, type Db } from "@/lib/ai-judge/store-pg";
+import { lastProbe, outcomeState, PgJudgeStore, readScoreboard, type Db } from "@/lib/ai-judge/store-pg";
 import { ABANDONED_CLAIM_SECONDS, MAX_ATTEMPTS } from "@/lib/ai-judge/runner";
-import { judgeConfigHash, NEMOTRON_JUDGE_STUDY } from "@/lib/ai-judge/studies";
+import { DEEPSEEK_JUDGE_STUDY, judgeConfigHash, NEMOTRON_JUDGE_STUDY } from "@/lib/ai-judge/studies";
 
 function fakeDb(route: (sql: string, values: unknown[]) => Record<string, unknown>[]) {
   const calls: { sql: string; values: unknown[] }[] = [];
@@ -47,5 +47,22 @@ describe("second opinion storage", () => {
     const [s] = await readScoreboard(db, Date.parse("2026-12-02T00:00:00Z"));
     expect(s).toMatchObject({ verdict: "inconclusive", nextLook: 150, calls: 1, resolved: 1, aiNet: 500 });
     expect(s.waiting).toMatch(/^Look 2: /);
+  });
+
+  it("gives a waiting study its last check: our own outcome code and time, never provider text", async () => {
+    const at = new Date("2026-11-07T10:00:00Z");
+    const { db, calls } = fakeDb((sql) => {
+      if (/FROM public\.ai_judge_studies/.test(sql)) return [{ id: DEEPSEEK_JUDGE_STUDY.id, status: "waiting-for-model", started_at: null, config_hash: judgeConfigHash(DEEPSEEK_JUDGE_STUDY) }];
+      if (/payload->>'outcome' AS outcome/.test(sql)) return [{ outcome: "timeout", occurred_at: at }];
+      return [];
+    });
+    const [s] = await readScoreboard(db, Date.parse("2026-11-07T12:00:00Z"));
+    expect(s).toMatchObject({ id: DEEPSEEK_JUDGE_STUDY.id, status: "waiting-for-model", lastCheck: { at: at.toISOString(), outcome: "timeout" } });
+    const probe = calls.find((c) => /payload->>'outcome' AS outcome/.test(c.sql))!;
+    expect(probe.sql).toMatch(/decision_key = 'probe' AND kind = 'probe'/);
+    expect(probe.sql).toMatch(/ORDER BY occurred_at DESC LIMIT 1/);
+    const odd = fakeDb(() => [{ outcome: "Upstream failed: <html>", occurred_at: at }]);
+    expect(await lastProbe(odd.db, "x")).toBeNull();
+    expect(await lastProbe(fakeDb(() => []).db, "x")).toBeNull();
   });
 });

@@ -13,7 +13,11 @@
      and never re-asked at once (the database also refuses a final answer
      without a claim or after the two-hour window);
    - one model per study, no fallback, its own short "not found" memory;
-   - each study gets its own share of the calls, in a fixed order. */
+   - each study gets its own share of the calls, in a fixed order;
+   - a study whose model is resting after failures in a row (the shared
+     health record, lib/ai-free/health.ts) is not asked in that pass: nothing
+     is claimed, so no attempt is used up. This only delays asking; it never
+     changes what counts as an answer or how a look is taken. */
 
 import type { ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
 import { FreeAiError } from "@/lib/ai-free/nvidia";
@@ -88,6 +92,9 @@ export interface RunBudget {
 
 /** Longest single call: free-tier answers can take 10-30 s (2026-11-06 probes). */
 export const MAX_CALL_MS = 40_000;
+/** Longest availability probe: long enough for a first answer, short enough
+    that a model failing after 30 s (DeepSeek, 2026-11-06) costs 20 s. */
+export const PROBE_TIMEOUT_MS = 20_000;
 /** No call starts with less time than this before the hard stop. */
 const MIN_CALL_MS = 8_000;
 
@@ -102,12 +109,16 @@ export interface JudgeDeps {
   store: JudgeStore;
   chat: (req: ChatRequest) => Promise<ChatResult>;
   now: () => number;
+  /** False while a model rests (the shared health record). Absent: always true. */
+  available?: (model: string, now: number) => boolean;
 }
 export interface JudgeReport {
   decided: number;
   invalid: number;
   errors: number;
   skipped: string[];
+  /** Active studies not asked in this pass because their model is resting. */
+  resting: string[];
   activated: string[];
   probes: { study: string; outcome: string }[];
   looks: { study: string; look: number; verdict: string }[];
@@ -151,6 +162,12 @@ async function askStudy(study: JudgeStudyConfig, row: JudgeStudyRow, deps: Judge
   for (const d of pending) {
     const now = deps.now();
     if (used >= CALLS_PER_STUDY || !canCall(budget, now)) return;
+    // Checked before each claim: a slow failure on the first decision rests
+    // the model for the rest of the pass.
+    if (deps.available && !deps.available(study.model, now)) {
+      if (!report.resting.includes(study.id)) report.resting.push(study.id);
+      return;
+    }
     // Re-check against the clock at the moment of asking.
     if (Math.floor(now / 1000) - d.createdAt > window || d.attempts >= MAX_ATTEMPTS) continue;
     const attempt = d.attempts + 1;
@@ -200,8 +217,11 @@ async function probeStudy(study: JudgeStudyConfig, deps: JudgeDeps, budget: RunB
   budget.calls--;
   let outcome: { outcome: string; status?: number | null } = { outcome: "answered" };
   try {
-    // The probe shares the chain's six-hour memory: it is the availability check.
-    await deps.chat({ system: "Reply with the single word: ready", user: "Are you available?", models: [study.model], maxTokens: 64, timeoutMs: Math.min(20_000, callTimeout(budget, deps.now())), deadline: budget.hardStop });
+    // The probe IS the availability check: it asks even a model a memory or
+    // the health record says is resting, and its outcome is recorded in both
+    // (a "not found" still rests the model for the chain's six hours). Room for
+    // a reasoning model to think before its one word.
+    await deps.chat({ system: "Reply with the single word: ready", user: "Are you available?", models: [study.model], maxTokens: 512, timeoutMs: Math.min(PROBE_TIMEOUT_MS, callTimeout(budget, deps.now())), deadline: budget.hardStop, healthCheck: true });
   } catch (err) {
     if (!(err instanceof FreeAiError)) throw err;
     outcome = { outcome: err.code, status: err.status };
@@ -220,7 +240,7 @@ async function takeLooks(study: JudgeStudyConfig, deps: JudgeDeps, report: Judge
 }
 
 export async function runJudge(deps: JudgeDeps, budget: RunBudget): Promise<JudgeReport> {
-  const report: JudgeReport = { decided: 0, invalid: 0, errors: 0, skipped: [], activated: [], probes: [], looks: [] };
+  const report: JudgeReport = { decided: 0, invalid: 0, errors: 0, skipped: [], resting: [], activated: [], probes: [], looks: [] };
   const rows = await deps.store.studies();
   // A fixed order from the code, never the database's.
   const order = new Map(JUDGE_STUDIES.map((s, i) => [s.id, i]));

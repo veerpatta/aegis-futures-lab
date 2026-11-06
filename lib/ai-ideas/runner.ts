@@ -6,7 +6,7 @@
    Nothing here changes the account, the learner or the methods. */
 
 import type { ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
-import { FreeAiError, GEMMA_4, KIMI_K26, KIMI_K31_PRO, NEMOTRON_ULTRA } from "@/lib/ai-free/nvidia";
+import { DEEPSEEK_V41_FLASH, FreeAiError, GEMMA_4, KIMI_K26, KIMI_K31_PRO, NEMOTRON_ULTRA } from "@/lib/ai-free/nvidia";
 import { cleanText } from "@/lib/ai-free/text";
 import { stableHash } from "@/lib/experiment/hash";
 import { nyMeta } from "@/lib/time/ny";
@@ -22,8 +22,10 @@ import { dueIdeaLook, retireReason, type IdeaLookResult, type IdeaRow } from "./
 /* The proposal is the longest answer the helper asks for. On 2026-11-07
    Nemotron 3 Ultra needed about 49 s for it (it reasons first) and Gemma 4
    about 19 s, inside a 60 s function that caps each call at 40 s. So after
-   Kimi, the faster model is asked first; the model is recorded with each rule. */
-export const PROPOSAL_MODELS: readonly string[] = Object.freeze([KIMI_K31_PRO, KIMI_K26, GEMMA_4, NEMOTRON_ULTRA]);
+   Kimi, the faster models are asked first; the model is recorded with each
+   rule. DeepSeek V4.1 Flash is asked only once it has answered (probation,
+   lib/ai-free/health.ts). */
+export const PROPOSAL_MODELS: readonly string[] = Object.freeze([KIMI_K31_PRO, KIMI_K26, DEEPSEEK_V41_FLASH, GEMMA_4, NEMOTRON_ULTRA]);
 
 export interface HypothesisRow {
   id: string;

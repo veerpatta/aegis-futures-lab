@@ -70,7 +70,7 @@ A free AI model on NVIDIA's trial service reads the facts the bot had when it de
 
 Its calls are scored against taking every idea, against random picks of the same size and against not trading, after costs, using each idea's one-contract result. The rules were written down before its first call. The first fair check comes after 60 finished calls over 15 trading days; the final one after 150. Until then the scoreboard says "Too early to tell" in amber. Only a passed check makes the AI eligible to filter trades, and only if the owner starts a new campaign for it.
 
-You asked for Kimi. NVIDIA lists Kimi K3.1 Pro but has not switched on its API for free keys yet, and Kimi K2.6 is not served to free accounts. Until then the second opinion comes from NVIDIA's own Nemotron 3 Ultra. The helper checks Kimi K3.1 Pro every six hours and starts a separate Kimi study the moment it answers, so evidence from two models is never mixed.
+You asked for Kimi, and then for DeepSeek. NVIDIA lists Kimi K3.1 Pro but has not switched on its API for free keys yet, and Kimi K2.6 is not served to free accounts. DeepSeek V4.1 Flash is listed too, but on 6 November its servers did not answer. Until one of them answers, the second opinion comes from NVIDIA's own Nemotron 3 Ultra. The helper checks both every six hours. Each starts its own study the moment it answers, so evidence from different models is never mixed. Its opinion is then the one shown on trades, Kimi first, while the Nemotron study carries on. Once DeepSeek has answered, the AI's notes and Ask the AI use it too. A model that keeps failing is left alone for a while, so a slow one never holds up the rest.
 
 NVIDIA's free key is for testing and evaluation. Its terms do not allow sharing AI-written text with the public, so the AI's words (its reasons, notes and answers) are shown only to the signed-in owner. Everyone else sees the scoreboard numbers, which the app works out itself. NVIDIA may use what is sent to improve its models; only market facts and the bot's own records are sent. It costs nothing: the free service has no billing.
 
@@ -274,4 +274,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*

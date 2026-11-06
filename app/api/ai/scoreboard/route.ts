@@ -22,7 +22,7 @@ export async function GET(): Promise<Response> {
       id: s.id, label: s.label, model: s.model, status: s.status, startedAt: s.startedAt,
       calls: s.calls, resolved: s.resolved, taken: s.taken, skipped: s.skipped, sessions: s.sessions,
       aiNet: s.aiNet, takeAllNet: s.takeAllNet, randomPercentile: s.randomPercentile, delta: s.delta,
-      verdict: s.verdict, nextLook: s.nextLook, waiting: s.waiting,
+      verdict: s.verdict, nextLook: s.nextLook, waiting: s.waiting, lastCheck: s.lastCheck ?? null,
     }));
     const ideas = (await readIdeasScoreboard(db, now)).map((i) => ({
       id: i.id, proposedAt: i.proposedAt, model: i.model, status: i.status, tested: i.tested, resolved: i.resolved, skipped: i.skipped,

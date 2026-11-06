@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { FreeAiError, type ChatRequest, type ChatResult } from "@/lib/ai-free/nvidia";
-import { ABANDONED_CLAIM_SECONDS, CALLS_PER_STUDY, JUDGE_MEMORY, MAX_ATTEMPTS, runJudge, type JudgeDecisionRow, type JudgeStore, type JudgeStudyRow } from "@/lib/ai-judge/runner";
+import { ABANDONED_CLAIM_SECONDS, CALLS_PER_STUDY, JUDGE_MEMORY, MAX_ATTEMPTS, PROBE_TIMEOUT_MS, runJudge, type JudgeDecisionRow, type JudgeStore, type JudgeStudyRow } from "@/lib/ai-judge/runner";
 import type { StoredLook } from "@/lib/ai-judge/looks";
 import type { JudgeLookResult, JudgeScoreRow } from "@/lib/ai-judge/score";
-import { judgeConfigHash, KIMI_JUDGE_STUDY, MODEL_PROBE_INTERVAL_MS, NEMOTRON_JUDGE_STUDY } from "@/lib/ai-judge/studies";
+import { DEEPSEEK_JUDGE_STUDY, judgeConfigHash, KIMI_JUDGE_STUDY, MODEL_PROBE_INTERVAL_MS, NEMOTRON_JUDGE_STUDY } from "@/lib/ai-judge/studies";
 
 const T0 = Date.parse("2026-11-09T15:00:00Z");
 const cutoff = Date.parse("2026-11-09T14:40:00Z") / 1000;
@@ -206,5 +206,43 @@ describe("AI second opinion runner", () => {
     const later = await runJudge({ store, chat, now: () => now }, budget(now));
     expect(later.activated).toEqual([KIMI_JUDGE_STUDY.id]);
     expect(rows[0].status).toBe("active");
+  });
+
+  it("does not ask, or claim, a study whose model is resting, and says so (health record)", async () => {
+    const { store, events } = memStore([active(), active(DEEPSEEK_JUDGE_STUDY)], [decision("d1", T0 / 1000 - 600)], () => T0);
+    const chat = vi.fn(async (req: ChatRequest) => answer(GOOD, req.models![0]));
+    const available = (model: string) => model !== DEEPSEEK_JUDGE_STUDY.model;
+    const report = await runJudge({ store, chat, now: () => T0, available }, budget());
+    expect(chat.mock.calls.map(([req]) => req.models![0])).toEqual([NEMOTRON_JUDGE_STUDY.model]);
+    expect(events.filter((e) => e.study === DEEPSEEK_JUDGE_STUDY.id)).toEqual([]);
+    expect(report.resting).toEqual([DEEPSEEK_JUDGE_STUDY.id]);
+    // Back from its rest, the same decision is still asked inside its window.
+    const back = await runJudge({ store, chat, now: () => T0 + 60_000, available: () => true }, budget(T0 + 60_000));
+    expect(back.decided).toBe(1);
+    expect(events.filter((e) => e.study === DEEPSEEK_JUDGE_STUDY.id).map((e) => e.kind)).toEqual(["claim", "decision"]);
+  });
+
+  it("stops asking a study in the same pass once its first call rests the model", async () => {
+    const { store, events } = memStore([active(DEEPSEEK_JUDGE_STUDY)], [decision("d1", T0 / 1000 - 900), decision("d2", T0 / 1000 - 600)], () => T0);
+    let resting = false;
+    const chat = vi.fn(async () => { resting = true; throw new FreeAiError("busy", 502); });
+    await runJudge({ store, chat, now: () => T0, available: () => !resting }, budget());
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(events.filter((e) => e.kind === "claim").map((e) => e.key)).toEqual(["d1"]);
+  });
+
+  it("probes as a fresh check: asks even a resting model, with room to think, for 20 s at most", async () => {
+    const rows: JudgeStudyRow[] = [{ id: DEEPSEEK_JUDGE_STUDY.id, status: "waiting-for-model", startedAt: null, configHash: judgeConfigHash(DEEPSEEK_JUDGE_STUDY) }];
+    const { store, events } = memStore(rows, [], () => T0);
+    const chat = vi.fn(async (_req: ChatRequest): Promise<ChatResult> => { throw new FreeAiError("timeout"); });
+    const report = await runJudge({ store, chat, now: () => T0, available: () => false }, budget());
+    const req = chat.mock.calls[0][0];
+    expect(req).toMatchObject({ models: [DEEPSEEK_JUDGE_STUDY.model], healthCheck: true, maxTokens: 512 });
+    expect(req.timeoutMs).toBeLessThanOrEqual(PROBE_TIMEOUT_MS);
+    expect(PROBE_TIMEOUT_MS).toBe(20_000);
+    expect(report.probes).toEqual([{ study: DEEPSEEK_JUDGE_STUDY.id, outcome: "timeout" }]);
+    expect(report.activated).toEqual([]);
+    expect(events.find((e) => e.kind === "probe")?.payload).toMatchObject({ outcome: "timeout", activated: false });
+    expect(rows[0].status).toBe("waiting-for-model");
   });
 });

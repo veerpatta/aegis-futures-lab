@@ -68,6 +68,11 @@ describe("POST /api/ai/run (GitHub OIDC only)", () => {
     expect(JSON.stringify(body)).not.toContain(KEY);
     expect(m.runJudge.mock.invocationCallOrder[0]).toBeLessThan(m.runCoach.mock.invocationCallOrder[0]);
     expect(m.runCoach.mock.invocationCallOrder[0]).toBeLessThan(m.runIdeas.mock.invocationCallOrder[0]);
+    // The shared health record: DeepSeek (no record yet) rests, and the studies get the check.
+    expect(body.resting).toEqual(["deepseek-ai/deepseek-v4.1-flash"]);
+    const judgeDeps = m.runJudge.mock.calls[0][0];
+    expect(judgeDeps.available("deepseek-ai/deepseek-v4.1-flash", Date.now())).toBe(false);
+    expect(judgeDeps.available("nvidia/nemotron-3-ultra-550b-a55b", Date.now())).toBe(true);
   });
 
   it("starts the clock before verifying the token (review fix 3)", async () => {
@@ -96,7 +101,7 @@ describe("public AI routes carry numbers and names, never text or keys", () => {
     m.ideasBoard.mockResolvedValueOnce([{ id: "idea-aaaaaaaaaaaa", proposedAt: "2026-11-16T15:00:00.000Z", model: "m", status: "testing", tested: 3, resolved: 2, skipped: 1, sessions: 1,
       keptNet: 50, takeAllNet: -250, delta: null, randomPercentile: null, verdict: "too-early", nextLook: 60, waiting: "Look 1: …", rule: "never public" }]);
     const body = await (await scoreboard()).json();
-    expect(Object.keys(body.studies[0]).sort()).toEqual(["aiNet", "calls", "delta", "id", "label", "model", "nextLook", "randomPercentile", "resolved", "sessions", "skipped", "startedAt", "status", "takeAllNet", "taken", "verdict", "waiting"]);
+    expect(Object.keys(body.studies[0]).sort()).toEqual(["aiNet", "calls", "delta", "id", "label", "lastCheck", "model", "nextLook", "randomPercentile", "resolved", "sessions", "skipped", "startedAt", "status", "takeAllNet", "taken", "verdict", "waiting"]);
     expect(Object.keys(body.ideas[0]).sort()).toEqual(["delta", "id", "keptNet", "model", "nextLook", "proposedAt", "randomPercentile", "resolved", "sessions", "skipped", "status", "takeAllNet", "tested", "verdict", "waiting"]);
     expect(JSON.stringify(body)).not.toContain("never public");
   });

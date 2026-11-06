@@ -8,6 +8,13 @@
    answers "not found" is skipped for six hours, so Kimi takes over by itself the
    day NVIDIA switches it on, without a deploy.
 
+   DeepSeek V4.1 Flash (asked for on 2026-11-07) is listed too, but every
+   request then ended with "upstream request failed" (502) after about 30 s.
+   A failure that slow would eat most of a pass, so DeepSeek is on PROBATION:
+   it joins a chain only once the shared health record (lib/ai-free/health.ts)
+   shows it has answered, which its waiting second-opinion study checks every
+   six hours. Any model that keeps failing rests before it is asked again.
+
    Zero cost: the endpoint is a free trial with rate limits and no billing
    method. NVIDIA's trial terms allow evaluation, not production, and forbid
    handing generated text to others, so callers keep AI words owner-only
@@ -23,7 +30,12 @@ export const KIMI_K31_PRO = "moonshotai/kimi-k3.1-pro";
 export const KIMI_K26 = "moonshotai/kimi-k2.6";
 export const NEMOTRON_ULTRA = "nvidia/nemotron-3-ultra-550b-a55b";
 export const GEMMA_4 = "google/gemma-4-31b-it";
-export const DEFAULT_MODEL_CHAIN: readonly string[] = Object.freeze([KIMI_K31_PRO, KIMI_K26, NEMOTRON_ULTRA, GEMMA_4]);
+export const DEEPSEEK_V41_FLASH = "deepseek-ai/deepseek-v4.1-flash";
+export const DEFAULT_MODEL_CHAIN: readonly string[] = Object.freeze([KIMI_K31_PRO, KIMI_K26, DEEPSEEK_V41_FLASH, NEMOTRON_ULTRA, GEMMA_4]);
+/** Models asked only after the shared health record shows they have answered
+    once (their failure is slow: ~30 s on 2026-11-06). Without a health record
+    they are never asked, except by an explicit health check. */
+export const PROBATION_MODELS: ReadonlySet<string> = new Set([DEEPSEEK_V41_FLASH]);
 
 /** Names an owner is likely to have used for the key on Vercel, in order. */
 export const KEY_NAMES: readonly string[] = Object.freeze([
@@ -60,6 +72,7 @@ export function findFreeAiKey(env: Env = process.env): { key: string; name: stri
 }
 
 const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._-]{0,95}$/i;
+export const isModelId = (value: unknown): value is string => typeof value === "string" && MODEL_ID.test(value);
 
 /** The model chain, optionally overridden by AEGIS_FREE_AI_MODELS (comma list). */
 export function modelChain(env: Env = process.env): string[] {
@@ -121,11 +134,12 @@ export function lastAnswered(): string | null {
 }
 
 /** The model the chain would try first right now: the last one that answered,
-    else the first not known to be unavailable. */
+    else the first not known to be unavailable (a model on probation counts
+    only once it has answered here). */
 export function likelyModel(env: Env = process.env, now: number = Date.now()): string | null {
   const chain = modelChain(env);
   if (lastAnsweredModel && chain.includes(lastAnsweredModel) && !isUnavailable(lastAnsweredModel, now)) return lastAnsweredModel;
-  return chain.find((m) => !isUnavailable(m, now)) ?? null;
+  return chain.find((m) => !isUnavailable(m, now) && !PROBATION_MODELS.has(m)) ?? null;
 }
 
 /** Remove reasoning that some models put inside the answer text. */
@@ -199,6 +213,10 @@ export interface ChatRequest {
   /** Which "not found" memory to use and for how long (default: the shared
       six-hour chain memory). */
   memory?: { scope: string; ms: number };
+  /** This call IS the availability check (a waiting study's probe): ask every
+      listed model even if a memory or the health record says it is resting.
+      Its outcome is still recorded. */
+  healthCheck?: boolean;
 }
 /** No attempt starts with less time than this before the deadline. */
 export const MIN_ATTEMPT_MS = 5_000;
@@ -219,10 +237,41 @@ export interface ChatResult {
   ms: number;
   attempts: ChatAttempt[];
 }
+/** The shared record of which models answer (lib/ai-free/health.ts). */
+export interface ModelHealth {
+  /** False while the model rests after failures in a row, and for a model on
+      probation until it has answered once. */
+  usable(model: string, now: number): boolean;
+  /** Called after every attempt that reached the provider. Best effort. */
+  record(attempt: ChatAttempt, now: number): void | Promise<void>;
+}
 export interface FreeAiDeps {
   fetch?: typeof fetch;
   env?: Env;
   now?: () => number;
+  /** Without it, every model is asked except those on probation. */
+  health?: ModelHealth;
+}
+
+/** May this model be asked now? Memories first, then the health record. */
+function resting(model: string, now: number, scope: string, req: ChatRequest, health: ModelHealth | undefined): boolean {
+  if (req.healthCheck) return false;
+  if (isUnavailable(model, now, scope)) return true;
+  if (!health) return PROBATION_MODELS.has(model);
+  try {
+    return !health.usable(model, now);
+  } catch {
+    return PROBATION_MODELS.has(model);
+  }
+}
+
+async function noteHealth(health: ModelHealth | undefined, attempt: ChatAttempt, now: number): Promise<void> {
+  if (!health) return;
+  try {
+    await health.record(attempt, now);
+  } catch {
+    /* best effort: the health record never breaks or delays an answer's use */
+  }
 }
 
 /** Kimi K3.x fixes its own sampling (temperature 1.0, top_p 0.95) and Moonshot
@@ -336,6 +385,8 @@ export async function callModel(model: string, key: string, req: ChatRequest, de
 }
 
 /** Ask the chain in order and return the first usable answer.
+    - resting (a memory or the health record says so, or a model on probation
+      with no health record): skip it, unless this call is a health check;
     - not found/gone: skip that model (six hours by default), try the next;
     - busy, rate-limited, timeout, empty or a rejected request: try the next;
     - unauthorized: stop (the key itself is refused);
@@ -356,7 +407,7 @@ export async function chat(req: ChatRequest, deps: FreeAiDeps = {}): Promise<Cha
   let deadlineHit = false;
   for (const model of models) {
     const t0 = now();
-    if (isUnavailable(model, t0, scope)) {
+    if (resting(model, t0, scope, req, deps.health)) {
       attempts.push({ model, outcome: "skipped", status: null, ms: 0 });
       continue;
     }
@@ -368,13 +419,17 @@ export async function chat(req: ChatRequest, deps: FreeAiDeps = {}): Promise<Cha
     }
     try {
       const { text, usage } = await callModel(model, found.key, { ...req, timeoutMs: Math.min(req.timeoutMs ?? DEFAULT_TIMEOUT_MS, left) }, deps);
-      attempts.push({ model, outcome: "ok", status: 200, ms: now() - t0 });
+      const attempt: ChatAttempt = { model, outcome: "ok", status: 200, ms: now() - t0 };
+      attempts.push(attempt);
       lastAnsweredModel = model;
+      await noteHealth(deps.health, attempt, now());
       return { model, text, usage, ms: now() - started, attempts };
     } catch (err) {
       const e = err instanceof FreeAiError ? err : new FreeAiError("network", null, model);
-      attempts.push({ model, outcome: e.code, status: e.status, ms: now() - t0 });
+      const attempt: ChatAttempt = { model, outcome: e.code, status: e.status, ms: now() - t0 };
+      attempts.push(attempt);
       if (e.code === "not-found") markUnavailable(model, now(), memoryMs, scope);
+      await noteHealth(deps.health, attempt, now());
       if (e.code === "unauthorized") throw e;
     }
   }
