@@ -97,7 +97,7 @@ export class PgCoachStore implements CoachStore {
 }
 
 export interface OwnerNote {
-  kind: "trade" | "day";
+  kind: "trade" | "day" | "week";
   subject: string;
   text: string;
   model: string;
@@ -109,7 +109,7 @@ export async function readOwnerNotes(db: Db, limit = 300): Promise<OwnerNote[]> 
   const { rows } = await db.query(
     `SELECT kind, subject, text, model, created_at FROM public.ai_notes WHERE status = 'accepted' ORDER BY created_at DESC LIMIT $1`, [limit]);
   return rows.flatMap((r) =>
-    (r.kind === "trade" || r.kind === "day") && typeof r.subject === "string" && typeof r.text === "string"
+    (r.kind === "trade" || r.kind === "day" || r.kind === "week") && typeof r.subject === "string" && typeof r.text === "string"
       ? [{ kind: r.kind, subject: r.subject, text: r.text, model: String(r.model ?? ""), createdAt: new Date(r.created_at as string | Date).toISOString() }]
       : []);
 }

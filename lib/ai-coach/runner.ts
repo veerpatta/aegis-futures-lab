@@ -9,6 +9,7 @@
 
 import type { ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
 import { FreeAiError } from "@/lib/ai-free/nvidia";
+import { cleanText } from "@/lib/ai-free/text";
 import { stableHash } from "@/lib/experiment/hash";
 import { tradingDayKey } from "@/lib/time/ny";
 import { dayFacts, tradeFacts, type DayRecord, type Facts, type TradeRecord } from "./facts";
@@ -69,24 +70,27 @@ export interface CoachReport {
   errors: number;
 }
 
-async function write(kind: NoteKind, subject: string, facts: Facts, deps: CoachDeps, budget: RunBudget, report: CoachReport): Promise<void> {
+async function write(kind: "trade" | "day", subject: string, facts: Facts, deps: CoachDeps, budget: RunBudget, report: CoachReport): Promise<void> {
   budget.calls--;
+  let result: ChatResult;
   try {
-    const result = await deps.chat({ system: kind === "trade" ? TRADE_SYSTEM : DAY_SYSTEM, user: JSON.stringify(facts), maxTokens: 1200, temperature: 0.3, timeoutMs: callTimeout(budget, deps.now()) });
-    const text = result.text.replace(/\s+/g, " ").trim();
-    const verdict = validateNote(text, facts, kind);
-    const note: CoachNote = {
-      kind, subject, facts, factsHash: stableHash(facts), model: result.model, promptVersion: COACH_PROMPT_VERSION,
-      status: verdict.ok ? "accepted" : "rejected", text: text.slice(0, 2000), rejectReason: verdict.ok ? null : verdict.reason,
-    };
-    if (await deps.store.save(note, deps.now())) {
-      if (!verdict.ok) report.rejected++;
-      else if (kind === "trade") report.tradeNotes++;
-      else report.dayNotes++;
-    }
+    result = await deps.chat({ system: kind === "trade" ? TRADE_SYSTEM : DAY_SYSTEM, user: JSON.stringify(facts), maxTokens: 1200, temperature: 0.3, timeoutMs: callTimeout(budget, deps.now()), deadline: budget.hardStop });
   } catch (err) {
     if (!(err instanceof FreeAiError)) throw err;
     report.errors++;
+    return;
+  }
+  // Saving happens outside the provider try: a database failure stops the pass.
+  const text = cleanText(result.text.replace(/\s+/g, " ").trim(), 2000);
+  const verdict = validateNote(text, facts, kind);
+  const note: CoachNote = {
+    kind, subject, facts, factsHash: stableHash(facts), model: result.model, promptVersion: COACH_PROMPT_VERSION,
+    status: verdict.ok ? "accepted" : "rejected", text, rejectReason: verdict.ok ? null : verdict.reason,
+  };
+  if (await deps.store.save(note, deps.now())) {
+    if (!verdict.ok) report.rejected++;
+    else if (kind === "trade") report.tradeNotes++;
+    else report.dayNotes++;
   }
 }
 

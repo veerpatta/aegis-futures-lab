@@ -70,7 +70,7 @@ export function modelChain(env: Env = process.env): string[] {
 
 export type FreeAiErrorCode =
   | "disabled" | "no-key" | "not-found" | "unauthorized" | "rate-limited" | "busy"
-  | "timeout" | "network" | "bad-request" | "bad-response" | "empty" | "all-unavailable";
+  | "timeout" | "network" | "bad-request" | "bad-response" | "empty" | "deadline" | "all-unavailable";
 
 export class FreeAiError extends Error {
   readonly code: FreeAiErrorCode;
@@ -87,16 +87,21 @@ export class FreeAiError extends Error {
 
 /* Per-instance memory of models that answered "not found". A serverless
    instance is short-lived, so at worst a cold instance re-asks once: a 404
-   costs about 0.2 s and no quota. */
+   costs about 0.2 s and no quota. Memories are scoped: the coach, research and
+   availability probe share the six-hour "chain" memory; the single-model
+   second opinion keeps its own, at most 15 minutes, so a coach 404 can never
+   silence a study for hours. */
 const unavailableUntil = new Map<string, number>();
-export function markUnavailable(model: string, now: number): void {
-  unavailableUntil.set(model, now + NOT_FOUND_BACKOFF_MS);
+const memKey = (scope: string, model: string) => `${scope}\u0001${model}`;
+export function markUnavailable(model: string, now: number, ms: number = NOT_FOUND_BACKOFF_MS, scope = "chain"): void {
+  unavailableUntil.set(memKey(scope, model), now + ms);
 }
-export function isUnavailable(model: string, now: number): boolean {
-  const until = unavailableUntil.get(model);
+export function isUnavailable(model: string, now: number, scope = "chain"): boolean {
+  const key = memKey(scope, model);
+  const until = unavailableUntil.get(key);
   if (until === undefined) return false;
   if (until <= now) {
-    unavailableUntil.delete(model);
+    unavailableUntil.delete(key);
     return false;
   }
   return true;
@@ -184,10 +189,19 @@ export interface ChatRequest {
   user: string;
   maxTokens?: number;
   temperature?: number;
+  /** Longest single attempt (capped by `deadline`). */
   timeoutMs?: number;
+  /** Absolute epoch ms: no attempt runs past it, and none starts with less
+      than MIN_ATTEMPT_MS left, however many models remain in the chain. */
+  deadline?: number;
   /** Ask this chain instead of the configured one. */
   models?: readonly string[];
+  /** Which "not found" memory to use and for how long (default: the shared
+      six-hour chain memory). */
+  memory?: { scope: string; ms: number };
 }
+/** No attempt starts with less time than this before the deadline. */
+export const MIN_ATTEMPT_MS = 5_000;
 export interface ChatUsage {
   inputTokens: number;
   outputTokens: number;
@@ -219,19 +233,69 @@ function samplingFor(model: string, temperature: number | undefined): Record<str
 }
 
 /** One request to one model. Throws FreeAiError with a fixed code. */
+/** Most text a streamed answer may accumulate before it is cut off. */
+const MAX_STREAM_CHARS = 200_000;
+
+type Usage = { prompt_tokens?: unknown; completion_tokens?: unknown } | undefined;
+const usageOf = (u: Usage): ChatUsage | null =>
+  u && Number.isSafeInteger(u.prompt_tokens) && Number.isSafeInteger(u.completion_tokens) ? { inputTokens: u.prompt_tokens as number, outputTokens: u.completion_tokens as number } : null;
+
+/** Read an OpenAI-style server-sent event stream: the answer is the sum of
+    `delta.content`; `delta.reasoning_content` / `delta.reasoning` are ignored. */
+async function readStream(body: ReadableStream<Uint8Array>, model: string): Promise<{ text: string; usage: ChatUsage | null }> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "", text = "";
+  let usage: ChatUsage | null = null;
+  const take = (line: string): boolean => {
+    if (!line.startsWith("data:")) return false;
+    const data = line.slice(5).trim();
+    if (data === "[DONE]") return true;
+    try {
+      const event = JSON.parse(data) as { choices?: { delta?: { content?: unknown } }[]; usage?: Usage };
+      const piece = event.choices?.[0]?.delta?.content;
+      if (typeof piece === "string") text += piece;
+      usage = usageOf(event.usage) ?? usage;
+    } catch {
+      /* a keep-alive or a malformed line carries no answer */
+    }
+    return false;
+  };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) if (take(line.trim())) { await reader.cancel().catch(() => {}); return { text, usage }; }
+      if (text.length > MAX_STREAM_CHARS) { await reader.cancel().catch(() => {}); break; }
+    }
+    take(buffer.trim());
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    throw new FreeAiError(name === "TimeoutError" || name === "AbortError" ? "timeout" : "network", null, model);
+  }
+  return { text, usage };
+}
+
 export async function callModel(model: string, key: string, req: ChatRequest, deps: FreeAiDeps = {}): Promise<{ text: string; usage: ChatUsage | null }> {
   const transport = deps.fetch ?? fetch;
   let res: Response;
   try {
+    // Streamed: NVIDIA's gateway answers 502 when a non-streamed answer takes
+    // about 30 s (measured 2026-11-07), and a reasoning model often does.
+    // Streaming keeps bytes flowing; the answer itself is unchanged.
     res = await transport(NVIDIA_CHAT_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
       signal: AbortSignal.timeout(req.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       body: JSON.stringify({
         model,
         messages: [{ role: "system", content: req.system }, { role: "user", content: req.user }],
         max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-        stream: false,
+        stream: true,
+        stream_options: { include_usage: true },
         ...samplingFor(model, req.temperature),
       }),
     });
@@ -251,6 +315,13 @@ export async function callModel(model: string, key: string, req: ChatRequest, de
     if (s === 400 || s === 422) throw new FreeAiError("bad-request", s, model);
     throw new FreeAiError("busy", s, model);
   }
+  if ((res.headers.get("content-type") ?? "").includes("text/event-stream") && res.body) {
+    const streamed = await readStream(res.body, model);
+    const text = stripThinking(streamed.text);
+    if (!text) throw new FreeAiError("empty", res.status, model);
+    return { text, usage: streamed.usage };
+  }
+  // A plain JSON answer (some deployments ignore `stream`).
   let body: unknown;
   try {
     body = await res.json();
@@ -261,16 +332,16 @@ export async function callModel(model: string, key: string, req: ChatRequest, de
   const content = choice?.message?.content;
   const text = typeof content === "string" ? stripThinking(content) : "";
   if (!text) throw new FreeAiError("empty", res.status, model);
-  const u = (body as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } }).usage;
-  const usage = u && Number.isSafeInteger(u.prompt_tokens) && Number.isSafeInteger(u.completion_tokens)
-    ? { inputTokens: u.prompt_tokens as number, outputTokens: u.completion_tokens as number } : null;
-  return { text, usage };
+  return { text, usage: usageOf((body as { usage?: Usage }).usage) };
 }
 
 /** Ask the chain in order and return the first usable answer.
-    - not found/gone: skip that model for six hours, try the next;
+    - not found/gone: skip that model (six hours by default), try the next;
     - busy, rate-limited, timeout, empty or a rejected request: try the next;
-    - unauthorized: stop (the key itself is refused). */
+    - unauthorized: stop (the key itself is refused);
+    - the deadline: stop starting attempts with under 5 s left.
+    When every model asked gave an empty answer the error is "empty": a real,
+    unusable answer, which callers record as final instead of re-asking. */
 export async function chat(req: ChatRequest, deps: FreeAiDeps = {}): Promise<ChatResult> {
   const env = deps.env ?? process.env;
   const now = deps.now ?? Date.now;
@@ -278,27 +349,38 @@ export async function chat(req: ChatRequest, deps: FreeAiDeps = {}): Promise<Cha
   const found = findFreeAiKey(env);
   if (!found) throw new FreeAiError("no-key");
   const models = req.models?.length ? [...req.models] : modelChain(env);
+  const scope = req.memory?.scope ?? "chain";
+  const memoryMs = req.memory?.ms ?? NOT_FOUND_BACKOFF_MS;
   const attempts: ChatAttempt[] = [];
   const started = now();
+  let deadlineHit = false;
   for (const model of models) {
     const t0 = now();
-    if (isUnavailable(model, t0)) {
+    if (isUnavailable(model, t0, scope)) {
       attempts.push({ model, outcome: "skipped", status: null, ms: 0 });
       continue;
     }
+    const left = req.deadline === undefined ? Number.POSITIVE_INFINITY : req.deadline - t0;
+    if (left < MIN_ATTEMPT_MS) {
+      deadlineHit = true;
+      attempts.push({ model, outcome: "deadline", status: null, ms: 0 });
+      break;
+    }
     try {
-      const { text, usage } = await callModel(model, found.key, req, deps);
+      const { text, usage } = await callModel(model, found.key, { ...req, timeoutMs: Math.min(req.timeoutMs ?? DEFAULT_TIMEOUT_MS, left) }, deps);
       attempts.push({ model, outcome: "ok", status: 200, ms: now() - t0 });
       lastAnsweredModel = model;
       return { model, text, usage, ms: now() - started, attempts };
     } catch (err) {
       const e = err instanceof FreeAiError ? err : new FreeAiError("network", null, model);
       attempts.push({ model, outcome: e.code, status: e.status, ms: now() - t0 });
-      if (e.code === "not-found") markUnavailable(model, now());
+      if (e.code === "not-found") markUnavailable(model, now(), memoryMs, scope);
       if (e.code === "unauthorized") throw e;
     }
   }
-  const error = new FreeAiError("all-unavailable");
+  const asked = attempts.filter((a) => a.outcome !== "skipped" && a.outcome !== "deadline");
+  const code: FreeAiErrorCode = asked.length && asked.every((a) => a.outcome === "empty") ? "empty" : deadlineHit && !asked.length ? "deadline" : "all-unavailable";
+  const error = new FreeAiError(code);
   (error as FreeAiError & { attempts?: ChatAttempt[] }).attempts = attempts;
   throw error;
 }

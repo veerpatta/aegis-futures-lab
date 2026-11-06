@@ -1,24 +1,38 @@
 /* One pass of the AI second opinion: for each registered study, ask its model
-   about the new decisions of the active learner campaign, and probe a waiting
-   study's model.
+   about the new decisions of the active learner campaign, probe a waiting
+   study's model, and take any look that has become due.
 
    Integrity rules (docs/research/2026-11-07-ai-second-opinion-preregistration.md):
-   - only decisions recorded at or after the study started, asked within two
-     hours of being recorded, oldest first;
+   - only decisions recorded at or after the study started, asked (and the
+     answer recorded) within two hours of the decision, oldest first;
    - only information up to the decision's cutoff (marketContext enforces it);
-   - every attempt is claimed before the call; an answer (or an unusable one)
-     is final and write-once, never re-asked; a provider failure is logged and
-     may be retried in a later pass while the two-hour window is still open,
-     because no answer was seen and so none can be cherry-picked;
-   - one model per study, no fallback inside a study. */
+   - every attempt is claimed before the call; an answer (including an empty
+     or unusable one) is final and write-once; a provider failure, where no
+     answer was seen, may be retried in a later pass, at most three attempts;
+   - a failure to SAVE stops the pass: it is never logged as a provider error
+     and never re-asked at once (the database also refuses a final answer
+     without a claim or after the two-hour window);
+   - one model per study, no fallback, its own short "not found" memory;
+   - each study gets its own share of the calls, in a fixed order. */
 
 import type { ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
 import { FreeAiError } from "@/lib/ai-free/nvidia";
+import { cleanText } from "@/lib/ai-free/text";
 import { CONTEXT_LOOKBACK_SECONDS, marketContext, sessionClock, type JudgeBar } from "./features";
+import type { StoredLook } from "./looks";
 import { JUDGE_SYSTEM, judgeUserMessage, parseJudgeVerdict, type JudgeIdea } from "./prompt";
-import { judgeConfigHash, MODEL_PROBE_INTERVAL_MS, studyConfig, type JudgeStudyConfig } from "./studies";
+import { dueJudgeLook, type JudgeLookResult, type JudgeScoreRow } from "./score";
+import { JUDGE_STUDIES, judgeConfigHash, MODEL_PROBE_INTERVAL_MS, studyConfig, type JudgeStudyConfig } from "./studies";
 
 export const MAX_ATTEMPTS = 3;
+/** An attempt with no answer and no error for this long was abandoned. */
+export const ABANDONED_CLAIM_SECONDS = 180;
+/** Each study may use at most this many of a pass's calls. */
+export const CALLS_PER_STUDY = 2;
+/** The single-model studies forget a "not found" after 15 minutes. */
+export const JUDGE_MEMORY = Object.freeze({ scope: "judge", ms: 15 * 60_000 });
+/** Ask only if the answer can still be recorded inside the two-hour window. */
+const RECORD_MARGIN_SECONDS = 90;
 
 export interface JudgeStudyRow {
   id: string;
@@ -40,22 +54,31 @@ export interface JudgeDecisionRow {
 }
 export interface JudgeStore {
   studies(): Promise<JudgeStudyRow[]>;
-  /** Unanswered decisions of the active learner campaign recorded at or after
-      `sinceSec` and no earlier than `freshSinceSec`, oldest first. */
+  /** Decisions of the active learner campaign recorded at or after `sinceSec`
+      and no earlier than `freshSinceSec`, without a final answer, with fewer
+      than MAX_ATTEMPTS claims and no attempt in progress (a claim younger than
+      ABANDONED_CLAIM_SECONDS with neither an answer nor an error), oldest first. */
   pending(studyId: string, sinceSec: number, freshSinceSec: number, limit: number): Promise<JudgeDecisionRow[]>;
   bars(symbol: string, fromSec: number, cutoffSec: number): Promise<JudgeBar[]>;
   claim(studyId: string, decisionKey: string, attempt: number, atMs: number): Promise<boolean>;
-  /** Write-once final answer (decision or invalid) or a retryable error log. */
+  /** Write-once final answer (decision or invalid) or a retryable error log.
+      Returns false when it was not inserted (already there). Throws when the
+      database fails: the caller must stop. */
   record(studyId: string, decisionKey: string, kind: "decision" | "invalid" | "error", attempt: number, atMs: number, payload: Record<string, unknown>): Promise<boolean>;
   /** Claim this six-hour window's probe; false when it was already used. */
   claimProbe(studyId: string, windowStartMs: number, atMs: number): Promise<boolean>;
   recordProbe(studyId: string, windowStartMs: number, atMs: number, payload: Record<string, unknown>): Promise<void>;
   activate(studyId: string, atMs: number): Promise<boolean>;
+  /** The study's answered decisions, for looks and scoring. */
+  scoreRows(studyId: string): Promise<JudgeScoreRow[]>;
+  looks(studyId: string): Promise<StoredLook[]>;
+  /** Write-once; false when this look was already stored. */
+  saveLook(studyId: string, result: JudgeLookResult, atMs: number): Promise<boolean>;
 }
 export interface RunBudget {
   /** Epoch ms after which no new AI call starts. */
   deadline: number;
-  /** AI calls still allowed in this pass (shared with the coach). */
+  /** AI calls still allowed in this pass (shared with the coach and ideas). */
   calls: number;
   /** Epoch ms by which every call must have ended (the platform's time limit
       minus a margin), so a slow model is cut off cleanly instead of the whole
@@ -74,6 +97,7 @@ export function callTimeout(budget: RunBudget, now: number): number {
 export function canCall(budget: RunBudget, now: number): boolean {
   return budget.calls > 0 && now < budget.deadline && (budget.hardStop === undefined || budget.hardStop - now >= MIN_CALL_MS);
 }
+
 export interface JudgeDeps {
   store: JudgeStore;
   chat: (req: ChatRequest) => Promise<ChatResult>;
@@ -86,6 +110,7 @@ export interface JudgeReport {
   skipped: string[];
   activated: string[];
   probes: { study: string; outcome: string }[];
+  looks: { study: string; look: number; verdict: string }[];
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -120,41 +145,49 @@ export function judgeIdea(row: JudgeDecisionRow): JudgeIdea | null {
 
 async function askStudy(study: JudgeStudyConfig, row: JudgeStudyRow, deps: JudgeDeps, budget: RunBudget, report: JudgeReport) {
   if (row.startedAt === null) return;
-  const nowSec = Math.floor(deps.now() / 1000);
-  const fresh = nowSec - study.rules.freshnessSeconds;
-  const pending = await deps.store.pending(study.id, row.startedAt, fresh, 5);
+  const window = study.rules.freshnessSeconds - RECORD_MARGIN_SECONDS;
+  const pending = await deps.store.pending(study.id, row.startedAt, Math.floor(deps.now() / 1000) - window, CALLS_PER_STUDY * 2);
+  let used = 0;
   for (const d of pending) {
     const now = deps.now();
-    if (!canCall(budget, now)) return;
-    // Re-check the two-hour rule against the clock at the moment of asking.
-    if (Math.floor(now / 1000) - d.createdAt > study.rules.freshnessSeconds || d.attempts >= MAX_ATTEMPTS) continue;
+    if (used >= CALLS_PER_STUDY || !canCall(budget, now)) return;
+    // Re-check against the clock at the moment of asking.
+    if (Math.floor(now / 1000) - d.createdAt > window || d.attempts >= MAX_ATTEMPTS) continue;
     const attempt = d.attempts + 1;
     if (!(await deps.store.claim(study.id, d.decisionKey, attempt, now))) continue;
     const idea = judgeIdea(d);
     if (!idea) {
-      await deps.store.record(study.id, d.decisionKey, "invalid", attempt, deps.now(), { reason: "unusable-decision-row" });
-      report.invalid++;
+      if (await deps.store.record(study.id, d.decisionKey, "invalid", attempt, deps.now(), { reason: "unusable-decision-row" })) report.invalid++;
       continue;
     }
     const bars = await deps.store.bars(d.symbol, d.infoCutoff - CONTEXT_LOOKBACK_SECONDS, d.infoCutoff);
     const context = marketContext({ bars, cutoffSec: d.infoCutoff, entry: idea.entry, stop: idea.stop });
     const user = judgeUserMessage(idea, context);
     budget.calls--;
+    used++;
+    const base = { model: study.model, promptVersion: study.promptVersion, featureVersion: study.featureVersion, attempt, input: user };
+    let result: ChatResult | null = null;
+    let failure: FreeAiError | null = null;
     try {
-      const result = await deps.chat({ system: JUDGE_SYSTEM, user, models: [study.model], maxTokens: 1500, temperature: 0.2, timeoutMs: callTimeout(budget, deps.now()) });
-      const verdict = parseJudgeVerdict(result.text);
-      const payload = { model: result.model, promptVersion: study.promptVersion, featureVersion: study.featureVersion, attempt, ms: result.ms, input: user };
-      if (verdict) {
-        await deps.store.record(study.id, d.decisionKey, "decision", attempt, deps.now(), { ...payload, verdict, responseAt: Math.floor(deps.now() / 1000) });
-        report.decided++;
-      } else {
-        await deps.store.record(study.id, d.decisionKey, "invalid", attempt, deps.now(), { ...payload, reason: "unparseable-answer", raw: result.text.slice(0, 2000) });
-        report.invalid++;
-      }
+      result = await deps.chat({ system: JUDGE_SYSTEM, user, models: [study.model], maxTokens: 1500, temperature: 0.2, timeoutMs: callTimeout(budget, deps.now()), deadline: budget.hardStop, memory: JUDGE_MEMORY });
     } catch (err) {
-      const e = err instanceof FreeAiError ? err : new FreeAiError("network");
-      await deps.store.record(study.id, d.decisionKey, "error", attempt, deps.now(), { code: e.code, status: e.status, model: study.model });
-      report.errors++;
+      if (!(err instanceof FreeAiError)) throw err;
+      failure = err;
+    }
+    // Saving happens outside the provider try: a database failure stops the
+    // pass instead of being logged as a provider error.
+    if (failure && failure.code !== "empty") {
+      if (await deps.store.record(study.id, d.decisionKey, "error", attempt, deps.now(), { code: failure.code, status: failure.status, model: study.model })) report.errors++;
+      continue;
+    }
+    const verdict = result ? parseJudgeVerdict(result.text) : null;
+    if (result && verdict) {
+      const saved = { ...base, model: result.model, ms: result.ms, verdict: { ...verdict, reason: cleanText(verdict.reason, 1200) }, responseAt: Math.floor(deps.now() / 1000) };
+      if (await deps.store.record(study.id, d.decisionKey, "decision", attempt, deps.now(), saved)) report.decided++;
+    } else {
+      // An empty or unusable answer is a real answer: final, never re-asked.
+      const saved = { ...base, reason: result ? "unparseable-answer" : "empty-answer", raw: result ? cleanText(result.text, 2000) : "" };
+      if (await deps.store.record(study.id, d.decisionKey, "invalid", attempt, deps.now(), saved)) report.invalid++;
     }
   }
 }
@@ -165,22 +198,32 @@ async function probeStudy(study: JudgeStudyConfig, deps: JudgeDeps, budget: RunB
   const window = Math.floor(now / MODEL_PROBE_INTERVAL_MS) * MODEL_PROBE_INTERVAL_MS;
   if (!(await deps.store.claimProbe(study.id, window, now))) return;
   budget.calls--;
+  let outcome: { outcome: string; status?: number | null } = { outcome: "answered" };
   try {
-    await deps.chat({ system: "Reply with the single word: ready", user: "Are you available?", models: [study.model], maxTokens: 64, timeoutMs: Math.min(20_000, callTimeout(budget, deps.now())) });
-    const activated = await deps.store.activate(study.id, deps.now());
-    await deps.store.recordProbe(study.id, window, deps.now(), { outcome: "answered", activated });
-    if (activated) report.activated.push(study.id);
-    report.probes.push({ study: study.id, outcome: "answered" });
+    // The probe shares the chain's six-hour memory: it is the availability check.
+    await deps.chat({ system: "Reply with the single word: ready", user: "Are you available?", models: [study.model], maxTokens: 64, timeoutMs: Math.min(20_000, callTimeout(budget, deps.now())), deadline: budget.hardStop });
   } catch (err) {
-    const e = err instanceof FreeAiError ? err : new FreeAiError("network");
-    await deps.store.recordProbe(study.id, window, deps.now(), { outcome: e.code, status: e.status });
-    report.probes.push({ study: study.id, outcome: e.code });
+    if (!(err instanceof FreeAiError)) throw err;
+    outcome = { outcome: err.code, status: err.status };
   }
+  const activated = outcome.outcome === "answered" ? await deps.store.activate(study.id, deps.now()) : false;
+  await deps.store.recordProbe(study.id, window, deps.now(), { ...outcome, activated });
+  if (activated) report.activated.push(study.id);
+  report.probes.push({ study: study.id, outcome: outcome.outcome });
+}
+
+/** Take and store every look that has become due (no AI call). */
+async function takeLooks(study: JudgeStudyConfig, deps: JudgeDeps, report: JudgeReport) {
+  const [rows, stored] = await Promise.all([deps.store.scoreRows(study.id), deps.store.looks(study.id)]);
+  const due = dueJudgeLook(rows, stored, study.id, study.rules, Math.floor(deps.now() / 1000), study.rules.freshnessSeconds);
+  if ("due" in due && (await deps.store.saveLook(study.id, due.due, deps.now()))) report.looks.push({ study: study.id, look: due.due.look, verdict: due.due.verdict });
 }
 
 export async function runJudge(deps: JudgeDeps, budget: RunBudget): Promise<JudgeReport> {
-  const report: JudgeReport = { decided: 0, invalid: 0, errors: 0, skipped: [], activated: [], probes: [] };
+  const report: JudgeReport = { decided: 0, invalid: 0, errors: 0, skipped: [], activated: [], probes: [], looks: [] };
   const rows = await deps.store.studies();
+  // A fixed order from the code, never the database's.
+  const order = new Map(JUDGE_STUDIES.map((s, i) => [s.id, i]));
   const known = rows.flatMap((row) => {
     const config = studyConfig(row.id);
     // A registration that does not match the frozen code is never run.
@@ -189,9 +232,10 @@ export async function runJudge(deps: JudgeDeps, budget: RunBudget): Promise<Judg
       return [];
     }
     return [{ config, row }];
-  });
-  // New decisions first: they have a two-hour window. Probes can wait.
+  }).sort((a, b) => (order.get(a.config.id) ?? 99) - (order.get(b.config.id) ?? 99));
+  // New decisions first: they have a two-hour window. Probes and looks can wait.
   for (const { config, row } of known) if (row.status === "active") await askStudy(config, row, deps, budget, report);
   for (const { config, row } of known) if (row.status === "waiting-for-model") await probeStudy(config, deps, budget, report);
+  for (const { config, row } of known) if (row.status === "active") await takeLooks(config, deps, report);
   return report;
 }

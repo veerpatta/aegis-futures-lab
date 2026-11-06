@@ -7,7 +7,7 @@ async function setup() {
   const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "RS256" };
   const verify = createGithubOidcVerifier(createLocalJWKSet({ keys: [jwk] }));
   const good: JWTPayload = {
-    repository: "veerpatta/aegis-futures-lab", ref: "refs/heads/main", workflow_ref: AI_HELPER_WORKFLOW_REF, event_name: "workflow_dispatch", run_id: "123",
+    repository: "veerpatta/aegis-futures-lab", repository_id: "1304384083", repository_owner_id: "222136377", ref: "refs/heads/main", workflow_ref: AI_HELPER_WORKFLOW_REF, event_name: "workflow_dispatch", run_id: "123",
   };
   const sign = (claims: JWTPayload, opts: { iss?: string; aud?: string; key?: CryptoKey } = {}) =>
     new SignJWT(claims).setProtectedHeader({ alg: "RS256", kid: "k1" }).setIssuer(opts.iss ?? GITHUB_OIDC_ISSUER)
@@ -31,6 +31,10 @@ describe("GitHub OIDC gate for the AI helper", () => {
       { ...good, workflow_ref: "veerpatta/aegis-futures-lab/.github/workflows/ci.yml@refs/heads/main" },
       { ...good, workflow_ref: "veerpatta/aegis-futures-lab/.github/workflows/signal-engine.yml@refs/pull/7/merge" },
       { ...good, event_name: "pull_request" },
+      // Same names, different repository or owner (e.g. deleted and re-created).
+      { ...good, repository_id: "999" },
+      { ...good, repository_owner_id: "999" },
+      { ...good, repository_id: 1304384083 },
     ]) expect(await verify(req(await sign(claims)))).toMatchObject({ ok: false, status: 401 });
   });
 

@@ -1,28 +1,24 @@
 /* Scoring the AI second opinion against its controls (take every idea, no
-   trade, matched random picks), and the preregistered verdict.
+   trade, matched random picks), and the preregistered looks.
 
-   The verdict is group-sequential: each look is taken ONCE, on exactly the
-   first N resolved calls in decision order, and frozen. Recomputing a verdict
-   on every new trade would be continuous peeking, which makes a lucky streak
-   look like skill. The running numbers are shown for information only. */
+   The verdict comes only from stored looks (lib/ai-judge/looks.ts): each look
+   is taken once, on a fixed window of decisions, when every decision in it
+   is final, and is then stored write-once. The running numbers below are
+   information for the screens, recomputed on every read; they never decide. */
 
 import { matchedRandomPercentile, sessionBootstrapMean, type Interval } from "@/lib/experiment/stats";
 import { seedOf } from "@/lib/experiment/hash";
-import type { JudgeRules } from "./studies";
+import { lookWindow, nextLookIndex, sortForLooks, type LookRow, type StoredLook } from "./looks";
+import type { JudgeLook, JudgeRules } from "./studies";
 
-export interface JudgeScoreRow {
-  key: string;
-  session: string;
-  /** Decision time (unix seconds): the order in which looks consume rows. */
-  at: number;
+export interface JudgeScoreRow extends LookRow {
   decision: "take" | "skip";
-  /** One-contract net after costs; null while unresolved. */
+  /** One-contract result after costs; null unless state is "resolved". */
   net: number | null;
 }
+type Resolved = JudgeScoreRow & { net: number };
 
-export type JudgeVerdictLabel = "too-early" | "inconclusive" | "pass" | "fail";
-
-export interface JudgeScore {
+export interface JudgeRunning {
   calls: number;
   resolved: number;
   taken: number;
@@ -32,97 +28,89 @@ export interface JudgeScore {
   takeAllNet: number;
   randomPercentile: number | null;
   delta: Interval | null;
-  verdict: JudgeVerdictLabel;
-  /** The next look's size, or null after the last look. */
-  nextLook: number | null;
+}
+
+export interface JudgeLookResult {
+  look: number;
+  verdict: "pass" | "fail" | "inconclusive";
+  resolved: number;
+  sessions: number;
+  taken: number;
+  aiNet: number;
+  takeAllNet: number;
+  takeRate: number;
+  randomPercentile: number | null;
+  delta: Interval | null;
+  alpha: number;
+  lastDecisionKey: string;
 }
 
 const money = (v: number) => Math.round(v * 100) / 100;
 const finiteInterval = (i: Interval): Interval | null =>
   Number.isFinite(i.est) && Number.isFinite(i.lo) && Number.isFinite(i.hi) ? { est: money(i.est), lo: money(i.lo), hi: money(i.hi) } : null;
 
-interface Evidence {
-  resolved: number;
-  sessions: number;
-  taken: number;
-  aiNet: number;
-  takeAllNet: number;
-  percentile: number | null;
+function resolvedOf(rows: readonly JudgeScoreRow[]): Resolved[] {
+  return rows.filter((r): r is Resolved => r.state === "resolved" && r.net !== null && Number.isFinite(r.net));
 }
 
-function evidenceOf(rows: { session: string; decision: "take" | "skip"; net: number }[], seed: string, randomDraws: number): Evidence {
-  const taken = rows.filter((r) => r.decision === "take");
-  return {
-    resolved: rows.length,
-    sessions: new Set(rows.map((r) => r.session)).size,
-    taken: taken.length,
-    aiNet: money(taken.reduce((a, r) => a + r.net, 0)),
-    takeAllNet: money(rows.reduce((a, r) => a + r.net, 0)),
-    percentile: taken.length
-      ? Math.round(matchedRandomPercentile(rows.map((r) => ({ session: r.session, value: r.net, take: r.decision === "take" })), randomDraws, seedOf(seed, "random")) * 10) / 10
-      : null,
-  };
+function percentileOf(rows: Resolved[], seed: string, draws: number): number | null {
+  const taken = rows.filter((r) => r.decision === "take").length;
+  if (!taken) return null;
+  return Math.round(matchedRandomPercentile(rows.map((r) => ({ session: r.session, value: r.net, take: r.decision === "take" })), draws, seedOf(seed, "random")) * 10) / 10;
 }
 
-function deltaInterval(rows: { session: string; decision: "take" | "skip"; net: number }[], seed: string, alpha: number, iterations: number): Interval | null {
+function deltaOf(rows: Resolved[], seed: string, alpha: number, iterations: number): Interval | null {
   if (!rows.length) return null;
   const deltas = rows.map((r) => ({ session: r.session, value: (r.decision === "take" ? r.net : 0) - r.net }));
   return finiteInterval(sessionBootstrapMean(deltas, iterations, seedOf(seed, "bootstrap", alpha), alpha));
 }
 
-/** Length of the shortest prefix with at least `n` rows and `sessions`
-    distinct sessions, or null if the rows do not reach both yet. */
-export function lookSize(rows: readonly { session: string }[], n: number, sessions: number): number | null {
-  const seen = new Set<string>();
-  for (let i = 0; i < rows.length; i++) {
-    seen.add(rows[i].session);
-    if (i + 1 >= n && seen.size >= sessions) return i + 1;
-  }
-  return null;
+/** Running totals over everything resolved so far (information only). */
+export function runningJudge(rows: readonly JudgeScoreRow[], studyId: string, rules: JudgeRules): JudgeRunning {
+  // Every answer counts as a call; only resolved, non-excluded ones are scored.
+  const resolved = resolvedOf(rows);
+  const taken = resolved.filter((r) => r.decision === "take");
+  return {
+    calls: rows.length,
+    resolved: resolved.length,
+    taken: rows.filter((r) => r.decision === "take").length,
+    skipped: rows.filter((r) => r.decision === "skip").length,
+    sessions: new Set(resolved.map((r) => r.session)).size,
+    aiNet: money(taken.reduce((a, r) => a + r.net, 0)),
+    takeAllNet: money(resolved.reduce((a, r) => a + r.net, 0)),
+    randomPercentile: percentileOf(resolved, studyId, rules.bootstrap.random),
+    delta: deltaOf(resolved, studyId, 0.05, rules.bootstrap.iterations),
+  };
 }
 
-export function scoreJudge(rows: readonly JudgeScoreRow[], studyId: string, rules: JudgeRules): JudgeScore {
-  const seen = new Set<string>();
-  const unique = [...rows].sort((a, b) => a.at - b.at || a.key.localeCompare(b.key)).filter((r) => (seen.has(r.key) ? false : (seen.add(r.key), true)));
-  const resolved = unique.filter((r): r is JudgeScoreRow & { net: number } => r.net !== null && Number.isFinite(r.net));
-  const all = evidenceOf(resolved, studyId, rules.bootstrap.random);
-  const runningDelta = deltaInterval(resolved, studyId, 0.05, rules.bootstrap.iterations);
-
-  let verdict: JudgeVerdictLabel = "too-early";
-  let nextLook: number | null = rules.looks[0]?.resolved ?? null;
-  for (let i = 0; i < rules.looks.length; i++) {
-    const look = rules.looks[i];
-    // The look happens at the first moment both minimums are met: the
-    // shortest prefix (in decision order) with enough calls AND sessions.
-    const size = lookSize(resolved, look.resolved, look.sessions);
-    if (size === null) break;
-    const window = resolved.slice(0, size);
-    const e = evidenceOf(window, studyId, rules.bootstrap.random);
-    const d = deltaInterval(window, studyId, look.alpha, rules.bootstrap.iterations);
-    const takeRate = e.resolved ? e.taken / e.resolved : 0;
-    const pass = d !== null && d.lo > 0 && e.percentile !== null && e.percentile >= look.percentile && e.aiNet > 0 &&
-      takeRate >= rules.takeRate.min && takeRate <= rules.takeRate.max;
-    const fail = (d !== null && d.hi < 0) || (e.aiNet < e.takeAllNet && (e.percentile ?? 0) < 50);
-    verdict = pass ? "pass" : fail ? "fail" : "inconclusive";
-    nextLook = rules.looks[i + 1]?.resolved ?? null;
-    // A decided look ends the study's verdicts; later looks never overturn it.
-    if (pass || fail) {
-      nextLook = null;
-      break;
-    }
-  }
-
+/** The preregistered pass/fail rule on one look's fixed window. */
+export function evaluateJudgeLook(window: readonly JudgeScoreRow[], lookIndex: number, look: JudgeLook, studyId: string, rules: JudgeRules): JudgeLookResult {
+  const rows = resolvedOf(window);
+  const taken = rows.filter((r) => r.decision === "take");
+  const aiNet = money(taken.reduce((a, r) => a + r.net, 0));
+  const takeAllNet = money(rows.reduce((a, r) => a + r.net, 0));
+  const takeRate = rows.length ? taken.length / rows.length : 0;
+  const randomPercentile = percentileOf(rows, studyId, rules.bootstrap.random);
+  const delta = deltaOf(rows, studyId, look.alpha, rules.bootstrap.iterations);
+  const pass = delta !== null && delta.lo > 0 && randomPercentile !== null && randomPercentile >= look.percentile && aiNet > 0 &&
+    takeRate >= rules.takeRate.min && takeRate <= rules.takeRate.max;
+  const fail = (delta !== null && delta.hi < 0) || (aiNet < takeAllNet && (randomPercentile ?? 0) < 50);
   return {
-    calls: unique.length,
-    resolved: resolved.length,
-    taken: unique.filter((r) => r.decision === "take").length,
-    skipped: unique.filter((r) => r.decision === "skip").length,
-    sessions: new Set(resolved.map((r) => r.session)).size,
-    aiNet: all.aiNet,
-    takeAllNet: all.takeAllNet,
-    randomPercentile: all.percentile,
-    delta: runningDelta,
-    verdict,
-    nextLook,
+    look: lookIndex, verdict: pass ? "pass" : fail ? "fail" : "inconclusive", resolved: rows.length, sessions: new Set(rows.map((r) => r.session)).size,
+    taken: taken.length, aiNet, takeAllNet, takeRate: Math.round(takeRate * 1000) / 1000, randomPercentile, delta, alpha: look.alpha,
+    lastDecisionKey: rows[rows.length - 1]?.key ?? "",
   };
+}
+
+/** The look that can be taken now, if any, else why the next one waits.
+    `settleSec` is how long after a decision an answer about it may still be
+    recorded (two hours for the second opinion). */
+export function dueJudgeLook(rows: readonly JudgeScoreRow[], stored: readonly StoredLook[], studyId: string, rules: JudgeRules, nowSec: number, settleSec: number):
+  { due: JudgeLookResult } | { waiting: string | null } {
+  const index = nextLookIndex(stored, rules.looks.length);
+  if (index === null) return { waiting: null };
+  const look = rules.looks[index - 1];
+  const w = lookWindow(sortForLooks(rows), look.resolved, look.sessions, nowSec, settleSec);
+  if (!w.taken) return { waiting: `Look ${index}: ${w.waiting}.` };
+  return { due: evaluateJudgeLook(w.rows, index, look, studyId, rules) };
 }

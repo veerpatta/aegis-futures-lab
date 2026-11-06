@@ -117,7 +117,7 @@ jobs:
             exit 0
           fi
           if printf 'header = "Authorization: Bearer %s"\n' "$token" |
-            curl --config - --proto '=https' --silent --show-error --fail --max-time 110 \
+            curl --config - --proto '=https' --silent --show-error --fail --max-time 75 \
               -X POST --output ai-helper.json 'https://aegis-futures-lab-khaki.vercel.app/api/ai/run'; then
             echo "AI helper: $(head -c 2000 ai-helper.json)"
           else

@@ -10,7 +10,7 @@
 
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 
-export type NoteKind = "trade" | "day";
+export type NoteKind = "trade" | "day" | "week";
 export type Verdict = { ok: true } | { ok: false; reason: string };
 
 const FORBIDDEN: { re: RegExp; reason: string }[] = [
@@ -52,8 +52,14 @@ export function validateNote(text: string, facts: unknown, kind: NoteKind): Verd
   if (note.length < 40 || note.length > max) return { ok: false, reason: "length" };
   const sentences = note.split(/[.!?](?:\s|$)/).filter((s) => s.trim()).length;
   if (sentences > (kind === "trade" ? 4 : 5)) return { ok: false, reason: "too-many-sentences" };
-  for (const f of FORBIDDEN) if (f.re.test(note)) return { ok: false, reason: f.reason };
-  if (!/\b(?:virtual|practice|simulated|paper)\b/i.test(note)) return { ok: false, reason: "not-labelled-virtual" };
+  for (const f of FORBIDDEN) {
+    // A week summary may compare values ("rr < 1.5"); markup is still refused.
+    const re = kind === "week" && f.reason === "markup" ? /[`*#|]/ : f.re;
+    if (re.test(note)) return { ok: false, reason: f.reason };
+  }
+  // A week summary is research about the bot's records, shown inside the
+  // research view; trade notes and day recaps must say the money is virtual.
+  if (kind !== "week" && !/\b(?:virtual|practice|simulated|paper)\b/i.test(note)) return { ok: false, reason: "not-labelled-virtual" };
   const pool = factNumbers(facts);
   for (const token of note.match(NUMBER) ?? []) if (!supported(token, pool)) return { ok: false, reason: "unsupported-number" };
   return { ok: true };

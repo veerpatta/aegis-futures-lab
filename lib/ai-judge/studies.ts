@@ -30,6 +30,7 @@ export interface JudgeLook {
 export interface JudgeRules {
   population: string;
   freshnessSeconds: number;
+  freshness: string;
   inputs: string;
   output: string;
   outcome: string;
@@ -58,12 +59,14 @@ export const JUDGE_RULES: JudgeRules = Object.freeze({
   population:
     "Every decision (take or skip, paused methods included) of the active learner campaign recorded at or after the study start.",
   freshnessSeconds: 7200,
+  freshness:
+    "A decision is asked, and its answer recorded, within two hours of the decision being recorded. The database refuses an answer recorded later.",
   inputs:
     "The idea, the learner's saved features and context from bars_5m bars that ended at or before the decision's information cutoff. Nothing later.",
   output:
-    "One JSON object: decision take|skip, confidence 0-100 (rounded to a whole number) and a plain-English reason (asked for at most 60 words). An answer without a usable decision, confidence and reason is recorded as invalid and never re-asked. Provider failures (no answer seen) may be retried while the two-hour window is open, at most three attempts.",
+    "One JSON object: decision take|skip, confidence 0-100 (rounded to a whole number) and a plain-English reason (asked for at most 60 words). An answer without a usable decision, confidence and reason, including an empty answer, is recorded as invalid and never re-asked. A provider failure (no answer seen) may be retried while the two-hour window is open, at most three attempts. An attempt left without an answer or an error for over 3 minutes (a crash or a failed save) counts as one of the three.",
   outcome:
-    "The learner's one-contract shadow result for the decision, after modelled costs (experiment_outcomes.net). Void outcomes and ideas the account could not take even one contract of are excluded.",
+    "The learner's one-contract shadow result for the decision, after modelled costs (experiment_outcomes.net). Excluded, as in the learner's own dataset: void outcomes (no fill was possible, including cancelled simulations) and ideas the account could not take even one contract of.",
   controls: Object.freeze(["take-all", "no-trade", "matched-random"]),
   bootstrap: Object.freeze({ iterations: 2000, random: 2000 }),
   looks: Object.freeze([
@@ -71,7 +74,7 @@ export const JUDGE_RULES: JudgeRules = Object.freeze({
     Object.freeze({ resolved: 150, sessions: 15, alpha: 0.05, percentile: 95 }),
   ]),
   lookTiming:
-    "Each look is taken once, at the first moment its minimum resolved calls and sessions are both met, on the calls resolved up to then in decision order. A pass or a fail at a look is final. Otherwise the next look follows. The running totals shown between looks are information, not a verdict.",
+    "Calls are ordered by when their decision was recorded. A look's window is the shortest prefix of that order with its minimum resolved calls and sessions (excluded calls are skipped). The look is taken only when every call in the window is final and two hours have passed since the window's last decision, so the window can never change. Its result is stored once and never recomputed. A pass or a fail at a look is final. Otherwise the next look follows. The running totals shown between looks are information, not a verdict.",
   takeRate: Object.freeze({ min: 0.1, max: 0.9 }),
   pass:
     "At a look: the per-idea delta (AI picks minus take-all) has its interval's lower bound above 0, the matched-random percentile is at least the look's, the AI's own picks made money after costs, and it took between 10% and 90% of ideas.",
