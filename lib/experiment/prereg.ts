@@ -64,7 +64,20 @@ export const PREREG_2026_10_07 = Object.freeze({
   allowSyntheticEvidence: false,
 });
 
-export type Prereg = typeof PREREG_2026_10_07;
+/* Idea and evidence rules added by the v3 campaign rules (2026-11-06). Absent on
+   earlier rule sets, which therefore keep their registered meaning exactly. */
+export interface IdeaRules {
+  /** Which ideas the learner decides on. "visible" (v1/v2): only ideas the Ideas tab
+      shows, so a method its loss guard paused is withheld. "all-filled" (v3): every
+      filled idea from every method, paused or not; ideas built on stale bars stay out. */
+  ideas?: "visible" | "all-filled";
+  /** On the delayed-market clock, a decision processed within this many seconds of its
+      market time counts as prospective (fresh) evidence; a later one stays replay.
+      Absent (v1/v2): every delayed-market decision is replay. */
+  freshness?: { delayedProspectiveLagSec: number };
+}
+
+export type Prereg = typeof PREREG_2026_10_07 & IdeaRules;
 
 /* The lifecycle that lets a challenger reach the fresh window.
 
@@ -94,9 +107,38 @@ export const PREREG: Prereg = Object.freeze({
    under (experiments.prereg.version); jobs load THAT rule set, never "whatever
    PREREG says today", so adding a new version can never silently change a
    running campaign's rules. Unknown versions are refused, not defaulted. */
+/* The v3 campaign rules (registered 2026-11-06,
+   docs/research/2026-11-06-learner-v3-preregistration.md). Same evidence floors,
+   search grid, rollback rule, lifecycle, seed and costs as v2. Two changes, both
+   about what the learner gets to see, neither about what counts as a pass:
+
+   1. Every filled idea, including those from a method its loss guard has paused.
+      Under v2 a paused method's ideas never reached the learner: from 16 to 30
+      October 2026 every source was paused and the learner saw nothing at all. The
+      pause stays recorded on each decision (`sourcePaused`), so a challenger can
+      learn whether it matters; the loss guard keeps doing its own job for the
+      practice simulation and alerts.
+   2. Fresh evidence on the delayed-market clock. v2 labelled every delayed-market
+      decision "replay", and replay never counts toward the fresh window, so no
+      challenger could ever be adopted. A decision still sees only bars closed
+      before its market time; v3 counts it as prospective when it is processed
+      within two hours of that time (normal operation is 30-45 minutes: the
+      30-minute settlement plus the 15-minute clock). A backlog processed later
+      stays replay. */
+export const PREREG_V3: Prereg = Object.freeze({
+  ...PREREG,
+  version: "exp-prereg-2026-11-06-v3",
+  ideas: "all-filled" as const,
+  freshness: Object.freeze({ delayedProspectiveLagSec: 2 * 3600 }),
+});
+
+/** The rules a NEW campaign is registered under. Running campaigns keep their own. */
+export const CAMPAIGN_RULES: Prereg = PREREG_V3;
+
 export const PREREG_VERSIONS: Readonly<Record<string, Prereg>> = Object.freeze({
   [PREREG_2026_10_07.version]: PREREG_2026_10_07,
   [PREREG.version]: PREREG,
+  [PREREG_V3.version]: PREREG_V3,
 });
 
 export function rulesFor(version: string | null | undefined): Prereg {

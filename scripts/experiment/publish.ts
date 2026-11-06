@@ -1,8 +1,15 @@
 /** Publish a completed signal-engine pass. No market fetch, only snapshots.
- * The workflow serializes producer passes through the end of this step. */
+ * The workflow serializes producer passes through the end of this step.
+ *
+ * Since 2026-11-06 this publishes every live, filled idea not built on stale
+ * bars, INCLUDING ideas from a method its loss guard paused (the snapshot keeps
+ * `suppressed`). Each campaign applies its own registered rule when it reads
+ * them: v1/v2 still drop paused ideas (visibleSignals), so their decisions are
+ * unchanged; v3 decides them too. A row's pause stamp is fixed by its entry time
+ * (scripts/engine/breakers.ts), so publishing it early cannot change a later
+ * reading of it. */
 import { experimentPool } from "@/lib/experiment/store-pg";
-import { visibleSignals } from "@/lib/signals/snapshot";
-import { FILLED } from "@/lib/experiment/opportunities";
+import { FILLED, publishableSignals } from "@/lib/experiment/opportunities";
 import type { SignalRow } from "@/lib/neon/client";
 import { readSourceActivity } from "@/lib/engine/activity";
 import { publicationWatermarks } from "@/lib/experiment/publication";
@@ -28,7 +35,7 @@ async function main() {
     let ideas = 0;
     if (inserted.rowCount) {
       const rows = (await c.query("SELECT * FROM signals WHERE signal_ts >= now()-interval '8 days' ORDER BY signal_ts,id")).rows as SignalRow[];
-      for (const row of visibleSignals(rows)) {
+      for (const row of publishableSignals(rows)) {
         if ((row.symbol !== "MES" && row.symbol !== "MNQ") || !FILLED.has(row.status)) continue;
         // Keep setup inputs only. Source exits and P&L are never decision inputs.
         const snapshot = { ...row, exit_ts: null, exit_price: null, pnl_usd: null, status: "triggered" };
