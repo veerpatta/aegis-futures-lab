@@ -2038,3 +2038,32 @@ CREATE POLICY admin_command_enqueue ON public.admin_control_commands FOR INSERT 
 CREATE POLICY raj_only_private_access ON public.journal_entries AS RESTRICTIVE TO authenticated USING (public.aegis_is_owner()) WITH CHECK (public.aegis_is_owner());
 CREATE POLICY raj_only_private_access ON public.crm_snapshots AS RESTRICTIVE TO authenticated USING (public.aegis_is_owner()) WITH CHECK (public.aegis_is_owner());
 COMMIT;
+
+-- Engine clock (applied 2026-11-06; db/migrations/20261106_engine_clock.sql).
+CREATE SCHEMA IF NOT EXISTS aegis_private;
+REVOKE ALL ON SCHEMA aegis_private FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS aegis_private.engine_clock_token (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  token text NOT NULL CHECK (token ~ '^(github_pat_|ghp_)[A-Za-z0-9_]{20,250}$'),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE ALL ON aegis_private.engine_clock_token FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS public.engine_clock (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  fired_at timestamptz NOT NULL DEFAULT now(),
+  invocation_id text,
+  trigger_name text NOT NULL,
+  route text NOT NULL CHECK (route IN ('engine','learn','review')),
+  scheduled_at timestamptz,
+  outcome text NOT NULL CHECK (outcome IN ('dispatched','not-configured','rejected','failed','stale-trigger')),
+  http_status integer,
+  message text CHECK (message IS NULL OR length(message) <= 300)
+);
+CREATE INDEX IF NOT EXISTS engine_clock_recent ON public.engine_clock(fired_at DESC);
+ALTER TABLE public.engine_clock ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS engine_clock_public_read ON public.engine_clock;
+CREATE POLICY engine_clock_public_read ON public.engine_clock FOR SELECT TO anonymous, authenticated USING (true);
+REVOKE ALL ON public.engine_clock FROM PUBLIC, anonymous, authenticated;
+GRANT SELECT ON public.engine_clock TO anonymous, authenticated;
