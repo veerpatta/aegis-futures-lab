@@ -18,6 +18,9 @@ const saved = { ...process.env };
 beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.AEGIS_ALLOW_PAID_AI;
+  // These tests are about PAID AI; a free NVIDIA key (lib/ai-free) in the
+  // shell would legitimately open the research route, so none is present here.
+  for (const k of Object.keys(process.env)) if (/NVIDIA|NVAPI|KIMI|NGC_API|NIM_API/.test(k) || process.env[k]?.startsWith("nvapi-")) delete process.env[k];
   Object.assign(process.env, { OPENAI_API_SECRET: "sk-test", AI_DATABASE_URL: "postgres://example", AI_SHADOW_ENABLED: "true",
     AI_SHADOW_STUDY_ID: "study", AI_SHADOW_CRON_SECRET: "a".repeat(40) });
   mocks.verify.mockResolvedValue({ ok: true, userId: "owner" });
@@ -66,5 +69,12 @@ describe("zero-cost mode: paid AI is off unless the owner opts in", () => {
     for (const d of ["app", "lib", "components", "scripts"]) walk(join(root, d));
     const readers = files.filter((f) => /process\.env\.OPENAI_API_SECRET/.test(readFileSync(f, "utf8")));
     expect(readers.map((f) => f.slice(root.length + 1))).toEqual([]);
+  });
+
+  it("the free AI helper never reaches a paid provider", () => {
+    const free = ["lib/ai-free/nvidia.ts", "lib/ai-free/research.ts", "lib/ai-judge/runner.ts", "lib/ai-coach/runner.ts", "app/api/ai/run/route.ts"]
+      .map((p) => readFileSync(join(__dirname, "..", p), "utf8")).join("\n");
+    expect(free).not.toMatch(/api\.openai\.com|api\.anthropic\.com|api\.moonshot|OPENAI_API_SECRET/);
+    expect(free).toContain("https://integrate.api.nvidia.com/v1/chat/completions");
   });
 });

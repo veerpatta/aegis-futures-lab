@@ -9,9 +9,13 @@ import { makeResearchPost } from '@/lib/ai-research/handler';
 import { callOpenAiResearch, DEEP_RESEARCH_MODEL, RESEARCH_MODEL, RESEARCH_PROMPT_VERSION } from '@/lib/ai-research/provider';
 import { ResearchStore } from '@/lib/ai-store/research';
 import { PAID_AI_OFF_MESSAGE, paidAiAllowed, paidAiKey } from '@/lib/ai-cost/paid-ai';
+import { findFreeAiKey } from '@/lib/ai-free/nvidia';
+import { FREE_LEDGER_MODEL, freeLedgerRequest } from '@/lib/ai-free/budget';
+import { callFreeResearch, FREE_RESEARCH_PROMPT_VERSION, researchProvider } from '@/lib/ai-free/research';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // Deliberately require a dedicated server credential, never a public URL.
 let connection: Pool | undefined;
@@ -24,7 +28,7 @@ function pool(): Pool {
 async function status(userId: string) {
   const current = await new PgBudgetStore(pool()).status(userId);
   const [year, month] = current.month.split('-').map(Number);
-  return { remainingUsd: current.remainingMicros / 1_000_000, resetAt: new Date(Date.UTC(year, month, 1)).toISOString(), timezone: 'UTC', usedUsd: current.usedMicros / 1_000_000, userRequests: current.userRequests, dailyLimit: current.dailyLimit };
+  return { remainingUsd: current.remainingMicros / 1_000_000, resetAt: new Date(Date.UTC(year, month, 1)).toISOString(), timezone: 'UTC', usedUsd: current.usedMicros / 1_000_000, userRequests: current.userRequests, dailyLimit: current.dailyLimit, ...researchProvider() };
 }
 async function authenticate(request: Request) {
   const identity = await verifyNeonResearchUser(request);
@@ -36,13 +40,23 @@ const post = makeResearchPost({
   evidence: () => loadResearchEvidence(pool()),
   async saveRequest({ id, userId, question, evidence, depth }) {
     const hash = createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
-    const saved = await new ResearchStore(pool()).saveRequest({ id, userId, question, snapshot: evidence, snapshotHash: hash, model: depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL, promptVersion: RESEARCH_PROMPT_VERSION });
+    // Paid OpenAI only with the owner's opt-in; otherwise the free NVIDIA provider (lib/ai-free).
+    const paid = !!paidAiKey();
+    const saved = await new ResearchStore(pool()).saveRequest({ id, userId, question, snapshot: evidence, snapshotHash: hash,
+      model: paid ? (depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL) : FREE_LEDGER_MODEL,
+      promptVersion: paid ? RESEARCH_PROMPT_VERSION : FREE_RESEARCH_PROMPT_VERSION });
     if (!saved) throw new Error('Unable to record request');
   },
   async runBudgeted({ id, userId, question, evidence, depth, beforeInvoke }) {
-    // Zero-cost mode: no key unless the owner opted in (lib/ai-cost/paid-ai.ts).
+    // Zero-cost mode: no OpenAI key unless the owner opted in (lib/ai-cost/paid-ai.ts).
+    // Without it, the free NVIDIA provider answers; its ledger entry still
+    // enforces the daily request limit and settles at $0 (lib/ai-free/budget.ts).
     const key = paidAiKey();
-    if (!key) throw new Error('OpenAI is not configured');
+    if (!key) {
+      if (!findFreeAiKey()) throw new Error('AI is not configured');
+      return freeLedgerRequest(new PgBudgetStore(pool()), { requestId: id, userId },
+        async () => { await beforeInvoke(); return (await callFreeResearch({ question, evidence })).value; });
+    }
     const model = depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL;
     return budgetedRequest(new PgBudgetStore(pool()), {
       requestId: id, userId, model, inputLimit: MAX_INPUT_TOKENS, outputLimit: MAX_OUTPUT_TOKENS,
@@ -61,9 +75,10 @@ const post = makeResearchPost({
   status,
 });
 
-// Zero-cost mode: refuse before anything is recorded or reserved.
+// Zero-cost mode: with neither the owner's paid opt-in nor a free key, refuse
+// before anything is recorded or reserved.
 export async function POST(request: Request): Promise<Response> {
-  if (!paidAiAllowed()) return Response.json({ error: PAID_AI_OFF_MESSAGE, paidAi: 'off' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  if (!paidAiAllowed() && !findFreeAiKey()) return Response.json({ error: PAID_AI_OFF_MESSAGE, paidAi: 'off' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   return post(request);
 }
 export async function GET(request: Request): Promise<Response> {
