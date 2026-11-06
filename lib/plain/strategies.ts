@@ -24,3 +24,16 @@ export const PLAIN_SUMMARY: Record<string, string> = {
 };
 
 export const plainSummary = (id: string, fallback: string): string => PLAIN_SUMMARY[id] ?? fallback;
+
+/* Short names for lists and trade rows, where a whole sentence does not fit. */
+const METHOD_NAMES: Record<string, string> = {
+  "zone-v5": "Zone setups",
+  "rsi-reversion": "RSI reversion",
+  "ema-cross": "Trend crossover",
+  orb: "Opening range break",
+  "vwap-reversion": "Back to the average",
+  "bollinger-breakout": "Quiet-market breakout",
+};
+
+/** "rsi-reversion" → "RSI reversion"; an unknown id is shown as it is. */
+export const methodName = (id: string | null | undefined): string => (id ? METHOD_NAMES[id] ?? id : "Unknown method");

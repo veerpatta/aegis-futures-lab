@@ -5,7 +5,7 @@
    The native pass replaced the old split (a phone top bar that stood down on
    Home, plus Home's own bespoke brand block) with a single persistent header:
    brand mark, the screen's name, the date and paper-trading reminder, then the
-   three global controls — clock zone, privacy, alerts.
+   two global controls — privacy and alerts (the clock zone is a setting).
 
    On desktop the sidebar already carries the brand and the nav, so the mark is
    dropped there and the bar becomes a slim strip holding the screen name and
@@ -17,7 +17,6 @@ import Link from "next/link";
 import {usePaper} from "@/components/providers/PaperProvider";
 import {freshTraining} from "@/lib/paper/overview";
 import { useExperiment } from "@/components/providers/ExperimentProvider";
-import ZoneToggle from "./ZoneToggle";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useBotHealth } from "@/components/providers/BotHealthProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
@@ -71,11 +70,8 @@ export default function AppHeader() {
         </Link>
 
         <div className={styles.actions}>
-          {/* Phone only — on desktop the sidebar footer keeps the labelled
-              "Times in ET / IST" row, and two copies of one switch in view at
-              once reads as two settings. */}
-          <ZoneToggle className={styles.zone} />
-
+          {/* The ET/IST switch lives in More → Settings (and the desktop
+              sidebar): it is set once, so it no longer takes header space. */}
           <button
             type="button"
             className={`${styles.iconBtn} press`}

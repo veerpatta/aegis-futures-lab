@@ -1,50 +1,44 @@
 "use client";
 
-/* Today shows the single virtual account, markets and source ideas.
-   No 60-day price history is downloaded here
-   (e2e/feed-routing.spec.ts holds that line), only two thinned quotes. */
+/* Today — the one-glance screen (plan: docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md).
+
+   It answers, in order: is the bot working, how is the virtual money, what
+   happened today in plain words, what did it do, is it learning, and what is
+   the market doing. Everything else (the method ideas list, the check-by-check
+   activity, research numbers) moved to Trades, Learn and More, so this screen
+   stays about two phone screens long. On wide screens it splits into two
+   columns: the account on the left, activity on the right.
+
+   No 60-day price history is downloaded here (e2e/feed-routing.spec.ts holds
+   that line), only two thinned quotes. */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { SignalRow } from "@/lib/neon/client";
-import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useData } from "@/components/providers/DataProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { useQuotes } from "@/components/providers/QuoteProvider";
-import ExperimentCard from "@/components/experiment/ExperimentCard";
-import { Sparkline, WidgetIcon } from "@/components/widgets/TradingWidgets";
-import { TodayPulse } from "@/components/widgets/TodayPulse";
+import { useExperiment } from "@/components/providers/ExperimentProvider";
+import { useNowSec } from "@/components/signals/useSignalFeed";
 import UpdatedAgo from "@/components/ui/UpdatedAgo";
-import { marketPhase, fmtStamp } from "@/lib/time/session";
-import { signalSnapshot } from "@/lib/signals/snapshot";
-import { MARKET_NAMES } from "@/lib/plain/idea";
-import { money } from "@/lib/format";
 import { Term } from "@/components/ui/Glossary";
-import IdeaCard from "@/components/signals/IdeaCard";
-import SignalSheet from "@/components/signals/SignalSheet";
-import { useConditionLedger } from "@/components/signals/useConditionLedger";
-import { useNowSec, useSignalFeed } from "@/components/signals/useSignalFeed";
+import { fmtStamp } from "@/lib/time/session";
+import { BalanceCard, LatestTrades, LearningCard, MarketsCard, StatusCard, StoryCard } from "./TodayCards";
 import page from "@/components/ui/page.module.css";
-import styles from "./today.module.css";
+import s from "./home.module.css";
 
 const GUIDE_SEEN_KEY = "aegis.guideSeen.v1";
 
 export default function TodayClient() {
   const nowSec = useNowSec();
-  const feed = useSignalFeed();
-  const { mask } = usePrivacy();
+  const exp = useExperiment();
   const { zone } = useZone();
   const { events } = useData();
-  const ledger = useConditionLedger();
-  const [sheet, setSheet] = useState<SignalRow | null>(null);
-  const quotes = useQuotes();
   const [showTour, setShowTour] = useState(false);
 
   useEffect(() => {
     try {
       setShowTour(localStorage.getItem(GUIDE_SEEN_KEY) !== "1");
     } catch {
-      /* storage blocked — just don't show the card */
+      /* storage blocked: just don't show the banner */
     }
   }, []);
   const dismissTour = () => {
@@ -56,131 +50,57 @@ export default function TodayClient() {
     }
   };
 
-  const snapshot = useMemo(
-    () => (nowSec === null || feed.loading ? null : signalSnapshot(feed.rows, nowSec)),
-    [feed.rows, feed.loading, nowSec]
-  );
-  const phase = nowSec === null ? null : marketPhase(nowSec);
   const nextNews = useMemo(
     () =>
       events
         .filter((e) => nowSec !== null && new Date(e.time).getTime() > nowSec * 1000)
         .sort((a, b) => a.time.localeCompare(b.time))[0] ?? null,
-    [events, nowSec]
+    [events, nowSec],
   );
 
   return (
-    <div className={page.page}>
+    <div className={`${page.page} ${page.wide}`}>
       <header className={page.head}>
         <h1 className="pageTitle">Today</h1>
-        <p className={page.paperLine}>Virtual only · Delayed prices · No real money</p>
-        <UpdatedAgo at={feed.loadedAt} failed={feed.failed} />
+        <p className={page.paperLine}>Virtual money only · Prices delayed 10–15 minutes · No real orders</p>
+        <UpdatedAgo at={exp.loadedAt} failed={exp.failed} />
       </header>
 
-
-
-      <TodayPulse now={nowSec} />
-      <ExperimentCard />
-
       {showTour && (
-        <section className={styles.tour} aria-label="Getting started">
-          <div>
-            <b>New here?</b>
-            <p>A two-minute tour explains the five tabs and how to read a trade idea.</p>
-          </div>
-          <div className={styles.tourActions}>
-            <Link href="/guide#start" className={styles.tourGo} onClick={dismissTour}>
-              Read the tour
-            </Link>
-            <button type="button" className={page.linkButton} onClick={dismissTour}>
-              Not now
-            </button>
-          </div>
-        </section>
-      )}
-
-      <section className={page.card} aria-label="Markets">
-        <div className={styles.marketHead}>
-          <span className={phase?.live ? styles.open : styles.closed}>
-            <i aria-hidden /> {phase?.label ?? "Checking the market…"}
-          </span>
-          <span className={page.note}>{phase?.detail ?? ""}</span>
-        </div>
-        <div className={styles.quoteGrid}>{(["MES", "MNQ"] as const).map((symbol) => {
-          const q = quotes[symbol];
-          const pct = q && q.previousClose ? (q.change / q.previousClose) * 100 : null;
-          return (
-            <div key={symbol} className={styles.quote}>
-              <span>
-                <Term k={symbol === "MES" ? "mes" : "mnq"}>{MARKET_NAMES[symbol]}</Term>
-                <small> {symbol}</small>
-              </span>
-              <span className={styles.quoteValue}>
-                <strong className="num">{q ? q.price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</strong>
-                {pct !== null && (
-                  <b className={pct >= 0 ? page.good : page.bad}>
-                    {" "}
-                    {pct >= 0 ? "+" : ""}
-                    {pct.toFixed(2)}%
-                  </b>
-                )}
-                {pct !== null && (
-                  <small className={page.note}> today</small>
-                )}
-              </span>
-              <Sparkline points={(q?.bars ?? []).map(b => ({ t: b.time, y: b.close }))} label={`${MARKET_NAMES[symbol]} delayed price history`} tone={pct === null ? "blue" : pct >= 0 ? "good" : "bad"} />
-              <Link href={`/markets?symbol=${symbol}`} className={styles.chartLink}>Open chart <WidgetIcon name="arrow" /></Link>
-            </div>
-          );
-        })}</div>
-        <p className={page.note}>
-          <Term k="delayed">Delayed 10–15 minutes</Term> · for practice and learning only
-        </p>
-      </section>
-
-      <section className={page.stack} aria-label="Latest trade ideas">
-        <div className={page.sectionHead}>
-          <h2>Latest trade ideas</h2>
-          <Link href="/signals">All ideas →</Link>
-        </div>
-        <p className={page.note}>
-          A simulated record of what the methods would have done. Each card says what the learner did with it.
-          {snapshot && ` ${snapshot.today} new today · ${snapshot.open} open now`}
-          {snapshot && snapshot.closed > 0 && ` · today's closed ideas ${mask(money(snapshot.net))} (n=${snapshot.closed})`}
-        </p>
-        {feed.failed && (
-          <p className={page.warning}>
-            Ideas could not refresh. {feed.rows.length ? "Showing the previous update." : ""}{" "}
-            <button type="button" onClick={feed.refresh}>
-              Try again
-            </button>
-          </p>
-        )}
-        {feed.loading ? (
-          <p className={page.loading}>Loading trade ideas…</p>
-        ) : snapshot && snapshot.recent.length ? (
-          snapshot.recent.map((s) => <IdeaCard key={s.id} signal={s} nowSec={nowSec} onOpen={setSheet} />)
-        ) : (
-          <p className={page.empty}>No trade ideas yet. Quiet days are normal — the methods wait for their setups.</p>
-        )}
-      </section>
-
-      {nextNews && (
-        <section className={styles.news} aria-label="Coming up">
-          <span className={styles.newsIcon} aria-hidden>
-            ⚑
-          </span>
+        <aside className={s.tour} aria-label="Getting started">
+          <span>New here? A two-minute guide explains every screen.</span>
           <span>
-            <b>{nextNews.name}</b> · {fmtStamp(nextNews.time, zone)}
-            <br />
-            <span className={page.note}>
-              <Term k="newsPause">The bot pauses new ideas 30 minutes either side.</Term>
-            </span>
+            <Link href="/guide#start" onClick={dismissTour}>Read the guide</Link>
+            {" · "}
+            <button type="button" className={page.linkButton} onClick={dismissTour}>Not now</button>
           </span>
-        </section>
+        </aside>
       )}
 
-      <SignalSheet signal={sheet} ledger={ledger} onClose={() => setSheet(null)} />
+      <div className={s.grid}>
+        <div className={s.col}>
+          <StatusCard now={nowSec} />
+          <BalanceCard />
+          <StoryCard now={nowSec} />
+        </div>
+        <div className={s.col}>
+          <LatestTrades />
+          <LearningCard now={nowSec} />
+          <MarketsCard now={nowSec} />
+          {nextNews && (
+            <section className={s.news} aria-label="Coming up">
+              <span aria-hidden>⚑</span>
+              <span>
+                <b>{nextNews.name}</b> · {fmtStamp(nextNews.time, zone)}
+                <br />
+                <span className={page.note}>
+                  <Term k="newsPause">The bot pauses new ideas 30 minutes either side.</Term>
+                </span>
+              </span>
+            </section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

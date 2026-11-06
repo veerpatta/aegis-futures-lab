@@ -7,7 +7,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { DeskArtwork } from "@/components/widgets/DeskArtwork";
 import { WidgetIcon } from "@/components/widgets/WidgetIcon";
 import { MORE_GROUPS } from "@/components/nav/links";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
@@ -53,10 +52,9 @@ export default function MoreClient() {
     <div className={page.page}>
       <header className={page.head}>
         <h1 className="pageTitle">More</h1>
-        <p className={page.paperLine}>Your tools · Virtual only · No real money</p>
+        <p className={page.paperLine}>Records, help and settings · Virtual money only</p>
       </header>
 
-      <section className={styles.hero} aria-label="Your trading toolkit"><div><span className={styles.kicker}>Explore at your pace</span><h2>Your trading toolkit</h2><p>Find an idea. Keep a journal. Understand every result.</p><span className={styles.deviceNote}><WidgetIcon name="shield" /> Your display settings stay on this device</span></div><DeskArtwork kind="tools" /></section>
       <div className={styles.search}><label htmlFor="tool-search">Find a tool</label><div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></svg><input id="tool-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Try journal, guide or research" autoComplete="off" />{search && <button type="button" onClick={() => setSearch("")} aria-label="Clear tool search">×</button>}</div>{query && <p role="status">{found ? `${found} tool${found === 1 ? "" : "s"} found` : "No matching tools. Try a different word."}</p>}</div>
       {before.map(group)}
 

@@ -10,6 +10,7 @@ import "./globals.css";
 import { PaperProvider } from "@/components/providers/PaperProvider";
 import { ExperimentProvider } from "@/components/providers/ExperimentProvider";
 import { QuoteProvider } from "@/components/providers/QuoteProvider";
+import { AiProvider } from "@/components/ai/AiProvider";
 import { SignalFeedProvider } from "@/components/signals/useSignalFeed";
 import { GlossaryProvider } from "@/components/ui/Glossary";
 import PullToRefresh from "@/components/ui/PullToRefresh";
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <BotHealthProvider>
                 <PaperProvider>
                   <ExperimentProvider>
+                    <AiProvider>
                     <SignalFeedProvider>
                       <QuoteProvider>
                         <GlossaryProvider>
@@ -70,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         </GlossaryProvider>
                       </QuoteProvider>
                     </SignalFeedProvider>
+                    </AiProvider>
                   </ExperimentProvider>
                 </PaperProvider>
               </BotHealthProvider>

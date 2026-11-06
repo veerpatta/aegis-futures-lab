@@ -39,7 +39,7 @@ describe("the bot's activity is evidence, not a pretend training animation", () 
     const triggers = JSON.parse(readFileSync("scripts/experiment/triggers.json", "utf8")).triggers;
     expect(triggers.find((t: { function_path: string }) => t.function_path === "/learn").cron).toBe("45 6 * * 2-6");
     expect(triggers.find((t: { function_path: string }) => t.function_path === "/review").cron).toBe("0 7 * * 0");
-    expect(new Date(nextLearningCheck(Date.parse("2026-10-10T06:45:00Z") / 1000, "learn") * 1000).toISOString()).toBe("2026-10-13T06:45:00.000Z");
-    expect(new Date(nextLearningCheck(Date.parse("2026-11-01T06:59:00Z") / 1000, "review") * 1000).toISOString()).toBe("2026-11-01T07:00:00.000Z");
+    expect(new Date(nextLearningCheck(Date.parse("2026-10-10T06:50:00Z") / 1000, "learn") * 1000).toISOString()).toBe("2026-10-13T06:50:00.000Z");
+    expect(new Date(nextLearningCheck(Date.parse("2026-11-01T06:59:00Z") / 1000, "review") * 1000).toISOString()).toBe("2026-11-01T07:05:00.000Z");
   });
 });

@@ -1,30 +1,42 @@
 "use client";
-import { useEffect, useRef } from "react";
-import ExperimentCard from "@/components/experiment/ExperimentCard";
+
+/* Learn — is the bot getting smarter? (plan:
+   docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md)
+
+   First what a non-trader asks: learning progress, who is in charge and how
+   the free AI's second opinion is doing. Everything technical (candidates,
+   reviews, change history, the bot's jobs, owner tools, the historical study
+   and method research) sits in folds that load only when opened. The virtual
+   account itself lives on Today; it is not repeated here. */
+
 import HistorySection from "@/components/history/HistorySection";
+import Fold from "@/components/ui/Fold";
 import LearnSection from "./LearnSection";
 import ResearchSection from "./ResearchSection";
 import AIResearch from "./AIResearch";
 import OwnerControls from "./OwnerControls";
 import page from "@/components/ui/page.module.css";
+
 export default function BotClient() {
-  const research = useRef<HTMLDetailsElement>(null);
-  const history = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const openResearch = () => {
-      if (window.location.hash === "#research" && research.current) research.current.open = true;
-      if (window.location.hash === "#history" && history.current) { history.current.open = true; document.getElementById("history")?.scrollIntoView(); }
-    };
-    openResearch();
-    window.addEventListener("hashchange", openResearch);
-    return () => window.removeEventListener("hashchange", openResearch);
-  }, []);
-  return <div className={page.page}>
-    <header className={page.head}><h1 className="pageTitle">Learn</h1><p className={page.paperLine}>Virtual only · Delayed prices · No real money</p></header>
-    <LearnSection /><ExperimentCard compact />
-    <details className={page.details} id="ai-research"><summary>AI research assistant · ask about the evidence</summary><AIResearch /></details>
-    <details className={page.details}><summary>Owner controls</summary><OwnerControls /></details>
-    <details ref={history} className={page.details}><summary>Historical practice · explore the older-data study</summary><HistorySection /></details>
-    <details ref={research} className={page.details} id="research"><summary>Method research</summary><ResearchSection /></details>
-  </div>;
+  return (
+    <div className={page.page}>
+      <header className={page.head}>
+        <h1 className="pageTitle">Learn</h1>
+        <p className={page.paperLine}>How the bot learns · Virtual money only · Delayed prices</p>
+      </header>
+      <LearnSection />
+      <Fold id="ai-research" summary="Ask the AI about your bot · owner only">
+        <AIResearch />
+      </Fold>
+      <Fold id="owner" summary="Owner controls · pause, resume or start a campaign">
+        <OwnerControls />
+      </Fold>
+      <Fold id="history" summary="Historical practice · the older-data study">
+        <HistorySection />
+      </Fold>
+      <Fold id="research" summary="Method research · how each method was tested">
+        <ResearchSection />
+      </Fold>
+    </div>
+  );
 }

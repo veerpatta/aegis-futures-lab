@@ -1,0 +1,303 @@
+/* Today (TodayClient.tsx + TodayCards.tsx). Built on components/ui/page.module.css
+   cards and lists; only what those do not cover lives here. Tokens only. */
+
+/* Two columns on wide screens: the account on the left, activity on the right. */
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.col {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+}
+
+/* Status */
+.status {
+  gap: 10px;
+}
+.statusTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.statusTop h2 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.04);
+}
+.dot.good {
+  background: var(--green);
+  box-shadow: 0 0 0 4px var(--green-soft);
+}
+.dot.warn {
+  background: var(--amber);
+  box-shadow: 0 0 0 4px var(--amber-soft);
+}
+.dot.bad {
+  background: var(--red);
+  box-shadow: 0 0 0 4px var(--red-soft);
+}
+.dot.info {
+  background: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-soft);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.pill.good {
+  color: var(--green);
+  border-color: var(--green-line);
+  background: var(--green-soft);
+}
+.pill.warn {
+  color: var(--amber);
+  border-color: var(--amber-line);
+  background: var(--amber-soft);
+}
+.pill.bad {
+  color: var(--red);
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}
+.pill.info {
+  color: var(--blue);
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+}
+.statusDetail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.fix {
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+.quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: 4px;
+}
+.quick a {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-tile);
+  background: var(--bg-inset);
+  min-width: 0;
+}
+.quick b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.quick span {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Balance */
+.balance {
+  gap: 10px;
+}
+.balanceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.balanceHead .linkButton,
+.balanceHead button {
+  min-height: 32px;
+}
+.balanceValue {
+  font-family: var(--font-mono);
+  font-size: clamp(30px, 9vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.balanceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.balanceChips b {
+  margin-left: 4px;
+  font-weight: 600;
+}
+.sheet {
+  display: grid;
+  gap: var(--space-3);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.sheet p,
+.sheet ul {
+  margin: 0;
+}
+.sheet ul {
+  padding-left: 18px;
+}
+
+/* Story */
+.story {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.quiet {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.quiet b {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.quiet ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* Learning */
+.learn {
+  color: var(--text);
+}
+.learn p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.learnHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.label {
+  display: inline-block;
+  min-width: 64px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.aiLine {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.aiLine span {
+  color: var(--violet);
+}
+
+/* Markets */
+.quotes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.quote {
+  gap: 2px;
+  padding: 12px 14px;
+  color: var(--text);
+}
+.quote b {
+  font-size: clamp(16px, 4.6vw, 20px);
+  font-weight: 600;
+}
+.quote > span {
+  font-size: 13px;
+}
+.quoteName {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.openDot,
+.closedDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  vertical-align: 1px;
+}
+.openDot {
+  background: var(--green);
+}
+
+/* News and the first-visit banner */
+.news {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+.news > span:first-child {
+  color: var(--amber);
+}
+.tour {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-tile);
+  background: var(--blue-soft);
+  font-size: 13px;
+}
+.tour a {
+  color: var(--blue);
+  font-weight: 600;
+}

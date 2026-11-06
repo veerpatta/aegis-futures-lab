@@ -28,12 +28,15 @@ export function botActivity(o: ExpOverview | null, now: number | null, online: b
   return { mood: "watching", title: "Watching for ideas", detail: "Between scheduled checks. Every eligible finished idea can add an example, even when the bot skipped the trade.", moving: true };
 }
 
-/** Existing UTC schedules, displayed through the user's ET/IST preference. */
+/** When the next learning job starts, shown in the user's ET/IST preference.
+    Since the v3 handover (2026-11-06) the Neon clock dispatches these runs:
+    learn at 06:50 UTC Tuesday-Saturday, review at 07:05 UTC Sunday
+    (scripts/clock/triggers.json); GitHub starts them within a minute or two. */
 export function nextLearningCheck(now: number, job: "learn" | "review"): number {
   for (let offset = 0; offset < 8; offset++) {
     const d = new Date(now * 1000);
     d.setUTCDate(d.getUTCDate() + offset);
-    d.setUTCHours(job === "learn" ? 6 : 7, job === "learn" ? 45 : 0, 0, 0);
+    d.setUTCHours(job === "learn" ? 6 : 7, job === "learn" ? 50 : 5, 0, 0);
     const day = d.getUTCDay(), t = d.getTime() / 1000;
     if (t > now && (job === "review" ? day === 0 : day >= 2 && day <= 6)) return t;
   }
