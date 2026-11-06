@@ -137,6 +137,8 @@ export default function MarketsClient() {
   const [zones, setZones] = useState<ZoneRow[]>([]);
   /* null until mounted — the session countdown must not render on the server. */
   const [tick, setTick] = useState<number | null>(null);
+  /* The next three news events by default; the rest one tap away (plan 2026-11-07). */
+  const [allNews, setAllNews] = useState(false);
 
   useEffect(() => {
     setTick(Math.floor(Date.now() / 1000));
@@ -546,20 +548,23 @@ export default function MarketsClient() {
               </p>
             )}
             <p className={styles.whySentence}>{sentenceCase(whyNone.sentence)}</p>
-            {whyNone.blockers.length > 0 && (
-              <div className={styles.readout}>
-                {whyNone.blockers.slice(0, 4).map((b) => (
-                  <div key={b.reason} className={styles.readoutRow}>
-                    <span className={styles.readoutLabel}>{b.label}</span>
-                    <span className="num">{b.count.toLocaleString("en-US")}</span>
-                  </div>
-                ))}
-              </div>
-            )}
             <p className={page.note}>
-              From the engine&apos;s own count at its latest check. Turning ideas away is the methods being picky,
-              not a fault.
+              Turning ideas away is the methods being picky, not a fault.
             </p>
+            {whyNone.blockers.length > 0 && (
+              <details className={page.details}>
+                <summary>Show the engine&apos;s counts</summary>
+                <div className={styles.readout}>
+                  {whyNone.blockers.slice(0, 4).map((b) => (
+                    <div key={b.reason} className={styles.readoutRow}>
+                      <span className={styles.readoutLabel}>{b.label}</span>
+                      <span className="num">{b.count.toLocaleString("en-US")}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className={page.note}>From the engine&apos;s own count at its latest check.</p>
+              </details>
+            )}
           </>
         )}
       </section>
@@ -572,7 +577,7 @@ export default function MarketsClient() {
         </p>
         <div className={styles.eventList}>
           {upcoming.length ? (
-            upcoming.map((e) => {
+            (allNews ? upcoming : upcoming.slice(0, 3)).map((e) => {
               const locked = Math.abs(e.sec - nowSec) <= 1800;
               return (
                 <div key={`${e.name}-${e.time}`} className={styles.eventRow}>
@@ -593,6 +598,11 @@ export default function MarketsClient() {
             <span className={page.note}>No big news on the calendar right now.</span>
           )}
         </div>
+        {upcoming.length > 3 && (
+          <button type="button" className={page.linkButton} aria-expanded={allNews} onClick={() => setAllNews(!allNews)}>
+            {allNews ? "Show fewer" : `Show all ${upcoming.length}`}
+          </button>
+        )}
         <p className={page.note}>Calendar: {data.eventsSource ?? "unavailable right now"}</p>
       </section>
     </div>

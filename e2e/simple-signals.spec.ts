@@ -48,27 +48,27 @@ for (const width of [360, 390, 430, 1440])
     await page.setViewportSize({ width, height: 900 });
     await stub(page);
 
+    // Today leads with the bot and the account; method ideas live under More → Method ideas.
     await page.goto("/");
-    await expect(page.getByRole("region", { name: "Experimental learner" })).toBeVisible();
-    const ideas = page.getByRole("region", { name: "Latest trade ideas" });
-    await expect(ideas).toContainText("Method hasn't beaten chance");
-    await expect(ideas).toContainText("47.60");
-    await expect(ideas.getByRole("button", { name: /Open details/ })).toHaveCount(2);
+    await expect(page.getByRole("region", { name: "Today at a glance" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Virtual account" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Latest trades" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Latest trade ideas" })).toHaveCount(0);
     expect(await noSideways(page)).toBe(true);
 
-    await ideas.getByRole("button", { name: /Open details/ }).first().click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-
     // A tapped word opens its meaning, and Escape closes just that sheet.
-    await page.getByRole("button", { name: /Experimental learner — what this means/ }).first().click();
-    await expect(page.getByRole("dialog")).toContainText("virtual $10,000 account");
+    await page.getByRole("button", { name: /Virtual balance — what this means/ }).first().click();
+    await expect(page.getByRole("dialog")).toContainText("pretend account");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
     await page.goto("/signals");
     await expect(page.getByText("did no better than chance")).toBeVisible();
+    await expect(page.getByText("Method hasn't beaten chance").first()).toBeVisible();
+    await page.getByRole("button", { name: /Open details/ }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Open · 1", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "History", exact: true }).click();
     await expect(page.getByRole("region", { name: "Trade ideas" })).toContainText("47.60");

@@ -107,13 +107,13 @@ export const NAV_LINKS: NavLink[] = [
 
 export const MORE_GROUPS: NavGroup[] = [
   {
-    title: "Ideas and records",
-    note: "One virtual account; research results and your own journal stay separate.",
+    title: "Records",
+    note: "The bot's own trades are on the Trades tab. These are the methods' ideas and your private journal.",
     links: [
-  {
+      {
     href: "/signals",
-    label: "Ideas",
-    hint: "Every trade idea the methods posted, and how it ended",
+    label: "Method ideas",
+    hint: "Every idea the methods posted, and how it ended",
     icon: (
       <svg {...iconProps}>
         <path d="M9 18h6M10 21h4" />
@@ -121,6 +121,51 @@ export const MORE_GROUPS: NavGroup[] = [
       </svg>
     ),
   },
+      {
+        href: "/review",
+        label: "Results calendar",
+        hint: "Day-by-day results of the method ideas, and when they did best",
+        icon: (
+          <svg {...iconProps}>
+            <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+            <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+            <rect x="7" y="12.5" width="3.5" height="3.5" rx="0.6" />
+          </svg>
+        ),
+      },
+      {
+        href: "/replay",
+        label: "My journal",
+        hint: "Log your own trades and compare them with the bot",
+        icon: (
+          <svg {...iconProps}>
+            <rect x="4" y="3.5" width="16" height="17" rx="2" />
+            <path d="M8 8h8M8 12h8M8 16h5" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Help",
+    links: [
+      {
+        href: "/guide",
+        label: "Guide",
+        hint: "How to use this app, in five minutes",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M12 6.5C10.5 5 8.2 4.5 5.5 4.5c-.8 0-1.5.1-2 .2V18c.5-.1 1.2-.2 2-.2 2.7 0 5 .5 6.5 2 1.5-1.5 3.8-2 6.5-2 .8 0 1.5.1 2 .2V4.7c-.5-.1-1.2-.2-2-.2-2.7 0-5 .5-6.5 2Z" />
+            <path d="M12 6.5v13.3" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Research room",
+    note: "For researchers. Raw numbers and statistics — every method tested here so far has failed to beat chance.",
+    links: [
       {
         href: "/brain#research",
         label: "Method research",
@@ -144,56 +189,6 @@ export const MORE_GROUPS: NavGroup[] = [
           </svg>
         ),
       },
-    ],
-  },
-  {
-    title: "Your tools",
-    links: [
-      {
-        href: "/replay",
-        label: "Journal",
-        hint: "Log your own trades and compare with the bot",
-        icon: (
-          <svg {...iconProps}>
-            <rect x="4" y="3.5" width="16" height="17" rx="2" />
-            <path d="M8 8h8M8 12h8M8 16h5" />
-          </svg>
-        ),
-      },
-      {
-        href: "/review",
-        label: "Review",
-        hint: "Trade-idea history: calendar of results and when ideas did best",
-        icon: (
-          <svg {...iconProps}>
-            <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
-            <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
-            <rect x="7" y="12.5" width="3.5" height="3.5" rx="0.6" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: "Learn",
-    links: [
-      {
-        href: "/guide",
-        label: "Guide",
-        hint: "How to use this app, in five minutes",
-        icon: (
-          <svg {...iconProps}>
-            <path d="M12 6.5C10.5 5 8.2 4.5 5.5 4.5c-.8 0-1.5.1-2 .2V18c.5-.1 1.2-.2 2-.2 2.7 0 5 .5 6.5 2 1.5-1.5 3.8-2 6.5-2 .8 0 1.5.1 2 .2V4.7c-.5-.1-1.2-.2-2-.2-2.7 0-5 .5-6.5 2Z" />
-            <path d="M12 6.5v13.3" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: "Research room",
-    note: "For researchers. Raw numbers and statistics — every method tested here so far has failed to beat chance.",
-    links: [
       {
         href: "/lab",
         label: "Strategy Lab",

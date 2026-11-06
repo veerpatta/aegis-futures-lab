@@ -51,6 +51,10 @@ export default function GuidePage() {
           trade ideas arrive 5–15 minutes after the setup. Use the app to practice, learn and keep score — never as a
           live trade instruction.
         </div>
+        <p>
+          A free AI from NVIDIA&apos;s trial service gives a <b>second opinion</b> on each idea the bot decides. It never
+          changes a trade, and its calls are scored honestly against simple alternatives (see <a href="#ai">The AI second opinion</a>).
+        </p>
       </section>
 
       <section className={styles.card}>
@@ -58,51 +62,54 @@ export default function GuidePage() {
         <dl className={styles.dl}>
           <dt>Today</dt>
           <dd>
-            What the experimental learner is doing, what happened to its virtual money and what it last learned. Then the
-            two markets, the latest trade ideas and any big news coming up.
+            Is the bot working, how is the virtual money, what happened today in plain words, the last three trades,
+            whether it is learning, the two markets and the next big news. On a computer it shows two columns.
           </dd>
           <dt>Trades</dt>
           <dd>
-            Every idea the learner decided on, taken or skipped, with the reason. Tap one for the evidence: the values
-            saved when it decided, the simulated fill, the exit, costs and the result.
+            Every decision of the current campaign, taken or skipped, as one list under a summary. Tap one for its story:
+            the result, what happened in plain words, the price bar, the timeline and costs, then (folded) the rule and
+            the values saved when it decided.
           </dd>
           <dt>Learn</dt>
           <dd>
-            The model in charge, the candidates being tested, every review&apos;s verdict and the full change history.
-            Open AI research assistant for questions about recorded evidence, and Historical practice for the older-data study. Method research sits behind a separate panel; it does not show another account balance.
+            Learning progress, who is in charge and the AI helper: the AI second opinion&apos;s scoreboard and the rules the AI is testing. Folded below: change
+            history, how learning works, the bot&apos;s recent jobs, Ask the AI, owner controls, historical practice and
+            method research.
           </dd>
           <dt>Chart</dt>
           <dd>
             Prices, the price areas the bot watches, the learner&apos;s virtual trades as arrows, why there is no idea
-            right now, and the big news it steps aside for.
+            right now, and the next big news it steps aside for.
           </dd>
           <dt>More</dt>
           <dd>
-            Trade ideas (Ideas) and their history (Review), method research, historical practice, your Journal, this
-            Guide, settings (ET or IST, hide money) and the research room.
+            Records (Method ideas, Results calendar, My journal), Help (this Guide), Settings (ET or IST, hide money)
+            and the Research room.
           </dd>
         </dl>
         <p className={styles.note}>
-          Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape.
+          Any word with a dotted underline can be tapped for a short meaning. Close a sheet with its ✕ or Escape. A
+          section marked ▸ is folded; tap it to open. Folded sections load only when opened, so the main screens stay short.
         </p>
       </section>
 
       <section className={styles.card}>
         <h2>Read the widgets</h2>
         <ul>
-          <li><b>Your day at a glance.</b> Today shows the bot&apos;s recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market&apos;s Open chart link selects that market. Each price shows its change since yesterday&apos;s settle, marked &ldquo;today&rdquo;.</li>
-          <li><b>Timer.</b> The line under the headline says whether the bot is on time. &ldquo;On time&rdquo; means checks every 15 minutes. &ldquo;Running late&rdquo; means GitHub&apos;s free timer started the bot hours late; &ldquo;How to fix it&rdquo; opens the one-time, free setup below. Late is amber, never red. A red &ldquo;Timer key refused&rdquo; means the key needs renewing.</li>
+          <li><b>Status card.</b> The top card on Today says what the bot is doing, with open trades, trades closed today and the next expected check. Tap a count to open Trades.</li>
+          <li><b>Timer.</b> The pill beside the headline says whether the bot is on time. &ldquo;On time&rdquo; means checks every 15 minutes. &ldquo;Running late&rdquo; means GitHub&apos;s free timer started the bot hours late; &ldquo;How to fix it&rdquo; opens the one-time, free setup below. Late is amber, never red. A red &ldquo;Timer key refused&rdquo; means the key needs renewing.</li>
+          <li><b>Virtual balance.</b> The large number is what the account is worth now, after costs, with today&apos;s closed result and the change since this campaign began. The line joins the starting balance, saved daily closes and the latest estimate; it is not a tick-by-tick chart, and open results can still change. Rules opens the account&apos;s limits.</li>
+          <li><b>Today in plain words.</b> A few sentences built only from the account&apos;s own record. When the owner is signed in, an AI-written note can take their place; it is labelled &ldquo;Written by AI&rdquo; and is shown only if every number in it matches the record.</li>
           <li><b>Why it has been quiet.</b> When nothing is open or closed today, Today lists the saved reasons from the past week: skipped ideas and why, methods paused by their loss guard, or no ideas at all.</li>
-          <li><b>Every check, step by step.</b> On Today and Learn the detailed check timeline is folded; tap Show to open it. Trades shows it open.</li>
-          <li><b>Account journey.</b> The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.</li>
-          <li><b>Trade cards.</b> The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.</li>
-          <li><b>Find a trade.</b> Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.</li>
-          <li><b>Decisions in this view.</b> The coloured strip counts closed, open, waiting, skipped and unfilled decisions in the cards you have loaded. It follows your filter. More cards can change these counts. They are not the account&apos;s lifetime totals.</li>
+          <li><b>Trade rows.</b> Each row on Today and Trades shows the market, Buy or Sell, the method and the time, then the result after costs. An open trade&apos;s result is an estimate marked &ldquo;~&rdquo;; a skipped idea says &ldquo;Not taken&rdquo;. Waiting and cancelled orders never show a made-up result. When the owner is signed in, a small &ldquo;AI: take&rdquo; or &ldquo;AI: skip&rdquo; shows the AI&apos;s second opinion. Tap a row for its story.</li>
+          <li><b>Find a trade.</b> Use the filter row at the top of Trades: All, Taken, Skipped, Open, Closed or Past campaigns.</li>
+          <li><b>Is it learning?</b> Today&apos;s learning card shows the version in charge, what the learner is doing, the next learning check and one line on the AI second opinion. Tap it for Learn.</li>
+          <li><b>Market tiles.</b> Each price shows its change since yesterday&apos;s settle, marked &ldquo;today&rdquo;. Tap a tile to open its chart.</li>
           <li><b>Market clock and price range.</b> Chart shows time left in the entry window. Its ring follows that window, including early closes. The price range marks the last close between the low and high of the loaded candles. The dates below say which period it covers. It is not a forecast.</li>
-          <li><b>Find a tool.</b> In More, search for a tool by name or what it does. Clear the search to see all tools and the larger clock and privacy controls. These display settings stay on your device.</li>
-          <li><b>Open risk.</b> The bar shows how much of the account&apos;s risk allowance is in use. It is not a forecast of the next loss.</li>
+          <li><b>Find a tool.</b> In More, search for a tool by name or what it does. Clear the search to see all tools and the settings. These display settings stay on your device.</li>
           <li><b>Learning progress.</b> On Learn, the ring counts usable examples toward the 50 needed to start training. It is not a score of skill or profitability. A fair review and fresh confirmation need more evidence.</li>
-          <li><b>More detail, when needed.</b> Tap Doing, Learning or Data for its reason. Open the timing details for the last check and next expected check. Your phone&apos;s reduced-motion setting turns off the animations. Hide money also hides the account chart.</li>
+          <li><b>More detail, when needed.</b> Folded sections hold the research detail: Under the hood on Trades and Learn, the rule and saved values on each trade, the engine&apos;s counts on Chart. Your phone&apos;s reduced-motion setting turns off the animations. Hide money also hides the account chart.</li>
         </ul>
       </section>
 
@@ -140,18 +147,25 @@ export default function GuidePage() {
       <section className={styles.card} id="learner">
         <h2>The experimental learner</h2>
         <h3>Meet the bot on Learn</h3>
-        <p>The animated bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone&apos;s reduced-motion setting.</p>
-        <p><b>My learning notebook</b> shows usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open <b>The path to a better bot</b> for all the steps.</p>
-        <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
+        <p>Learn opens with <b>My learning notebook</b>: usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open <b>The path to a better bot</b> for all the steps.</p>
+        <p><b>Working on its own</b> shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. <b>Who is in charge</b> names the version deciding now and since when. The <b>AI helper</b> cards follow: the AI second opinion and the ideas the AI is testing (below).</p>
+        <p>Open <b>Under the hood · the bot&apos;s recent jobs</b> for the animated bot and the job log. The bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone&apos;s reduced-motion setting. <b>Recent activity</b> shows recorded job times and outcomes. Open <b>Example quality at the last check</b> for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.</p>
         <p>The learner uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app&apos;s usage guard is not a provider billing meter.</p>
-        <h3>AI research assistant</h3>
-        <p>On Learn, open AI research assistant and sign in with an email code or your account password to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules.</p>
-        <p>Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.</p>
-        <p><b>To keep the project free, paid AI is switched off</b> unless the owner turns it on with the server setting AEGIS_ALLOW_PAID_AI. While it is off, a question or the connection check says &ldquo;Paid AI is switched off&rdquo; and nothing is charged. The bot, its trades and its learning never need it.</p>
-        <p>Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and a pricing safety margin; it is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.</p>
+        <h3 id="ai">The AI second opinion</h3>
+        <p>A free AI model on NVIDIA&apos;s trial service reads the facts the bot had when it decided each idea: the market, Buy or Sell, the method, its stop and target, and how prices moved in the hours before. It says whether it would take the idea, how sure it is and why. It is asked within two hours of the decision and only sees prices up to the decision time. <b>It never changes a trade.</b></p>
+        <p>Its calls are scored against taking every idea, against random picks of the same size and against not trading, after costs, using each idea&apos;s one-contract result. The rules were written down before its first call. The first fair check comes after 60 finished calls over 15 trading days; the final one after 150. Until then the scoreboard says &ldquo;Too early to tell&rdquo; in amber. Only a passed check makes the AI eligible to filter trades, and only if the owner starts a new campaign for it.</p>
+        <p>You asked for Kimi. NVIDIA lists Kimi K3.1 Pro but has not switched on its API for free keys yet, and Kimi K2.6 is not served to free accounts. Until then the second opinion comes from NVIDIA&apos;s own Nemotron 3 Ultra. The helper checks Kimi K3.1 Pro every six hours and starts a separate Kimi study the moment it answers, so evidence from two models is never mixed.</p>
+        <p>NVIDIA&apos;s free key is for testing and evaluation. Its terms do not allow sharing AI-written text with the public, so the AI&apos;s words (its reasons, notes and answers) are shown only to the signed-in owner. Everyone else sees the scoreboard numbers, which the app works out itself. NVIDIA may use what is sent to improve its models; only market facts and the bot&apos;s own records are sent. It costs nothing: the free service has no billing.</p>
+        <h3 id="ai-ideas">AI research ideas</h3>
+        <p>Each week the AI studies the bot&apos;s finished trades and suggests up to three simple rules for ideas to skip, such as &ldquo;skip sells when price is far above the day&apos;s average&rdquo;. The app writes each rule down with the time it was proposed, then tests it <b>only on trades that come after it</b>: the trades the rule would keep, against taking every idea and against random skips of the same size, after costs. The first fair check comes after 60 such trades over 15 trading days; the final one after 150. Until then a rule shows &ldquo;Too early to tell&rdquo; in amber. Because several rules are tested at once, each must clear a stricter bar than a single test would.</p>
+        <p>A rule that passes is only eligible: the owner can add it to a new campaign, and nothing changes the running account. This is how the AI can help the bot improve without guessing: it suggests, and fresh trades decide.</p>
+        <p>The rules and the AI&apos;s weekly note (&ldquo;This week the AI noticed…&rdquo;) are AI-written, so they are shown only to the signed-in owner. Everyone else sees each rule&apos;s numbers. To sign in, open Ask the AI on Learn.</p>
+        <h3>Ask the AI</h3>
+        <p>On Learn, open <b>Ask the AI about your bot</b> and sign in with an email code or your account password to ask about recorded evidence or suggest a research question. Your question and the bot&apos;s records go to the free AI model on NVIDIA&apos;s servers. Do not paste passwords, API keys or private journal details. The AI can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules. Deeper answers take longer. The free service is sometimes busy; if it is, try again a few minutes later. Each account has a daily limit on questions.</p>
+        <p><b>Paid AI stays off</b> unless the owner turns it on with the server setting AEGIS_ALLOW_PAID_AI. While it is off nothing can be charged. If the owner ever turns it on, signed-in users share an Aegis allowance of up to $25 per month and paid requests may incur OpenAI charges. The bot, its trades and its learning never need AI.</p>
         <p>Under Owner controls on Learn, the owner can request pause, resume, stop or start and enter a reason. The next learner check records whether the request was applied or failed; refresh to see the result. Pause prevents new virtual entries while existing trades are managed. Stop waits for open and pending trades to settle. Starting another campaign preserves earlier results. The owner can also change their password there.</p>
         <p>The owner can run one AI connection check there. It uses a fixed test message and costs at most $0.01 on the configured OpenAI account. It does not start automatic AI processing. If the result is uncertain, do not retry; a reservation may still be counted in the allowance.</p>
-        <p>A separate experimental AI shadow study is designed to test judgments on delayed ideas without changing the learner&apos;s balance. It is not active unless configured. Its practice results, when available, are not proof of profitable trading or live-market performance.</p>
+        <p>An earlier paid-AI shadow study stays dormant while paid AI is off; the AI second opinion above replaces it. Neither changes the learner&apos;s balance, and practice results are not proof of profitable trading or live-market performance.</p>
         <p>
           The learner is the bot&apos;s own <b>virtual {usd(EXP_RISK.capital)}</b> account. After each complete market update, it processes ideas and price bars in market-time order. The simulation stays 30 minutes behind received prices so source checks can finish before it passes an idea. This planned wait is separate from feed delay. It decides after the idea&apos;s bar closes and fills on the next available bar. It only uses prices available at that simulated moment. Skipped ideas are followed too, so it cannot learn only from its own winners.
         </p>
@@ -204,20 +218,20 @@ export default function GuidePage() {
         </ol>
         <p className={styles.note}>The ideas still come from methods that have not beaten chance. More trades most likely mean more virtual losses. The point is evidence, not profit.</p>
         <p>
-          Three labels show its state, each with a reason. <b>Doing</b>: watching the market, managing trades, waiting,
-          paused, stopped, last check failed or status unknown. <b>Learning</b>: collecting results, candidate ready, change
-          adopted, candidate rejected or no proven gain yet. <b>Data</b>: current, late, stale or offline. A missing check
-          reads &ldquo;status unknown&rdquo;, never &ldquo;running&rdquo;. &ldquo;No proven gain yet&rdquo; is an honest
-          result, not a fault.
+          Its state shows in plain words, each with a reason. Today&apos;s status card says what it is doing (watching the
+          market, managing trades, waiting, paused, stopped, last check failed or status unknown) and warns when data is
+          late, stale or offline. The learning card says where learning stands: collecting results, candidate ready, change
+          adopted, candidate rejected or no proven gain yet. A missing check reads &ldquo;status unknown&rdquo;, never
+          &ldquo;running&rdquo;. &ldquo;No proven gain yet&rdquo; is an honest result, not a fault.
         </p>
         <p className={styles.note}>
-          The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled &ldquo;Simulated on delayed prices&rdquo;. The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Under campaign 1 and 2 rules, replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project&apos;s GitHub controls. Offline, the app is read-only.
+          The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled &ldquo;Simulated on delayed prices&rdquo;. The time of the simulated decision and the actual time the idea was received are shown separately. Earlier campaigns&apos; decisions remain under Trades → Past campaigns. Under campaign 1 and 2 rules, replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project&apos;s GitHub controls. Offline, the app is read-only.
         </p>
       </section>
 
       <section className={styles.card} id="activity">
         <h2>Behind the trades</h2>
-        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. On Today and Learn it is folded under Every check, step by step. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>At the bottom of Trades, open <b>Under the hood · how today&apos;s ideas reached the bot</b> for the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
         <p>Practice finished counts closed practice outcomes for those decisions. Ready for check counts results with the saved details needed for learning; the next learning check still applies its time cutoff and counts each idea once. Open Recorded decisions to follow each decision to its fill and learning status.</p>
         <p>Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.</p>
         <p>Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner&apos;s balance.</p>
@@ -279,7 +293,7 @@ export default function GuidePage() {
 
       <section className={styles.card}>
         <h2>One virtual account and separate records</h2>
-        <p><b>The experimental learner</b> uses the only active virtual account. Today, Trades and Learn show the same balance and trade history.</p>
+        <p><b>The experimental learner</b> uses the only active virtual account. Today shows its balance and Trades shows its trade history; Learn shows how it learns.</p>
         <p><b>Trade ideas</b> are the methods&apos; separate research record. Their own results are never added to the account balance.</p>
         <p><b>Your journal</b> records your own decisions. It does not change the bot&apos;s money.</p>
         <p>The earlier qualification account is retired. Its old record is kept for audit, and the qualification tests remain under More → Method research. Historical practice on years of older data stays separate and never adds old profit to the account.</p>
@@ -355,7 +369,7 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>Your journal</h2>
         <p>
-          More → Journal is yours alone. Pick the trading day, type in a trade or import your broker&apos;s file
+          More → My journal is yours alone. Pick the trading day, type in a trade or import your broker&apos;s file
           (Tradovate and Topstep exports work), and export it any time. Entry and exit times are typed in New York time
           to match the chart. Sign in with an email code or your account password to keep a private copy across devices; local saving always works.
         </p>
@@ -368,7 +382,7 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>ET or IST</h2>
         <p>
-          Times follow the ET/IST switch in the header (also under More → Settings). Phones in India start on IST. Two
+          Times follow the ET/IST switch under More → Settings (on a computer it is also in the sidebar). Phones in India start on IST. Two
           things stay in New York time on purpose: trading days (a day&apos;s ideas group by the New York date) and
           journal entry times. Session rules print both clocks, for example flat by {etTimeLabel("15:25")}.
         </p>
@@ -420,7 +434,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-11-06 (on-time timer, daily price change, campaign 3 rules, paid AI off). A printable version of this guide lives in
+        Matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, paid AI off). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

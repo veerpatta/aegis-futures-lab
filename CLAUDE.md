@@ -30,10 +30,18 @@ short sentences. The reader knows trading but not software. Always keep the
   (`components/today/TodayClient.tsx`), Trades `/trades` + `/trades/[id]`
   (`components/trades/*`), Learn `/brain` (`components/bot/BotClient.tsx` + `LearnSection.tsx`),
   Chart `/markets`, More `/more`. URLs kept their old paths on purpose. `components/nav/links.tsx`
-  holds `NAV_LINKS` and `MORE_GROUPS` (Ideas and records: Ideas `/signals`, Practice money
-  `/brain#practice` · Your tools: Journal `/replay`, Review · Learn: Guide · Research room: Lab,
-  Diagnostics, Data); `MoreClient` finds groups by title, never by position. Compare, the legacy
-  dashboard (`/research-history`) and `/brain/history` were removed; `next.config.ts` redirects them.
+  holds `NAV_LINKS` and `MORE_GROUPS` (Records: Method ideas `/signals`, Results calendar `/review`,
+  My journal `/replay` · Help: Guide · Research room: Method research `/brain#research`, Historical
+  practice `/brain#history`, Lab, Diagnostics, Data); `MoreClient` finds groups by title, never by
+  position. Compare, the legacy dashboard (`/research-history`) and `/brain/history` were removed;
+  `next.config.ts` redirects them. SIMPLER SCREENS (2026-11-07, plan
+  `docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md`): Today is cards in
+  `components/today/TodayCards.tsx` (status, balance, plain-words recap from `lib/plain/recap.ts`,
+  latest trades, learning, markets), two columns ≥1100px; Trades rows are `components/trades/TradeRow.tsx`
+  fed by `useTrades.ts`; research detail (Trades' activity funnel, Learn's jobs/history/owner/research,
+  a trade's saved values) sits in `components/ui/Fold.tsx` folds that render only when opened (and
+  open from a matching `#hash`). The account card appears only on Today; `ExperimentCard`,
+  `TodayPulse`, `TradeBreakdown` were removed. The phone header has no ET/IST switch (More → Settings).
 - EXPERIMENTAL LEARNER (2026-10-07, replaced the never-applied trial account): a virtual-only
   $10,000 account in `lib/experiment/` (outside the research-code hash) that decides on every
   visible, filled idea, simulates its own fills on `bars_5m` (next bar open after the decision,
@@ -85,7 +93,9 @@ short sentences. The reader knows trading but not software. Always keep the
   by `scripts/clock/sync-token.ts` into `aegis_private.engine_clock_token` (owner-only; "off"
   clears it). Every attempt is logged publicly in `engine_clock` (never the key); the watchdog and
   Today's timer line (`lib/plain/timer.ts`) read it. Triggers in `scripts/clock/triggers.json`;
-  learn/review triggers stay disabled until the v3 handover. Migration
+  since the v3 handover (2026-11-06) its learn (06:50 UTC Tue-Sat) and review (07:05 UTC Sun)
+  triggers are enabled and dispatch `experiment-fallback.yml`, and the learner ticks inside
+  `signal-engine.yml` right after publish. Migration
   `db/migrations/20261106_engine_clock.sql`. `run.ts --if-stale` now counts any runner's runs.
 - LEARNER v3 RULES (2026-11-06, `docs/research/2026-11-06-learner-v3-preregistration.md`):
   `PREREG_V3`/`EXP_RISK_V3` (= `CAMPAIGN_RULES`/`CAMPAIGN_RISK`, what NEW campaigns register;
@@ -94,12 +104,40 @@ short sentences. The reader knows trading but not software. Always keep the
   contract up to $150 when $100 buys none, and labels delayed-market decisions processed within
   2 h "prospective" (v2 labelled all "replay", so adoption was impossible). Pinned by
   `tests/experiment-v3-rules.test.ts`. The Neon learner `aegisexp` is build `f194c9a` and knows
-  v1/v2 only: before a v3 campaign starts, apply `db/migrations/20261106_learner_v3_runner_fence.sql`
-  (refuses that build's runs for v3 campaigns) and disable its triggers (handover steps in
-  ENGINE-CLOCK.md).
+  v1/v2 only; the handover is DONE (2026-11-06): `db/migrations/20261106_learner_v3_runner_fence.sql`
+  is applied (it refuses that build's runs for v3 campaigns), all `aegisexp` triggers are disabled,
+  and campaign 3 (`learner-3`) runs the v3 rules.
 - ZERO-COST AI (2026-11-06): every OpenAI call reads its key through `paidAiKey()`
   (`lib/ai-cost/paid-ai.ts`), which returns it only with the server env `AEGIS_ALLOW_PAID_AI=true`.
   `tests/ai-zero-cost.test.ts` fails if any code reads `process.env.OPENAI_API_SECRET` directly.
+- FREE AI HELPER (2026-11-07, `docs/AI-HELPER.md`): NVIDIA's free OpenAI-compatible API
+  (`lib/ai-free/`), key from `NVIDIA_API_KEY` (or any env value starting `nvapi-`; only the NAME is
+  ever reported), model chain Kimi K3.1 Pro → Kimi K2.6 → Nemotron 3 Ultra → Gemma 4 with a 6-hour
+  "not found" memory; `AEGIS_FREE_AI=off` switches it off. On 2026-11-06 the owner's key got 404 for
+  both Kimi models (K3.1 Pro playground-only, K2.6 "not found for account"). The AI SECOND OPINION
+  (`lib/ai-judge/`, preregistration `docs/research/2026-11-07-ai-second-opinion-preregistration.md`,
+  hash pinned) judges each active-campaign learner decision from facts at its `info_cutoff` only,
+  write-once per (study, decision), never trades, and is scored on the learner's one-contract
+  outcomes vs take-all, matched random and no-trade (looks at 60 and 150 resolved). One study per
+  model: `ai-judge-nemotron-ultra-v1` active; `ai-judge-kimi-k3.1-pro-v1` waits and activates on its
+  first answer. Coach notes (`lib/ai-coach/`) are number-checked. NVIDIA's trial terms (evaluation
+  only; no sharing generated text; may use inputs) ⇒ AI TEXT IS OWNER-ONLY (`/api/ai/owner`,
+  `/api/ai/research`); the public `/api/ai/scoreboard` is numbers only; screens use
+  `components/ai/AiProvider.tsx` + `AiViews.tsx`, words in `lib/plain/ai.ts`. `POST /api/ai/run` is
+  called by the `ai-helper` job in `signal-engine.yml` with a GitHub OIDC token
+  (`lib/ai-auth/github-oidc.ts`: repo, main, that workflow file) — no shared secret. Tables
+  `ai_judge_studies|ai_judge_calls|ai_looks|ai_notes|ai_hypotheses` (migration
+  `db/migrations/20261107_ai_helper.sql`, RLS on, no browser grants, `aegis_ai` least privilege; a final
+  answer needs a claim and must land within 2 h of its decision; TRUNCATE refused; `aegis_ai_app` has a
+  10 s statement timeout). Looks are FROZEN: a look's window is a prefix of decisions in recorded order,
+  waits while any call in it is open, and is stored once in `ai_looks` (the scoreboard shows the stored
+  verdict). AI RESEARCH IDEAS (`lib/ai-ideas/`, preregistration
+  `docs/research/2026-11-07-ai-ideas-preregistration.md`): at most weekly, ≤3 concurrent skip rules in a
+  whitelisted DSL (`dsl.ts`; learner features only), proposed from a facts table our code builds, tested
+  ONLY on decisions recorded after the proposal with stricter looks (99.5%/98.5%); a pass is eligibility
+  for a future campaign, never automatic. Every NVIDIA call streams (its gateway 502s non-streamed
+  answers past ~30 s); `chat()` takes an absolute deadline. `GET /api/ai/status` reports key/model/DB
+  without calling a model.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`

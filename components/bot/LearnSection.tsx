@@ -8,6 +8,7 @@
    including the failed ones. A training job finishing is never shown as a
    learning success: only an adopted change is. */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getNeon } from "@/lib/neon/client";
 import { useExperiment, EXPERIMENT_LINEAGE } from "@/components/providers/ExperimentProvider";
@@ -16,6 +17,8 @@ import { readCache, useLiveRefresh, writeCache } from "@/lib/hooks/useLiveRefres
 import { Term } from "@/components/ui/Glossary";
 import ShowNumbers from "@/components/ui/ShowNumbers";
 import BotCompanion from "./BotCompanion";
+import Fold from "@/components/ui/Fold";
+import { AiIdeasCard, AiScoreCard } from "@/components/ai/AiViews";
 import { checkedLearningExamples } from "@/lib/plain/companion";
 import type { ExpLearning } from "@/lib/experiment/view";
 import { PREREG } from "@/lib/experiment/prereg";
@@ -92,23 +95,7 @@ export default function LearnSection() {
 
   return (
     <section className={page.stack} aria-label="What the learner has learned" id="learning">
-      <BotCompanion data={data} failed={failed} />
-      <div className={page.sectionHead}>
-        <h2>
-          <Term k="experimentalLearner">Experimental learner</Term> · learning
-        </h2>
-      </div>
-      <p className={page.paperLine}>VIRTUAL ONLY · {data?.mode === "synthetic" ? "Synthetic prices" : "Delayed data"}</p>
-
-      <section className={`${page.card} ${styles.card}`} aria-label="Learning state">
-        <p className={page.note}>Finished trades build the learning record. A new version takes over only after every check passes.</p>
-        <details className={styles.accountDetails}><summary>How learning works <span>Details +</span></summary><p className={page.note}>
-          It learns from finished trades in batches, never from the last loss. Each week it may test up to {PREREG.search.maxPerWeek} new
-          versions from a fixed list, side by side with the current one on the same ideas — at most {PREREG.lifecycle.maxShadowing} at a time, each for up
-          to {PREREG.lifecycle.shadowWeeks} weeks, because fresh results come slowly. A new version takes over only after every check below passes;
-          the old one is kept so it can be put back.
-        </p></details>
-      </section>
+      <BotCompanion data={data} failed={failed} part="progress" />
 
       {failed && !data ? (
         <p className={page.warning}>
@@ -123,7 +110,7 @@ export default function LearnSection() {
         <>
           <section className={`${page.card} ${styles.card}`} aria-label="Active model">
             <h3 className={page.cardTitle}>
-              <Term k="modelVersion">Active model</Term> · {versionName(active?.id)}
+              Who is in charge · <Term k="modelVersion">{versionName(active?.id)}</Term>
             </h3>
             <p className={styles.reason}>
               {specWords(active?.spec)} In charge since {exp.data?.model?.since ? dateShortIn(sec(exp.data.model.since), zone) : "—"}.
@@ -142,6 +129,16 @@ export default function LearnSection() {
             <p className={page.note}>{checked ? `${closed} usable examples at the last notebook check.` : "The next notebook check will count usable examples."} Ideas too risky for one contract are not counted.</p>
           </section>
 
+          <div className={page.sectionHead}>
+            <h2>
+              <span style={{ color: "var(--violet)" }} aria-hidden>✦</span> AI helper
+            </h2>
+            <Link href="/guide#ai">How it works →</Link>
+          </div>
+          <AiScoreCard />
+          <AiIdeasCard />
+
+          {(shadowing.length > 0 || data.evaluations.some((e) => e.kind === "walk_forward")) && <>
           <section className={page.stack} aria-label="Candidates">
             <div className={page.sectionHead}>
               <h3>
@@ -247,6 +244,9 @@ export default function LearnSection() {
             )}
           </section>
 
+          </>}
+
+          <Fold summary={`Change history · every trial kept (${changes.length})`}>
           <section className={`${page.card} ${styles.card}`} aria-label="Change history">
             <h3 className={page.cardTitle}>Change history · all trials kept</h3>
             {changes.length === 0 ? (
@@ -280,8 +280,22 @@ export default function LearnSection() {
                 .join(" · ") || "none yet"}
             </p>
           </section>
+          </Fold>
         </>
       )}
+      <Fold summary="How learning works">
+        <section className={`${page.card} ${styles.card}`} aria-label="Learning state">
+          <p className={page.note}>
+            It learns from finished trades in batches, never from the last loss. Each week it may test up to {PREREG.search.maxPerWeek} new
+            versions from a fixed list, side by side with the current one on the same ideas — at most {PREREG.lifecycle.maxShadowing} at a time, each for up
+            to {PREREG.lifecycle.shadowWeeks} weeks, because fresh results come slowly. A new version takes over only after every check passes;
+            the old one is kept so it can be put back.
+          </p>
+        </section>
+      </Fold>
+      <Fold id="activity-log" summary="Under the hood · the bot's recent jobs">
+        <BotCompanion data={data} failed={failed} part="activity" />
+      </Fold>
     </section>
   );
 }

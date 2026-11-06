@@ -1,9 +1,12 @@
 "use client";
 
-/* One bot trade, with the evidence behind it. "What happened" (the simulated
-   fill, the exit trigger, gross, fees and net) is kept apart from "why" (the
-   rule values frozen when the decision was made). No story is invented after
-   a loss: a single result is not a pattern, and the page says so. */
+/* One bot trade, told as a story (plan:
+   docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md): the result
+   first, then what happened in plain words (the AI's note for the signed-in
+   owner, the app's own words otherwise), the AI's second opinion, the
+   timeline and costs, and, folded, the rule and the values saved at decision
+   time. No story is invented after a loss: a single result is not a pattern,
+   and the page says so. */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -23,13 +26,18 @@ import { stampIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
 import styles from "@/components/experiment/experiment.module.css";
 import visual from "./trades.module.css";
-import { outcomeLine } from "./TradesClient";
+import { outcomeLine, sideWord } from "./TradeRow";
+import Fold from "@/components/ui/Fold";
+import { useAi } from "@/components/ai/AiProvider";
+import { AiByline, AiOpinion } from "@/components/ai/AiViews";
+import { tradeStory } from "@/lib/plain/recap";
 
 const px = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
 export default function TradeDetail({ id }: { id: string }) {
   const { mask } = usePrivacy();
   const { zone } = useZone();
+  const ai = useAi();
   const [row, setRow] = useState<ExpTradeRow | null>(null);
   const [state, setState] = useState<"loading" | "missing" | "failed" | "ok">("loading");
   const [retry, setRetry] = useState(0);
@@ -83,33 +91,33 @@ export default function TradeDetail({ id }: { id: string }) {
   const idea = row.idea;
   const prov = PROVENANCE[row.provenance];
   const shadowNet = learningPracticeNet(row);
+  const note = ai.ownerStatus === "ready" ? ai.noteFor("trade", row.decision_key) : null;
 
   return (
     <div className={page.page}>
       <header className={page.head}>
         <Link href="/trades" className={page.linkButton}>
-          ← All bot trades
+          ← All trades
         </Link>
         <h1 className="pageTitle">
-          {taken ? (closed ? ((row.net ?? 0) >= 0 ? "Closed gain" : "Closed loss") : outcomeLine(row)) : "Skipped idea"}
+          {marketName(row.symbol)} · {sideWord(row.side)}
         </h1>
         <p className={page.paperLine}>
-          VIRTUAL ONLY · Experimental learner · {row.mode === "synthetic" ? "Synthetic prices" : "Delayed data"}
+          Campaign {row.campaign} · {when(row.decided_at)} · Virtual money · {row.mode === "synthetic" ? "Synthetic prices" : "Delayed prices"}
         </p>
       </header>
 
       <section className={`${page.card} ${visual.detailHero}`} aria-label="Result">
-        <p className={page.paperLine}>Campaign {row.campaign} · {row.experiment_id} · {versionName(row.model_version_id)}</p>
         <div className={styles.hero}>
           <div>
             <span className={styles.heroLabel}>
-              {marketName(row.symbol)} · {row.side === "LONG" ? "Long" : "Short"}
-              {taken ? ` · ${row.qty} contract${row.qty === 1 ? "" : "s"}` : ""} · {versionName(row.model_version_id)}
+              {taken ? (closed ? ((row.net ?? 0) >= 0 ? "Closed gain" : "Closed loss") : outcomeLine(row)) : "Skipped idea"}
+              {taken ? ` · ${row.qty} contract${row.qty === 1 ? "" : "s"}` : ""}
             </span>
             <b className={`${styles.heroValue} num ${shownResult === null || (!closed && row.stale) ? page.dim : shownResult > 0 ? page.good : shownResult < 0 ? page.bad : page.dim}`}>
               {shownResult !== null ? `${!closed && row.stale ? "~" : ""}${mask(money(shownResult))}` : taken ? row.position_status === "cancelled" ? "Not filled" : "Waiting" : "Not taken"}
             </b>
-            <span className={styles.heroSub}>{closed ? "Final result · after costs" : open ? row.stale ? "Last estimate · stale price · after costs" : "Open estimate · after costs" : outcomeLine(row)}</span>
+            <span className={styles.heroSub}>{closed ? `${exitWords(row.exit_reason)} · final result after costs` : open ? row.stale ? "Last estimate · stale price · after costs" : "Open estimate · after costs" : outcomeLine(row)}</span>
           </div>
         </div>
         {idea && row.fill_price !== null && (open || closed) && <div className={visual.detailPrice}><PriceLadder stop={idea.stop} entry={row.fill_price} target={idea.target} marker={closed ? row.exit_price : row.mark} markerLabel={closed ? "Exit price" : "Last delayed price"} /></div>}
@@ -117,6 +125,25 @@ export default function TradeDetail({ id }: { id: string }) {
           {prov?.label}: {prov?.note}
         </p>
       </section>
+
+      <section className={page.card} aria-label="In plain words">
+        <h2 className={page.cardTitle}>In plain words</h2>
+        {note ? (
+          <>
+            <p className={styles.reason}>{note.text}</p>
+            <AiByline model={note.model} />
+          </>
+        ) : (
+          <p className={styles.reason}>{tradeStory(row, (n) => mask(money(n)))}</p>
+        )}
+      </section>
+
+      {ai.ownerStatus === "ready" && (
+        <section className={page.card} aria-label="AI second opinion">
+          <h2 className={page.cardTitle}>AI second opinion</h2>
+          <AiOpinion decisionKey={row.decision_key} botAction={row.action} />
+        </section>
+      )}
 
       <section className={`${page.card} ${styles.card}`} aria-label="What happened">
         <h2 className={page.cardTitle}>What happened</h2>
@@ -164,6 +191,7 @@ export default function TradeDetail({ id }: { id: string }) {
         )}
       </section>
 
+      <Fold summary={taken ? "Why it entered · the rule and the values saved at decision time" : "The idea it saw · the rule and the values saved at decision time"}>
       <section className={`${page.card} ${styles.card}`} aria-label="Why it entered">
         <h2 className={page.cardTitle}>{taken ? "Why it entered" : "The idea it saw"}</h2>
         <dl className={styles.facts}>
@@ -207,15 +235,17 @@ export default function TradeDetail({ id }: { id: string }) {
           </dl>
         </ShowNumbers>
       </section>
+      </Fold>
 
       <section className={`${page.card} ${styles.card}`} aria-label="What was learned">
         <h2 className={page.cardTitle}>What was learned</h2>
         <p className={styles.reason}>
-          One result is not a pattern, and a loss is not automatically a mistake.{" "}
-          {shadowNet !== null && `Separate one-idea practice result: ${mask(money(shadowNet))} after costs. This is not an account trade result. `}
-          {learningOutcomeWords(row)}{" "}
-          Skipped ideas are followed the same way, so the learner cannot learn only from its own winners.
+          One result is not a pattern, and a loss is not automatically a mistake. The bot learns from many finished ideas at once,
+          including the ones it skipped, so it cannot learn only from its winners. {learningOutcomeWords(row)}
         </p>
+        {shadowNet !== null && (
+          <p className={page.note}>For learning, every idea is also scored as one contract: {mask(money(shadowNet))} after costs. That score is kept apart from the account.</p>
+        )}
         {shadowNet !== null && row.shadow_ambiguous && <p className={page.warning}>One practice price bar touched both the stop and target, so the stop was assumed.</p>}
         <Link href="/brain" className={page.linkButton}>
           See what the learner has learned →

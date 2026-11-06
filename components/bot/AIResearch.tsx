@@ -7,7 +7,7 @@ import page from "@/components/ui/page.module.css";
 import styles from "./ai-research.module.css";
 
 type Citation = { id: string; label?: string };
-type Budget = { usedUsd?: number; remainingUsd?: number; userRequests?: number; dailyLimit?: number; resetAt?: string; timezone?: string };
+type Budget = { usedUsd?: number; remainingUsd?: number; userRequests?: number; dailyLimit?: number; resetAt?: string; timezone?: string; provider?: "free" | "paid" | "off"; model?: string | null };
 type Answer = { answer: string; citations: Citation[]; usage?: Budget };
 type User = { id: string; email: string };
 type ResearchDepth = "standard" | "deep";
@@ -32,6 +32,12 @@ export async function requestShadowSummary(token: string, transport: (url: strin
 }
 
 export function formatBudget(budget: Budget): string {
+  // The free provider (NVIDIA's trial endpoint) never bills; say so instead of a dollar allowance.
+  if (budget.provider === "free" || budget.provider === "off") {
+    const today = Number.isInteger(budget.userRequests) && Number.isInteger(budget.dailyLimit) && budget.userRequests! >= 0 && budget.dailyLimit! >= 0
+      ? ` Your questions today: ${budget.userRequests} of ${budget.dailyLimit} (UTC).` : "";
+    return `${budget.provider === "free" ? "Free AI: costs nothing." : "The AI is switched off."}${today}`;
+  }
   let text = `Shared Aegis allowance remaining: $${budget.remainingUsd!.toFixed(2)}`;
   if (typeof budget.usedUsd === "number" && Number.isFinite(budget.usedUsd) && budget.usedUsd >= 0) text += ` · counted $${budget.usedUsd.toFixed(2)} (includes pending reservations)`;
   if (budget.resetAt) text += ` · resets ${budget.resetAt}${budget.timezone ? ` ${budget.timezone}` : ""}`;
@@ -91,8 +97,6 @@ export default function AIResearch() {
   const [result, setResult] = useState<Answer | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [budgetFailed, setBudgetFailed] = useState(false);
-  const [shadow, setShadow] = useState<ShadowSummary | null>(null);
-  const [shadowFailed, setShadowFailed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const currentUser = useRef<string | null>(null);
@@ -131,21 +135,6 @@ export default function AIResearch() {
         const next = await requestResearchBudget(data.session.access_token);
         if (alive && budgetRequest.current === version) setBudget(next);
       } catch { if (alive && budgetRequest.current === version) setBudgetFailed(true); }
-    })();
-    return () => { alive = false; };
-  }, [user?.id]);
-
-  useEffect(() => {
-    let alive = true;
-    setShadow(null); setShadowFailed(false);
-    if (!user) return () => { alive = false; };
-    void (async () => {
-      try {
-        const { data, error: authError } = await getNeon().auth.getSession();
-        if (authError || !data.session?.access_token || data.session.user?.id !== user.id) throw new Error("Session unavailable");
-        const next = await requestShadowSummary(data.session.access_token);
-        if (alive) setShadow(next);
-      } catch { if (alive) setShadowFailed(true); }
     })();
     return () => { alive = false; };
   }, [user?.id]);
@@ -218,11 +207,11 @@ export default function AIResearch() {
   };
 
   return <section className={`${page.card} ${styles.research}`} aria-label="AI research assistant">
-    <div><h2 className={page.cardTitle}>AI research assistant</h2><p className={page.paperLine}>Virtual only · Delayed data · Research, not trading advice</p></div>
+    <div><h2 className={page.cardTitle}>Ask the AI about your bot</h2><p className={page.paperLine}>Owner only · Virtual money · Research, not trading advice</p></div>
     <p className={page.note}>Ask about recorded evidence or suggest a new research question. AI can be wrong; a cited record does not prove a claim. It cannot change trades or the bot&apos;s rules.</p>
-    <p className={page.note}>Your question is sent to OpenAI. Do not include passwords, API keys or private journal details. Signed-in users share the $25 monthly Aegis allowance.</p>
+    <p className={page.note}>Your question and the bot&apos;s records go to a free AI model on NVIDIA&apos;s servers; paid AI stays off. NVIDIA&apos;s free terms let it use questions to improve its models, so never include passwords, keys or private journal details.</p>
     {checking ? <p className={page.loading}>Checking sign-in…</p> : !user ? <div className={styles.signIn}>
-      <p>Sign in with email to use paid research.</p>
+      <p>Sign in with email to ask the AI. Answers are shown only to the owner.</p>
       <label>Email <input type="email" autoComplete="email" form={passwordMode ? "research-password-form" : undefined} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
       {passwordMode ? <form id="research-password-form" onSubmit={event => void signInPassword(event)} className={styles.form}>
         <label>Password <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>
@@ -241,9 +230,9 @@ export default function AIResearch() {
         <textarea id="aegis-ai-question" value={question} onChange={e => setQuestion(e.target.value)} maxLength={2000} rows={4} placeholder="Why are the source methods paused?" disabled={busy} />
         <fieldset disabled={busy}>
           <legend>Research depth</legend>
-          <label><input type="radio" name="research-depth" value="standard" checked={depth === "standard"} onChange={() => setDepth("standard")} /> Standard (GPT-6.1 Sol)</label>{" "}
-          <label><input type="radio" name="research-depth" value="deep" checked={depth === "deep"} onChange={() => setDepth("deep")} /> Deeper research (GPT-6 Astra)</label>
-          <p className={page.note}>Deeper research can use more of the shared monthly allowance and is available only when the budget permits.</p>
+          <label><input type="radio" name="research-depth" value="standard" checked={depth === "standard"} onChange={() => setDepth("standard")} /> Standard</label>{" "}
+          <label><input type="radio" name="research-depth" value="deep" checked={depth === "deep"} onChange={() => setDepth("deep")} /> Deeper (slower)</label>
+          <p className={page.note}>Deeper answers take longer. The free service is sometimes busy; if it is, try again in a few minutes.</p>
         </fieldset>
         <div className={styles.actions}><span className={page.dim}>{question.length}/2000</span><button type="submit" disabled={busy || !question.trim()}>{busy ? "Checking evidence…" : "Ask assistant"}</button></div>
       </form>
@@ -252,19 +241,8 @@ export default function AIResearch() {
         {result.citations.length > 0 ? <><h4>Records referenced</h4><ul>{result.citations.map((c, i) => <li key={`${c.id}-${i}`}>{c.label ? `${c.label} · ` : ""}{c.id}</li>)}</ul></> : <p className={page.note}>No validated records were supplied with this response.</p>}
         <p className={page.note}>References identify supplied records; they do not guarantee the answer is correct.</p>
       </article>}
-      <p className={page.note}>{budget ? formatBudget(budget) : budgetFailed ? "Shared budget status is unavailable. Paid requests may be paused." : "Checking shared budget…"}</p>
-      <section aria-label="Separate paper shadow study">
-        <h3 className={page.cardTitle}>Separate paper shadow study</h3>
-        {!shadow ? <p className={page.note}>{shadowFailed ? "Study summary unavailable. Try again later." : "Checking study summary…"}</p> : shadow.status === "not-configured" ? <p className={page.note}>No shadow study is configured yet.</p> : <>
-          <p className={page.note}>Inconclusive: this prospective study is virtual and cannot establish profitable real trading. It does not change the learner or account.</p>
-          <p className={page.note}>Study {shadow.study.id} · registered {shadow.study.registeredAt} · {shadow.study.model} · prompt {shadow.study.promptVersion} · features {shadow.study.featureVersion}</p>
-          <p className={page.note}>Observation period: {shadow.period.firstObservedAt && shadow.period.lastObservedAt ? `${shadow.period.firstObservedAt} to ${shadow.period.lastObservedAt}` : "No observations yet"}.</p>
-          <p className={page.note}>Eligible {shadow.comparison.eligible} · rejected {shadow.rejected} · scored {shadow.comparison.scored} · resolved {shadow.comparison.resolved} · abstained {shadow.comparison.abstained} · taken {shadow.comparison.taken} · unresolved {shadow.unresolved} · invalidated {shadow.invalidated} · cancelled {shadow.cancelled}.</p>
-          <p className={page.note}>Comparable simulated net USD: model ${shadow.comparison.modelNet.toFixed(2)} · take all ${shadow.comparison.takeAllNet.toFixed(2)} · no trade ${shadow.comparison.noTradeNet.toFixed(2)}. Matched random comparison: {shadow.comparison.randomPercentile === null ? "not available" : `${shadow.comparison.randomPercentile.toFixed(1)}th percentile, ${shadow.comparison.randomN} model selections`}.</p>
-          <p className={page.note}>{shadow.comparison.deltaPerIdea ? `Estimated model minus take-all per idea: $${shadow.comparison.deltaPerIdea.est.toFixed(2)}; 95% session bootstrap interval $${shadow.comparison.deltaPerIdea.lo.toFixed(2)} to $${shadow.comparison.deltaPerIdea.hi.toFixed(2)}.` : "Uncertainty interval unavailable; more resolved sessions are needed."} Unscored and unresolved cases are excluded from all comparisons.</p>
-          <p className={page.note}>Assumptions: {shadow.assumptions.execution}; {shadow.assumptions.source} delayed data; costs {shadow.assumptions.costVersion}. One contract per opportunity; these are not portfolio returns.</p>
-        </>}
-      </section>
+      <p className={page.note}>{budget ? formatBudget(budget) : budgetFailed ? "Usage status is unavailable just now." : "Checking usage…"}</p>
+      <p className={page.note}>The AI&apos;s second opinion on each idea, and how it scores, is on the Learn screen.</p>
     </>}
   </section>;
 }

@@ -12,7 +12,10 @@ import { PREREG } from "@/lib/experiment/prereg";
 import { stampIn } from "@/lib/time/zones";
 import s from "./companion.module.css";
 
-export default function BotCompanion({ data, failed }: { data: ExpLearning | null; failed: boolean }) {
+/** `part` splits the companion for the Learn screen (plan 2026-11-07): "progress"
+    is the learning notebook and schedule shown first; "activity" is the bot's
+    activity, recent jobs and cost notes, kept in Learn's "Under the hood" fold. */
+export default function BotCompanion({ data, failed, part = "all" }: { data: ExpLearning | null; failed: boolean; part?: "all" | "progress" | "activity" }) {
   const exp = useExperiment();
   const { zone } = useZone();
   const now = useNowSec();
@@ -43,8 +46,9 @@ export default function BotCompanion({ data, failed }: { data: ExpLearning | nul
   const jobNames: Record<string, string> = { tick: "Market check", learn: "Learning notebook", review: "Model review" };
   const jobStatus: Record<string, string> = { ok: "Finished", running: "Started", error: "Needs attention", skipped: "Deferred", partial: "Partly finished" };
 
+  const showProgress = part !== "activity", showActivity = part !== "progress";
   return <div className={s.stack}>
-    <section className={`${s.hero} ${s[activity.mood]}`} aria-label="Bot activity">
+    {showActivity && <section className={`${s.hero} ${s[activity.mood]}`} aria-label="Bot activity">
       <div className={s.heroTop}><span><i /> Aegis bot</span><span className={s.badge}>Virtual only</span></div>
       <div ref={stage} className={s.stage} data-animated={moving} data-mood={activity.mood}>
         <div className={s.orbit} aria-hidden><i /><i /><i /></div>
@@ -67,9 +71,9 @@ export default function BotCompanion({ data, failed }: { data: ExpLearning | nul
       </div>
       <div className={s.activityCopy} aria-live="polite"><h2>{activity.title}</h2><p>{activity.detail}</p></div>
       <div className={s.checkTime}><WidgetIcon name="clock" /><span>Last successful check <b>{when(exp.data?.account?.last_ok_tick_at)}</b></span></div>
-    </section>
+    </section>}
 
-    <section className={s.card} aria-label="Learning progress">
+    {showProgress && <section className={s.card} aria-label="Learning progress">
       <div className={s.sectionTitle}><h2>My learning notebook</h2><span className={s.badge}>Evidence, not a score</span></div>
       <div className={s.progressHero}>
         {examples === undefined ? <div className={s.placeholder}>—</div> : <ProgressRing value={Math.min(examples, g.minTrainRows)} of={g.minTrainRows} label="usable examples needed to start training" />}
@@ -85,22 +89,22 @@ export default function BotCompanion({ data, failed }: { data: ExpLearning | nul
       <details className={s.details}><summary>The path to a better bot <span>+</span></summary>
         <ol className={s.roadmap}><li><b>Collect examples</b><span>At least {g.minTrainRows} before training starts.</span></li><li><b>Test on later days</b><span>At least {g.minOos} results the version did not train on, with costs and random-entry comparisons.</span></li><li><b>Earn fresh proof</b><span>Each candidate needs {g.freshDecisions} fresh ideas over {g.freshSessions} trading days and two passing reviews at least {g.reviewGapDays} days apart.</span></li><li><b>Keep or reject</b><span>Only a tested improvement takes over. The previous version is kept for rollback.</span></li></ol>
       </details>
-    </section>
+    </section>}
 
-    <section className={s.card} aria-label="Automatic learning schedule">
+    {showProgress && <section className={s.card} aria-label="Automatic learning schedule">
       <div className={s.sectionTitle}><h2>Working on its own</h2><WidgetIcon name="clock" /></div>
       <div className={s.schedule}><div><span>Market check</span><b>{nextTick ? stampIn(nextTick, zone) : "Checking schedule"}</b></div><div><span>Next notebook update</span><b>{now ? stampIn(nextLearningCheck(now, "learn"), zone) : "—"}</b></div><div><span>Next model review</span><b>{now ? stampIn(nextLearningCheck(now, "review"), zone) : "—"}</b></div></div>
       <p className={s.honesty}>Expected times. Jobs may wait for data or free usage limits. You can close the app; the scheduled jobs continue.</p>
-    </section>
+    </section>}
 
-    <section className={s.card} aria-label="Recent bot activity">
+    {showActivity && <section className={s.card} aria-label="Recent bot activity">
       <div className={s.sectionTitle}><h2>Recent activity</h2><WidgetIcon name="activity" /></div>
       {!runs.length ? <p className={s.honesty}>The first recorded check will appear here.</p> : <ul className={s.log}>{runs.map(([key, run]) => <li key={key}><i className={run?.status === "error" ? s.errorDot : ""} /><div><b>{jobNames[key] ?? key}</b><span>{jobStatus[run!.status] ?? "Recorded"} · {when(run?.finished_at ?? run?.started_at)}</span>{key === "learn" && typeof run?.counts.rows === "number" && <small>{run.counts.rows} usable examples checked{run.counts.dataset === "unchanged" ? " · saved dataset reused" : ""}.</small>}{key === "review" && run?.counts.fitCache != null && <small>{Number((run.counts.fitCache as { reused?: number }).reused ?? 0)} identical model fits reused in this review.</small>}</div></li>)}</ul>}
       <details className={s.details}><summary>Example quality at the last check <span>+</span></summary>
         {!audit ? <p className={s.honesty}>The next notebook update or model review will record this breakdown.</p> : <><p className={s.honesty}>Checked {when(audited?.[1]?.finished_at)}. These counts describe that check.</p><dl className={s.quality}><dt>Usable examples</dt><dd>{audit.usable} of {audit.checked}</dd><dt>From taken / skipped ideas</dt><dd>{audit.fromTaken} / {audit.fromSkipped}</dd><dt>Replay / fresh / synthetic / late</dt><dd>{audit.replay} / {audit.prospective} / {audit.synthetic} / {audit.late}</dd><dt>Still waiting / after cutoff</dt><dd>{audit.awaiting} / {audit.afterCutoff}</dd><dt>No fill / too risky</dt><dd>{audit.noFill} / {audit.tooRisky}</dd><dt>Missing details / duplicates</dt><dd>{audit.missingFeatures} / {audit.duplicate}</dd><dt>Ambiguous exits, stop first</dt><dd>{audit.ambiguous}</dd></dl></>}
       </details>
-    </section>
+    </section>}
 
-    <details className={`${s.card} ${s.details}`}><summary>Built to avoid extra costs <span>+</span></summary><p className={s.honesty}>Small models use the existing stored outcomes. No paid AI calls or new data purchases. Identical training inputs share one fit within a review; the cache is discarded after the job.</p><p className={s.honesty}>{exp.data?.quota_level === "essential" ? "Optional learning is paused near the usage limit." : exp.data?.quota_level === "conserve" ? "New candidate searches are paused to conserve free usage." : exp.data?.quota_level === "reduce" ? "Optional work is reduced to conserve free usage." : "The bot checks its usage guard before running optional work. This is a usage guard, not a provider billing meter."}</p></details>
+    {showActivity && <details className={`${s.card} ${s.details}`}><summary>Built to avoid extra costs <span>+</span></summary><p className={s.honesty}>Small models use the existing stored outcomes. No paid AI calls or new data purchases. Identical training inputs share one fit within a review; the cache is discarded after the job.</p><p className={s.honesty}>{exp.data?.quota_level === "essential" ? "Optional learning is paused near the usage limit." : exp.data?.quota_level === "conserve" ? "New candidate searches are paused to conserve free usage." : exp.data?.quota_level === "reduce" ? "Optional work is reduced to conserve free usage." : "The bot checks its usage guard before running optional work. This is a usage guard, not a provider billing meter."}</p></details>}
   </div>;
 }

@@ -1,164 +1,130 @@
 "use client";
 
-/* Trades — the experimental learner's own ledger: every idea it decided on,
-   taken or skipped, newest first, 40 at a time. Each row opens the evidence
-   behind it (/trades/[id]). Only the learner's virtual trades live here: the
-   personal journal (/replay) and the trade-ideas record stay separate. */
+/* Trades — every decision of the current virtual campaign, taken or skipped,
+   newest first, as one clean list (plan:
+   docs/superpowers/plans/2026-11-07-free-ai-and-ui-revamp.md).
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+   A one-card summary on top, then filters, then one row per decision; each
+   row opens the full story on /trades/[id]. The research view of how ideas
+   reach the bot (the day's check-by-check funnel) is folded at the bottom and
+   loads only when opened. Only the learner's virtual trades live here: the
+   personal journal (/replay) and the method ideas (/signals) stay separate. */
+
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { getNeon } from "@/lib/neon/client";
 import { useExperiment } from "@/components/providers/ExperimentProvider";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { useZone } from "@/components/providers/ZoneProvider";
-import { StateAxes } from "@/components/experiment/ExperimentCard";
-import { EquityChart, MetricTile, TradeWidget, WidgetIcon, ledgerVisual } from "@/components/widgets/TradingWidgets";
-import { TradeBreakdown } from "@/components/widgets/TradeBreakdown";
-import { useNowSec } from "@/components/signals/useSignalFeed";
-import type { ExpTradeRow } from "@/lib/experiment/view";
-import { cancelWords, exitWords, skipWords } from "@/lib/plain/experiment";
-import { money } from "@/lib/format";
-import { stampIn } from "@/lib/time/zones";
-import page from "@/components/ui/page.module.css";
-import styles from "@/components/experiment/experiment.module.css";
-import widgets from "@/components/widgets/widgets.module.css";
-import tradeStyles from "./trades.module.css";
 import ActivityPanel from "@/components/experiment/ActivityPanel";
+import Fold from "@/components/ui/Fold";
+import { money } from "@/lib/format";
+import { sourceTiming } from "@/lib/experiment/view";
+import { stampIn } from "@/lib/time/zones";
+import { TradeRow } from "./TradeRow";
+import { useTrades, type TradeFilter } from "./useTrades";
+import page from "@/components/ui/page.module.css";
+import s from "./trades.module.css";
 
-type Filter = "all" | "taken" | "skipped" | "open" | "closed" | "earlier";
-const FILTERS: { key: Filter; label: string }[] = [
+export { outcomeLine } from "./TradeRow";
+
+const FILTERS: { key: TradeFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "taken", label: "Taken" },
   { key: "skipped", label: "Skipped" },
   { key: "open", label: "Open" },
   { key: "closed", label: "Closed" },
-  { key: "earlier", label: "Earlier attempts" },
+  { key: "earlier", label: "Past campaigns" },
 ];
 const PAGE = 40;
-function ViewLink({ select }: { select: (view: Filter) => void }) {
+
+function ViewLink({ select }: { select: (view: TradeFilter) => void }) {
   const params = useSearchParams();
   const view = params.get("view");
   useEffect(() => { if (view === "open") select("open"); }, [view, select]);
   return null;
-}
-const COLUMNS =
-  "id,decision_key,symbol,side,decided_at,provenance,action,reason,qty,model_version_id,position_status,cancel_reason,exit_reason,exit_ts,net,stale,mode,campaign,execution_clock,observed_at,recorded_at,idea,fill_price,fill_ts,mark,mark_ts,exit_price";
-
-export function outcomeLine(r: Pick<ExpTradeRow, "action" | "reason" | "position_status" | "cancel_reason" | "exit_reason"> & { idea?: ExpTradeRow["idea"] }): string {
-  if (r.action !== "take") return skipWords(r.reason, r.idea?.decisionEvidence?.limits);
-  if (r.position_status === "pending_fill") return "Order waiting for the next price";
-  if (r.position_status === "open") return "Open now";
-  if (r.position_status === "cancelled") return cancelWords(r.cancel_reason);
-  return exitWords(r.exit_reason);
 }
 
 export default function TradesClient() {
   const exp = useExperiment();
   const { mask } = usePrivacy();
   const { zone } = useZone();
-  const nowSec = useNowSec();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [rows, setRows] = useState<ExpTradeRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const [more, setMore] = useState(false);
-  const request = useRef(0);
-  const experimentId = exp.data?.experiment.id ?? null;
+  const [filter, setFilter] = useState<TradeFilter>("all");
+  const trades = useTrades(filter, PAGE);
+  const o = exp.data;
+  const timing = sourceTiming(o);
+  const totals = o?.campaign_totals;
+  const open = o ? o.open_positions.filter((p) => p.status === "open").length : null;
+  const select = (next: TradeFilter) => { if (next !== filter) { trades.reset(); setFilter(next); } };
+  const tone = (v: number | null | undefined) => (v == null || v === 0 ? page.dim : v > 0 ? page.good : page.bad);
 
-  const load = useCallback(
-    async (offset: number) => {
-      if (!experimentId) return;
-      const current = ++request.current;
-      setLoading(true);
-      try {
-        let q = getNeon().from("experiment_trades").select(COLUMNS);
-        q = filter === "earlier" ? q.eq("lineage", "learner").neq("experiment_id", experimentId) : q.eq("experiment_id", experimentId);
-        if (filter === "taken") q = q.eq("action", "take");
-        if (filter === "skipped") q = q.eq("action", "skip");
-        if (filter === "open") q = q.in("position_status", ["open", "pending_fill"]);
-        if (filter === "closed") q = q.eq("position_status", "closed");
-        const res = await q.order("decided_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + PAGE - 1);
-        if (res.error) throw new Error(res.error.message);
-        if (current !== request.current) return;
-        const next = (res.data ?? []) as unknown as ExpTradeRow[];
-        setRows((prev) => (offset === 0 ? next : [...prev, ...next]));
-        setMore(next.length === PAGE);
-        setFailed(false);
-      } catch {
-        if (current === request.current) setFailed(true);
-      } finally {
-        if (current === request.current) setLoading(false);
-      }
-    },
-    [experimentId, filter],
-  );
-
-  useEffect(() => {
-    void load(0);
-    return () => { request.current++; };
-  }, [load, exp.loadedAt]);
-
-  const closed = exp.data?.campaign_totals;
-  const open = exp.data?.open_positions.filter(p => p.status === "open").length;
-  const select = (next: Filter) => { if (next !== filter) { request.current++; setRows([]); setLoading(true); setFilter(next); } };
   return (
     <div className={page.page}>
-      <Suspense fallback={null}><ViewLink select={setFilter} /></Suspense>
+      <Suspense fallback={null}><ViewLink select={select} /></Suspense>
       <header className={page.head}>
         <h1 className="pageTitle">Trades</h1>
-        <p className={page.lede}>Your virtual trading desk</p>
-        <p className={page.paperLine}>VIRTUAL ONLY · {exp.data?.experiment.mode === "synthetic" ? "Synthetic prices" : "Delayed data"}</p>
+        <p className={page.paperLine}>Virtual money only · Prices delayed 10–15 minutes · After modeled costs</p>
       </header>
 
-      <ActivityPanel />
-      <section className={tradeStyles.summary} aria-label="Learner summary">
-        <div className={tradeStyles.summaryTop}><span><WidgetIcon name="wallet" /> One virtual account</span><span className={tradeStyles.mode}>Practice</span></div>
-        <div className={tradeStyles.balanceRow}><div className={tradeStyles.balance}><span>Virtual equity</span><b className="num">{exp.data?.account ? mask(money(exp.data.account.equity, false)) : "—"}</b><small>Closed <strong className={closed && closed.net < 0 ? page.bad : closed && closed.net > 0 ? page.good : page.dim}>{closed ? mask(money(closed.net)) : "—"}</strong> · after costs</small></div>
-        {exp.data && <EquityChart data={exp.data} compact />}</div>
-        <div className={widgets.metrics}>
-          <MetricTile label="Open" value={open == null ? "—" : String(open)} icon="activity" onClick={() => select("open")} active={filter === "open"} />
-          <MetricTile label="Closed" value={closed ? String(closed.closed) : "—"} icon="check" onClick={() => select("closed")} active={filter === "closed"} />
-          <MetricTile label="Costs paid" value={closed ? mask(money(closed.fees, false)) : "—"} icon="wallet" tone="warn" />
+      <section className={`${page.card} ${s.summary}`} aria-label="Trade summary">
+        <div className={s.summaryTop}>
+          <span>Virtual balance</span>
+          <b className="num">{o?.account ? mask(money(o.account.equity, false)) : "—"}</b>
         </div>
-        <StateAxes nowSec={nowSec} withLearning={false} />
-        {exp.data?.account?.data_as_of && <p className={tradeStyles.dataStamp}><WidgetIcon name="clock" /> Market data through {stampIn(Date.parse(exp.data.account.data_as_of) / 1000, zone)}</p>}
+        <div className={s.summaryStats}>
+          <span><b className="num">{totals ? totals.closed : "—"}</b> closed</span>
+          <span><b className="num">{totals ? totals.wins : "—"}</b> won</span>
+          <span><b className="num">{totals ? totals.closed - totals.wins : "—"}</b> lost</span>
+          <span><b className="num">{open ?? "—"}</b> open</span>
+          <span>Result <b className={`num ${tone(totals?.net)}`}>{totals ? mask(money(totals.net)) : "—"}</b></span>
+        </div>
+        <p className={page.note}>
+          Campaign {o?.experiment.campaign ?? "—"}
+          {totals ? ` · costs paid ${mask(money(totals.fees, false))}` : ""}
+          {o?.account?.data_as_of ? ` · prices through ${stampIn(Date.parse(o.account.data_as_of) / 1000, zone)}` : ""}
+        </p>
       </section>
 
-      <div className={`${page.sectionHead} ${tradeStyles.activityTitle}`}><h2>Trade activity</h2><span className={page.note}>Tap a card to explore</span></div>
-      <div className={`${styles.filters} ${tradeStyles.filterDock}`} role="group" aria-label="Show">
+      <div className={page.chips} role="group" aria-label="Show">
         {FILTERS.map((f) => (
-          <button key={f.key} type="button" aria-pressed={filter === f.key} onClick={() => select(f.key)}>
+          <button key={f.key} type="button" className={page.chipButton} aria-pressed={filter === f.key} onClick={() => select(f.key)}>
             {f.label}
           </button>
         ))}
       </div>
-      <p className={page.note}>{filter === "earlier" ? "Earlier attempts stay on record. They do not add money to the current account." : "After modeled costs · Open results are estimates."}</p>
-      <TradeBreakdown rows={rows} loading={loading && !!experimentId} failed={failed || exp.failed} more={more} earlier={filter === "earlier"} />
+      {filter === "earlier" && <p className={page.note}>Past campaigns stay on record. They do not add money to the current account.</p>}
 
-      {failed && (
+      {trades.failed && (
         <p className={page.warning}>
           Trades could not load.{" "}
-          <button type="button" onClick={() => void load(0)}>
-            Try again
-          </button>
+          <button type="button" onClick={() => void trades.load(0)}>Try again</button>
         </p>
       )}
-      {!experimentId && !exp.loading ? (
-        <p className={page.empty}>The learner is not set up yet, so there are no bot trades to show.</p>
-      ) : rows.length === 0 && loading ? (
-        <div className={tradeStyles.loading} role="status"><WidgetIcon name="activity" /><p className={page.loading}>Loading trades…</p></div>
-      ) : rows.length === 0 ? (
-        <p className={page.empty}>No {filter === "all" ? "" : `${filter} `}decisions yet. Quiet days are normal — it waits for a setup.</p>
+      {!trades.ready && !exp.loading ? (
+        <p className={page.empty}>The virtual account is not set up yet, so there are no bot trades to show.</p>
+      ) : trades.rows.length === 0 && trades.loading ? (
+        <p className={page.loading} role="status">Loading trades…</p>
+      ) : trades.rows.length === 0 ? (
+        <p className={page.empty}>No {filter === "all" ? "" : `${FILTERS.find((f) => f.key === filter)?.label.toLowerCase()} `}trades yet. Quiet days are normal: the bot waits for a setup.</p>
       ) : (
-        <section className={widgets.tradeGrid} aria-label="Bot trades" aria-busy={loading}>
-          {rows.map((r, i) => <TradeWidget key={`${filter}:${r.id}`} trade={ledgerVisual(r, outcomeLine(r))} index={i} />)}
-          {more && (
-            <button type="button" className={`${page.linkButton} ${styles.more}`} disabled={loading} onClick={() => void load(rows.length)}>
-              {loading ? "Loading…" : "Show older"}
+        <section className={page.stack} aria-label="Bot trades" aria-busy={trades.loading}>
+          <div className={page.list}>{trades.rows.map((r) => <TradeRow key={`${filter}:${r.id}`} row={r} />)}</div>
+          {trades.more && (
+            <button type="button" className={page.linkButton} disabled={trades.loading} onClick={() => void trades.load(trades.rows.length)}>
+              {trades.loading ? "Loading…" : "Show older"}
             </button>
           )}
         </section>
       )}
+
+      <Fold id="activity" summary="Under the hood · how today's ideas reached the bot">
+        {timing && (
+          <p className={page.note}>
+            The simulation stays {timing.settlementMinutes} minutes behind received prices so source checks can finish. This planned wait is
+            separate from feed delay. Fills are simulated in delayed market order.
+          </p>
+        )}
+        <ActivityPanel />
+      </Fold>
     </div>
   );
 }
