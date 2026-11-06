@@ -37,6 +37,11 @@
 # lib/time/ny.ts `tradingDayKey` for exactly that reason.
 #
 # The pooled Neon database URL is stored as a GitHub Actions secret.
+#
+# AI HELPER (2026-11-07, docs/AI-HELPER.md): the `ai-helper` job runs after a
+# successful pass and asks the Vercel route /api/ai/run, authenticated by a
+# GitHub OIDC token, to give the free AI second opinion and coach notes. It
+# never touches the account and cannot fail this workflow.
 
 name: signal-engine
 
@@ -86,6 +91,39 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           ENGINE_DISPATCH_TOKEN: ${{ secrets.ENGINE_DISPATCH_TOKEN }}
+
+  # Free AI helper (docs/AI-HELPER.md): after a successful engine pass, the
+  # Vercel route gives the AI second opinion on the learner's new decisions
+  # (a preregistered evaluation that never trades) and writes the owner's coach
+  # notes, on NVIDIA's free API. GitHub signs a short-lived OIDC token for this
+  # repository's workflow on main and the route accepts nothing else, so no
+  # secret is stored anywhere. Best effort: the step always exits 0, so an AI
+  # outage never fails the engine, and it runs only after the engine's work.
+  ai-helper:
+    needs: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Ask the free AI helper about new decisions (optional)
+        run: |
+          token=$(printf 'header = "Authorization: bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
+            curl --config - --proto '=https' --silent --show-error --fail --max-time 15 \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=aegis-ai-helper" | jq -r '.value // empty') || token=""
+          if [ -z "$token" ]; then
+            echo "::warning::No GitHub OIDC token; the AI helper skips this pass"
+            exit 0
+          fi
+          if printf 'header = "Authorization: Bearer %s"\n' "$token" |
+            curl --config - --proto '=https' --silent --show-error --fail --max-time 110 \
+              -X POST --output ai-helper.json 'https://aegis-futures-lab-khaki.vercel.app/api/ai/run'; then
+            echo "AI helper: $(head -c 2000 ai-helper.json)"
+          else
+            echo "::warning::AI helper unavailable; trading and learning continue"
+          fi
+          exit 0
 
   # Independent of the signal engine: an AI outage never fails or delays it.
   # Both flags must be set deliberately; the endpoint separately verifies auth.

@@ -17,6 +17,23 @@ describe("automated learning workflow contracts", () => {
     expect(publishStep).not.toMatch(/\bif:\s*\$?\{?\{?\s*(?:always|failure)\s*\(/);
     expect(publishStep).toContain("npx tsx scripts/experiment/publish.ts");
   });
+  it("runs the free AI helper only after a successful engine pass, without secrets, never failing", () => {
+    const source = workflow("signal-engine.yml");
+    const start = source.indexOf("\n  ai-helper:");
+    expect(start).toBeGreaterThan(-1);
+    const job = source.slice(start, source.indexOf("\n  ai-shadow-scheduler:"));
+    expect(job).toContain("needs: run");
+    expect(job).toMatch(/permissions:\s*\n\s*contents: read\s*\n\s*id-token: write/);
+    expect(job).toContain("audience=aegis-ai-helper");
+    expect(job).toContain("https://aegis-futures-lab-khaki.vercel.app/api/ai/run");
+    // Tokens go to curl through --config on stdin, never argv; the step always exits 0.
+    expect(job).toContain("curl --config - --proto '=https'");
+    const lines = job.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+    expect(lines.at(-1)).toBe("exit 0");
+    expect(job).not.toMatch(/secrets\./);
+    expect(job).not.toMatch(/continue-on-error/);
+  });
+
   it("runs deterministic learning daily and only permits deployment weekly", () => {
     const daily = workflow("nightly-learn.yml");
     const weekly = workflow("weekly-challenger.yml");

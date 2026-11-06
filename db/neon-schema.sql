@@ -2067,3 +2067,120 @@ DROP POLICY IF EXISTS engine_clock_public_read ON public.engine_clock;
 CREATE POLICY engine_clock_public_read ON public.engine_clock FOR SELECT TO anonymous, authenticated USING (true);
 REVOKE ALL ON public.engine_clock FROM PUBLIC, anonymous, authenticated;
 GRANT SELECT ON public.engine_clock TO anonymous, authenticated;
+
+-- Free AI helper (2026-11-07; db/migrations/20261107_ai_helper.sql, which also
+-- registers the two AI second opinion studies). docs/AI-HELPER.md.
+CREATE TABLE IF NOT EXISTS public.ai_judge_studies (
+  id text PRIMARY KEY,
+  label text NOT NULL,
+  model text NOT NULL,
+  prompt_version text NOT NULL,
+  feature_version text NOT NULL,
+  config jsonb NOT NULL,
+  config_hash text NOT NULL CHECK (config_hash ~ '^[0-9a-f]{64}$'),
+  status text NOT NULL CHECK (status IN ('active', 'waiting-for-model')),
+  registered_at timestamptz NOT NULL DEFAULT now(),
+  started_at timestamptz,
+  CHECK ((status = 'active') = (started_at IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_judge_calls (
+  event_key text PRIMARY KEY,
+  study_id text NOT NULL REFERENCES public.ai_judge_studies(id),
+  decision_key text NOT NULL CHECK (length(decision_key) BETWEEN 1 AND 256),
+  kind text NOT NULL CHECK (kind IN ('claim', 'decision', 'invalid', 'error', 'probe')),
+  occurred_at timestamptz NOT NULL,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ai_judge_calls_study_decision ON public.ai_judge_calls (study_id, decision_key, kind);
+CREATE INDEX IF NOT EXISTS ai_judge_calls_kind_time ON public.ai_judge_calls (kind, occurred_at DESC);
+-- One final answer per study and decision, whatever wrote it.
+CREATE UNIQUE INDEX IF NOT EXISTS ai_judge_calls_one_final ON public.ai_judge_calls (study_id, decision_key) WHERE kind IN ('decision', 'invalid');
+
+CREATE TABLE IF NOT EXISTS public.ai_notes (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind text NOT NULL CHECK (kind IN ('trade', 'day')),
+  subject text NOT NULL CHECK (length(subject) BETWEEN 1 AND 256),
+  facts_hash text NOT NULL CHECK (facts_hash ~ '^[0-9a-f]{64}$'),
+  model text NOT NULL,
+  prompt_version text NOT NULL,
+  status text NOT NULL CHECK (status IN ('accepted', 'rejected')),
+  text text NOT NULL CHECK (length(text) <= 2000),
+  reject_reason text,
+  facts jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (kind, subject, facts_hash)
+);
+CREATE INDEX IF NOT EXISTS ai_notes_recent ON public.ai_notes (status, created_at DESC);
+
+-- Calls and notes are append-only for every writer, owners included
+-- (ai_research_append_only comes from 20261030_ai_research.sql).
+DROP TRIGGER IF EXISTS protect_ai_judge_calls ON public.ai_judge_calls;
+CREATE TRIGGER protect_ai_judge_calls BEFORE UPDATE OR DELETE ON public.ai_judge_calls FOR EACH ROW EXECUTE FUNCTION public.ai_research_append_only();
+DROP TRIGGER IF EXISTS protect_ai_notes ON public.ai_notes;
+CREATE TRIGGER protect_ai_notes BEFORE UPDATE OR DELETE ON public.ai_notes FOR EACH ROW EXECUTE FUNCTION public.ai_research_append_only();
+
+-- A study's registration is write-once. The single allowed change: a study
+-- waiting for its model becomes active, once, when the model first answers.
+CREATE OR REPLACE FUNCTION public.ai_judge_study_guard() RETURNS trigger LANGUAGE plpgsql AS E'
+BEGIN
+ IF TG_OP = ''UPDATE'' AND OLD.status = ''waiting-for-model'' AND NEW.status = ''active''
+  AND OLD.started_at IS NULL AND NEW.started_at IS NOT NULL
+  AND NEW.id = OLD.id AND NEW.label = OLD.label AND NEW.model = OLD.model
+  AND NEW.prompt_version = OLD.prompt_version AND NEW.feature_version = OLD.feature_version
+  AND NEW.config = OLD.config AND NEW.config_hash = OLD.config_hash AND NEW.registered_at = OLD.registered_at THEN
+  RETURN NEW\073
+ END IF\073
+ RAISE EXCEPTION ''AI judge studies are write-once; only a waiting study may start: %'', OLD.id\073
+END ';
+DROP TRIGGER IF EXISTS protect_ai_judge_studies ON public.ai_judge_studies;
+CREATE TRIGGER protect_ai_judge_studies BEFORE UPDATE OR DELETE ON public.ai_judge_studies FOR EACH ROW EXECUTE FUNCTION public.ai_judge_study_guard();
+
+-- Private tables: no browser access at all.
+ALTER TABLE public.ai_judge_studies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_judge_calls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_notes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.ai_judge_studies, public.ai_judge_calls, public.ai_notes FROM PUBLIC, anonymous, authenticated;
+
+-- The AI server role: read its own tables, append calls and notes, and make
+-- the one allowed study transition.
+GRANT SELECT ON public.ai_judge_studies TO aegis_ai;
+GRANT UPDATE (status, started_at) ON public.ai_judge_studies TO aegis_ai;
+GRANT SELECT, INSERT ON public.ai_judge_calls, public.ai_notes TO aegis_ai;
+DROP POLICY IF EXISTS ai_judge_studies_read ON public.ai_judge_studies;
+CREATE POLICY ai_judge_studies_read ON public.ai_judge_studies FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_judge_studies_start ON public.ai_judge_studies;
+CREATE POLICY ai_judge_studies_start ON public.ai_judge_studies FOR UPDATE TO aegis_ai USING (status = 'waiting-for-model') WITH CHECK (status = 'active');
+DROP POLICY IF EXISTS ai_judge_calls_read ON public.ai_judge_calls;
+CREATE POLICY ai_judge_calls_read ON public.ai_judge_calls FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_judge_calls_append ON public.ai_judge_calls;
+CREATE POLICY ai_judge_calls_append ON public.ai_judge_calls FOR INSERT TO aegis_ai WITH CHECK (true);
+DROP POLICY IF EXISTS ai_notes_read ON public.ai_notes;
+CREATE POLICY ai_notes_read ON public.ai_notes FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_notes_append ON public.ai_notes;
+CREATE POLICY ai_notes_append ON public.ai_notes FOR INSERT TO aegis_ai WITH CHECK (true);
+
+-- Read-only columns of the learner's records (all of them already public to
+-- the browser roles) that the second opinion and the coach use.
+GRANT SELECT (id, lineage, campaign, status) ON public.experiments TO aegis_ai;
+GRANT SELECT (decision_key, experiment_id, symbol, side, session_key, info_cutoff, decided_at, created_at, action, reason, est_risk, idea, features)
+  ON public.experiment_decisions TO aegis_ai;
+GRANT SELECT (decision_key, outcome_status, status, net, standalone_qty, exit_reason, exit_price, exit_ts, fill_price, fill_ts)
+  ON public.experiment_outcomes TO aegis_ai;
+GRANT SELECT (decision_key, experiment_id, session_key, status, qty, fill_price, fill_ts, exit_price, exit_ts, exit_reason, net, cancel_reason)
+  ON public.experiment_positions TO aegis_ai;
+GRANT SELECT (experiment_id, equity) ON public.experiment_account TO aegis_ai;
+GRANT SELECT (symbol, source, time, open, high, low, close) ON public.bars_5m TO aegis_ai;
+DROP POLICY IF EXISTS ai_helper_read ON public.experiments;
+CREATE POLICY ai_helper_read ON public.experiments FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_helper_read ON public.experiment_decisions;
+CREATE POLICY ai_helper_read ON public.experiment_decisions FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_helper_read ON public.experiment_outcomes;
+CREATE POLICY ai_helper_read ON public.experiment_outcomes FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_helper_read ON public.experiment_positions;
+CREATE POLICY ai_helper_read ON public.experiment_positions FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_helper_read ON public.experiment_account;
+CREATE POLICY ai_helper_read ON public.experiment_account FOR SELECT TO aegis_ai USING (true);
+DROP POLICY IF EXISTS ai_helper_read ON public.bars_5m;
+CREATE POLICY ai_helper_read ON public.bars_5m FOR SELECT TO aegis_ai USING (true);
