@@ -10,7 +10,7 @@ import { Term } from "@/components/ui/Glossary";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { EquityChart, MetricTile, TradeWidget, WidgetIcon, positionVisual } from "@/components/widgets/TradingWidgets";
 import { executionState, freshnessState, learningState, nextTickSec, sourceTiming } from "@/lib/experiment/view";
-import { EXP_BADGE_LONG, EXP_LIMITS, EXP_NAME, EXP_WHY, EXECUTION_TONE, EXECUTION_WORDS, FRESHNESS_TONE, FRESHNESS_WORDS, LEARNING_TONE, LEARNING_WORDS, changeWords, versionName } from "@/lib/plain/experiment";
+import { EXP_BADGE_LONG, expLimits, EXP_NAME, EXP_WHY, EXECUTION_TONE, EXECUTION_WORDS, FRESHNESS_TONE, FRESHNESS_WORDS, LEARNING_TONE, LEARNING_WORDS, changeWords, versionName } from "@/lib/plain/experiment";
 import { money } from "@/lib/format";
 import { clockIn, stampIn, dateShortIn } from "@/lib/time/zones";
 import page from "@/components/ui/page.module.css";
@@ -50,6 +50,7 @@ export default function ExperimentCard({ compact = false }: { compact?: boolean 
   const { zone } = useZone();
   const nowSec = useNowSec();
   const [sheet, setSheet] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const o = exp.data, a = o?.account ?? null;
   const timing = sourceTiming(o);
   const cash = (v: number | null | undefined) => v == null || !Number.isFinite(v) ? "—" : mask(money(v, false));
@@ -88,13 +89,15 @@ export default function ExperimentCard({ compact = false }: { compact?: boolean 
         {o?.experiment.execution_clock === "delayed_market" && <p className={styles.replayNote}>Fills simulated in delayed market order. Replay results are not fresh proof.</p>}
       </>}
     </div>
-    <ActivityPanel />
+    {showActivity ? <ActivityPanel /> : <button type="button" className={styles.activityToggle} onClick={() => setShowActivity(true)} aria-expanded={false}>
+      <WidgetIcon name="activity" /><div><b>Every check, step by step</b><small>Price checks, ideas, decisions and skips for the day</small></div><span>Show +</span>
+    </button>}
     {!compact && o && <>
       {positions.length > 0 && <div className={page.stack}><div className={page.sectionHead}><h2>{positions.length} open virtual trade{positions.length === 1 ? "" : "s"}</h2><Link href="/trades">View all →</Link></div><div className={widgets.tradeGrid}>{positions.map((p, i) => <TradeWidget key={p.id} trade={positionVisual(p)} compact index={i} />)}</div></div>}
       {o.latest_trade && <div className={page.stack}><div className={page.sectionHead}><h2>Latest trade</h2><Link href="/trades">History →</Link></div><TradeWidget trade={positionVisual(o.latest_trade)} compact /></div>}
       <Link href="/brain" className={styles.learningLink}><span className={styles.learningIcon}><WidgetIcon name="learn" /></span><span className={styles.rowMain}><b>Latest learning · {learn ? changeWords(learn.kind) : "Collecting results"}</b><small>{learn ? `${learn.reason.slice(0, 120)} · ${dateShortIn(sec(learn.created_at)!, zone)}` : `In charge: ${versionName(o.model?.version_id)}. No change applied.`}</small></span><span aria-hidden>›</span></Link>
       <Link href="/trades" className={styles.tradeButton}>All bot trades <span aria-hidden>↗</span></Link>
     </>}
-    <BottomSheet open={sheet} onClose={() => setSheet(false)} title="Experimental learner rules"><div className={styles.sheet}><p>{EXP_WHY}</p><ul>{EXP_LIMITS.map(l => <li key={l}>{l}</li>)}</ul><p className={page.note}>{EXP_BADGE_LONG}.</p></div></BottomSheet>
+    <BottomSheet open={sheet} onClose={() => setSheet(false)} title="Experimental learner rules"><div className={styles.sheet}><p>{EXP_WHY}</p><ul>{expLimits(o?.risk).map(l => <li key={l}>{l}</li>)}</ul><p className={page.note}>{EXP_BADGE_LONG}.</p></div></BottomSheet>
   </section>;
 }

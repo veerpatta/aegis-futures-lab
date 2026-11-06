@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { GLOSSARY, GLOSSARY_KEYS } from "@/lib/glossary";
-import { EXP_RISK } from "@/lib/experiment/policy";
-import { PREREG } from "@/lib/experiment/prereg";
+import { EXP_RISK, EXP_RISK_V3 } from "@/lib/experiment/policy";
+import { PREREG, PREREG_V3 } from "@/lib/experiment/prereg";
 import { HIST_RULES } from "@/lib/history/rules";
 import { dayWords } from "@/lib/plain/history";
 import { etTimeLabel, etWindowLabel } from "@/lib/time/zones";
@@ -23,6 +23,13 @@ export const revalidate = 86400;
    lib/glossary.ts, the same text the tap-a-word sheets show. */
 
 const usd = (v: number) => `$${v.toLocaleString("en-US")}`;
+/* Campaign 3 rules (docs/research/2026-11-06-learner-v3-preregistration.md). */
+const SINGLE_MAX = EXP_RISK_V3.singleContractMax ?? EXP_RISK_V3.riskPerTrade;
+const FRESH_HOURS = (PREREG_V3.freshness?.delayedProspectiveLagSec ?? 0) / 3600;
+/* Keep the bot on time (docs/ENGINE-CLOCK.md). Owner-only pages on GitHub. */
+const KEY_FORM = "https://github.com/settings/personal-access-tokens/new?name=Aegis+engine+clock&description=Lets+the+Neon+clock+start+the+Aegis+engine+every+15+minutes&target_name=veerpatta&expires_in=366&actions=write";
+const SECRET_FORM = "https://github.com/veerpatta/aegis-futures-lab/settings/secrets/actions/new";
+const ENGINE_RUNS = "https://github.com/veerpatta/aegis-futures-lab/actions/workflows/signal-engine.yml";
 
 export default function GuidePage() {
   return (
@@ -83,7 +90,10 @@ export default function GuidePage() {
       <section className={styles.card}>
         <h2>Read the widgets</h2>
         <ul>
-          <li><b>Your day at a glance.</b> Today shows the bot&apos;s recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market&apos;s Open chart link selects that market.</li>
+          <li><b>Your day at a glance.</b> Today shows the bot&apos;s recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market&apos;s Open chart link selects that market. Each price shows its change since yesterday&apos;s settle, marked &ldquo;today&rdquo;.</li>
+          <li><b>Timer.</b> The line under the headline says whether the bot is on time. &ldquo;On time&rdquo; means checks every 15 minutes. &ldquo;Running late&rdquo; means GitHub&apos;s free timer started the bot hours late; &ldquo;How to fix it&rdquo; opens the one-time, free setup below. Late is amber, never red. A red &ldquo;Timer key refused&rdquo; means the key needs renewing.</li>
+          <li><b>Why it has been quiet.</b> When nothing is open or closed today, Today lists the saved reasons from the past week: skipped ideas and why, methods paused by their loss guard, or no ideas at all.</li>
+          <li><b>Every check, step by step.</b> On Today and Learn the detailed check timeline is folded; tap Show to open it. Trades shows it open.</li>
           <li><b>Account journey.</b> The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.</li>
           <li><b>Trade cards.</b> The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.</li>
           <li><b>Find a trade.</b> Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.</li>
@@ -137,6 +147,7 @@ export default function GuidePage() {
         <h3>AI research assistant</h3>
         <p>On Learn, open AI research assistant and sign in with an email code or your account password to ask about recorded evidence or suggest a research question. Your question is sent to OpenAI. Do not paste passwords, API keys or private journal details. The assistant can be wrong; a cited record does not prove its answer. It cannot change the learner, its trades or the bot&apos;s rules.</p>
         <p>Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.</p>
+        <p><b>To keep the project free, paid AI is switched off</b> unless the owner turns it on with the server setting AEGIS_ALLOW_PAID_AI. While it is off, a question or the connection check says &ldquo;Paid AI is switched off&rdquo; and nothing is charged. The bot, its trades and its learning never need it.</p>
         <p>Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and a pricing safety margin; it is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.</p>
         <p>Under Owner controls on Learn, the owner can request pause, resume, stop or start and enter a reason. The next learner check records whether the request was applied or failed; refresh to see the result. Pause prevents new virtual entries while existing trades are managed. Stop waits for open and pending trades to settle. Starting another campaign preserves earlier results. The owner can also change their password there.</p>
         <p>The owner can run one AI connection check there. It uses a fixed test message and costs at most $0.01 on the configured OpenAI account. It does not start automatic AI processing. If the result is uncertain, do not retry; a reservation may still be counted in the allowance.</p>
@@ -181,9 +192,17 @@ export default function GuidePage() {
             splits the record into {PREREG.gates.folds + 1} blocks by date, and each of its {PREREG.gates.folds} test
             periods needs {PREREG.gates.minTrainRows} earlier trades to learn from — roughly{" "}
             {PREREG.gates.minTrainRows * (PREREG.gates.folds + 1)}. Periods that are too thin are shown and skipped, never
-            counted. Ideas too risky for one contract are not counted at all.
+            counted. Ideas too risky for one contract under the campaign&apos;s limits are not counted at all.
           </li>
         </ol>
+        <h3>Campaign 3 rules (6 November 2026)</h3>
+        <p>A new campaign uses three changes, written down before it starts. Every evidence check, the list of versions to try and every other limit stay the same. Campaign 2 keeps its own rules until it is stopped.</p>
+        <ol className={styles.steps}>
+          <li><b>Every idea.</b> It decides on every filled idea from every method, including methods their loss guard has paused. Each decision shows that the method was paused. Before, a fully paused source left it with nothing to decide: from 16 to 30 October it saw no ideas at all.</li>
+          <li><b>One micro contract.</b> When a single contract alone risks more than {usd(EXP_RISK.riskPerTrade)} but no more than {usd(SINGLE_MAX)}, it may take that one contract, still inside the {usd(EXP_RISK.totalOpenRisk)} open and {usd(EXP_RISK.dailyLoss)} daily limits. Most Nasdaq micro ideas have wide stops, so before this nearly all of them were skipped.</li>
+          <li><b>Fresh evidence.</b> A decision processed within {FRESH_HOURS} hours of its market time counts as fresh, so a candidate can finally qualify. A later backlog stays replay. Before, every delayed decision was replay, so no candidate could ever take over.</li>
+        </ol>
+        <p className={styles.note}>The ideas still come from methods that have not beaten chance. More trades most likely mean more virtual losses. The point is evidence, not profit.</p>
         <p>
           Three labels show its state, each with a reason. <b>Doing</b>: watching the market, managing trades, waiting,
           paused, stopped, last check failed or status unknown. <b>Learning</b>: collecting results, candidate ready, change
@@ -192,17 +211,17 @@ export default function GuidePage() {
           result, not a fault.
         </p>
         <p className={styles.note}>
-          The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled &ldquo;Simulated on delayed prices&rdquo;. The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project&apos;s GitHub controls. Offline, the app is read-only.
+          The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled &ldquo;Simulated on delayed prices&rdquo;. The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Under campaign 1 and 2 rules, replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project&apos;s GitHub controls. Offline, the app is read-only.
         </p>
       </section>
 
       <section className={styles.card} id="activity">
         <h2>Behind the trades</h2>
-        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
+        <p>Today, Trades and Learn show the day&apos;s source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. On Today and Learn it is folded under Every check, step by step. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.</p>
         <p>Practice finished counts closed practice outcomes for those decisions. Ready for check counts results with the saved details needed for learning; the next learning check still applies its time cutoff and counts each idea once. Open Recorded decisions to follow each decision to its fill and learning status.</p>
         <p>Account timing separates prices received from prices already simulated. A healthy feed can be ahead of the simulation while source checks finish. Truly late corrections are still skipped. Earlier fills, skips and balances are never rewritten to make activity look better.</p>
         <p>Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner&apos;s balance.</p>
-        <p>Open Paused method practice to see the selected day&apos;s recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. They do not enter the learner, change its balance or count as a new study. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.</p>
+        <p>Open Paused method practice to see the selected day&apos;s recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. These source results never change the learner&apos;s balance or count as a new study. Under campaign 3 rules the learner makes its own decision on each paused method&apos;s idea; under earlier rules it never sees them. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.</p>
         <p>Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.</p>
       </section>
 
@@ -242,8 +261,8 @@ export default function GuidePage() {
             model without changing a single decision. It must then pass every adoption check on fresh ideas —{" "}
             {PREREG.gates.freshSessions} fresh trading days, {PREREG.gates.freshDecisions} fresh ideas and two passing
             reviews — like any other candidate. Old data counts for none of these. Practice results still go into the
-            learning record. Fresh confirmation waits while
-            the account uses delayed simulations. The older candidate remains saved.
+            learning record. Under campaign 1 and 2 rules fresh confirmation waits while the account uses delayed
+            simulations; campaign 3 counts promptly processed decisions as fresh. The older candidate remains saved.
           </li>
         </ol>
         <p>
@@ -307,11 +326,30 @@ export default function GuidePage() {
           <dd>Part of a check had a problem, such as the virtual account update. Trade ideas are still checked.</dd>
           <dt>Last check failed</dt>
           <dd>The newest check errored. The next one runs within 15 minutes; a watchdog alerts if it keeps failing.</dd>
+          <dt>Timer · On time</dt>
+          <dd>The 15-minute timer started the latest check.</dd>
+          <dt>Timer · Running late</dt>
+          <dd>GitHub&apos;s free timer started the bot hours late. The bot catches up on prices it missed, but its decisions then come late. Fix it once, below.</dd>
+          <dt>Timer · Waiting for GitHub</dt>
+          <dd>The timer asked GitHub to start a check and GitHub has not run it yet. Usually minutes.</dd>
+          <dt>Timer · Key refused</dt>
+          <dd>GitHub refused the timer&apos;s key; it may have expired. Make a new one, below.</dd>
         </dl>
         <p>
           The bell in the header lists anything worth a look. Its dot is amber for a warning and red only when something
           failed. News notes alone do not light it.
         </p>
+      </section>
+
+      <section className={styles.card} id="timer">
+        <h2>Keep the bot on time</h2>
+        <p>The bot needs a reliable timer. Since 2 November 2026 GitHub&apos;s free timer has started it only every 4 to 8 hours instead of every 15 minutes, so prices on the screens were hours old. A free timer on Neon, the app&apos;s database service, now starts it on time once you give it one GitHub key. It costs nothing and touches no real money.</p>
+        <ol className={styles.steps}>
+          <li><b>Make the key.</b> Open <a href={KEY_FORM} target="_blank" rel="noreferrer">GitHub&apos;s pre-filled key form</a>. Under Repository access choose Only select repositories and pick aegis-futures-lab. Check that Permissions → Actions says Read and write. Click Generate token and copy it.</li>
+          <li><b>Store it.</b> Open <a href={SECRET_FORM} target="_blank" rel="noreferrer">the project&apos;s new-secret page</a> (Settings → Secrets and variables → Actions). Name it ENGINE_DISPATCH_TOKEN, paste the key and save.</li>
+          <li><b>Start the bot once.</b> Open <a href={ENGINE_RUNS} target="_blank" rel="noreferrer">Actions → signal-engine</a> and press Run workflow. Within 15 minutes Today&apos;s timer line reads &ldquo;On time&rdquo;.</li>
+        </ol>
+        <p className={styles.note}>The key can only start or stop this project&apos;s jobs. Never paste it anywhere else. It lasts a year; when it expires the timer line turns red and you repeat the steps. To stop the timer, set the secret to &ldquo;off&rdquo; and run step 3.</p>
       </section>
 
       <section className={styles.card}>
@@ -373,6 +411,7 @@ export default function GuidePage() {
         <h2>If something looks wrong</h2>
         <ul className={styles.steps}>
           <li>A warning with &ldquo;Try again&rdquo; means a read failed; the screen keeps the last good numbers.</li>
+          <li>Prices hours old and the timer says &ldquo;Running late&rdquo;? GitHub&apos;s free timer is late; see Keep the bot on time.</li>
           <li>An idea marked &ldquo;Not resolved yet&rdquo; is left out of every total until the bot records its end.</li>
           <li>A dash (—) means there is no number yet, not zero.</li>
           <li>An open learner trade marked &ldquo;~&rdquo; or &ldquo;stale&rdquo; has no fresh price; its result is an estimate.</li>
@@ -381,7 +420,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-10-30 (AI connection check and owner controls). A printable version of this guide lives in
+        Matches the app as of 2026-11-06 (on-time timer, daily price change, campaign 3 rules, paid AI off). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

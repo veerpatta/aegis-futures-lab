@@ -9,7 +9,7 @@ import { GET } from '@/app/api/ai/shadow/cron/route';
 const secret='a'.repeat(40);
 const request=(s:string)=>new Request('http://localhost/api/ai/shadow/cron',{headers:{authorization:s}});
 const saved={...process.env};
-beforeEach(()=>{vi.clearAllMocks();process.env.AI_SHADOW_CRON_SECRET=secret;process.env.AI_SHADOW_ENABLED='true';process.env.AI_SHADOW_STUDY_ID='study';process.env.OPENAI_API_SECRET='test';process.env.AI_DATABASE_URL='postgres://example';mocks.study.mockResolvedValue({id:'study'});mocks.pending.mockResolvedValue([{key:'idea'}]);mocks.provider.mockReturnValue(vi.fn());mocks.process.mockResolvedValue({status:'decided'});});
+beforeEach(()=>{vi.clearAllMocks();process.env.AEGIS_ALLOW_PAID_AI='true';process.env.AI_SHADOW_CRON_SECRET=secret;process.env.AI_SHADOW_ENABLED='true';process.env.AI_SHADOW_STUDY_ID='study';process.env.OPENAI_API_SECRET='test';process.env.AI_DATABASE_URL='postgres://example';mocks.study.mockResolvedValue({id:'study'});mocks.pending.mockResolvedValue([{key:'idea'}]);mocks.provider.mockReturnValue(vi.fn());mocks.process.mockResolvedValue({status:'decided'});});
 afterEach(()=>{process.env=saved;});
 describe('shadow scheduler route',()=>{
   it('rejects unauthenticated requests before any database or provider call',async()=>{

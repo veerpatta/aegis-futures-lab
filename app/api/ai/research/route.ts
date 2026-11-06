@@ -8,6 +8,7 @@ import { loadResearchEvidence } from '@/lib/ai-research/evidence';
 import { makeResearchPost } from '@/lib/ai-research/handler';
 import { callOpenAiResearch, DEEP_RESEARCH_MODEL, RESEARCH_MODEL, RESEARCH_PROMPT_VERSION } from '@/lib/ai-research/provider';
 import { ResearchStore } from '@/lib/ai-store/research';
+import { PAID_AI_OFF_MESSAGE, paidAiAllowed, paidAiKey } from '@/lib/ai-cost/paid-ai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,8 @@ const post = makeResearchPost({
     if (!saved) throw new Error('Unable to record request');
   },
   async runBudgeted({ id, userId, question, evidence, depth, beforeInvoke }) {
-    const key = process.env.OPENAI_API_SECRET;
+    // Zero-cost mode: no key unless the owner opted in (lib/ai-cost/paid-ai.ts).
+    const key = paidAiKey();
     if (!key) throw new Error('OpenAI is not configured');
     const model = depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL;
     return budgetedRequest(new PgBudgetStore(pool()), {
@@ -59,7 +61,11 @@ const post = makeResearchPost({
   status,
 });
 
-export const POST = post;
+// Zero-cost mode: refuse before anything is recorded or reserved.
+export async function POST(request: Request): Promise<Response> {
+  if (!paidAiAllowed()) return Response.json({ error: PAID_AI_OFF_MESSAGE, paidAi: 'off' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  return post(request);
+}
 export async function GET(request: Request): Promise<Response> {
   const identity = await authenticate(request).catch(() => ({ ok: false as const, status: 503 as const, error: 'Sign-in verification is temporarily unavailable.' }));
   if (!identity.ok) return Response.json({ error: identity.error }, { status: identity.status, headers: { 'Cache-Control': 'no-store' } });

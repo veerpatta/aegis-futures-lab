@@ -78,6 +78,16 @@ export interface SignalRow {
 /* bot_policy: append-only audit of automatic policy actions (breaker pauses/
    resumes, model graduation/demotion). Current state of a stream = its latest
    row by changed_at. */
+/* engine_clock: the engine clock's attempts to start the engine (lib/clock/handler.ts).
+   Public health data; never holds the GitHub key. */
+export interface EngineClockRow {
+  fired_at: string;
+  route: "engine" | "learn" | "review";
+  outcome: "dispatched" | "not-configured" | "rejected" | "failed" | "stale-trigger";
+  http_status: number | null;
+  message: string | null;
+}
+
 export interface BotPolicyRow {
   id: number;
   changed_at: string;

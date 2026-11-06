@@ -29,7 +29,10 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 
 ### Read the widgets
 
-- **Your day at a glance.** Today shows the bot's recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market's Open chart link selects that market.
+- **Your day at a glance.** Today shows the bot's recorded activity, trades closed today, open trades and the next expected check. Tap a count to open Trades. Each market's Open chart link selects that market. Each price shows its change since yesterday's settle, marked "today".
+- **Timer.** The line under the headline says whether the bot is on time. "On time" means checks every 15 minutes. "Running late" means GitHub's free timer started the bot hours late; "How to fix it" opens the one-time, free setup in section 8. Late is amber, never red. A red "Timer key refused" means the key needs renewing.
+- **Why it has been quiet.** When nothing is open or closed today, Today lists the saved reasons from the past week: skipped ideas and why, methods paused by their loss guard, or no ideas at all.
+- **Every check, step by step.** On Today and Learn the detailed check timeline is folded; tap Show to open it. Trades shows it open.
 - **Account journey.** The line joins the starting balance, saved daily closes and the latest estimate. It is not a tick-by-tick chart. Open results can still change.
 - **Trade cards.** The large number is the final result after costs, or an estimate for an open trade. The price bar shows the stop, actual entry and target. The dots below show whether the idea has filled and closed. Waiting and cancelled orders do not show a made-up result.
 - **Find a trade.** Tap Open or Closed at the top of Trades, or use the filter row. Tap a card for the decision, fill and exit timeline, costs and saved evidence.
@@ -67,6 +70,8 @@ On Learn, open AI research assistant and sign in with an email code or your acco
 
 Standard research uses GPT-6.1 Sol. You can select Deeper research to use GPT-6 Astra when the budget permits. Deeper research can use more of the shared monthly allowance and does not guarantee a better answer.
 
+**To keep the project free, paid AI is switched off** unless the owner turns it on with the server setting AEGIS_ALLOW_PAID_AI. While it is off, a question or the connection check says "Paid AI is switched off" and nothing is charged. The bot, its trades and its learning never need it.
+
 Signed-in users share an Aegis allowance of up to $25 per month, with a limit on requests per account. The allowance resets by UTC month and covers requests tracked by Aegis, not other use of the same OpenAI project. The amount counted includes pending reservations and a pricing safety margin; it is not necessarily the amount charged. AI requests can be unavailable if setup, data or the allowance is missing. They may incur OpenAI charges.
 
 Under Owner controls on Learn, the owner can request pause, resume, stop or start and enter a reason. The next learner check records whether the request was applied or failed; refresh to see the result. Pause prevents new virtual entries while existing trades are managed. Stop waits for open and pending trades to settle. Starting another campaign preserves earlier results. The owner can also change their password there.
@@ -82,15 +87,25 @@ The learner is the bot's own **virtual $10,000** account. After each complete ma
 3. **Nightly.** Finished trades go into a numbered learning record. Nothing is learned from a single loss.
 4. **Weekly.** It may test up to 3 new model versions from a fixed list, side by side with the current one on the same fresh ideas. A new version takes over only after 150 results it never trained on, 20 fresh trading days, 60 fresh ideas and two passing reviews at least 6 days apart. It must clearly beat the current model, not trading at all and random picks, after costs. The old version is kept and comes back automatically if the new one does worse.
 5. **How long a test lasts.** At most 3 candidates are tested at a time, each for up to 52 weeks, because fresh results come slowly — about one usable idea a day. A candidate is retired after 6 inconclusive reviews in a row once it has 150 results it never trained on, or after 52 weeks without a passing review. A new candidate takes the free place.
-6. **Why 50 is not enough.** Training can start at 50 finished trades. A fair review splits the record into 6 blocks by date, and each of its 5 test periods needs 50 earlier trades to learn from — roughly 300. Periods that are too thin are shown and skipped, never counted. Ideas too risky for one contract are not counted at all.
+6. **Why 50 is not enough.** Training can start at 50 finished trades. A fair review splits the record into 6 blocks by date, and each of its 5 test periods needs 50 earlier trades to learn from — roughly 300. Periods that are too thin are shown and skipped, never counted. Ideas too risky for one contract under the campaign's limits are not counted at all.
+
+### Campaign 3 rules (6 November 2026)
+
+A new campaign uses three changes, written down before it starts. Every evidence check, the list of versions to try and every other limit stay the same. Campaign 2 keeps its own rules until it is stopped.
+
+1. **Every idea.** It decides on every filled idea from every method, including methods their loss guard has paused. Each decision shows that the method was paused. Before, a fully paused source left it with nothing to decide: from 16 to 30 October it saw no ideas at all.
+2. **One micro contract.** When a single contract alone risks more than $100 but no more than $150, it may take that one contract, still inside the $200 open and $400 daily limits. Most Nasdaq micro ideas have wide stops, so before this nearly all of them were skipped.
+3. **Fresh evidence.** A decision processed within 2 hours of its market time counts as fresh, so a candidate can finally qualify. A later backlog stays replay. Before, every delayed decision was replay, so no candidate could ever take over.
+
+The ideas still come from methods that have not beaten chance. More trades most likely mean more virtual losses. The point is evidence, not profit.
 
 Three labels show its state, each with a reason. **Doing**: watching the market, managing trades, waiting, paused, stopped, last check failed or status unknown. **Learning**: collecting results, candidate ready, change adopted, candidate rejected or no proven gain yet. **Data**: current, late, stale or offline. A missing check reads "status unknown", never "running". "No proven gain yet" is an honest result, not a fault.
 
-The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled "Simulated on delayed prices". The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project's GitHub controls. Offline, the app is read-only.
+The repaired account replays ideas from 7 October 2026. Those trades and later delayed-market fills are labelled "Simulated on delayed prices". The time of the simulated decision and the actual time the idea was received are shown separately. Earlier skipped attempts remain under Trades → Earlier attempts. Under campaign 1 and 2 rules, replay results can help train and test candidates, but never count as fresh evidence for a model taking over. Synthetic test prices never count as market evidence. Only the owner can pause it through the project's GitHub controls. Offline, the app is read-only.
 
 ### Behind the trades
 
-Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
+Today, Trades and Learn show the day's source checks, eligible ideas, accepted ideas, filled trades, cancelled orders and learner skips. On Today and Learn it is folded under Every check, step by step. Accepted does not mean filled. Filled and cancelled counts follow decisions from the selected day, even if an order finishes later. Open an unfilled order for its reason. Choose a date in ET or IST. These are calendar-day counts; source setup checks below them follow the New York trading session.
 
 Practice finished counts closed practice outcomes for those decisions. Ready for check counts results with the saved details needed for learning; the next learning check still applies its time cutoff and counts each idea once. Open Recorded decisions to follow each decision to its fill and learning status.
 
@@ -98,7 +113,7 @@ Account timing separates prices received from prices already simulated. A health
 
 Open a source method to see why its loss guard paused it and how its separate practice results are recovering. The guard pauses below a 0.80 profit-to-loss ratio over 20 usable closed results. It resumes after 15 in-pause results reach 1.10, or have wins with no losses, with at least three trading days between changes. A full progress bar alone does not pass the guard. Practice continues during a pause and never changes the learner's balance.
 
-Open Paused method practice to see the selected day's recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. They do not enter the learner, change its balance or count as a new study. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.
+Open Paused method practice to see the selected day's recorded source simulations. Stale prices and uncertain fills are labelled. These results can change when the source price history changes; revised-away ideas stay visible but are not counted as results. These source results never change the learner's balance or count as a new study. Under campaign 3 rules the learner makes its own decision on each paused method's idea; under earlier rules it never sees them. If the loss guard cannot be checked, the source check stops and no new batch is published until a later check succeeds.
 
 Open a skipped decision for its saved comparison: contract risk and remaining allowance, model odds and required odds, or the missing prerequisite. Older records may lack these values; the app says so. Decision time, receipt time, saved time and campaign context explain delayed processing. The check timeline separates normal waiting from missing prices, stale data and failed checks. A failed refresh shows a warning and keeps the last successful update for that day.
 
@@ -111,7 +126,7 @@ The bot also replays its own older market archive — the S&P and Nasdaq micros 
 3. **Rules first.** The dates, the 3 versions to try and every check were frozen before any old result was read. The oldest 60% of trading days trains, the next 20% checks, and the newest 20% is tested once. All 3 versions are kept, including the ones that fail.
 4. **Fair comparisons.** Each version is compared on the same ideas with the current model, a simple average-rate guess, not trading at all and random picks — with costs doubled as a stress test and with the same account limits.
 5. **Already seen.** Earlier research has looked at all of these dates, so the result is marked "already seen": practice, not proof.
-6. **Then fresh ideas.** A candidate that is not rejected is frozen and watches new ideas beside the current model without changing a single decision. It must then pass every adoption check on fresh ideas — 20 fresh trading days, 60 fresh ideas and two passing reviews — like any other candidate. Old data counts for none of these. Practice results still go into the learning record. Fresh confirmation waits while the account uses delayed simulations. The older candidate remains saved.
+6. **Then fresh ideas.** A candidate that is not rejected is frozen and watches new ideas beside the current model without changing a single decision. It must then pass every adoption check on fresh ideas — 20 fresh trading days, 60 fresh ideas and two passing reviews — like any other candidate. Old data counts for none of these. Practice results still go into the learning record. Under campaign 1 and 2 rules fresh confirmation waits while the account uses delayed simulations; campaign 3 counts promptly processed decisions as fresh. The older candidate remains saved.
 
 Learn → Historical practice shows an evidence checklist: **Data ready**, **Historical test complete**, **Fresh confirmation waiting** and **Validated paper improvement**. There is no maturity score, and the last line never means proven for real money. "No validated improvement yet" is an honest result, not a fault.
 
@@ -148,8 +163,22 @@ Too little evidence is shown in amber, never red: too little data is not a loss.
 | **Prices delayed / Running late** | The feed or a check is behind. Ideas catch up on the next pass. |
 | **Needs attention** | Part of a check had a problem, such as the virtual account update. Trade ideas are still checked. |
 | **Last check failed** | The newest check errored. The next one runs within 15 minutes; a watchdog alerts if it keeps failing. |
+| **Timer · On time** | The 15-minute timer started the latest check. |
+| **Timer · Running late** | GitHub's free timer started the bot hours late. The bot catches up on prices it missed, but its decisions then come late. Fix it once, below. |
+| **Timer · Waiting for GitHub** | The timer asked GitHub to start a check and GitHub has not run it yet. Usually minutes. |
+| **Timer · Key refused** | GitHub refused the timer's key; it may have expired. Make a new one, below. |
 
 The bell in the header lists anything worth a look. Its dot is amber for a warning and red only when something failed. News notes alone do not light it.
+
+### Keep the bot on time
+
+The bot needs a reliable timer. Since 2 November 2026 GitHub's free timer has started it only every 4 to 8 hours instead of every 15 minutes, so prices on the screens were hours old. A free timer on Neon, the app's database service, now starts it on time once you give it one GitHub key. It costs nothing and touches no real money.
+
+1. **Make the key.** Open [GitHub's pre-filled key form](https://github.com/settings/personal-access-tokens/new?name=Aegis+engine+clock&description=Lets+the+Neon+clock+start+the+Aegis+engine+every+15+minutes&target_name=veerpatta&expires_in=366&actions=write). Under Repository access choose Only select repositories and pick aegis-futures-lab. Check that Permissions → Actions says Read and write. Click Generate token and copy it.
+2. **Store it.** Open [the project's new-secret page](https://github.com/veerpatta/aegis-futures-lab/settings/secrets/actions/new) (Settings → Secrets and variables → Actions). Name it ENGINE_DISPATCH_TOKEN, paste the key and save.
+3. **Start the bot once.** Open [Actions → signal-engine](https://github.com/veerpatta/aegis-futures-lab/actions/workflows/signal-engine.yml) and press Run workflow. Within 15 minutes Today's timer line reads "On time".
+
+The key can only start or stop this project's jobs. Never paste it anywhere else. It lasts a year; when it expires the timer line turns red and you repeat the steps. To stop the timer, set the secret to "off" and run step 3.
 
 ## 9. Your journal
 
@@ -221,6 +250,7 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 ## 14. If something looks wrong
 
 - A warning with "Try again" means a read failed; the screen keeps the last good numbers.
+- Prices hours old and the timer says "Running late"? GitHub's free timer is late; see Keep the bot on time in section 8.
 - An idea marked "Not resolved yet" is left out of every total until the bot records its end.
 - A dash (—) means there is no number yet, not zero.
 - An open learner trade marked "~" or "stale" has no fresh price; its result is an estimate.
@@ -228,4 +258,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-10-30 (AI connection check and owner controls). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-11-06 (on-time timer, daily price change, campaign 3 rules, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*

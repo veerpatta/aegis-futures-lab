@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { YAHOO_SYMBOLS, isFeedSymbol, FEED_SYMBOLS } from "@/lib/market/contracts";
 import { fetchChart, rawBars } from "@/lib/data/yahoo";
 import { thinBars } from "@/lib/data/thin";
+import { dailyReferencePrice } from "@/lib/data/daily-change";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,8 @@ export async function GET(req: NextRequest) {
     // The latest ~6.5 hours (390 one-minute bars) is the line a quote draws.
     const shown = quoteOnly ? thinBars(bars.slice(-390)) : bars;
     const price = meta.regularMarketPrice ?? last.close;
-    const previous = meta.chartPreviousClose ?? meta.previousClose ?? bars[0].open;
+    // Yesterday's settle, not the close before the 5-day window (lib/data/daily-change.ts).
+    const previous = dailyReferencePrice(meta, bars[0].open);
     return NextResponse.json(
       {
         symbol,

@@ -48,6 +48,32 @@ short sentences. The reader knows trading but not software. Always keep the
   must be identical on Windows and Linux (paths are normalised before sorting; until
   2026-10-03 they were not, and a Windows-run measurement never matched the Linux engine's
   forward evidence). Run research measurements in CI (`registered-research-v2`), not locally.
+- ENGINE CLOCK (2026-11-06, `docs/ENGINE-CLOCK.md`): since 2026-11-02 GitHub fires this repo's
+  schedules only every 4-8 h (engine 70-93 runs/weekday → 2-4). Neon Function `aegisclock`
+  (`functions/aegisclock`, `lib/clock/handler.ts`, bundle `node scripts/clock/bundle.mjs` — 3 KB,
+  deployable via the Neon MCP `deploy_function` base64 zip) calls GitHub `workflow_dispatch` for
+  `signal-engine.yml` at :06/:21/:36/:51 (one DB wake with the learner's :07 tick; Neon Free = 100
+  CU-h/month). Its GitHub key is the Actions secret `ENGINE_DISPATCH_TOKEN`, copied each engine run
+  by `scripts/clock/sync-token.ts` into `aegis_private.engine_clock_token` (owner-only; "off"
+  clears it). Every attempt is logged publicly in `engine_clock` (never the key); the watchdog and
+  Today's timer line (`lib/plain/timer.ts`) read it. Triggers in `scripts/clock/triggers.json`;
+  learn/review triggers stay disabled until the v3 handover. Migration
+  `db/migrations/20261106_engine_clock.sql`. `run.ts --if-stale` now counts any runner's runs.
+- LEARNER v3 RULES (2026-11-06, `docs/research/2026-11-06-learner-v3-preregistration.md`):
+  `PREREG_V3`/`EXP_RISK_V3` (= `CAMPAIGN_RULES`/`CAMPAIGN_RISK`, what NEW campaigns register;
+  running ones keep theirs via `rulesFor`/`riskFor`). v3 decides paused methods' ideas too
+  (`sourcePaused`; `publish.ts` now publishes them, v1/v2 still filter them out), allows ONE
+  contract up to $150 when $100 buys none, and labels delayed-market decisions processed within
+  2 h "prospective" (v2 labelled all "replay", so adoption was impossible). Pinned by
+  `tests/experiment-v3-rules.test.ts`. The Neon learner `aegisexp` is build `f194c9a` and knows
+  v1/v2 only: before a v3 campaign starts, apply `db/migrations/20261106_learner_v3_runner_fence.sql`
+  (refuses that build's runs for v3 campaigns) and disable its triggers (handover steps in
+  ENGINE-CLOCK.md).
+- ZERO-COST AI (2026-11-06): every OpenAI call reads its key through `paidAiKey()`
+  (`lib/ai-cost/paid-ai.ts`), which returns it only with the server env `AEGIS_ALLOW_PAID_AI=true`.
+  `tests/ai-zero-cost.test.ts` fails if any code reads `process.env.OPENAI_API_SECRET` directly.
+- Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
+  Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - Stale open rows: `run-live.ts` reconciles `triggered`/`pending` rows older than the 7-day
   mirror window (`lib/engine/stale-open.ts`), and the screens never show a row past its
   session's flatten time as OPEN (`lib/signals/open-state.ts`). Best-effort engine parts
