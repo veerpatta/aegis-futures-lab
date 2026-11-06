@@ -43,6 +43,9 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 const count = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const str = (v: unknown): v is string => typeof v === "string";
+/** A look still waiting for its calls to finish reads as "too early": never a verdict before the evidence is final. */
+const verdictOf = (v: unknown): AiStudyScore["verdict"] | null =>
+  v === "waiting" ? "too-early" : v === "too-early" || v === "inconclusive" || v === "pass" || v === "fail" ? v : null;
 
 /** Accept only the documented scoreboard shape; anything else is "not available". */
 export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
@@ -51,7 +54,8 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
   for (const s of raw.studies) {
     if (!isObj(s) || !str(s.id) || !str(s.label) || !str(s.model) || !["active", "waiting-for-model"].includes(String(s.status))) continue;
     if (![s.calls, s.resolved, s.taken, s.skipped, s.sessions].every(count) || !finite(s.aiNet) || !finite(s.takeAllNet)) continue;
-    if (!["too-early", "inconclusive", "pass", "fail"].includes(String(s.verdict))) continue;
+    const verdict = verdictOf(s.verdict);
+    if (!verdict) continue;
     const delta = isObj(s.delta) && finite(s.delta.est) && finite(s.delta.lo) && finite(s.delta.hi) ? { est: s.delta.est, lo: s.delta.lo, hi: s.delta.hi } : null;
     studies.push({
       id: s.id, label: s.label, model: s.model, status: s.status as AiStudyScore["status"],
@@ -59,7 +63,7 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
       calls: s.calls as number, resolved: s.resolved as number, taken: s.taken as number, skipped: s.skipped as number, sessions: s.sessions as number,
       aiNet: s.aiNet, takeAllNet: s.takeAllNet,
       randomPercentile: finite(s.randomPercentile) ? s.randomPercentile : null,
-      delta, verdict: s.verdict as AiStudyScore["verdict"],
+      delta, verdict,
       nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
     });
   }
@@ -67,13 +71,14 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
   for (const s of Array.isArray(raw.ideas) ? raw.ideas : []) {
     if (!isObj(s) || !str(s.id) || !str(s.proposedAt) || !str(s.model) || !["testing", "retired"].includes(String(s.status))) continue;
     if (![s.tested, s.resolved, s.skipped, s.sessions].every(count) || !finite(s.keptNet) || !finite(s.takeAllNet)) continue;
-    if (!["too-early", "inconclusive", "pass", "fail"].includes(String(s.verdict))) continue;
+    const verdict = verdictOf(s.verdict);
+    if (!verdict) continue;
     const delta = isObj(s.delta) && finite(s.delta.est) && finite(s.delta.lo) && finite(s.delta.hi) ? { est: s.delta.est, lo: s.delta.lo, hi: s.delta.hi } : null;
     ideas.push({
       id: s.id, proposedAt: s.proposedAt, model: s.model, status: s.status as AiIdeaScore["status"],
       tested: s.tested as number, resolved: s.resolved as number, skipped: s.skipped as number, sessions: s.sessions as number,
       keptNet: s.keptNet, takeAllNet: s.takeAllNet, delta, randomPercentile: finite(s.randomPercentile) ? s.randomPercentile : null,
-      verdict: s.verdict as AiIdeaScore["verdict"], nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
+      verdict, nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
     });
   }
   return { available: raw.available, updatedAt: str(raw.updatedAt) ? raw.updatedAt : null, studies, ideas };

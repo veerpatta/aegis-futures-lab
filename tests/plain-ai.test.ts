@@ -117,6 +117,9 @@ describe("AI helper replies are parsed strictly", () => {
     expect(parsed?.studies).toHaveLength(1);
     expect(parsed?.studies[0].nextLook).toBe(60);
     expect(parseScoreboard({ available: "yes", studies: [] })).toBeNull();
+    // A look whose calls are not all final yet is never shown as a verdict.
+    expect(parseScoreboard({ available: true, studies: [{ ...study(), verdict: "waiting" }] })?.studies[0].verdict).toBe("too-early");
+    expect(parseScoreboard({ available: true, studies: [{ ...study(), verdict: "maybe" }] })?.studies).toEqual([]);
     expect(parseScoreboard(null)).toBeNull();
   });
 
