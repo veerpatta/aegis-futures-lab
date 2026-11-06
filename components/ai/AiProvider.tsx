@@ -16,24 +16,26 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getNeon } from "@/lib/neon/client";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
-import { callForDecision, primaryStudy, type AiCall, type AiNote, type AiStudyScore } from "@/lib/plain/ai";
+import { callForDecision, primaryStudy, type AiCall, type AiIdea, type AiIdeaCondition, type AiIdeaScore, type AiNote, type AiStudyScore } from "@/lib/plain/ai";
 
 export type OwnerAiStatus = "signed-out" | "checking" | "ready" | "not-owner" | "unavailable";
 
 interface AiState {
   /** null until the first read; studies empty when the helper is not set up. */
-  scoreboard: { available: boolean; updatedAt: string | null; studies: AiStudyScore[] } | null;
+  scoreboard: { available: boolean; updatedAt: string | null; studies: AiStudyScore[]; ideas: AiIdeaScore[] } | null;
   primary: AiStudyScore | null;
   ownerStatus: OwnerAiStatus;
   calls: AiCall[];
   notes: AiNote[];
+  /** Owner-only: what each AI research idea says (keyed like the public scores). */
+  ideas: AiIdea[];
   callFor: (decisionKey: string) => AiCall | null;
   noteFor: (kind: AiNote["kind"], subject: string) => AiNote | null;
   refresh: () => void;
 }
 
 const Context = createContext<AiState>({
-  scoreboard: null, primary: null, ownerStatus: "signed-out", calls: [], notes: [],
+  scoreboard: null, primary: null, ownerStatus: "signed-out", calls: [], notes: [], ideas: [],
   callFor: () => null, noteFor: () => null, refresh: () => {},
 });
 
@@ -61,11 +63,37 @@ export function parseScoreboard(raw: unknown): AiState["scoreboard"] {
       nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
     });
   }
-  return { available: raw.available, updatedAt: str(raw.updatedAt) ? raw.updatedAt : null, studies };
+  const ideas: AiIdeaScore[] = [];
+  for (const s of Array.isArray(raw.ideas) ? raw.ideas : []) {
+    if (!isObj(s) || !str(s.id) || !str(s.proposedAt) || !str(s.model) || !["testing", "retired"].includes(String(s.status))) continue;
+    if (![s.tested, s.resolved, s.skipped, s.sessions].every(count) || !finite(s.keptNet) || !finite(s.takeAllNet)) continue;
+    if (!["too-early", "inconclusive", "pass", "fail"].includes(String(s.verdict))) continue;
+    const delta = isObj(s.delta) && finite(s.delta.est) && finite(s.delta.lo) && finite(s.delta.hi) ? { est: s.delta.est, lo: s.delta.lo, hi: s.delta.hi } : null;
+    ideas.push({
+      id: s.id, proposedAt: s.proposedAt, model: s.model, status: s.status as AiIdeaScore["status"],
+      tested: s.tested as number, resolved: s.resolved as number, skipped: s.skipped as number, sessions: s.sessions as number,
+      keptNet: s.keptNet, takeAllNet: s.takeAllNet, delta, randomPercentile: finite(s.randomPercentile) ? s.randomPercentile : null,
+      verdict: s.verdict as AiIdeaScore["verdict"], nextLook: s.nextLook === 60 || s.nextLook === 150 ? s.nextLook : null,
+    });
+  }
+  return { available: raw.available, updatedAt: str(raw.updatedAt) ? raw.updatedAt : null, studies, ideas };
 }
 
-/** Accept only well-formed calls and notes; drop the rest silently. */
-export function parseOwnerAi(raw: unknown): { calls: AiCall[]; notes: AiNote[] } | null {
+const OPS = new Set(["<", ">", "=", "!="]);
+/** Owner-only rule text; a malformed rule is dropped, never shown half-parsed. */
+function parseIdeas(raw: unknown): AiIdea[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((i): AiIdea[] => {
+    if (!isObj(i) || !str(i.id) || !str(i.name) || !str(i.why) || !str(i.proposedAt) || !str(i.model) || !Array.isArray(i.when) || !i.when.length || i.when.length > 3) return [];
+    const when = i.when.flatMap((c): AiIdeaCondition[] =>
+      isObj(c) && str(c.field) && OPS.has(String(c.op)) && (str(c.value) || finite(c.value) || typeof c.value === "boolean")
+        ? [{ field: c.field, op: c.op as AiIdeaCondition["op"], value: c.value as AiIdeaCondition["value"] }] : []);
+    return when.length === i.when.length ? [{ id: i.id, name: i.name.slice(0, 80), why: i.why.slice(0, 400), when, proposedAt: i.proposedAt, model: i.model }] : [];
+  });
+}
+
+/** Accept only well-formed calls, notes and ideas; drop the rest silently. */
+export function parseOwnerAi(raw: unknown): { calls: AiCall[]; notes: AiNote[]; ideas: AiIdea[] } | null {
   if (!isObj(raw) || !Array.isArray(raw.calls) || !Array.isArray(raw.notes)) return null;
   const calls = raw.calls.flatMap((c): AiCall[] =>
     isObj(c) && str(c.decisionKey) && str(c.studyId) && str(c.model) && (c.decision === "take" || c.decision === "skip") &&
@@ -73,16 +101,16 @@ export function parseOwnerAi(raw: unknown): { calls: AiCall[]; notes: AiNote[] }
       ? [{ decisionKey: c.decisionKey, studyId: c.studyId, model: c.model, decision: c.decision, confidence: c.confidence, reason: c.reason.slice(0, 600), calledAt: c.calledAt }]
       : []);
   const notes = raw.notes.flatMap((n): AiNote[] =>
-    isObj(n) && (n.kind === "trade" || n.kind === "day") && str(n.subject) && str(n.text) && str(n.model) && str(n.createdAt)
+    isObj(n) && (n.kind === "trade" || n.kind === "day" || n.kind === "week") && str(n.subject) && str(n.text) && str(n.model) && str(n.createdAt)
       ? [{ kind: n.kind, subject: n.subject, text: n.text.slice(0, 1200), model: n.model, createdAt: n.createdAt }]
       : []);
-  return { calls, notes };
+  return { calls, notes, ideas: parseIdeas(raw.ideas) };
 }
 
 export function AiProvider({ children }: { children: React.ReactNode }) {
   const [scoreboard, setScoreboard] = useState<AiState["scoreboard"]>(null);
   const [ownerStatus, setOwnerStatus] = useState<OwnerAiStatus>("signed-out");
-  const [owner, setOwner] = useState<{ calls: AiCall[]; notes: AiNote[] }>({ calls: [], notes: [] });
+  const [owner, setOwner] = useState<{ calls: AiCall[]; notes: AiNote[]; ideas: AiIdea[] }>({ calls: [], notes: [], ideas: [] });
   const signedIn = useRef(false);
   const busy = useRef(false);
 
@@ -90,9 +118,9 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/ai/scoreboard", { headers: { Accept: "application/json" } });
       const parsed = res.ok ? parseScoreboard(await res.json().catch(() => null)) : null;
-      setScoreboard(parsed ?? { available: false, updatedAt: null, studies: [] });
+      setScoreboard(parsed ?? { available: false, updatedAt: null, studies: [], ideas: [] });
     } catch {
-      setScoreboard((prev) => prev ?? { available: false, updatedAt: null, studies: [] });
+      setScoreboard((prev) => prev ?? { available: false, updatedAt: null, studies: [], ideas: [] });
     }
   }, []);
 
@@ -105,7 +133,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       if (error || !token || data.session?.user?.is_anonymous) { setOwnerStatus("signed-out"); return; }
       setOwnerStatus((s) => (s === "ready" ? s : "checking"));
       const res = await fetch("/api/ai/owner", { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
-      if (res.status === 401 || res.status === 403) { setOwnerStatus("not-owner"); setOwner({ calls: [], notes: [] }); return; }
+      if (res.status === 401 || res.status === 403) { setOwnerStatus("not-owner"); setOwner({ calls: [], notes: [], ideas: [] }); return; }
       const parsed = res.ok ? parseOwnerAi(await res.json().catch(() => null)) : null;
       if (!parsed) { setOwnerStatus("unavailable"); return; }
       setOwner(parsed);
@@ -131,7 +159,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       subscription = auth.onAuthStateChange((_event, session) => {
         signedIn.current = !!session?.access_token && !session.user?.is_anonymous;
         if (signedIn.current) void loadOwner();
-        else { setOwnerStatus("signed-out"); setOwner({ calls: [], notes: [] }); }
+        else { setOwnerStatus("signed-out"); setOwner({ calls: [], notes: [], ideas: [] }); }
       }).data.subscription;
     } catch {
       /* No auth client (tests, offline): AI words simply stay hidden. */
@@ -145,7 +173,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AiState>(() => {
     const primary = primaryStudy(scoreboard?.studies ?? []);
     return {
-      scoreboard, primary, ownerStatus, calls: owner.calls, notes: owner.notes,
+      scoreboard, primary, ownerStatus, calls: owner.calls, notes: owner.notes, ideas: owner.ideas,
       callFor: (key) => callForDecision(owner.calls, key, primary?.id),
       noteFor: (kind, subject) => owner.notes.find((n) => n.kind === kind && n.subject === subject) ?? null,
       refresh,

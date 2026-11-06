@@ -589,8 +589,18 @@ test("the AI second opinion shows numbers only to visitors, amber while too earl
     calls: 12, resolved: 8, taken: 3, skipped: 9, sessions: 4, aiNet: -40, takeAllNet: -220, randomPercentile: 71.4, delta: null, verdict: "too-early", nextLook: 60 };
   const kimi = { ...study, id: "ai-judge-kimi-k3.1-pro-v1", label: "Kimi K3.1 Pro", model: "moonshotai/kimi-k3.1-pro", status: "waiting-for-model", startedAt: null,
     calls: 0, resolved: 0, taken: 0, skipped: 0, sessions: 0, aiNet: 0, takeAllNet: 0, randomPercentile: null };
-  await page.route("**/api/ai/scoreboard", (r) => r.fulfill({ json: { updatedAt: iso(5), available: true, studies: [study, kimi] } }));
+  const idea = { id: "idea-1", proposedAt: iso(60 * 24), model: "nvidia/nemotron-3-ultra-550b-a55b", status: "testing", tested: 14, resolved: 12, skipped: 3,
+    sessions: 4, keptNet: -80, takeAllNet: -150, delta: null, randomPercentile: 64, verdict: "too-early", nextLook: 60 };
+  await page.route("**/api/ai/scoreboard", (r) => r.fulfill({ json: { updatedAt: iso(5), available: true, studies: [study, kimi], ideas: [idea] } }));
   await page.goto("/brain");
+  // The AI's rules are tested only on later trades; a visitor sees the numbers, never the rule's words.
+  const ideas = page.getByRole("region", { name: "AI research ideas" });
+  await expect(ideas).toContainText("Rule 1");
+  await expect(ideas.getByText("Too early to tell", { exact: true })).toHaveClass(/chip_amber/);
+  await expect(ideas).toContainText("12 of 60 fresh trades tested · it would have skipped 3 · 4 of 15 trading days");
+  await expect(ideas).toContainText("n=9");
+  await expect(ideas).not.toContainText("Skip the idea when");
+  await expect(ideas.getByRole("link", { name: "Sign in under Ask the AI" })).toBeVisible();
   const card = page.getByRole("region", { name: "AI second opinion" });
   await expect(card).toContainText("Nemotron 3 Ultra");
   await expect(card.getByText("Too early to tell", { exact: true })).toHaveClass(/chip_amber/);

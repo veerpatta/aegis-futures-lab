@@ -8,6 +8,7 @@
    including the failed ones. A training job finishing is never shown as a
    learning success: only an adopted change is. */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getNeon } from "@/lib/neon/client";
 import { useExperiment, EXPERIMENT_LINEAGE } from "@/components/providers/ExperimentProvider";
@@ -17,7 +18,7 @@ import { Term } from "@/components/ui/Glossary";
 import ShowNumbers from "@/components/ui/ShowNumbers";
 import BotCompanion from "./BotCompanion";
 import Fold from "@/components/ui/Fold";
-import { AiScoreCard } from "@/components/ai/AiViews";
+import { AiIdeasCard, AiScoreCard } from "@/components/ai/AiViews";
 import { checkedLearningExamples } from "@/lib/plain/companion";
 import type { ExpLearning } from "@/lib/experiment/view";
 import { PREREG } from "@/lib/experiment/prereg";
@@ -128,7 +129,14 @@ export default function LearnSection() {
             <p className={page.note}>{checked ? `${closed} usable examples at the last notebook check.` : "The next notebook check will count usable examples."} Ideas too risky for one contract are not counted.</p>
           </section>
 
+          <div className={page.sectionHead}>
+            <h2>
+              <span style={{ color: "var(--violet)" }} aria-hidden>✦</span> AI helper
+            </h2>
+            <Link href="/guide#ai">How it works →</Link>
+          </div>
           <AiScoreCard />
+          <AiIdeasCard />
 
           {(shadowing.length > 0 || data.evaluations.some((e) => e.kind === "walk_forward")) && <>
           <section className={page.stack} aria-label="Candidates">

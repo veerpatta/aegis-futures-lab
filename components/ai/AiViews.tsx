@@ -12,10 +12,13 @@
 
 import Link from "next/link";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
+import { useZone } from "@/components/providers/ZoneProvider";
 import { useAi } from "@/components/ai/AiProvider";
 import { money } from "@/lib/format";
+import { dateShortIn } from "@/lib/time/zones";
 import {
-  AI_OWNER_ONLY, AI_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, type AiStudyScore,
+  AI_OWNER_ONLY, AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, ideaProgress, ideaRuleWords,
+  type AiStudyScore,
 } from "@/lib/plain/ai";
 import page from "@/components/ui/page.module.css";
 import s from "./ai.module.css";
@@ -113,6 +116,101 @@ export function AiScoreCard() {
         Only a passed check makes the AI eligible to filter trades, and only if you start a new campaign for it. {AI_OWNER_ONLY}{" "}
         <Link href="/guide#ai">How the AI helper works →</Link>
       </p>
+      <OwnerHint />
+    </section>
+  );
+}
+
+/** For anyone who is not (yet) the signed-in owner: where the AI's words are. */
+function OwnerHint() {
+  const ai = useAi();
+  if (ai.ownerStatus === "ready") return null;
+  return (
+    <p className={s.hint}>
+      <span className={s.spark} aria-hidden>✦</span>{" "}
+      {ai.ownerStatus === "not-owner"
+        ? "This account is not the owner's, so the AI's reasons stay hidden."
+        : <>Owner? <Link href="/brain#ai-research">Sign in under Ask the AI</Link> to read the AI&apos;s reasons, notes and rules.</>}
+    </p>
+  );
+}
+
+/** The AI's research ideas: simple skip rules, each tested only on later trades. */
+export function AiIdeasCard() {
+  const ai = useAi();
+  const { mask } = usePrivacy();
+  const { zone } = useZone();
+  const scores = ai.scoreboard?.ideas ?? [];
+  const owner = ai.ownerStatus === "ready";
+  const week = owner ? [...ai.notes].filter((n) => n.kind === "week").sort((a, b) => b.subject.localeCompare(a.subject))[0] ?? null : null;
+  return (
+    <section className={page.card} aria-label="AI research ideas">
+      <div className={s.cardHead}>
+        <h2 className={page.cardTitle}><span className={s.spark} aria-hidden>✦</span> Ideas the AI is testing</h2>
+        <span className={`${page.chip} ${page.chip_dim}`}>Up to 3 at a time</span>
+      </div>
+      <p className={s.lede}>
+        Each week the AI studies the bot&apos;s finished trades and suggests simple rules for ideas to skip. Each rule is tested only on trades that
+        come after it, against taking every idea and against random skips, after costs. Only a rule that passes can be added to a future campaign.
+      </p>
+      {week && (
+        <div className={s.week}>
+          <b>This week the AI noticed</b>
+          <p className={s.reason}>{week.text}</p>
+          <AiByline model={week.model} />
+        </div>
+      )}
+      {ai.scoreboard === null ? (
+        <p className={page.loading}>Loading the AI&apos;s ideas…</p>
+      ) : scores.length === 0 ? (
+        <p className={page.empty}>No rules yet. The AI suggests its first ones once the bot has 20 finished trades, then looks again every week.</p>
+      ) : (
+        <ol className={s.ideas}>
+          {scores.map((score, i) => {
+            const text = owner ? ai.ideas.find((idea) => idea.id === score.id) ?? null : null;
+            const v = IDEA_VERDICT_WORDS[score.verdict];
+            const proposed = Date.parse(score.proposedAt);
+            return (
+              <li key={score.id} className={s.study}>
+                <div className={s.studyHead}>
+                  <b>{text ? text.name : `Rule ${i + 1}`}</b>
+                  <span className={`${page.chip} ${chipTone[v.tone]}`}>{score.status === "retired" && score.verdict !== "pass" && score.verdict !== "fail" ? "Finished" : v.label}</span>
+                </div>
+                {text && <p className={s.rule}>{ideaRuleWords(text)}</p>}
+                {text && <p className={page.note}>Why: {text.why}</p>}
+                <p className={page.note}>
+                  Proposed {Number.isFinite(proposed) ? dateShortIn(proposed / 1000, zone) : "—"} by {aiModelName(score.model)} · {ideaProgress(score)}. {v.detail}
+                </p>
+                {score.resolved > 0 && (
+                  <dl className={s.compare}>
+                    <div>
+                      <dt>Trades it would keep</dt>
+                      <dd className={score.verdict === "too-early" ? page.warn : score.keptNet > 0 ? page.good : score.keptNet < 0 ? page.bad : page.dim}>
+                        <b className="num">{mask(money(score.keptNet))}</b><small> · n={score.resolved - score.skipped}</small>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Taking every idea</dt>
+                      <dd className={score.verdict === "too-early" ? page.warn : score.takeAllNet > 0 ? page.good : score.takeAllNet < 0 ? page.bad : page.dim}>
+                        <b className="num">{mask(money(score.takeAllNet))}</b><small> · n={score.resolved}</small>
+                      </dd>
+                    </div>
+                    {score.randomPercentile !== null && (
+                      <div>
+                        <dt>Random skips of the same size</dt>
+                        <dd className={score.verdict === "too-early" ? page.warn : page.dim}>
+                          <b className="num">beat {Math.round(score.randomPercentile)}% of them</b><small> · n={score.skipped}</small>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <OwnerHint />
     </section>
   );
 }

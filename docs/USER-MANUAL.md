@@ -23,7 +23,7 @@ A free AI from NVIDIA's trial service gives a **second opinion** on each idea th
 |---|---|
 | **Today** | Is the bot working, how is the virtual money, what happened today in plain words, the last three trades, whether it is learning, the two markets and the next big news. On a computer it shows two columns. |
 | **Trades** | Every decision of the current campaign, taken or skipped, as one list under a summary. Tap one for its story: the result, what happened in plain words, the price bar, the timeline and costs, then (folded) the rule and the values saved when it decided. |
-| **Learn** | Learning progress, who is in charge and the AI second opinion's scoreboard. Folded below: change history, how learning works, the bot's recent jobs, Ask the AI, owner controls, historical practice and method research. |
+| **Learn** | Learning progress, who is in charge and the AI helper: the AI second opinion's scoreboard and the rules the AI is testing. Folded below: change history, how learning works, the bot's recent jobs, Ask the AI, owner controls, historical practice and method research. |
 | **Chart** | Prices, the price areas the bot watches, the learner's virtual trades as arrows, why there is no idea right now, and the next big news it steps aside for. |
 | **More** | Records (Method ideas, Results calendar, My journal), Help (this Guide), Settings (ET or IST, hide money) and the Research room. |
 
@@ -60,7 +60,7 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 
 Learn opens with **My learning notebook**: usable examples at the last recorded check, with its date, plus versions trained, changes adopted and fresh results. Taken and skipped ideas can both supply examples. A bigger count is more evidence, not proof of better trading. The next milestone explains what is missing. Open **The path to a better bot** for all the steps.
 
-**Working on its own** shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. **Who is in charge** names the version deciding now and since when. The **AI second opinion** card follows (below).
+**Working on its own** shows expected check, notebook and review times in your selected clock. The jobs continue when you close the app. **Who is in charge** names the version deciding now and since when. The **AI helper** cards follow: the AI second opinion and the ideas the AI is testing (below).
 
 Open **Under the hood · the bot's recent jobs** for the animated bot and the job log. The bot shows the latest recorded activity: watching for ideas, following virtual trades, organising examples, testing versions, waiting or needing attention. Watching means it is between scheduled checks, not training continuously. Offline or when a job has not reported back, the animation stops and the reason stays visible. You can pause the animation. It also rests off screen and follows your phone's reduced-motion setting. **Recent activity** shows recorded job times and outcomes. Open **Example quality at the last check** for usable examples, waiting outcomes and exclusions. Its date matters; it is a report from that check.
 
@@ -73,6 +73,14 @@ Its calls are scored against taking every idea, against random picks of the same
 You asked for Kimi. NVIDIA lists Kimi K3.1 Pro but has not switched on its API for free keys yet, and Kimi K2.6 is not served to free accounts. Until then the second opinion comes from NVIDIA's own Nemotron 3 Ultra. The helper checks Kimi K3.1 Pro every six hours and starts a separate Kimi study the moment it answers, so evidence from two models is never mixed.
 
 NVIDIA's free key is for testing and evaluation. Its terms do not allow sharing AI-written text with the public, so the AI's words (its reasons, notes and answers) are shown only to the signed-in owner. Everyone else sees the scoreboard numbers, which the app works out itself. NVIDIA may use what is sent to improve its models; only market facts and the bot's own records are sent. It costs nothing: the free service has no billing.
+
+### AI research ideas
+
+Each week the AI studies the bot's finished trades and suggests up to three simple rules for ideas to skip, such as "skip sells when price is far above the day's average". The app writes each rule down with the time it was proposed, then tests it **only on trades that come after it**: the trades the rule would keep, against taking every idea and against random skips of the same size, after costs. The first fair check comes after 60 such trades over 15 trading days; the final one after 150. Until then a rule shows "Too early to tell" in amber. Because several rules are tested at once, each must clear a stricter bar than a single test would.
+
+A rule that passes is only eligible: the owner can add it to a new campaign, and nothing changes the running account. This is how the AI can help the bot improve without guessing: it suggests, and fresh trades decide.
+
+The rules and the AI's weekly note ("This week the AI noticed…") are AI-written, so they are shown only to the signed-in owner. Everyone else sees each rule's numbers. To sign in, open Ask the AI on Learn.
 
 The learner uses stored outcomes and small models on the existing service. It makes no paid AI calls or new data purchases. Identical training inputs share one calculation within a review. Unchanged datasets are reused. The normal review, risk and fresh-evidence requirements still apply. Usage limits can defer optional work; the app's usage guard is not a provider billing meter.
 

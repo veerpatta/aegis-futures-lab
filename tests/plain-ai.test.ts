@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  AI_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, aiSummaryLine, callForDecision, primaryStudy,
-  type AiCall, type AiStudyScore,
+  AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, aiSummaryLine, callForDecision, ideaConditionWords,
+  ideaProgress, ideaRuleWords, primaryStudy, type AiCall, type AiStudyScore,
 } from "@/lib/plain/ai";
 import { parseOwnerAi, parseScoreboard } from "@/components/ai/AiProvider";
 
@@ -65,6 +65,49 @@ describe("AI helper wording", () => {
     expect(callForDecision(calls, "k1", "a")?.studyId).toBe("a");
     expect(callForDecision(calls, "k1", null)?.studyId).toBe("b");
     expect(callForDecision(calls, "k2")).toBeNull();
+  });
+});
+
+describe("AI research ideas in plain words", () => {
+  it("turns each rule condition into words a non-trader can read", () => {
+    expect(ideaConditionWords({ field: "side", op: "=", value: "SHORT" })).toBe("the bot would sell (bet on a fall)");
+    expect(ideaConditionWords({ field: "side", op: "!=", value: "SHORT" })).toBe("the bot would buy (bet on a rise)");
+    expect(ideaConditionWords({ field: "vwap_atr", op: ">", value: 3 })).toBe("price is more than 3 typical swings above the day's average price");
+    expect(ideaConditionWords({ field: "vwap_atr", op: "<", value: -2 })).toBe("price is more than 2 typical swings below the day's average price");
+    expect(ideaConditionWords({ field: "paused", op: "=", value: "true" })).toBe("its method is paused after a losing streak");
+    expect(ideaConditionWords({ field: "hour_ny", op: ">", value: 13 })).toBe("it is after 13:00 New York time");
+    expect(ideaConditionWords({ field: "regime", op: "=", value: "range-high-vol" })).toBe("the market is going sideways with big swings");
+    expect(ideaConditionWords({ field: "risk_usd", op: ">", value: 120 })).toBe("one contract risks above $120");
+    expect(ideaConditionWords({ field: "weekday", op: "=", value: 1 })).toBe("it is a Monday");
+  });
+
+  it("joins conditions into one skip rule", () => {
+    expect(ideaRuleWords({ when: [{ field: "side", op: "=", value: "SHORT" }, { field: "vwap_atr", op: ">", value: 3 }] }))
+      .toBe("Skip the idea when the bot would sell (bet on a fall) and price is more than 3 typical swings above the day's average price.");
+    expect(ideaRuleWords({ when: [] })).toBe("—");
+  });
+
+  it("keeps a too-early rule amber and counts its fresh trades with n", () => {
+    expect(IDEA_VERDICT_WORDS["too-early"].tone).toBe("amber");
+    expect(IDEA_VERDICT_WORDS.inconclusive.tone).toBe("amber");
+    expect(IDEA_VERDICT_WORDS.fail.tone).toBe("red");
+    expect(ideaProgress({ resolved: 12, sessions: 4, skipped: 3, nextLook: 60, status: "testing" }))
+      .toBe("12 of 60 fresh trades tested · it would have skipped 3 · 4 of 15 trading days");
+    expect(ideaProgress({ resolved: 150, sessions: 40, skipped: 30, nextLook: null, status: "retired" })).toBe("150 fresh trades tested · finished");
+  });
+
+  it("parses public idea scores and owner-only rule text strictly", () => {
+    const score = { id: "idea-1", proposedAt: "2026-11-09T00:00:00Z", model: "nvidia/nemotron-3-ultra-550b-a55b", status: "testing", tested: 14, resolved: 12,
+      skipped: 3, sessions: 4, keptNet: -80, takeAllNet: -150, delta: null, randomPercentile: 64, verdict: "too-early", nextLook: 60 };
+    const board = parseScoreboard({ available: true, updatedAt: "x", studies: [], ideas: [score, { ...score, id: 7 }] });
+    expect(board?.ideas.map((i) => i.id)).toEqual(["idea-1"]);
+    const owner = parseOwnerAi({ calls: [], notes: [{ kind: "week", subject: "2026-W46", text: "Shorts lost more.", model: "m", createdAt: "t" }], ideas: [
+      { id: "idea-1", name: "Skip stretched shorts", why: "They lost most.", when: [{ field: "side", op: "=", value: "SHORT" }], proposedAt: "t", model: "m" },
+      { id: "idea-2", name: "Bad", why: "x", when: [{ field: "side", op: "≈", value: "SHORT" }], proposedAt: "t", model: "m" },
+      { id: "idea-3", name: "Too long", why: "x", when: [1, 2, 3, 4].map(() => ({ field: "rr", op: ">", value: 1 })), proposedAt: "t", model: "m" },
+    ] });
+    expect(owner?.ideas.map((i) => i.id)).toEqual(["idea-1"]);
+    expect(owner?.notes[0].kind).toBe("week");
   });
 });
 

@@ -43,7 +43,7 @@ export interface AiCall {
 }
 
 export interface AiNote {
-  kind: "trade" | "day";
+  kind: "trade" | "day" | "week";
   subject: string;
   text: string;
   model: string;
@@ -163,3 +163,110 @@ export function callForDecision(calls: readonly AiCall[], decisionKey: string, p
 /** Why AI words are shown only to the signed-in owner. */
 export const AI_OWNER_ONLY =
   "AI-written words are shown only to the signed-in owner: NVIDIA's free key is for testing and evaluation, and its terms do not allow sharing AI text with the public.";
+
+/* ── AI research ideas (docs/research/2026-11-07-ai-ideas-preregistration.md) ──
+   Each week the AI may propose up to three simple skip rules. The app tests
+   each one only on decisions made after it was proposed, against taking every
+   idea and random skips of the same size, after costs. A rule that passes is
+   only eligible for a future campaign the owner starts; nothing changes the
+   account. The rule's wording is AI-written, so it is shown to the owner only;
+   everyone sees the numbers. */
+
+export type IdeaField =
+  | "side" | "symbol" | "strategy" | "tier" | "paused" | "regime" | "vix_bucket"
+  | "rr" | "atr_pct" | "vwap_atr" | "risk_usd" | "hour_ny" | "weekday";
+
+export interface AiIdeaCondition { field: IdeaField | string; op: "<" | ">" | "=" | "!="; value: string | number | boolean }
+
+/** Owner-only: what the rule says. */
+export interface AiIdea { id: string; name: string; why: string; when: AiIdeaCondition[]; proposedAt: string; model: string }
+
+/** Public: how the rule is doing on fresh decisions, numbers only. */
+export interface AiIdeaScore {
+  id: string;
+  proposedAt: string;
+  model: string;
+  status: "testing" | "retired";
+  tested: number;
+  resolved: number;
+  skipped: number;
+  sessions: number;
+  keptNet: number;
+  takeAllNet: number;
+  delta: { est: number; lo: number; hi: number } | null;
+  randomPercentile: number | null;
+  verdict: AiVerdict;
+  nextLook: 60 | 150 | null;
+}
+
+export const IDEA_VERDICT_WORDS: Record<AiVerdict, { label: string; tone: AiTone; detail: string }> = {
+  "too-early": { label: "Too early to tell", tone: "amber", detail: "It needs 60 finished trades made after it was proposed, over 15 trading days." },
+  inconclusive: { label: "No clear answer yet", tone: "amber", detail: "Skipping these ideas has not clearly helped or hurt. The test carries on." },
+  pass: { label: "Improved results", tone: "green", detail: "On fresh trades, skipping these ideas beat taking every idea and random skips, after costs. You may add it to a new campaign." },
+  fail: { label: "Made results worse", tone: "red", detail: "On fresh trades it skipped more winners than losers, so it is dropped." },
+};
+
+const REGIME_WORDS: Record<string, string> = {
+  "trend-high-vol": "trending with big swings", "trend-low-vol": "trending calmly",
+  "range-high-vol": "going sideways with big swings", "range-low-vol": "going sideways calmly",
+};
+const WEEKDAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const METHOD_WORDS: Record<string, string> = { "zone-v5": "Zone setups", "rsi-reversion": "RSI reversion" };
+const toNumber = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number(v));
+const OP_WORDS: Record<AiIdeaCondition["op"], string> = { "<": "below", ">": "above", "=": "exactly", "!=": "not" };
+
+/** One condition of an AI rule in plain words, e.g. "the bot would sell (bet on a fall)". */
+export function ideaConditionWords(c: AiIdeaCondition): string {
+  const yes = c.op === "=", no = c.op === "!=";
+  const v = toNumber(c.value), op = OP_WORDS[c.op];
+  switch (c.field) {
+    case "side": {
+      const sell = String(c.value).toUpperCase() === "SHORT";
+      return (yes ? sell : !sell) ? "the bot would sell (bet on a fall)" : "the bot would buy (bet on a rise)";
+    }
+    case "symbol":
+      return `the market is ${no ? "not " : ""}the ${String(c.value) === "MNQ" ? "Nasdaq micro" : "S&P micro"}`;
+    case "strategy":
+      return `the method is ${no ? "not " : ""}${METHOD_WORDS[String(c.value)] ?? String(c.value)}`;
+    case "tier":
+      return `the idea is ${no ? "not " : ""}a ${String(c.value) === "A" ? "zone setup" : "daily-flow idea"}`;
+    case "paused": {
+      const paused = String(c.value) === "true";
+      return (yes ? paused : !paused) ? "its method is paused after a losing streak" : "its method is not paused";
+    }
+    case "regime":
+      return `the market is ${no ? "not " : ""}${REGIME_WORDS[String(c.value)] ?? String(c.value).replace(/-/g, " ")}`;
+    case "vix_bucket":
+      return `the fear index (VIX) is ${no ? "not " : ""}${String(c.value)}`;
+    case "rr":
+      return `the possible gain is ${op} ${v} times the possible loss`;
+    case "atr_pct":
+      return `recent swings are ${op} ${v}% of the price`;
+    case "vwap_atr":
+      if (c.op === ">") return v >= 0 ? `price is more than ${v} typical swings above the day's average price` : `price is above ${v} typical swings from the day's average price`;
+      if (c.op === "<") return v <= 0 ? `price is more than ${Math.abs(v)} typical swings below the day's average price` : `price is less than ${v} typical swings above the day's average price`;
+      return `the distance from the day's average price is ${op} ${v} typical swings`;
+    case "risk_usd":
+      return `one contract risks ${op} $${v}`;
+    case "hour_ny":
+      return c.op === ">" ? `it is after ${v}:00 New York time` : c.op === "<" ? `it is before ${v}:00 New York time` : `the hour is ${op} ${v}:00 New York time`;
+    case "weekday":
+      return `it is ${no ? "not " : ""}a ${WEEKDAYS[v] ?? String(c.value)}`;
+    default:
+      return `${c.field} is ${op} ${String(c.value)}`;
+  }
+}
+
+/** "Skip the idea when the bot would sell (bet on a fall) and price is more than 3 typical swings above the day's average price." */
+export function ideaRuleWords(idea: Pick<AiIdea, "when">): string {
+  const parts = idea.when.map(ideaConditionWords);
+  if (!parts.length) return "—";
+  return `Skip the idea when ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]}.`;
+}
+
+/** Progress of one rule's fresh test, with its n. */
+export function ideaProgress(s: Pick<AiIdeaScore, "resolved" | "sessions" | "skipped" | "nextLook" | "status">): string {
+  if (s.status === "retired" || s.nextLook === null) return `${s.resolved} fresh trades tested · finished`;
+  const head = `${s.resolved} of ${s.nextLook} fresh trades tested · it would have skipped ${s.skipped}`;
+  return s.nextLook === 60 ? `${head} · ${Math.min(s.sessions, 15)} of 15 trading days` : head;
+}
