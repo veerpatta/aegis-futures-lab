@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AI_VERDICT_WORDS, IDEA_VERDICT_WORDS, aiAgreement, aiCallWords, aiComparison, aiModelName, aiProgress, aiSummaryLine, callForDecision, ideaConditionWords,
-  ideaProgress, ideaRuleWords, primaryStudy, waitingWords, type AiCall, type AiStudyScore,
+  ideaProgress, ideaRuleWords, primaryStudy, waitingStudyWords, waitingWords, type AiCall, type AiStudyScore,
 } from "@/lib/plain/ai";
 import { parseOwnerAi, parseScoreboard } from "@/components/ai/AiProvider";
 
@@ -22,6 +22,7 @@ describe("AI helper wording", () => {
   it("names models in plain words and says how sure the AI was", () => {
     expect(aiModelName("moonshotai/kimi-k3.1-pro")).toBe("Kimi K3.1 Pro");
     expect(aiModelName("nvidia/nemotron-3-ultra-550b-a55b")).toBe("Nemotron 3 Ultra");
+    expect(aiModelName("deepseek-ai/deepseek-v4.1-flash")).toBe("DeepSeek V4.1 Flash");
     expect(aiModelName("acme/new-model")).toBe("new-model");
     expect(aiCallWords({ decision: "skip", confidence: 84.6 })).toBe("Would skip it · 85% sure");
     expect(aiCallWords({ decision: "take", confidence: 140 })).toBe("Would take it · 100% sure");
@@ -44,7 +45,7 @@ describe("AI helper wording", () => {
     expect(aiProgress(study())).toBe("8 of 60 finished calls · 4 of 15 trading days");
     expect(aiProgress(study({ resolved: 90, nextLook: 150 }))).toBe("90 of 150 finished calls for the final check");
     expect(aiSummaryLine(null)).toBe("AI second opinion: not running yet");
-    expect(aiSummaryLine(study({ status: "waiting-for-model", model: "moonshotai/kimi-k3.1-pro" }))).toBe("Kimi K3.1 Pro: waiting for NVIDIA to switch it on");
+    expect(aiSummaryLine(study({ status: "waiting-for-model", model: "moonshotai/kimi-k3.1-pro" }))).toBe("Kimi K3.1 Pro: waiting for its first answer on NVIDIA");
     expect(aiSummaryLine(study())).toBe("AI second opinion: too early to tell · 12 calls, 8 finished");
   });
 
@@ -55,6 +56,24 @@ describe("AI helper wording", () => {
     expect(primaryStudy([nemo, kimi])?.id).toBe("ai-judge-kimi-k3.1-pro-v1");
     expect(primaryStudy([nemo, waiting])?.id).toBe("ai-judge-nemotron-ultra-v1");
     expect(primaryStudy([])).toBeNull();
+  });
+
+  it("lets a running DeepSeek study speak after Kimi and before Nemotron, as the owner asked for it next", () => {
+    const nemo = study();
+    const deepseek = study({ id: "ai-judge-deepseek-v4.1-flash-v1", model: "deepseek-ai/deepseek-v4.1-flash", calls: 3 });
+    const kimi = study({ id: "ai-judge-kimi-k3.1-pro-v1", model: "moonshotai/kimi-k3.1-pro", calls: 1 });
+    expect(primaryStudy([nemo, deepseek])?.id).toBe("ai-judge-deepseek-v4.1-flash-v1");
+    expect(primaryStudy([nemo, kimi, deepseek])?.id).toBe("ai-judge-kimi-k3.1-pro-v1");
+    expect(primaryStudy([nemo, { ...deepseek, calls: 0 }])?.id).toBe("ai-judge-nemotron-ultra-v1");
+  });
+
+  it("says why a model waits and what its last check found, in plain words", () => {
+    const now = Date.parse("2026-11-07T12:00:00Z");
+    const base = "NVIDIA lists this model, but it has not answered the helper's checks yet. The helper checks every six hours and starts this model's own study the moment it answers.";
+    expect(waitingStudyWords({ lastCheck: null }, now)).toBe(base);
+    expect(waitingStudyWords({ lastCheck: { at: "2026-11-07T10:00:00Z", outcome: "timeout" } }, now)).toBe(`${base} Last check 2 h ago: NVIDIA's servers for it did not answer.`);
+    expect(waitingStudyWords({ lastCheck: { at: "2026-11-07T11:35:00Z", outcome: "not-found" } }, now)).toBe(`${base} Last check 25 min ago: NVIDIA does not offer it to free keys yet.`);
+    expect(waitingStudyWords({ lastCheck: { at: "garbage", outcome: "busy" } }, now)).toBe(base);
   });
 
   it("picks the primary study's call on a decision, else the newest", () => {
@@ -128,6 +147,14 @@ describe("AI helper replies are parsed strictly", () => {
     expect(parseScoreboard({ available: true, studies: [{ ...study(), verdict: "waiting" }] })?.studies[0].verdict).toBe("too-early");
     expect(parseScoreboard({ available: true, studies: [{ ...study(), verdict: "maybe" }] })?.studies).toEqual([]);
     expect(parseScoreboard(null)).toBeNull();
+  });
+
+  it("reads a waiting study's last check only in the documented shape", () => {
+    const waiting = { ...study(), status: "waiting-for-model", calls: 0, resolved: 0 };
+    const good = parseScoreboard({ available: true, studies: [{ ...waiting, lastCheck: { at: "2026-11-07T10:00:00.000Z", outcome: "timeout" } }] });
+    expect(good?.studies[0].lastCheck).toEqual({ at: "2026-11-07T10:00:00.000Z", outcome: "timeout" });
+    for (const bad of [{ at: "x", outcome: "timeout" }, { at: "2026-11-07T10:00:00.000Z", outcome: "Upstream <b>failed</b>" }, "timeout", null])
+      expect(parseScoreboard({ available: true, studies: [{ ...waiting, lastCheck: bad }] })?.studies[0].lastCheck).toBeNull();
   });
 
   it("keeps only well-formed owner calls and notes, and trims long text", () => {

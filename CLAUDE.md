@@ -112,15 +112,20 @@ short sentences. The reader knows trading but not software. Always keep the
   `tests/ai-zero-cost.test.ts` fails if any code reads `process.env.OPENAI_API_SECRET` directly.
 - FREE AI HELPER (2026-11-07, `docs/AI-HELPER.md`): NVIDIA's free OpenAI-compatible API
   (`lib/ai-free/`), key from `NVIDIA_API_KEY` (or any env value starting `nvapi-`; only the NAME is
-  ever reported), model chain Kimi K3.1 Pro → Kimi K2.6 → Nemotron 3 Ultra → Gemma 4 with a 6-hour
-  "not found" memory; `AEGIS_FREE_AI=off` switches it off. On 2026-11-06 the owner's key got 404 for
+  ever reported), model chain Kimi K3.1 Pro → Kimi K2.6 → DeepSeek V4.1 Flash → Nemotron 3 Ultra →
+  Gemma 4 with a 6-hour "not found" memory and a shared MODEL HEALTH record (`lib/ai-free/health.ts`,
+  table `ai_model_health`): a model failing in a row rests 15 min, doubling to at most 6 h; DeepSeek is
+  on PROBATION (no chain asks it until it has answered once: on 2026-11-06 it 502'd after ~30 s);
+  `AEGIS_FREE_AI=off` switches it off. On 2026-11-06 the owner's key got 404 for
   both Kimi models (K3.1 Pro playground-only, K2.6 "not found for account"). The AI SECOND OPINION
   (`lib/ai-judge/`, preregistration `docs/research/2026-11-07-ai-second-opinion-preregistration.md`,
   hash pinned) judges each active-campaign learner decision from facts at its `info_cutoff` only,
   write-once per (study, decision), never trades, and is scored on the learner's one-contract
   outcomes vs take-all, matched random and no-trade (looks at 60 and 150 resolved). One study per
-  model: `ai-judge-nemotron-ultra-v1` active; `ai-judge-kimi-k3.1-pro-v1` waits and activates on its
-  first answer. Coach notes (`lib/ai-coach/`) are number-checked. NVIDIA's trial terms (evaluation
+  model: `ai-judge-nemotron-ultra-v1` active; `ai-judge-kimi-k3.1-pro-v1` and
+  `ai-judge-deepseek-v4.1-flash-v1` (addendum `docs/research/2026-11-07-ai-second-opinion-deepseek-addendum.md`,
+  migration `db/migrations/20261107_ai_deepseek.sql`, same frozen rules) wait and activate on their first
+  answer to the six-hourly probe; a study whose model rests is not asked (nothing claimed). Coach notes (`lib/ai-coach/`) are number-checked. NVIDIA's trial terms (evaluation
   only; no sharing generated text; may use inputs) ⇒ AI TEXT IS OWNER-ONLY (`/api/ai/owner`,
   `/api/ai/research`); the public `/api/ai/scoreboard` is numbers only; screens use
   `components/ai/AiProvider.tsx` + `AiViews.tsx`, words in `lib/plain/ai.ts`. `POST /api/ai/run` is

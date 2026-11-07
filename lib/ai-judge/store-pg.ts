@@ -173,6 +173,23 @@ export interface ScoreboardStudy extends JudgeRunning {
   nextLook: number | null;
   /** Why the next look is not taken yet, in plain words, or null. */
   waiting: string | null;
+  /** A waiting study's latest availability check (our own outcome code), or null. */
+  lastCheck: { at: string; outcome: string } | null;
+}
+
+const OUTCOME_CODE = /^[a-z-]{1,32}$/;
+
+/** The latest probe result of a study: when, and the fixed outcome code our
+    code recorded (never provider text). */
+export async function lastProbe(db: Db, studyId: string): Promise<{ at: string; outcome: string } | null> {
+  const { rows } = await db.query(
+    `SELECT payload->>'outcome' AS outcome, occurred_at FROM public.ai_judge_calls
+     WHERE study_id = $1 AND decision_key = 'probe' AND kind = 'probe' AND payload->>'outcome' IS NOT NULL
+     ORDER BY occurred_at DESC LIMIT 1`, [studyId]);
+  const r = rows[0];
+  if (!r || typeof r.outcome !== "string" || !OUTCOME_CODE.test(r.outcome)) return null;
+  const at = new Date(r.occurred_at as string | Date);
+  return Number.isFinite(at.getTime()) ? { at: at.toISOString(), outcome: r.outcome } : null;
 }
 
 /** Numbers only (no AI text): safe for the public scoreboard. The verdict is
@@ -190,9 +207,10 @@ export async function readScoreboard(db: Db, nowMs: number = Date.now()): Promis
     const { verdict, nextLook } = verdictFromLooks(stored, config.rules.looks.map((l) => l.resolved));
     const due = dueJudgeLook(rows, stored, config.id, config.rules, Math.floor(nowMs / 1000), config.rules.freshnessSeconds);
     const waiting = "due" in due ? `Look ${due.due.look} is complete and will be recorded at the next pass.` : due.waiting;
+    const lastCheck = s.status === "waiting-for-model" ? await lastProbe(db, config.id) : null;
     out.push({
       id: config.id, label: config.label, model: config.model, status: s.status, startedAt: s.started_at ? new Date(s.started_at as string | Date).toISOString() : null,
-      ...runningJudge(rows, config.id, config.rules), verdict, nextLook, waiting,
+      ...runningJudge(rows, config.id, config.rules), verdict, nextLook, waiting, lastCheck,
     });
   }
   return out;

@@ -28,6 +28,7 @@ Asked in this order (`lib/ai-free/nvidia.ts`, override with `AEGIS_FREE_AI_MODEL
 |---|---|
 | `moonshotai/kimi-k3.1-pro` (what the owner asked for) | Not on the API yet: NVIDIA serves it in its web playground only (404). |
 | `moonshotai/kimi-k2.6` | Listed, but "not found for account" (not served to free accounts). |
+| `deepseek-ai/deepseek-v4.1-flash` (asked for on 2026-11-07) | Listed, but every request ended with "upstream request failed" (502) after about 30 s, streamed or not, thinking on or off. **On probation** (below). |
 | `nvidia/nemotron-3-ultra-550b-a55b` | **Works**: second opinion about 19 s, notes 12-16 s, a weekly proposal about 49 s (it reasons first). |
 | `google/gemma-4-31b-it` | **Works**: about 3-6 s for notes and second opinions, about 19 s for a proposal. |
 
@@ -39,11 +40,26 @@ Asked in this order (`lib/ai-free/nvidia.ts`, override with `AEGIS_FREE_AI_MODEL
   (`ai-judge-kimi-k3.1-pro-v1`) is probed at most every six hours and starts at its first answer.
   The Nemotron study (`ai-judge-nemotron-ultra-v1`) runs from registration; the two studies never
   mix evidence.
-- **"Not found" memories.** The chain (coach, proposal, Ask, Kimi probe) skips a "not found"
-  model for six hours. Each single-model study keeps its own memory for at most 15 minutes, so a
-  coach 404 can never silence a study for hours.
-- **The weekly proposal** asks Gemma 4 before Nemotron (after Kimi): Nemotron's 49 s answer does
-  not fit the 40 s per-call cap inside a 60 s function. The model is recorded with each rule.
+- **DeepSeek takes over the same way, once it answers.** It has its own waiting study
+  (`ai-judge-deepseek-v4.1-flash-v1`, same frozen rules, addendum
+  `docs/research/2026-11-07-ai-second-opinion-deepseek-addendum.md`), probed at most every six
+  hours. Because its failure is slow (30 s of a 55 s pass, against 0.2 s for a "not found"), it is
+  on **probation** (`PROBATION_MODELS` in `lib/ai-free/nvidia.ts`): no chain asks it until it has
+  answered once. Then the coach, the proposal and Ask use it after Kimi and before Nemotron.
+- **Model health** (`lib/ai-free/health.ts`, table `ai_model_health`). Every attempt is recorded
+  per model, shared by all server instances. A model whose last attempts failed without an answer
+  (not found, busy, rate limited, network, unreadable reply, or a timeout after at least 15 s)
+  **rests**: 15 minutes after one failure, doubling with each failure in a row, at most six hours.
+  One answer clears it. A resting model is skipped by every chain; a study whose model rests is not
+  asked in that pass (nothing is claimed, so no attempt is used up). A waiting study's probe is the
+  check itself: it asks even a resting model (`healthCheck`), with up to 512 tokens and 20 s. If the
+  record cannot be read, every model is asked as before except those on probation.
+- **"Not found" memories.** The chain (coach, proposal, Ask) also skips a "not found" model for six
+  hours in each server instance. Each single-model study keeps its own memory for at most 15
+  minutes, so a coach 404 can never silence a study for hours.
+- **The weekly proposal** asks Gemma 4 before Nemotron (after Kimi and, once it answers,
+  DeepSeek): Nemotron's 49 s answer does not fit the 40 s per-call cap inside a 60 s function. The
+  model is recorded with each rule.
 - **If Kimi K3.1 Pro arrives slow** (Moonshot's own API has shown minutes to a first answer),
   calls that take over 40 s time out here; its study would then collect errors, not answers.
   Running the helper inside a GitHub Actions job (longer limits) would need the key stored there
@@ -75,8 +91,10 @@ signal-engine.yml  run (engine + learner tick)  ──success──▶  ai-helpe
                                                                │ GitHub OIDC token (audience aegis-ai-helper)
                                                                ▼
                                         Vercel POST /api/ai/run (lib/ai-auth/github-oidc.ts)
-                                          1. second opinion on new decisions (≤ 2 h old)
-                                          2. probe a waiting study's model (≤ every 6 h)
+                                          0. read the shared model health record
+                                          1. second opinion on new decisions (≤ 2 h old),
+                                             skipping a study whose model is resting
+                                          2. probe each waiting study's model (≤ every 6 h)
                                           3. take any due look and store it once
                                           4. coach notes for finished decisions, day recap
                                           5. ideas: take due looks, retire, weekly proposal
@@ -102,7 +120,9 @@ signal-engine.yml  run (engine + learner tick)  ──success──▶  ai-helpe
   answers, errors, probes; one final answer per study and decision, which the database refuses
   without a claim or after two hours), `ai_looks`, `ai_notes` (trade, day, week), and
   `ai_hypotheses` (rules; proposed now, at most three testing, one change: testing → retired,
-  now). The `aegis_ai` role reads only the learner columns it needs. Every text saved is cleaned
+  now). `ai_model_health` is operational state, not evidence (one row per model: last answer,
+  last counted failure and its code, failures in a row; no AI text), so its rows change. The
+  `aegis_ai` role reads only the learner columns it needs. Every text saved is cleaned
   of NUL characters and broken characters and cut by whole characters.
 - **Database time limits.** Each AI query is capped at 10 s on the client (`query_timeout`) and
   on the server (the migration sets `statement_timeout = 10s` on the `aegis_ai_app` login, as
@@ -114,7 +134,7 @@ signal-engine.yml  run (engine + learner tick)  ──success──▶  ai-helpe
 |---|---|
 | `NVIDIA_API_KEY` (or any variable whose value starts with `nvapi-`) | The free key. The helper reports the variable's **name**, never the value. |
 | `AEGIS_FREE_AI=off` | Switches every free AI call off. |
-| `AEGIS_FREE_AI_MODELS` | Comma list overriding the model order (coach and Ask; each study keeps its own model; the proposal keeps its own order). |
+| `AEGIS_FREE_AI_MODELS` | Comma list overriding the model order (coach and Ask; each study keeps its own model; the proposal keeps its own order). Probation and resting still apply. |
 | `AI_DATABASE_URL` | Already set for the research assistant; the helper uses the same restricted login. |
 
 Paid OpenAI stays off unless `AEGIS_ALLOW_PAID_AI=true` (`lib/ai-cost/paid-ai.ts`).
@@ -126,6 +146,10 @@ Paid OpenAI stays off unless `AEGIS_ALLOW_PAID_AI=true` (`lib/ai-cost/paid-ai.ts
    looks and notes tables, and sets the AI login's statement timeout. If `AI_DATABASE_URL` does
    not use the `aegis_ai_app` login, set the timeout on that login instead.
 2. Merge to `main` (Vercel deploys the routes; the next engine pass runs the `ai-helper` job).
+3. Apply `db/migrations/20261107_ai_deepseek.sql` the same way: it creates `ai_model_health` and
+   registers the waiting DeepSeek V4.1 Flash study. Either order with the deploy is safe: code
+   without the table asks every model except DeepSeek, and an older build skips a study it does not
+   know.
 
 ## Checking it works
 
@@ -133,11 +157,14 @@ Paid OpenAI stays off unless `AEGIS_ALLOW_PAID_AI=true` (`lib/ai-cost/paid-ai.ts
   `{"freeAi":"on","keyFound":true,"keyName":"…","models":[…],"database":true}`.
 - The next `signal-engine` run shows an `ai-helper` job whose log prints
   `AI helper: {"status":"ok",…,"judge":{"decided":…},"coach":{…},"ideas":{"waiting":…}}`.
-- SQL: `SELECT kind, count(*) FROM ai_judge_calls GROUP BY kind;`,
+- The log also lists `resting` models (DeepSeek until its first answer) and `judge.resting`
+  studies.
+- SQL: `SELECT * FROM ai_model_health;`, `SELECT kind, count(*) FROM ai_judge_calls GROUP BY kind;`,
   `SELECT kind, status, count(*) FROM ai_notes GROUP BY 1, 2;`,
   `SELECT status, count(*) FROM ai_hypotheses GROUP BY 1;` and `SELECT * FROM ai_looks;`.
 - `GET /api/ai/scoreboard` → `studies` (calls, resolved, taken, skipped, AI result vs take-all,
-  random percentile, verdict, next look, why it waits) and `ideas` (tested, resolved, skipped,
+  random percentile, verdict, next look, why it waits, and for a waiting study its `lastCheck`:
+  time and our own outcome code) and `ideas` (tested, resolved, skipped,
   kept result vs take-all, random percentile, verdict, next look, why it waits). Verdicts stay
   "too-early" until a look's window is complete.
 - The first proposal waits for 20 finished decisions across all learner campaigns (void

@@ -75,10 +75,13 @@ short sentences. The reader knows trading but not software. Always keep the
   (`lib/ai-cost/paid-ai.ts`), which returns it only with the server env `AEGIS_ALLOW_PAID_AI=true`.
   `tests/ai-zero-cost.test.ts` fails if any code reads `process.env.OPENAI_API_SECRET` directly.
 - FREE AI HELPER (2026-11-07, `docs/AI-HELPER.md`): NVIDIA's free API (`lib/ai-free/`, key from
-  `NVIDIA_API_KEY` or any env value starting `nvapi-`), Kimi first with Nemotron 3 Ultra / Gemma 4
-  fallback; `AEGIS_FREE_AI=off` switches it off. The preregistered AI SECOND OPINION
+  `NVIDIA_API_KEY` or any env value starting `nvapi-`), Kimi first, then DeepSeek V4.1 Flash once it
+  has answered (probation; shared `ai_model_health` record, `lib/ai-free/health.ts`, rests a model that
+  keeps failing), with Nemotron 3 Ultra / Gemma 4 fallback; `AEGIS_FREE_AI=off` switches it off. The preregistered AI SECOND OPINION
   (`lib/ai-judge/`, `docs/research/2026-11-07-ai-second-opinion-preregistration.md`) judges learner
   decisions from facts at `info_cutoff` only, never trades, and is scored vs take-all/random/no-trade.
+  One study per model: Nemotron active; Kimi and DeepSeek wait for their first answer (DeepSeek addendum
+  `docs/research/2026-11-07-ai-second-opinion-deepseek-addendum.md`, `db/migrations/20261107_ai_deepseek.sql`).
   NVIDIA trial terms ⇒ AI-written text is OWNER-ONLY (`/api/ai/owner`, `/api/ai/research`); the
   public `/api/ai/scoreboard` is numbers only. `POST /api/ai/run` accepts only a GitHub OIDC token
   from `signal-engine.yml` on main (`ai-helper` job). Migration `db/migrations/20261107_ai_helper.sql`

@@ -12,6 +12,7 @@ import { PAID_AI_OFF_MESSAGE, paidAiAllowed, paidAiKey } from '@/lib/ai-cost/pai
 import { findFreeAiKey } from '@/lib/ai-free/nvidia';
 import { FREE_LEDGER_MODEL, freeLedgerRequest } from '@/lib/ai-free/budget';
 import { callFreeResearch, FREE_RESEARCH_PROMPT_VERSION, researchProvider } from '@/lib/ai-free/research';
+import { HealthBook, PgHealthStore } from '@/lib/ai-free/health';
 import { AI_QUERY_TIMEOUT_MS } from '@/lib/ai-free/pool';
 import { cleanText } from '@/lib/ai-free/text';
 
@@ -62,7 +63,12 @@ const postFor = (startedAt: number) => makeResearchPost({
     if (!key) {
       if (!findFreeAiKey()) throw new Error('AI is not configured');
       return freeLedgerRequest(new PgBudgetStore(pool()), { requestId: id, userId },
-        async () => { await beforeInvoke(); return (await callFreeResearch({ question, evidence, deadline: startedAt + FREE_ANSWER_BY_MS })).value; });
+        async () => {
+          await beforeInvoke();
+          // Step around models that keep failing (lib/ai-free/health.ts); never throws.
+          const health = await HealthBook.open(new PgHealthStore(pool()));
+          return (await callFreeResearch({ question, evidence, deadline: startedAt + FREE_ANSWER_BY_MS }, { health })).value;
+        });
     }
     const model = depth === 'deep' ? DEEP_RESEARCH_MODEL : RESEARCH_MODEL;
     return budgetedRequest(new PgBudgetStore(pool()), {

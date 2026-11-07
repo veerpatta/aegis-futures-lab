@@ -32,6 +32,27 @@ export interface AiStudyScore {
   nextLook: 60 | 150 | null;
   /** Why the next look is not taken yet, in the app's own words (never AI text). */
   waiting?: string | null;
+  /** A waiting study's latest availability check: when, and our outcome code. */
+  lastCheck?: { at: string; outcome: string } | null;
+}
+
+/** "25 min", "3 h", "2 days" (the same steps as the timer line). */
+function ago(minutes: number): string {
+  if (!Number.isFinite(minutes)) return "a long time";
+  if (minutes < 90) return `${Math.max(1, Math.round(minutes))} min`;
+  const hours = minutes / 60;
+  return hours < 36 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} days`;
+}
+
+/** A waiting study's card: why it waits and, once checked, what the last check found. */
+export function waitingStudyWords(s: Pick<AiStudyScore, "lastCheck">, nowMs: number): string {
+  const base = "NVIDIA lists this model, but it has not answered the helper's checks yet. The helper checks every six hours and starts this model's own study the moment it answers.";
+  const at = s.lastCheck ? Date.parse(s.lastCheck.at) : NaN;
+  if (!s.lastCheck || !Number.isFinite(at)) return base;
+  const found = s.lastCheck.outcome === "not-found" ? "NVIDIA does not offer it to free keys yet"
+    : s.lastCheck.outcome === "answered" ? "it answered"
+    : "NVIDIA's servers for it did not answer";
+  return `${base} Last check ${ago(Math.max(0, nowMs - at) / 60_000)} ago: ${found}.`;
 }
 
 /** The extra "why not yet" line, only when it says more than the progress count does. */
@@ -91,6 +112,7 @@ const MODEL_NAMES: Record<string, string> = {
   "moonshotai/kimi-k2.6": "Kimi K2.6",
   "nvidia/nemotron-3-ultra-550b-a55b": "Nemotron 3 Ultra",
   "google/gemma-4-31b-it": "Gemma 4",
+  "deepseek-ai/deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
 };
 
 /** "nvidia/nemotron-3-ultra-550b-a55b" → "Nemotron 3 Ultra". */
@@ -123,7 +145,7 @@ export function aiProgress(s: Pick<AiStudyScore, "resolved" | "sessions" | "next
 /** One line for the Today card. */
 export function aiSummaryLine(s: AiStudyScore | null): string {
   if (!s) return "AI second opinion: not running yet";
-  if (s.status === "waiting-for-model") return `${aiModelName(s.model)}: waiting for NVIDIA to switch it on`;
+  if (s.status === "waiting-for-model") return `${aiModelName(s.model)}: waiting for its first answer on NVIDIA`;
   if (s.calls === 0) return `AI second opinion (${aiModelName(s.model)}): waiting for the next idea`;
   return `AI second opinion: ${AI_VERDICT_WORDS[s.verdict].label.toLowerCase()} · ${s.calls} call${s.calls === 1 ? "" : "s"}, ${s.resolved} finished`;
 }
@@ -156,11 +178,19 @@ export function aiComparison(s: AiStudyScore, money: (n: number) => string): AiC
   return lines;
 }
 
-/** The study that should speak for the AI on a screen: a running Kimi study
-    first (the owner asked for Kimi), then any running one, then a waiting one. */
+/** The models the owner asked for, in the order asked: Kimi, then DeepSeek. */
+const ASKED_FOR = ["moonshotai/", "deepseek-ai/"] as const;
+
+/** The study that should speak for the AI on a screen: a running study of a
+    model the owner asked for (Kimi first, then DeepSeek), then any running
+    one, then a waiting one. */
 export function primaryStudy(studies: readonly AiStudyScore[]): AiStudyScore | null {
   const active = studies.filter((s) => s.status === "active");
-  return active.find((s) => s.model.startsWith("moonshotai/") && s.calls > 0) ?? active[0] ?? studies[0] ?? null;
+  for (const prefix of ASKED_FOR) {
+    const asked = active.find((s) => s.model.startsWith(prefix) && s.calls > 0);
+    if (asked) return asked;
+  }
+  return active[0] ?? studies[0] ?? null;
 }
 
 /** The newest call on a decision, preferring the primary study's model. */
