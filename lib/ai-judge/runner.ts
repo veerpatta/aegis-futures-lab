@@ -19,7 +19,7 @@
      is claimed, so no attempt is used up. This only delays asking; it never
      changes what counts as an answer or how a look is taken. */
 
-import type { ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
+import type { ChatAttempt, ChatRequest, ChatResult } from "@/lib/ai-free/nvidia";
 import { FreeAiError } from "@/lib/ai-free/nvidia";
 import { cleanText } from "@/lib/ai-free/text";
 import { CONTEXT_LOOKBACK_SECONDS, marketContext, sessionClock, type JudgeBar } from "./features";
@@ -209,6 +209,16 @@ async function askStudy(study: JudgeStudyConfig, row: JudgeStudyRow, deps: Judge
   }
 }
 
+/** What the probe found, in the model's own attempt code ("not-found",
+    "timeout", "busy", ...): chat() reports a one-model failure as the summary
+    "all-unavailable", which would hide whether NVIDIA does not offer the model
+    or its servers did not answer (2026-11-07: DeepSeek's first probe). */
+export function probeOutcome(err: FreeAiError): { outcome: string; status: number | null } {
+  const attempts = (err as FreeAiError & { attempts?: ChatAttempt[] }).attempts ?? [];
+  const asked = attempts.filter((a) => a.outcome !== "skipped" && a.outcome !== "deadline").at(-1);
+  return asked ? { outcome: asked.outcome, status: asked.status } : { outcome: err.code, status: err.status };
+}
+
 async function probeStudy(study: JudgeStudyConfig, deps: JudgeDeps, budget: RunBudget, report: JudgeReport) {
   const now = deps.now();
   if (!canCall(budget, now)) return;
@@ -224,7 +234,7 @@ async function probeStudy(study: JudgeStudyConfig, deps: JudgeDeps, budget: RunB
     await deps.chat({ system: "Reply with the single word: ready", user: "Are you available?", models: [study.model], maxTokens: 512, timeoutMs: Math.min(PROBE_TIMEOUT_MS, callTimeout(budget, deps.now())), deadline: budget.hardStop, healthCheck: true });
   } catch (err) {
     if (!(err instanceof FreeAiError)) throw err;
-    outcome = { outcome: err.code, status: err.status };
+    outcome = probeOutcome(err);
   }
   const activated = outcome.outcome === "answered" ? await deps.store.activate(study.id, deps.now()) : false;
   await deps.store.recordProbe(study.id, window, deps.now(), { ...outcome, activated });

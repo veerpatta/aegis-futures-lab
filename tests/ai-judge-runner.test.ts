@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { FreeAiError, type ChatRequest, type ChatResult } from "@/lib/ai-free/nvidia";
+import { chat as realChat, FreeAiError, resetAvailability, type ChatRequest, type ChatResult } from "@/lib/ai-free/nvidia";
 import { ABANDONED_CLAIM_SECONDS, CALLS_PER_STUDY, JUDGE_MEMORY, MAX_ATTEMPTS, PROBE_TIMEOUT_MS, runJudge, type JudgeDecisionRow, type JudgeStore, type JudgeStudyRow } from "@/lib/ai-judge/runner";
 import type { StoredLook } from "@/lib/ai-judge/looks";
 import type { JudgeLookResult, JudgeScoreRow } from "@/lib/ai-judge/score";
@@ -244,5 +244,26 @@ describe("AI second opinion runner", () => {
     expect(report.activated).toEqual([]);
     expect(events.find((e) => e.kind === "probe")?.payload).toMatchObject({ outcome: "timeout", activated: false });
     expect(rows[0].status).toBe("waiting-for-model");
+  });
+
+  it("records what the probe found, not chat's summary code (2026-11-07: DeepSeek's first probe said all-unavailable)", async () => {
+    resetAvailability();
+    const env = { NVIDIA_API_KEY: "nvapi-" + "k".repeat(40) };
+    // Kimi: NVIDIA answers 404, which the card words as "does not offer it to free keys yet".
+    const kimi = memStore([waiting()], [], () => T0);
+    const notFound = vi.fn(async () => new Response("Function not found for account", { status: 404 }));
+    const ask404 = (req: ChatRequest) => realChat(req, { fetch: notFound as unknown as typeof globalThis.fetch, env, now: () => T0 });
+    const r1 = await runJudge({ store: kimi.store, chat: ask404, now: () => T0 }, budget());
+    expect(notFound).toHaveBeenCalledTimes(1);
+    expect(r1.probes).toEqual([{ study: KIMI_JUDGE_STUDY.id, outcome: "not-found" }]);
+    expect(kimi.events.find((e) => e.kind === "probe")?.payload).toMatchObject({ outcome: "not-found", status: 404, activated: false });
+    // DeepSeek: a 502 after a long wait is "busy", worded as "its servers did not answer".
+    const deepseek = memStore([{ id: DEEPSEEK_JUDGE_STUDY.id, status: "waiting-for-model", startedAt: null, configHash: judgeConfigHash(DEEPSEEK_JUDGE_STUDY) }], [], () => T0);
+    const bad = vi.fn(async () => new Response("upstream request failed", { status: 502 }));
+    const ask502 = (req: ChatRequest) => realChat(req, { fetch: bad as unknown as typeof globalThis.fetch, env, now: () => T0 });
+    const r2 = await runJudge({ store: deepseek.store, chat: ask502, now: () => T0 }, budget());
+    expect(r2.probes).toEqual([{ study: DEEPSEEK_JUDGE_STUDY.id, outcome: "busy" }]);
+    expect(deepseek.events.find((e) => e.kind === "probe")?.payload).toMatchObject({ outcome: "busy", status: 502 });
+    resetAvailability();
   });
 });
