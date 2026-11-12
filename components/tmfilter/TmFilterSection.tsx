@@ -9,7 +9,8 @@ import { getNeon } from "@/lib/neon/client";
 import { usePrivacy } from "@/components/providers/PrivacyProvider";
 import { money } from "@/lib/format";
 import { TM_FWD_STUDY, TM_HIST_STUDY } from "@/lib/tm-study/rules";
-import { TMF_EXPOSED, TMF_LEDE, tmfForwardLine, tmfPassLine, tmfVerdictWords, type TmfVerdict } from "@/lib/plain/tmfilter";
+import { TMF_EXPOSED, TMF_LEDE, tmfForwardLine, tmfMissed, tmfPassLine, tmfVerdictWords, type TmfVerdict } from "@/lib/plain/tmfilter";
+import { TM_FILTER_RULES } from "@/lib/tm-study/rules";
 import page from "@/components/ui/page.module.css";
 import exp from "@/components/experiment/experiment.module.css";
 
@@ -82,6 +83,13 @@ export default function TmFilterSection() {
       <p className={`${page.note} ${page[h.tone]}`}>
         <b>{h.head}.</b> {h.body}
       </p>
+      {r && hist?.verdict !== "pass" && (
+        <ul>
+          {tmfMissed(r, TM_FILTER_RULES.historical.look.percentile).map((line) => (
+            <li key={line} className={page.note}>{line}</li>
+          ))}
+        </ul>
+      )}
       {r && (
         <>
           <dl className={exp.facts}>

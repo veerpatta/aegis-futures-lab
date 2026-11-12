@@ -26,9 +26,21 @@ export function tmfVerdictWords(v: TmfVerdict | null, kind: "historical" | "forw
     head: "Inconclusive",
     tone: "warn",
     body: kind === "historical"
-      ? "Not clearly better or worse than taking every idea, or the kept ideas still lost money after costs. This version will not change trades."
+      ? "It missed at least one pass mark (below). This version will not change trades."
       : "Not clearly better or worse yet. The next look follows.",
   };
+}
+
+/** Which preregistered pass marks a stored look missed, in plain words (empty when it passed). */
+export function tmfMissed(r: { delta: { lo: number } | null; randomPercentile: number | null; keptNet: number; skipRate: number }, percentile: number): string[] {
+  const out: string[] = [];
+  const { min, max } = TM_FILTER_RULES.scoring.skipRate;
+  if (!r.delta || r.delta.lo <= 0) out.push("It did not clearly beat taking every idea.");
+  if (r.randomPercentile === null || r.randomPercentile < percentile)
+    out.push(`Random skips of the same size did better: it beat only ${r.randomPercentile ?? 0}% of them (it needed ${percentile}%).`);
+  if (r.keptNet <= 0) out.push("The ideas it kept still lost money after costs.");
+  if (r.skipRate < min || r.skipRate > max) out.push(`It skipped ${Math.round(r.skipRate * 100)}% of ideas; the limit was ${min * 100}% to ${max * 100}%.`);
+  return out;
 }
 
 export const tmfPassLine = () =>

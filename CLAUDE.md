@@ -176,6 +176,11 @@ short sentences. The reader knows trading but not software. Always keep the
   makes it eligible to SHADOW as a learner challenger (learner adoption rules decide); fail/inconclusive
   closes v1's path to trades. Screens: Learn `#tm-filter` (`components/tmfilter/TmFilterSection.tsx`,
   words `lib/plain/tmfilter.ts`), a line on each trade's time machine card, More → Research room.
+  RESULT (2026-11-12, `docs/research/2026-11-12-time-machine-filter-result.md`): all 1,897 rows regenerated
+  and matched; historical look INCONCLUSIVE (delta +$2.29/idea [0.38, 4.19] but 0.7th pct vs random skips,
+  kept −$4,512, skip 62.7%). The 132 ideas it approved lost −$12.70/idea vs −$3.65 for those it skipped:
+  it only loses less by skipping most of a losing stream. v1 is NOT shadow-eligible; the forward test runs
+  for information. Do not invert or tune it on these rows (post-hoc); a new idea needs a new version.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
