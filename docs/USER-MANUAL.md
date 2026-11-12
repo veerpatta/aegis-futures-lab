@@ -54,6 +54,17 @@ Any word with a dotted underline can be tapped for a short meaning. Close a shee
 5. **The ending.** Reached its target, Stopped out, Closed before stop or target, Open now — or "Not resolved yet" when the bot has not recorded how an old idea finished. Results are after costs.
 6. **Details.** Tap a card for why the bot took it and, under "How this kind of idea has done", the numbers with their sample sizes.
 
+### The time machine
+
+Open any bot trade and tap **Time machine** for the honest odds before that trade. It replays the rest of that trading day 10,000 times. Each replay is built from the bot's own delayed 5-minute prices at the same time of day on the 59 full trading days before the trade. It never uses that day's prices or later ones.
+
+- **Target first, Stop first, Still open.** How the 10,000 replays ended. Still open means neither was reached by the close. The bot's own rules apply: the stop is checked first, a price bar that touches both counts as the stop, and everything is closed by 15:25 New York time.
+- **The verdict.** "Close to a coin flip" or "Close to break-even" means the target came first about as often as it needed to just to break even. "Leans toward" and "Strongly toward" mean 5 and 15 points away from that. A farther target needs to win less often: 1 in 2 when it is as far as the stop, 1 in 3 when it is twice as far.
+- **Costs.** The odds are before costs. One line puts back one contract's commission and slippage. With a tight stop, costs are a big share of the risk.
+- **The past days.** The same stop and target, placed at the same time of day on each past day, on the real prices. It shows what that bracket did at that hour, whatever the idea said.
+
+It is a simulation, not a prediction. News, a Fed day or a halt can do things those days never did. It needs at least 20 full past days, replays only 02:00 to 15:25 New York time (11:30–00:55 IST while the US is on summer time, 12:30–01:55 IST in winter), and does not run on short trading days. It never changes a trade.
+
 ## 4. The experimental learner
 
 ### Meet the bot on Learn
@@ -274,4 +285,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-11-12 (the time machine on every bot trade; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*

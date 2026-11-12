@@ -11,3 +11,7 @@ test-results/
 playwright-report/
 .codex-remote-attachments/
 dist/
+
+# Day-trader skills write their working files here (plans, orders, alerts, state)
+/trader/
+__pycache__/

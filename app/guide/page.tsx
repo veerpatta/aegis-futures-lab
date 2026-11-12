@@ -144,6 +144,41 @@ export default function GuidePage() {
         </ol>
       </section>
 
+      <section className={styles.card} id="time-machine">
+        <h2>The time machine</h2>
+        <p>
+          Open any bot trade and tap <b>Time machine</b> for the honest odds before that trade. It replays the rest of that
+          trading day 10,000 times. Each replay is built from the bot&apos;s own delayed 5-minute prices at the same time of
+          day on the 59 full trading days before the trade. It never uses that day&apos;s prices or later ones.
+        </p>
+        <ul>
+          <li>
+            <b>Target first, Stop first, Still open.</b> How the 10,000 replays ended. Still open means neither was reached by the close. The bot&apos;s own rules
+            apply: the stop is checked first, a price bar that touches both counts as the stop, and everything is closed by{" "}
+            {etTimeLabel("15:25")}.
+          </li>
+          <li>
+            <b>The verdict.</b> &ldquo;Close to a coin flip&rdquo; or &ldquo;Close to break-even&rdquo; means the target
+            came first about as often as it needed to just to break even. &ldquo;Leans toward&rdquo; and &ldquo;Strongly
+            toward&rdquo; mean 5 and 15 points away from that. A farther target needs to win less often: 1 in 2 when it is
+            as far as the stop, 1 in 3 when it is twice as far.
+          </li>
+          <li>
+            <b>Costs.</b> The odds are before costs. One line puts back one contract&apos;s commission and slippage. With a
+            tight stop, costs are a big share of the risk.
+          </li>
+          <li>
+            <b>The past days.</b> The same stop and target, placed at the same time of day on each past day, on the real
+            prices. It shows what that bracket did at that hour, whatever the idea said.
+          </li>
+        </ul>
+        <p>
+          It is a simulation, not a prediction. News, a Fed day or a halt can do things those days never did. It needs at
+          least 20 full past days, replays only {etWindowLabel("02:00", "15:25")}, and does not run on short trading days.
+          It never changes a trade.
+        </p>
+      </section>
+
       <section className={styles.card} id="learner">
         <h2>The experimental learner</h2>
         <h3>Meet the bot on Learn</h3>
@@ -434,7 +469,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-11-07 (simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). A printable version of this guide lives in
+        Matches the app as of 2026-11-12 (the time machine on every bot trade; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf

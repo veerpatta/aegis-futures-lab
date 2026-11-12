@@ -31,6 +31,8 @@ import Fold from "@/components/ui/Fold";
 import { useAi } from "@/components/ai/AiProvider";
 import { AiByline, AiOpinion } from "@/components/ai/AiViews";
 import { tradeStory } from "@/lib/plain/recap";
+import TimeMachine from "./TimeMachine";
+import { TM_SUMMARY, TM_TITLE } from "@/lib/plain/timemachine";
 
 const px = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
@@ -190,6 +192,15 @@ export default function TradeDetail({ id }: { id: string }) {
           </p>
         )}
       </section>
+
+      {idea && (
+        <Fold id="time-machine" summary={TM_SUMMARY}>
+          <section className={`${page.card} ${styles.card}`} aria-label={TM_TITLE}>
+            <h2 className={page.cardTitle}>{TM_TITLE}</h2>
+            <TimeMachine row={row} />
+          </section>
+        </Fold>
+      )}
 
       <Fold summary={taken ? "Why it entered · the rule and the values saved at decision time" : "The idea it saw · the rule and the values saved at decision time"}>
       <section className={`${page.card} ${styles.card}`} aria-label="Why it entered">
