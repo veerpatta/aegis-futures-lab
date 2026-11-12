@@ -143,6 +143,12 @@ short sentences. The reader knows trading but not software. Always keep the
   for a future campaign, never automatic. Every NVIDIA call streams (its gateway 502s non-streamed
   answers past ~30 s); `chat()` takes an absolute deadline. `GET /api/ai/status` reports key/model/DB
   without calling a model.
+- CLAUDE SKILLS (2026-11-12): `.claude/skills/trader-*` are ten day-trading skills from
+  github.com/Jakeschincariol/day-trader-skill (MIT, commit `3d0f4ef`; see `.claude/skills/README.md`).
+  They are agent helpers, not app code: nothing in the engine, learner, site or research-code hash
+  reads them, and their working folder `trader/` is git-ignored. `trader-broker` (real broker orders)
+  is deliberately NOT installed. They are built for US stocks; an idea they surface is unmeasured and
+  goes through `/diagnostics` and the promotion gate, never straight to a tier.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
