@@ -65,6 +65,14 @@ Open any bot trade and tap **Time machine** for the honest odds before that trad
 
 It is a simulation, not a prediction. News, a Fed day or a halt can do things those days never did. It needs at least 20 full past days, replays only 02:00 to 15:25 New York time (11:30–00:55 IST while the US is on summer time, 12:30–01:55 IST in winter), and does not run on short trading days. It never changes a trade.
 
+### The time machine filter test
+
+Can the time machine make the bot trade better? One rule was written down and locked before any result: skip an idea when the time machine's average replay, after one contract's costs, is below zero. Find it in Learn (or More → Time machine filter test).
+
+- **On past ideas.** The same ideas the historical study replayed from 2019 to 2026 are rebuilt and checked first. Then the rule is judged once: it must beat taking every idea, beat random skips of the same size, and make money after costs. Those years were used by earlier research, so this is a check, not fresh evidence.
+- **On new decisions.** Every new learner decision gets the filter's call within a day. Looks come at 60 and 150 finished ideas and are stored once. Each trade's time machine card says whether the filter would have taken or skipped it.
+- **What a pass changes.** A pass on past ideas lets the filter shadow in the learner as a new candidate. The learner's own rules then decide whether it ever takes charge of trades. A fail or an unclear result changes nothing.
+
 ## 4. The experimental learner
 
 ### Meet the bot on Learn
@@ -285,4 +293,4 @@ iPhone: open the site in Safari, tap Share, then Add to Home Screen. Android: op
 
 ---
 
-*Manual version: matches the app as of 2026-11-12 (the time machine on every bot trade; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*
+*Manual version: matches the app as of 2026-11-12 (the time machine on every bot trade and its filter test; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). If the app has changed since, the in-app Guide is the source of truth.*

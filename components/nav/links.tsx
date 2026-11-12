@@ -190,6 +190,16 @@ export const MORE_GROUPS: NavGroup[] = [
         ),
       },
       {
+        href: "/brain#tm-filter",
+        label: "Time machine filter test",
+        hint: "Can skipping ideas the time machine scores below zero pick better trades?",
+        icon: (
+          <svg {...iconProps}>
+            <path d="M4 5h16l-6 7v6l-4 2v-8z" />
+          </svg>
+        ),
+      },
+      {
         href: "/lab",
         label: "Strategy Lab",
         shortLabel: "Lab",

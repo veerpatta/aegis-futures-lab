@@ -9,6 +9,9 @@ import type { ExpTradeRow } from "@/lib/experiment/view";
 import { timeMachine, TM_LOOKBACK_DAYS, type TmBar, type TmResult, type TmRefusal } from "@/lib/timemachine";
 import { pct, tmCaveat, tmCostLine, tmExplain, tmHeadline, tmHistoryLine, tmRangeLine, tmRefusalWords, tmTone } from "@/lib/plain/timemachine";
 import { COMMISSION_RT, pointValue, slipPoints } from "@/lib/experiment/policy";
+import { getNeon } from "@/lib/neon/client";
+import { TM_FWD_STUDY } from "@/lib/tm-study/rules";
+import { tmfCallLine } from "@/lib/plain/tmfilter";
 import page from "@/components/ui/page.module.css";
 import styles from "./timemachine.module.css";
 
@@ -39,9 +42,25 @@ export function tradePlan(row: ExpTradeRow) {
   return { side: row.side, entry: Number(entry), stop: Number(idea.stop), target: idea.target == null ? null : Number(idea.target), startSec: Math.floor(Date.parse(start) / 1000) };
 }
 
+type FilterCallRow = { ok: boolean; skip: boolean; edge_r: number | null; refusal: string | null };
+
 export default function TimeMachine({ row }: { row: ExpTradeRow }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [retry, setRetry] = useState(0);
+  const [filterCall, setFilterCall] = useState<FilterCallRow | null>(null);
+
+  // The filter test's stored call for this decision, if the forward test scored it.
+  useEffect(() => {
+    let live = true;
+    getNeon().from("tm_filter_calls").select("ok,skip,edge_r,refusal").eq("study_id", TM_FWD_STUDY).eq("decision_key", row.decision_key).limit(1)
+      .then((res) => {
+        const c = (res.data?.[0] ?? null) as Record<string, unknown> | null;
+        if (live && !res.error && c) setFilterCall({ ok: Boolean(c.ok), skip: Boolean(c.skip), edge_r: c.edge_r === null ? null : Number(c.edge_r), refusal: (c.refusal as string | null) ?? null });
+      }, () => {});
+    return () => {
+      live = false;
+    };
+  }, [row.decision_key]);
 
   useEffect(() => {
     let live = true;
@@ -117,6 +136,7 @@ export default function TimeMachine({ row }: { row: ExpTradeRow }) {
       <p className={styles.line}>{tmRangeLine(r)}</p>
       <p className={styles.line}>{tmCostLine(costDollars, costR, r.odds.avgR)}</p>
       <p className={styles.line}>{tmHistoryLine(r.history)}</p>
+      {filterCall && <p className={styles.line}>{tmfCallLine(filterCall)}</p>}
       <p className={page.note}>{tmCaveat(r)}</p>
     </div>
   );
