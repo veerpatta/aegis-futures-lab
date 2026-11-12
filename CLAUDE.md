@@ -239,6 +239,9 @@ short sentences. The reader knows trading but not software. Always keep the
   `lib/research/auto-benchmark.ts`. It never promotes and never edits standing — a person
   moves a method in `lib/strategies/research-standing.json` (unhashed, so moving one does
   not restart forward evidence). Each method is measured once per research-code hash.
+  2026-11-12: all four classics were measured (ema-cross 10-11, orb 10-18, vwap-reversion 10-25,
+  bollinger-breakout 11-01, all `no-edge`) and the owner moved them to `refuted`; nothing is
+  `unmeasured` now, so weekly runs are quiet until a new method or research-code revision arrives.
 - Never run `scripts/engine/run-live.ts` locally: `.env.local` points at production Neon and
   there is no dry-run mode.
 - Times on screen follow a global ET/IST switch (`components/providers/ZoneProvider.tsx`,

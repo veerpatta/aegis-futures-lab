@@ -41,11 +41,17 @@ describe("untaken intents close once their session is over", () => {
   });
 });
 
-describe("standing of the benchmark-less classics", () => {
-  it("is 'unmeasured', not the old default 'measured'", () => {
+describe("standing of the four classics", () => {
+  /* Unmeasured from 2026-10-03 until the weekly auto-benchmark measured each one
+     against matched random entries, and none beat it (research_trials):
+     ema-cross 2026-10-11 (0 of 16 market-years at the 95th percentile),
+     orb 2026-10-18 (1 of 8), vwap-reversion 2026-10-25 (0 of 16),
+     bollinger-breakout 2026-11-01 (0 of 16). The owner moved them to refuted on
+     2026-11-12. Do not tune them. */
+  it("is 'refuted', as their recorded benchmarks say", () => {
     for (const id of ["ema-cross", "orb", "vwap-reversion", "bollinger-breakout"]) {
-      expect(isUnmeasured(id), id).toBe(true);
-      expect(standingOf(id), id).toBe("unmeasured");
+      expect(isUnmeasured(id), id).toBe(false);
+      expect(standingOf(id), id).toBe("refuted");
     }
   });
   it("leaves no registered strategy in the unbacked 'measured' state", () => {
