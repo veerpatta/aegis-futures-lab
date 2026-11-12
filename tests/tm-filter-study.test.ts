@@ -62,3 +62,16 @@ describe("time machine filter scoring", () => {
     expect("due" in enough && enough.due.look).toBe(1);
   });
 });
+
+describe("time machine filter words", () => {
+  it("names each pass mark the stored historical look missed", async () => {
+    const { tmfMissed } = await import("@/lib/plain/tmfilter");
+    const missed = tmfMissed({ delta: { lo: 0.38 }, randomPercentile: 0.7, keptNet: -4512.2, skipRate: 0.627 }, 95);
+    expect(missed).toEqual([
+      "Random skips of the same size did better: it beat only 0.7% of them (it needed 95%).",
+      "The ideas it kept still lost money after costs.",
+      "It skipped 63% of ideas; the limit was 10% to 60%.",
+    ]);
+    expect(tmfMissed({ delta: { lo: 1 }, randomPercentile: 99, keptNet: 10, skipRate: 0.3 }, 95)).toEqual([]);
+  });
+});
