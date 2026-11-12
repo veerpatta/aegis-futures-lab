@@ -1,0 +1,35 @@
+# The time machine filter's historical test (lib/tm-study, docs/research/
+# 2026-11-12-time-machine-filter-preregistration.md). Manual only. It regenerates
+# every eligible idea of the registered historical study from the Databento
+# archive, checks each against the stored outcome (any mismatch stops it), and
+# stores ONE look. If that look is already stored it prints it and stops: the
+# result is never recomputed. Reads the archive and history_*; writes only the
+# write-once tm_filter_* tables. Virtual only: no broker, no paid data, no paid AI.
+
+name: tm-filter-study
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: tm-filter-study
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  historical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Historical look (one, stored once)
+        run: NODE_OPTIONS=--max-old-space-size=6144 npx tsx scripts/tm-study/historical.ts
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

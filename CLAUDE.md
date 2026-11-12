@@ -161,6 +161,21 @@ short sentences. The reader knows trading but not software. Always keep the
   `/api/archive?...&session=ny`, which reads only each weekday's 01:55-15:25 window in parallel 6-day groups
   (~4 s vs ~13 s for a full read). Odds are before costs; one line adds one contract's commission + slippage
   from `lib/experiment/policy`. It is context, not evidence: it is not a benchmark and moves no standing.
+- TIME MACHINE FILTER TEST (2026-11-12, owner chose "evidence first"): preregistration
+  `docs/research/2026-11-12-time-machine-filter-preregistration.md`, rules `lib/tm-study/rules.ts`
+  (`tm-filter-v1`, hash pinned by `tests/tm-filter-rules.test.ts`). Rule: skip an idea when the time
+  machine's average replay R minus one contract's cost R is below zero (entry = the learner's ref_price,
+  start = decided_at, idea stop/target); take when it cannot run. Historical test: manual
+  `tm-filter-study.yml` → `scripts/tm-study/historical.ts`, regenerates every eligible row of
+  `hist-2026-10-07` with `streamIdeas`/`replayIdea` (any outcome mismatch stops it), pool = Databento
+  days minus flagged days, ONE look (95% interval, random pct ≥ 95, kept net > 0, skip 10-60%),
+  development-exposed. Forward test: `scripts/tm-study/forward.ts` in `signal-engine.yml` after the
+  learner tick (best effort), one call per new learner decision within 24 h (DB-enforced), looks at
+  60/150 (99/95). Tables `tm_filter_studies|calls|looks` (migration `db/migrations/20261112_tm_filter.sql`,
+  write-once triggers, public read). Scoring reuses `lib/ai-ideas/score.ts`. A historical PASS only
+  makes it eligible to SHADOW as a learner challenger (learner adoption rules decide); fail/inconclusive
+  closes v1's path to trades. Screens: Learn `#tm-filter` (`components/tmfilter/TmFilterSection.tsx`,
+  words `lib/plain/tmfilter.ts`), a line on each trade's time machine card, More → Research room.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`

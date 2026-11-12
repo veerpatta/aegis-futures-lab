@@ -166,27 +166,44 @@ export function slotAtOrAfter(sec: number): number {
   return Number.isInteger(slot) && slot >= 0 && slot < TM_SLOTS ? slot : -1;
 }
 
-/** Trading days strictly before `beforeDateKey` with every bar from `fromSlot` to the flatten bar, oldest first, at most the latest `max`. */
-export function fullSessions(bars: readonly TmBar[], beforeDateKey: string, max: number = TM_DEFAULTS.maxSessions, fromSlot = 0): TmSession[] {
-  const days = new Map<string, { slots: (TmBar | undefined)[]; prev?: TmBar }>();
+/** One weekday's bars by slot, plus the bar before the first slot. */
+export interface TmDay {
+  dateKey: string;
+  slots: (TmBar | undefined)[];
+  prev?: TmBar;
+}
+
+/** Group bars into open, normal-length weekdays (holidays and early-close days dropped), oldest first.
+ *  Done once per series; `poolFromDays` then picks each trade's pool cheaply. */
+export function indexDays(bars: readonly TmBar[]): TmDay[] {
+  const days = new Map<string, TmDay>();
   for (const b of bars) {
     if (![b.open, b.high, b.low, b.close].every((v) => Number.isFinite(v) && v > 0)) continue;
     const m = nyMeta(b.time);
-    if (m.dateKey >= beforeDateKey || m.weekday === "Sat" || m.weekday === "Sun") continue;
+    if (m.weekday === "Sat" || m.weekday === "Sun") continue;
     const rel = m.minutes - TM_FIRST_MIN;
+    if (rel !== -5 && (rel < 0 || rel % 5 !== 0 || rel / 5 >= TM_SLOTS)) continue;
     let day = days.get(m.dateKey);
-    if (rel === -5) {
-      if (!day) days.set(m.dateKey, (day = { slots: new Array(TM_SLOTS) }));
-      day.prev = b;
-      continue;
-    }
-    if (rel < 0 || rel % 5 !== 0 || rel / 5 >= TM_SLOTS) continue;
-    if (!day) days.set(m.dateKey, (day = { slots: new Array(TM_SLOTS) }));
-    day.slots[rel / 5] = b;
+    if (!day) days.set(m.dateKey, (day = { dateKey: m.dateKey, slots: new Array(TM_SLOTS) }));
+    if (rel === -5) day.prev = b;
+    else day.slots[rel / 5] = b;
+  }
+  return [...days.values()]
+    .filter((d) => !isMarketHoliday(d.dateKey) && earlyCloseMinuteNy(d.dateKey) === null)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+}
+
+/** The latest `max` days strictly before `beforeDateKey` with every bar from `fromSlot` to the flatten bar, oldest first. */
+export function poolFromDays(days: readonly TmDay[], beforeDateKey: string, max: number = TM_DEFAULTS.maxSessions, fromSlot = 0): TmSession[] {
+  let lo = 0, hi = days.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (days[mid].dateKey < beforeDateKey) lo = mid + 1;
+    else hi = mid;
   }
   const out: TmSession[] = [];
-  for (const [dateKey, day] of [...days.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    if (isMarketHoliday(dateKey) || earlyCloseMinuteNy(dateKey) !== null) continue;
+  for (let d = lo - 1; d >= 0 && out.length < max; d--) {
+    const day = days[d];
     const slots = day.slots;
     let full = true;
     for (let i = fromSlot; i < TM_SLOTS; i++) if (!slots[i]) { full = false; break; }
@@ -202,9 +219,14 @@ export function fullSessions(bars: readonly TmBar[], beforeDateKey: string, max:
       ratios[i * 4 + 3] = b.close / prevClose;
       prevClose = b.close;
     }
-    out.push({ dateKey, bars: slots, ratios });
+    out.push({ dateKey: day.dateKey, bars: slots, ratios });
   }
-  return out.slice(-max);
+  return out.reverse();
+}
+
+/** Trading days strictly before `beforeDateKey` with every bar from `fromSlot` to the flatten bar, oldest first, at most the latest `max`. */
+export function fullSessions(bars: readonly TmBar[], beforeDateKey: string, max: number = TM_DEFAULTS.maxSessions, fromSlot = 0): TmSession[] {
+  return poolFromDays(indexDays(bars), beforeDateKey, max, fromSlot);
 }
 
 /** mulberry32: a tiny seeded generator, the same sequence on every device. */
@@ -248,6 +270,15 @@ export function timeMachine(
   plan: TmPlan,
   opts: Partial<TmOptions> = {},
 ): TmResult | ({ ok: false } & TmRefusal) {
+  return timeMachineDays(indexDays(bars), plan, opts);
+}
+
+/** The same, from days already grouped by `indexDays` (for running many trades over one series). */
+export function timeMachineDays(
+  days: readonly TmDay[],
+  plan: TmPlan,
+  opts: Partial<TmOptions> = {},
+): TmResult | ({ ok: false } & TmRefusal) {
   const o = { ...TM_DEFAULTS, ...opts };
   const bad = checkPlan(plan);
   if (bad) return { ok: false, ...bad };
@@ -256,7 +287,7 @@ export function timeMachine(
   const day = nyMeta(Math.ceil(plan.startSec / TM_BAR_SEC) * TM_BAR_SEC).dateKey;
   if (earlyCloseMinuteNy(day) !== null) return { ok: false, kind: "early-close" };
   const fromSlot = Math.max(0, slot - o.window);
-  const pool = fullSessions(bars, day, o.maxSessions, fromSlot);
+  const pool = poolFromDays(days, day, o.maxSessions, fromSlot);
   if (pool.length < o.minSessions) return { ok: false, kind: "few-sessions", have: pool.length, need: o.minSessions };
 
   const d = dirOf(plan.side);

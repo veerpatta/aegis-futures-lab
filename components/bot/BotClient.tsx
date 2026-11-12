@@ -10,12 +10,14 @@
    account itself lives on Today; it is not repeated here. */
 
 import HistorySection from "@/components/history/HistorySection";
+import TmFilterSection from "@/components/tmfilter/TmFilterSection";
 import Fold from "@/components/ui/Fold";
 import LearnSection from "./LearnSection";
 import ResearchSection from "./ResearchSection";
 import AIResearch from "./AIResearch";
 import OwnerControls from "./OwnerControls";
 import page from "@/components/ui/page.module.css";
+import { TMF_SUMMARY } from "@/lib/plain/tmfilter";
 
 export default function BotClient() {
   return (
@@ -30,6 +32,9 @@ export default function BotClient() {
       </Fold>
       <Fold id="owner" summary="Owner controls · pause, resume or start a campaign">
         <OwnerControls />
+      </Fold>
+      <Fold id="tm-filter" summary={TMF_SUMMARY}>
+        <TmFilterSection />
       </Fold>
       <Fold id="history" summary="Historical practice · the older-data study">
         <HistorySection />

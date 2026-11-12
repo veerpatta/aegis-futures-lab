@@ -83,6 +83,14 @@ jobs:
           npx tsx scripts/experiment/run.ts tick
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      # Time machine filter, forward test (docs/research/2026-11-12-time-machine-
+      # filter-preregistration.md): one write-once call per new learner decision
+      # and any frozen look that is due. Reads the learner, never writes to it.
+      # Best effort: the script catches its own errors and always exits 0.
+      - name: Time machine filter test (forward)
+        run: npx tsx scripts/tm-study/forward.ts
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       # Last, after the engine's work is done: copy the owner's GitHub key (if
       # set) to the private table the Neon clock reads. The script catches its
       # own errors and always exits 0, so it never fails or delays a pass.

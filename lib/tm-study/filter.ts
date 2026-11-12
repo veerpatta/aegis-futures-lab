@@ -2,7 +2,7 @@
    only what existed at the decision: bars from days before the decision's day,
    and the reference price the learner itself used. */
 
-import { timeMachine, type TmBar } from "@/lib/timemachine";
+import { indexDays, timeMachineDays, type TmBar, type TmDay } from "@/lib/timemachine";
 import { COMMISSION_RT, pointValue, slipPoints } from "@/lib/experiment/policy";
 import type { ExpSymbol } from "@/lib/experiment/types";
 import { TM_FILTER_RULES } from "./rules";
@@ -27,9 +27,14 @@ export function costR(symbol: ExpSymbol, entry: number, stop: number, atSec: num
 }
 
 export function filterCall(bars: readonly TmBar[], idea: FilterIdea, rules = TM_FILTER_RULES): FilterCall {
+  return filterCallDays(indexDays(bars), idea, rules);
+}
+
+/** The same, from days grouped once by `indexDays`. */
+export function filterCallDays(days: readonly TmDay[], idea: FilterIdea, rules = TM_FILTER_RULES): FilterCall {
   const t = rules.timeMachine;
-  const r = timeMachine(
-    bars,
+  const r = timeMachineDays(
+    days,
     { side: idea.side, entry: idea.refPrice, stop: idea.stop, target: idea.target, startSec: idea.decidedAt },
     { replays: t.replays, seed: t.seed, window: t.window, minSessions: t.minSessions, maxSessions: t.maxSessions },
   );

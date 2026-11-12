@@ -179,6 +179,32 @@ export default function GuidePage() {
         </p>
       </section>
 
+      <section className={styles.card} id="tm-filter">
+        <h2>The time machine filter test</h2>
+        <p>
+          Can the time machine make the bot trade better? One rule was written down and locked before any result: skip an
+          idea when the time machine&apos;s average replay, after one contract&apos;s costs, is below zero. Find it in Learn
+          (or More → Time machine filter test).
+        </p>
+        <ul>
+          <li>
+            <b>On past ideas.</b> The same ideas the historical study replayed from 2019 to 2026 are rebuilt and checked
+            first. Then the rule is judged once: it must beat taking every idea, beat random skips of the same size, and
+            make money after costs. Those years were used by earlier research, so this is a check, not fresh evidence.
+          </li>
+          <li>
+            <b>On new decisions.</b> Every new learner decision gets the filter&apos;s call within a day. Looks come at 60
+            and 150 finished ideas and are stored once. Each trade&apos;s time machine card says whether the filter would
+            have taken or skipped it.
+          </li>
+          <li>
+            <b>What a pass changes.</b> A pass on past ideas lets the filter shadow in the learner as a new candidate. The
+            learner&apos;s own rules then decide whether it ever takes charge of trades. A fail or an unclear result changes
+            nothing.
+          </li>
+        </ul>
+      </section>
+
       <section className={styles.card} id="learner">
         <h2>The experimental learner</h2>
         <h3>Meet the bot on Learn</h3>
@@ -469,7 +495,7 @@ export default function GuidePage() {
       </section>
 
       <p className={styles.foot}>
-        Matches the app as of 2026-11-12 (the time machine on every bot trade; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). A printable version of this guide lives in
+        Matches the app as of 2026-11-12 (the time machine on every bot trade and its filter test; simpler screens, AI second opinion and Ask the AI on the free NVIDIA service, DeepSeek V4.1 Flash waiting, paid AI off). A printable version of this guide lives in
         the project as{" "}
         <a href="https://github.com/veerpatta/aegis-futures-lab/blob/main/docs/user-manual.pdf" target="_blank" rel="noreferrer">
           docs/user-manual.pdf
