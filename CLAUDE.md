@@ -148,7 +148,19 @@ short sentences. The reader knows trading but not software. Always keep the
   They are agent helpers, not app code: nothing in the engine, learner, site or research-code hash
   reads them, and their working folder `trader/` is git-ignored. `trader-broker` (real broker orders)
   is deliberately NOT installed. They are built for US stocks; an idea they surface is unmeasured and
-  goes through `/diagnostics` and the promotion gate, never straight to a tier.
+  goes through `/diagnostics` and the promotion gate, never straight to a tier. The time machine skill's
+  method is ported into the app (TIME MACHINE below).
+- TIME MACHINE (2026-11-12, the app's first use of the day-trader skill pack): every bot trade page
+  (`components/trades/TradeDetail.tsx`) has a `#time-machine` Fold (`components/trades/TimeMachine.tsx`) that
+  replays the rest of that trade's day 10,000 times (seed 19, mulberry32) from the bot's own delayed `bars_5m`
+  at the same time of day (±2 bars) on the latest 59 full days BEFORE the trade's NY date, with the learner's
+  rules (stop first, touch-both = stop, gap through the stop fills at the open, flat 15:25 ET), plus the same
+  bracket on each past day's real bars. Engine `lib/timemachine/` (pure, OUTSIDE the research-code hash; it
+  never feeds a decision), words `lib/plain/timemachine.ts`, tests `tests/timemachine.test.ts`. Window
+  02:00-15:25 ET = `inEntryWindow` (pinned); needs ≥20 full days, refuses early-close days. Bars come from
+  `/api/archive?...&session=ny`, which reads only each weekday's 01:55-15:25 window in parallel 6-day groups
+  (~4 s vs ~13 s for a full read). Odds are before costs; one line adds one contract's commission + slippage
+  from `lib/experiment/policy`. It is context, not evidence: it is not a benchmark and moves no standing.
 - Market quotes: `app/api/market` uses yesterday's settle (`lib/data/daily-change.ts`), not
   Yahoo's 5-day `chartPreviousClose`, so the "% today" figures are daily changes.
 - The watchdog (`scripts/engine/watchdog.mjs`) also checks the learner: label `watchdog-learner`
