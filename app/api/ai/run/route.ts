@@ -21,10 +21,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** No new AI call starts after 40 s, and every call must end by 55 s (Vercel
-    stops the function at 60 s). The clock starts when the request arrives. */
-const CALL_WINDOW_MS = 40_000;
-const HARD_STOP_MS = 55_000;
+/** No new AI call starts after 35 s, and every call must end by 47 s (Vercel
+    stops the function at 60 s). The clock starts when the request arrives.
+    The last 13 s are kept for the database writes that follow a call (the
+    answer, the model health record): aegis_ai_app's statement timeout is 10 s,
+    and a cold database can take seconds to wake. Until 2026-11-16 the hard stop
+    was 55 s, which left 5 s for those writes; on 2026-11-13 a pass ran past 60 s
+    and Vercel killed it ("Task timed out after 60 seconds" on /api/ai/run). */
+const CALL_WINDOW_MS = 35_000;
+const HARD_STOP_MS = 47_000; // pinned by tests/ai-helper-routes.test.ts
 const MAX_CALLS = 4;
 
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "no-store" } });

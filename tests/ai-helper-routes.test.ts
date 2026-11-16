@@ -83,7 +83,7 @@ describe("POST /api/ai/run (GitHub OIDC only)", () => {
     // A slow JWKS fetch takes 12 s of the function's 60.
     m.oidc.mockImplementationOnce(async () => { vi.setSystemTime(start + 12_000); return { ok: true, runId: "1", event: "schedule" }; });
     await post();
-    expect(m.runJudge.mock.calls[0][1]).toMatchObject({ deadline: start + 40_000, hardStop: start + 55_000 });
+    expect(m.runJudge.mock.calls[0][1]).toMatchObject({ deadline: start + 35_000, hardStop: start + 47_000 });
   });
 });
 

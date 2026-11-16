@@ -104,8 +104,10 @@ signal-engine.yml  run (engine + learner tick)  ──success──▶  ai-helpe
   `veerpatta/aegis-futures-lab` (repository id 1304384083, owner id 222136377), workflow
   `signal-engine.yml`, ref `refs/heads/main`, event `schedule` or `workflow_dispatch`.
 - **Time.** The clock starts when the request arrives (before the token is checked). At most 4
-  AI calls a pass, at most 2 per study, studies in a fixed order; no call starts after 40 s or
-  with under 8 s left before 55 s, and the deadline holds across the whole model chain. The job
+  AI calls a pass, at most 2 per study, studies in a fixed order; no call starts after 35 s or
+  with under 8 s left before 47 s, and the deadline holds across the whole model chain. The last
+  13 s of the 60 s function are kept for the database writes after a call (until 2026-11-16 the
+  stop was 55 s; a pass ran past 60 s on 2026-11-13 and was killed). The job
   waits 75 s at most and always exits 0: an AI outage never fails the engine. Its log line shows
   counts only (the log is public).
 - **Answers.** Every attempt is claimed first; the first answer (also an empty or unusable one)
