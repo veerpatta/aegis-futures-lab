@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Pool } from 'pg';
+import { dbPool } from '@/lib/db/pool';
 import { verifyNeonResearchUser } from '@/lib/ai-auth/verify';
 import { requireOwner } from '@/lib/ai-auth/owner';
 import { budgetedRequest, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS } from '@/lib/ai-budget';
@@ -25,12 +25,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Deliberately require a dedicated server credential, never a public URL.
-let connection: Pool | undefined;
-function pool(): Pool {
+function pool() {
   const url = process.env.AI_DATABASE_URL;
   if (!url) throw new Error('AI database is not configured');
-  if (!connection) connection = new Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000, query_timeout: AI_QUERY_TIMEOUT_MS, allowExitOnIdle: true });
-  return connection;
+  return dbPool('ai-research', () => ({ connectionString: url, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000, query_timeout: AI_QUERY_TIMEOUT_MS, allowExitOnIdle: true }));
 }
 async function status(userId: string) {
   const current = await new PgBudgetStore(pool()).status(userId);

@@ -2,7 +2,8 @@
  * All queries run against Neon PostgreSQL with a server-side pooled URL.
  * No database credential or write endpoint is exposed to the browser.
  */
-import { Pool, types } from "pg";
+import { types } from "pg";
+import { dbPool } from "@/lib/db/pool";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 types.setTypeParser(20, (value) => Number(value));
@@ -22,15 +23,14 @@ const identifier = (name: string) => {
   if (!/^[a-z_][a-z_0-9]*$/i.test(name)) throw new Error(`Invalid SQL identifier: ${name}`);
   return `"${name}"`;
 };
-let pool: Pool | undefined;
-function connection(): Pool {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Neon database access.");
-  if (!pool) {
-    const url = new URL(process.env.DATABASE_URL);
+function connection() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for Neon database access.");
+  return dbPool("neon", () => {
+    const url = new URL(databaseUrl);
     url.searchParams.set("sslmode", "verify-full");
-    pool = new Pool({ connectionString: url.toString(), max: 5, allowExitOnIdle: true });
-  }
-  return pool;
+    return { connectionString: url.toString(), max: 5, allowExitOnIdle: true };
+  });
 }
 
 /** All mutations in a lifecycle change share one connection and commit. */

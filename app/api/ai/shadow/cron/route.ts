@@ -1,7 +1,7 @@
 /** Separately authenticated, best-effort processing of explicitly registered
  * shadow snapshots. This endpoint never modifies learner or account state. */
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { dbPool } from '@/lib/db/pool';
 import { PgBudgetStore } from '@/lib/ai-budget/pg';
 import { ShadowStore } from '@/lib/ai-store/shadow';
 import { authorizeShadowScheduler, processShadowIdea, SHADOW_MODEL, shadowOpenAiProvider } from '@/lib/ai-shadow/processor';
@@ -12,12 +12,10 @@ export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
 
-let connection:Pool|undefined;
-function pool():Pool {
+function pool() {
   const url=process.env.AI_DATABASE_URL;
   if (!url) throw new Error('AI database is not configured');
-  if (!connection) connection=new Pool({connectionString:url,max:3,idleTimeoutMillis:10000,connectionTimeoutMillis:5000,allowExitOnIdle:true});
-  return connection;
+  return dbPool('ai-shadow-cron',()=>({connectionString:url,max:3,idleTimeoutMillis:10000,connectionTimeoutMillis:5000,allowExitOnIdle:true}));
 }
 
 export async function GET(request:Request) {

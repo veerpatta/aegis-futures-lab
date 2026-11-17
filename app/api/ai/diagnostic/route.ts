@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { dbPool } from '@/lib/db/pool';
 import { createHash } from 'node:crypto';
 import { verifyNeonResearchUser } from '@/lib/ai-auth/verify';
 import { requireOwner } from '@/lib/ai-auth/owner';
@@ -11,10 +11,9 @@ import { paidAiKey } from '@/lib/ai-cost/paid-ai';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-let connection:Pool|undefined;
 function pool() {
   if (!process.env.AI_DATABASE_URL) throw new Error('Database unavailable');
-  return connection ??= new Pool({connectionString:process.env.AI_DATABASE_URL,max:3,idleTimeoutMillis:10000,connectionTimeoutMillis:5000,allowExitOnIdle:true});
+  return dbPool('ai-diagnostic',()=>({connectionString:process.env.AI_DATABASE_URL,max:3,idleTimeoutMillis:10000,connectionTimeoutMillis:5000,allowExitOnIdle:true}));
 }
 export const POST = makeDiagnosticPost({
   authenticate:async request=>requireOwner(await verifyNeonResearchUser(request),async id=>(await pool().query('SELECT 1 FROM public.admin_control_authorized WHERE user_id=$1',[id])).rows.length===1),

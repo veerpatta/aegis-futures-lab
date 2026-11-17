@@ -12,7 +12,8 @@
    never writes them; it never touches paper_*, model_registry or the journal
    (tests/experiment-isolation.test.ts greps this file to keep it that way). */
 
-import { Pool, type PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
+import { dbPool } from "@/lib/db/pool";
 import type { Bar } from "@/lib/types";
 import type { SignalRow } from "@/lib/neon/client";
 import { COST_VERSION } from "./policy";
@@ -35,16 +36,14 @@ const iso = (s: number | null | undefined): string | null => (s == null ? null :
 const num = (v: unknown): number | null => (v == null ? null : Number(v));
 const json = (v: unknown) => (v == null ? null : JSON.stringify(v));
 
-let shared: Pool | undefined;
 export function experimentPool(connectionString = process.env.DATABASE_URL): Pool {
   if (!connectionString) throw new Error("DATABASE_URL is required for the experiment store.");
-  if (!shared) {
+  // lib/db/pool.ts also ignores an idle client dropped by the server (scale-to-zero).
+  return dbPool("experiment", () => {
     const url = new URL(connectionString);
     if (!url.searchParams.has("sslmode")) url.searchParams.set("sslmode", "require");
-    shared = new Pool({ connectionString: url.toString(), max: 3, allowExitOnIdle: true, idleTimeoutMillis: 10_000 });
-    shared.on("error", () => { /* idle client dropped (scale-to-zero); the next query reconnects */ });
-  }
-  return shared;
+    return { connectionString: url.toString(), max: 3, allowExitOnIdle: true, idleTimeoutMillis: 10_000 };
+  });
 }
 
 function expFromRow(r: Row): ExperimentConfig {
