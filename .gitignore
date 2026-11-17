@@ -15,3 +15,8 @@ dist/
 # Day-trader skills write their working files here (plans, orders, alerts, state)
 /trader/
 __pycache__/
+
+# Cloudflare (OpenNext)
+.open-next
+.wrangler
+.dev.vars*
