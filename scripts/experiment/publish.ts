@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 /** Publish a completed signal-engine pass. No market fetch, only snapshots.
  * The workflow serializes producer passes through the end of this step.
  *
@@ -14,7 +15,7 @@ import type { SignalRow } from "@/lib/neon/client";
 import { readSourceActivity } from "@/lib/engine/activity";
 import { publicationWatermarks } from "@/lib/experiment/publication";
 
-async function main() {
+export async function publishMarketBatch() {
   const pool = experimentPool();
   const c = await pool.connect();
   try {
@@ -47,6 +48,6 @@ async function main() {
     await c.query("COMMIT");
     console.log(JSON.stringify({ batch: id, newIdeas: ideas, watermarks, duplicate: !inserted.rowCount }));
   } catch (err) { await c.query("ROLLBACK"); throw err; }
-  finally { c.release(); await pool.end(); }
+  finally { c.release(); }
 }
-main().catch((err) => { console.error(err instanceof Error ? err.message : "Publication failed"); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) publishMarketBatch().catch((err) => { console.error(err instanceof Error ? err.message : "Publication failed"); process.exitCode = 1; }).finally(() => experimentPool().end());

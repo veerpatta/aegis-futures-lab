@@ -42,7 +42,7 @@ jobs:
           cache: npm
       - run: npm ci
       # Inputs go through env, never pasted into the shell line.
-      - run: npx tsx scripts/experiment/control.ts "$ACTION" "$REASON"
+      - run: npx tsx scripts/resilience/primary.ts control "$ACTION" "$REASON"
         env:
           ACTION: ${{ inputs.action }}
           REASON: ${{ inputs.reason }}
