@@ -53,6 +53,6 @@ jobs:
           else
             echo "job=tick" >> "$GITHUB_OUTPUT"; echo "flag=--if-stale" >> "$GITHUB_OUTPUT"
           fi
-      - run: npx tsx scripts/experiment/run.ts ${{ steps.pick.outputs.job }} ${{ steps.pick.outputs.flag }}
+      - run: npx tsx scripts/resilience/primary.ts experiment ${{ steps.pick.outputs.job }} ${{ steps.pick.outputs.flag }}
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

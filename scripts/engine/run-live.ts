@@ -46,7 +46,7 @@ import { captureAiShadowBars } from "./ai-shadow-bars";
 
 const LOOKBACK_DAYS = 7; // how far back simulated trades are mirrored as signal rows
 
-const supabase = createClient();
+let supabase: ReturnType<typeof createClient>;
 
 interface SignalRow {
   dedupe_key: string;
@@ -268,7 +268,8 @@ function rowFromOpen(tier: "A" | "B", label: string, p: OpenPosition): SignalRow
   };
 }
 
-async function main() {
+export async function runEngine() {
+  supabase = createClient();
   const started = Date.now();
   const nowSec = Math.floor(started / 1000);
 
@@ -286,7 +287,7 @@ async function main() {
       status: "ok",
       symbols: ["MES", "MNQ"],
       duration_ms: Date.now() - started,
-      source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
+      source: process.env.GITHUB_ACTIONS ? "github-actions" : process.env.AEGIS_RUNNER_SOURCE ?? "local",
       message,
     });
     if (error) throw new Error(`engine_runs insert: ${error.message}`);
@@ -604,7 +605,7 @@ async function main() {
           study: registered, signals,
           marketAsOf: { MES: shadowMarketAsOf(lastBars.MES, mesLoad.fromArchive),
             MNQ: shadowMarketAsOf(lastBars.MNQ, mnqLoad.fromArchive) },
-          sourceCodeSha: process.env.GITHUB_SHA ?? null,
+          sourceCodeSha: process.env.GITHUB_SHA ?? process.env.AEGIS_CODE_SHA ?? null,
         });
         if (!capture.ok) throw new Error("capture failed");
         console.log(`AI shadow capture: ${capture.inserted} observations (${capture.rejected} rejected)`);
@@ -911,7 +912,7 @@ async function main() {
   const stale = inEntryWindow(nowSec) && staleness.stale;
   const sessionSignals = signals.filter(row => tradingDayKey(Date.parse(row.signal_ts) / 1000) === todayKey);
   const activity = sourceActivity({
-    codeSha: process.env.GITHUB_SHA ?? null, observedAt: new Date().toISOString(), tradingDay: todayKey,
+    codeSha: process.env.GITHUB_SHA ?? process.env.AEGIS_CODE_SHA ?? null, observedAt: new Date().toISOString(), tradingDay: todayKey,
     marketAsOf: Object.fromEntries(["MES", "MNQ"].map(symbol => [symbol, lastBars[symbol] == null ? null : iso(lastBars[symbol]! + 300)])),
     scheduled: engineScheduled(nowSec), entryWindow: inEntryWindow(nowSec), stale,
     pausedStreams: streamStatus.filter(s => s.breaker?.paused || s.status === "benched").map(s => s.key),
@@ -927,7 +928,7 @@ async function main() {
     tier_a_signals: tierA,
     tier_b_signals: tierB,
     duration_ms: Date.now() - started,
-    source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
+    source: process.env.GITHUB_ACTIONS ? "github-actions" : process.env.AEGIS_RUNNER_SOURCE ?? "local",
     message: [
       /* Guarded. Both arrays are non-empty on every path that reaches here,
          so this is not reachable today — but an unguarded read turns whatever
@@ -950,14 +951,14 @@ async function main() {
   );
 }
 
-main().catch(async (err) => {
+if ((process.argv[1] ?? "").replaceAll("\\", "/").endsWith("/scripts/engine/run-live.ts")) runEngine().catch(async (err) => {
   console.error(err);
   const message = String(err instanceof Error ? err.message : err);
   try {
     await supabase.from("engine_runs").insert({
       status: "error",
       symbols: ["MES", "MNQ"],
-      source: process.env.GITHUB_ACTIONS ? "github-actions" : "local",
+      source: process.env.GITHUB_ACTIONS ? "github-actions" : process.env.AEGIS_RUNNER_SOURCE ?? "local",
       message: message.slice(0, 500),
     });
   } catch {

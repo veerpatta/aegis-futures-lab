@@ -23,12 +23,12 @@ import { dueForwardLook, type TmRow } from "@/lib/tm-study/score";
 const DAY = 86_400;
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
 
-async function main() {
+export async function forwardTimeMachineStudy() {
   const pool = experimentPool();
   const nowSec = Math.floor(Date.now() / 1000);
   await pool.query(
     `INSERT INTO public.tm_filter_studies(id, version, kind, rules, rules_hash, code_sha) VALUES ($1,$2,'forward',$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
-    [TM_FWD_STUDY, TM_FILTER_VERSION, JSON.stringify(TM_FILTER_RULES), tmFilterRulesHash(), process.env.GITHUB_SHA ?? null],
+    [TM_FWD_STUDY, TM_FILTER_VERSION, JSON.stringify(TM_FILTER_RULES), tmFilterRulesHash(), process.env.GITHUB_SHA ?? process.env.AEGIS_CODE_SHA ?? null],
   );
   const st = (await pool.query(`SELECT rules_hash, extract(epoch FROM registered_at)::float8 AS reg FROM public.tm_filter_studies WHERE id=$1`, [TM_FWD_STUDY])).rows[0];
   if (st.rules_hash !== tmFilterRulesHash()) throw new Error("registered rules hash differs from the frozen rules");
@@ -108,6 +108,6 @@ async function main() {
   console.log(`Time machine filter (forward): ${decisions.length} decisions since registration, ${made} new call(s); ${look}`);
 }
 
-main()
+if ((process.argv[1] ?? "").replaceAll("\\", "/").endsWith("/scripts/tm-study/forward.ts")) forwardTimeMachineStudy()
   .catch((e) => console.log(`Time machine filter (forward): skipped this pass: ${e instanceof Error ? e.message.slice(0, 300) : String(e)}`))
   .finally(() => experimentPool().end().catch(() => {}));
