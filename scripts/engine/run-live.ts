@@ -1,4 +1,3 @@
-import { pathToFileURL } from "node:url";
 /* Scheduled paper-signal engine (GitHub Actions, every 15 min in market
    hours). Each run is a full deterministic recompute over the trailing 60
    days of delayed Yahoo 5m data:
@@ -952,7 +951,7 @@ export async function runEngine() {
   );
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) runEngine().catch(async (err) => {
+if ((process.argv[1] ?? "").replaceAll("\\", "/").endsWith("/scripts/engine/run-live.ts")) runEngine().catch(async (err) => {
   console.error(err);
   const message = String(err instanceof Error ? err.message : err);
   try {

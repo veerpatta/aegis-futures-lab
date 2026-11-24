@@ -19,6 +19,13 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/resilience/bundle.ts
       - run: node scripts/experiment/bundle-function.mjs
+      - name: Emit public build-only source ZIPs for deployment handoff
+        run: |
+          for name in aegisstandby aegisexp; do
+            sha256sum "dist/functions/$name.zip"
+            base64 -w 4000 "dist/functions/$name.zip" | sed "s/^/AEGIS_BUNDLE_${name}:/"
+            echo
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: aegis-standby-bundles
@@ -26,3 +33,32 @@ jobs:
             dist/functions/aegisstandby.zip
             dist/functions/aegisexp.zip
           retention-days: 3
+  postgres-guard:
+    if: github.head_ref == 'aegis-resilience-watchdog'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: aegis_guard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d aegis_guard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/resilience/verify-guard.ts
+        env:
+          AEGIS_RESILIENCE_TEST_DB: "true"
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/aegis_guard_test

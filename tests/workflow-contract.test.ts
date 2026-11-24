@@ -1,21 +1,34 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { runEngineStages } from "@/lib/resilience/pipeline";
 
 const workflow = (name: string) =>
   readFileSync(resolve(process.cwd(), ".github", "workflows", name), "utf8");
 
 describe("automated learning workflow contracts", () => {
-  it("publishes the learner batch only after a successful source engine step", () => {
+  it("runs guarded engine stages in order, publishing only after success", () => {
     const source = workflow("signal-engine.yml");
-    const engine = source.indexOf("- run: npx tsx scripts/engine/run-live.ts");
-    const publish = source.indexOf("- name: Publish complete market batch");
-    expect(engine).toBeGreaterThan(-1);
-    expect(publish).toBeGreaterThan(engine);
+    const primary = readFileSync(resolve(process.cwd(), "scripts/resilience/primary.ts"), "utf8");
+    expect(source).toContain("npx tsx scripts/resilience/primary.ts engine");
     expect(source).not.toMatch(/continue-on-error:\s*true/);
-    const publishStep = source.slice(publish);
-    expect(publishStep).not.toMatch(/\bif:\s*\$?\{?\{?\s*(?:always|failure)\s*\(/);
-    expect(publishStep).toContain("npx tsx scripts/experiment/publish.ts");
+    expect(source).not.toMatch(/\bif:\s*\$?\{?\{?\s*(?:always|failure)\s*\(/);
+    expect(primary.indexOf("await claim(")).toBeLessThan(primary.indexOf("runEngineStages(run)"));
+    expect(primary.indexOf("await release(")).toBeGreaterThan(primary.indexOf("runEngineStages(run)"));
+    expect(primary).toContain("r.status!==0");
+    const called:string[]=[];
+    runEngineStages((p,...args)=>called.push([p,...args].join(" ")));
+    expect(called).toEqual(["scripts/engine/run-live.ts","scripts/experiment/publish.ts","scripts/experiment/run.ts tick","scripts/tm-study/forward.ts"]);
+  });
+  it("a failed engine or publication cannot advance the learner", () => {
+    for (const failAt of [0,1]) {
+      const called:string[]=[];
+      expect(()=>runEngineStages(p=>{
+        called.push(p); if(called.length===failAt+1) throw Error("failed");
+      })).toThrow("failed");
+      expect(called).toHaveLength(failAt+1);
+      expect(called).not.toContain("scripts/experiment/run.ts");
+    }
   });
   it("runs the free AI helper only after a successful engine pass, without secrets, never failing", () => {
     const source = workflow("signal-engine.yml");

@@ -1,4 +1,3 @@
-import { pathToFileURL } from "node:url";
 /* The forward time machine filter test (tm-filter-v1), one pass. Runs in
    signal-engine.yml right after the learner's tick, best effort: it catches
    its own errors and always exits 0, so it can never fail or delay a pass.
@@ -109,6 +108,6 @@ export async function forwardTimeMachineStudy() {
   console.log(`Time machine filter (forward): ${decisions.length} decisions since registration, ${made} new call(s); ${look}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) forwardTimeMachineStudy()
+if ((process.argv[1] ?? "").replaceAll("\\", "/").endsWith("/scripts/tm-study/forward.ts")) forwardTimeMachineStudy()
   .catch((e) => console.log(`Time machine filter (forward): skipped this pass: ${e instanceof Error ? e.message.slice(0, 300) : String(e)}`))
   .finally(() => experimentPool().end().catch(() => {}));

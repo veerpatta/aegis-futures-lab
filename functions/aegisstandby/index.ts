@@ -34,7 +34,7 @@ export default {async fetch(req:Request){
   const e=path==="/engine"?await db.query("SELECT max(ran_at) AS latest FROM public.engine_runs WHERE status='ok'"):null;
   const engineLatest=Date.parse(String(e?.rows[0]?.latest??""))||0;
   const due=path==="/engine"?twoMissedSlots(now,Math.min(latest,engineLatest)):now-latest>(job==="learn"?26:8*24)*3600000;
-  if(!due){await release(gate,c.token);return json({status:"healthy"});}
+  if(!due){await release(gate,c.token,false);return json({status:"healthy"});}
   if(path==="/engine"){
    const {runEngine}=await import("../../scripts/engine/run-live");
    const {publishMarketBatch}=await import("../../scripts/experiment/publish");

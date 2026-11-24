@@ -3,6 +3,7 @@
 import { Pool } from "pg";
 import { spawnSync } from "node:child_process";
 import { claim, release } from "@/lib/resilience/guard";
+import { runEngineStages } from "@/lib/resilience/pipeline";
 const mode=process.argv[2], args=process.argv.slice(3);
 if(!process.env.GITHUB_ACTIONS||!process.env.DATABASE_URL)throw Error("Primary runner requires the approved Actions environment");
 const pool=new Pool({connectionString:process.env.DATABASE_URL,max:1,allowExitOnIdle:true});
@@ -13,12 +14,7 @@ function run(path:string,...args:string[]){
 async function main(){
  const owned=await claim(pool,"primary",process.env.GITHUB_SHA??"");
  if(owned.kind!=="owned"&&owned.kind!=="disabled")throw Error("Execution guard "+owned.kind);
- if(mode==="engine"){
-  run("scripts/engine/run-live.ts");
-  run("scripts/experiment/publish.ts");
-  run("scripts/experiment/run.ts","tick");
-  run("scripts/tm-study/forward.ts");
- }else if(mode==="experiment"&&["tick","learn","review"].includes(args[0]))run("scripts/experiment/run.ts",...args);
+ if(mode==="engine"){runEngineStages(run);}else if(mode==="experiment"&&["tick","learn","review"].includes(args[0]))run("scripts/experiment/run.ts",...args);
  else if(mode==="control"&&["pause","resume","stop","start"].includes(args[0]))run("scripts/experiment/control.ts",...args);
  else throw Error("Unknown primary route");
  if(owned.kind==="owned")await release(pool,owned.token);

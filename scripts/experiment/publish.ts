@@ -1,4 +1,3 @@
-import { pathToFileURL } from "node:url";
 /** Publish a completed signal-engine pass. No market fetch, only snapshots.
  * The workflow serializes producer passes through the end of this step.
  *
@@ -50,4 +49,4 @@ export async function publishMarketBatch() {
   } catch (err) { await c.query("ROLLBACK"); throw err; }
   finally { c.release(); }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) publishMarketBatch().catch((err) => { console.error(err instanceof Error ? err.message : "Publication failed"); process.exitCode = 1; }).finally(() => experimentPool().end());
+if ((process.argv[1] ?? "").replaceAll("\\", "/").endsWith("/scripts/experiment/publish.ts")) publishMarketBatch().catch((err) => { console.error(err instanceof Error ? err.message : "Publication failed"); process.exitCode = 1; }).finally(() => experimentPool().end());
