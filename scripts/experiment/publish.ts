@@ -11,7 +11,7 @@
 import { experimentPool } from "@/lib/experiment/store-pg";
 import { FILLED, publishableSignals } from "@/lib/experiment/opportunities";
 import type { SignalRow } from "@/lib/neon/client";
-import { readSourceActivity } from "@/lib/engine/activity";
+import { isHolidaySkip, readSourceActivity } from "@/lib/engine/activity";
 import { publicationWatermarks } from "@/lib/experiment/publication";
 
 async function main() {
@@ -23,6 +23,13 @@ async function main() {
     const run = (await c.query("SELECT id,status,message FROM engine_runs ORDER BY ran_at DESC,id DESC LIMIT 1")).rows[0];
     if (!run || run.status !== "ok") throw new Error("The latest signal-engine pass has not completed successfully.");
     if (/\b(MES|MNQ) archive write failed/.test(run.message ?? "")) throw new Error("Required market bars were not archived.");
+    // A market-holiday pass looked at no market, so there is no batch to publish.
+    // Rest like the engine did (green), so the learner's tick still runs after us.
+    if (isHolidaySkip(run.message)) {
+      await c.query("COMMIT");
+      console.log(JSON.stringify({ batch: null, skipped: "market holiday", run: run.id }));
+      return;
+    }
     const source = readSourceActivity(run.message);
     if (!source) throw new Error("The source pass has no completed market boundaries; publication must wait.");
     const id = `engine:${run.id}`;

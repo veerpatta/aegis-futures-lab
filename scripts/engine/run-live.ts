@@ -22,7 +22,7 @@ import { excursionRow, hasExcursion } from "@/lib/signals/excursion";
 import { streamKeyFor } from "@/lib/engine/streams";
 import { planStaleOpen, type ComputedOutcome } from "@/lib/engine/stale-open";
 import { componentWarning } from "@/lib/engine/markers";
-import { sourceActivity, activityMarker } from "@/lib/engine/activity";
+import { sourceActivity, activityMarker, holidaySkipMessage } from "@/lib/engine/activity";
 import { POINT_VALUES, type FeedSymbol } from "@/lib/market/contracts";
 import { MARKET_HOLIDAYS, flattenMinuteNy, holidayFor } from "@/lib/market/holidays";
 import { nyMeta, tradingDayKey } from "@/lib/time/ny";
@@ -281,7 +281,7 @@ async function main() {
   // the day after and the engine correctly runs.
   const todayHoliday = holidayFor(tradingDayKey(nowSec));
   if (todayHoliday?.kind === "closed") {
-    const message = `holiday: ${todayHoliday.name} — market closed, run skipped`;
+    const message = holidaySkipMessage(todayHoliday.name);
     const { error } = await supabase.from("engine_runs").insert({
       status: "ok",
       symbols: ["MES", "MNQ"],
