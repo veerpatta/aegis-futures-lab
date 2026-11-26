@@ -4,8 +4,16 @@ import { test, expect, type Page } from "@playwright/test";
    idea card carries its method's honest standing, sheets open and close, a
    tapped word explains itself, and nothing is wider than the screen. */
 
+/* A fixed mid-session moment (Thursday 11:00 ET). With the real clock the
+   stubbed "triggered" idea below was created at run time, and any run after
+   16:55 ET (15:25 flatten + 90 min grace, lib/signals/open-state.ts) correctly
+   treated it as stale, so "Open · 1" vanished and the test failed every late
+   afternoon in New York. */
+const NOW = "2026-10-08T15:00:00Z";
+
 async function stub(page: Page, historyRequests: string[] = []) {
-  const now = new Date().toISOString();
+  const now = NOW;
+  await page.clock.install({ time: new Date(NOW) });
   const signal = {
     id: 1,
     tier: "A",
