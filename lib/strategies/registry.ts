@@ -9,6 +9,7 @@ import { orb } from "./orb";
 import { vwapReversion } from "./vwap-reversion";
 import { bollingerBreakout } from "./bollinger-breakout";
 import { orbRelVol } from "./orb-relvol";
+import { dayTraderOrb } from "./day-trader-orb";
 import { turnOfMonth } from "./turn-of-month";
 import { goldSilverZone } from "./gold-silver-zone";
 import {openingContinuation,overnightRejection,ROUND3_IDS} from "./research-round3";
@@ -32,6 +33,9 @@ export const STRATEGIES: Strategy<unknown>[] = [
      rather than leaving a reader to assume. */
   goldSilverZone,
   zoneRejection, rsiContext, vwapPullback, openingContinuation,overnightRejection,
+  /* The Day Trader skill pack's opening-range rule (2026-11-26), unmeasured
+     until the weekly benchmark runs it. See day-trader-orb.ts. */
+  dayTraderOrb,
 ] as Strategy<unknown>[];
 
 /* Strategies that exist to be TESTED rather than traded. The distinction is
