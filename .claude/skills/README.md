@@ -22,6 +22,9 @@ touches real money. Add it only on purpose.
 - The time machine's method is also built into the app for MES/MNQ: open any bot
   trade and tap Time machine (`lib/timemachine/`, see CLAUDE.md). The app version
   uses the bot's own bars, its 02:00 to 15:25 ET window and its fill rules.
+- The entry and exit skills' opening-range rule is also a Lab method for MES/MNQ:
+  "Day Trader opening range (skill pack)" (`lib/strategies/day-trader-orb.ts`,
+  see CLAUDE.md). The weekly beat-random test measures it; it is not traded.
 - The pack is built for US stocks (Yahoo Finance, Nasdaq symbol lists, SEC,
   House Clerk). The scanner, news, analyst and Pelosi skills are stock-only.
   The time machine, entry, exit, budget, risk and alerts skills take any Yahoo

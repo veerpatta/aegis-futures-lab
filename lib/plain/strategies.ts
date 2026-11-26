@@ -21,6 +21,7 @@ export const PLAIN_SUMMARY: Record<string, string> = {
   "vwap-pullback-v1": "Joins a trend when price dips back to the day's average price.",
   "opening-continuation-v1": "Follows the first half hour when it agrees with the recent trend.",
   "overnight-rejection-v1": "Fades a failed break of the overnight range before 11:00 New York time.",
+  "day-trader-orb": "The Day Trader skill pack's rule: buys the first close above the first 15 minutes' range, stop at its middle.",
 };
 
 export const plainSummary = (id: string, fallback: string): string => PLAIN_SUMMARY[id] ?? fallback;
@@ -33,6 +34,7 @@ const METHOD_NAMES: Record<string, string> = {
   orb: "Opening range break",
   "vwap-reversion": "Back to the average",
   "bollinger-breakout": "Quiet-market breakout",
+  "day-trader-orb": "Day Trader opening range",
 };
 
 /** "rsi-reversion" → "RSI reversion"; an unknown id is shown as it is. */

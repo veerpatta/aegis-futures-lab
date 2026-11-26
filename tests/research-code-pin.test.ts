@@ -14,7 +14,9 @@ import { researchCodeHash } from "@/scripts/engine/research-code";
 // 2026-10-03: research-code revision, risk-cap change, then the cross-platform hash fix
 // (docs/research/2026-10-03-risk-cap.md). The same value on Windows and Linux — if this
 // passes on one and fails on the other, the hash has become platform-dependent again.
-const PINNED = "c933481bea2ceb4856d136be58e88bfffe50a5bd30ee88bbe740ba54f947a9ab";
+// 2026-11-26: research-code revision, adds the Day Trader skill's opening-range rule
+// (lib/strategies/day-trader-orb.ts, docs/research/2026-11-26-day-trader-orb.md).
+const PINNED = "b2ae554df8032843dc8b90c5e1aa1e8cb1f99e43a7a696842a4ece362af7f508";
 
 describe("research code hash", () => {
   it("only changes in a deliberate research-code revision", () => {

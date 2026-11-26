@@ -150,6 +150,14 @@ short sentences. The reader knows trading but not software. Always keep the
   is deliberately NOT installed. They are built for US stocks; an idea they surface is unmeasured and
   goes through `/diagnostics` and the promotion gate, never straight to a tier. The time machine skill's
   method is ported into the app (TIME MACHINE below).
+- DAY TRADER ORB (2026-11-26, `docs/research/2026-11-26-day-trader-orb.md`): the pack's opening-range rule
+  (`trader-entry` + `trader-exit`) is a Lab method, `lib/strategies/day-trader-orb.ts` (`day-trader-orb`):
+  15-minute range, first 5-minute close strictly above the high, long only, stop at the range midpoint, 2R,
+  last trigger the 15:15 bar (Aegis flattens 15:25), incomplete ranges skipped. Not the refuted `orb`
+  (different rule, own id). Listed unmeasured in `research-standing.json`, so the weekly auto-benchmark
+  measures it; not in tiers or the shadow lab. Adding it moved the research code hash (pinned). An
+  unregistered SQL preview put it at the 97.5th (MES) and 91st (MNQ) percentile vs random, still slightly
+  negative avg net R on MES. Tests `tests/day-trader-orb.test.ts`.
 - TIME MACHINE (2026-11-12, the app's first use of the day-trader skill pack): every bot trade page
   (`components/trades/TradeDetail.tsx`) has a `#time-machine` Fold (`components/trades/TimeMachine.tsx`) that
   replays the rest of that trade's day 10,000 times (seed 19, mulberry32) from the bot's own delayed `bars_5m`
@@ -241,7 +249,7 @@ short sentences. The reader knows trading but not software. Always keep the
   not restart forward evidence). Each method is measured once per research-code hash.
   2026-11-12: all four classics were measured (ema-cross 10-11, orb 10-18, vwap-reversion 10-25,
   bollinger-breakout 11-01, all `no-edge`) and the owner moved them to `refuted`; nothing is
-  `unmeasured` now, so weekly runs are quiet until a new method or research-code revision arrives.
+  `unmeasured` now, so weekly runs are quiet until a new method or research-code revision arrives. 2026-11-26: `day-trader-orb` added as unmeasured.
 - Never run `scripts/engine/run-live.ts` locally: `.env.local` points at production Neon and
   there is no dry-run mode.
 - Times on screen follow a global ET/IST switch (`components/providers/ZoneProvider.tsx`,
