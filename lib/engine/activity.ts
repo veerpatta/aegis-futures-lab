@@ -13,6 +13,12 @@ export interface SourceActivity {
   eligibleIdeas: number;
 }
 const MARKER = "activity_v1=";
+/** Heartbeat run-live.ts writes on a CME full holiday. Such a pass fetches no
+ * market and records no source activity, so publish.ts has nothing to publish
+ * and must rest quietly instead of failing the workflow every 15 minutes. */
+const HOLIDAY_SKIP_PREFIX = "holiday: ";
+export const holidaySkipMessage = (name: string) => `${HOLIDAY_SKIP_PREFIX}${name} — market closed, run skipped`;
+export const isHolidaySkip = (message: string | null | undefined) => typeof message === "string" && message.startsWith(HOLIDAY_SKIP_PREFIX);
 export function sourceActivity(input: Omit<SourceActivity, "version" | "state" | "reasonCodes"> & { scheduled: boolean; entryWindow: boolean; stale: boolean; errors: string[] }): SourceActivity {
   const { scheduled, entryWindow, stale, errors, ...record } = input;
   const missing = Object.values(record.marketAsOf).some(t => t === null);
